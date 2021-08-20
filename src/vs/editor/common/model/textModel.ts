@@ -40,6 +40,8 @@ import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
 import { ArrayQueue } from 'vs/base/common/arrays';
+import { BracketPairColorizer } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
+import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -162,6 +164,12 @@ const enum StringOffsetValidationType {
 	SurrogatePairs = 1,
 }
 
+export const enum BackgroundTokenizationState {
+	Uninitialized = 0,
+	InProgress = 1,
+	Completed = 2,
+}
+
 type ContinueBracketSearchPredicate = null | (() => boolean);
 
 class BracketSearchCanceled {
@@ -192,6 +200,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
+		bracketPairColorizationOptions: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions,
 	};
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
@@ -202,7 +211,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
-				defaultEOL: options.defaultEOL
+				defaultEOL: options.defaultEOL,
+				bracketPairColorizationOptions: options.bracketPairColorizationOptions,
 			});
 		}
 
@@ -211,7 +221,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			indentSize: options.indentSize,
 			insertSpaces: options.insertSpaces,
 			trimAutoWhitespace: options.trimAutoWhitespace,
-			defaultEOL: options.defaultEOL
+			defaultEOL: options.defaultEOL,
+			bracketPairColorizationOptions: options.bracketPairColorizationOptions,
 		});
 
 	}
@@ -289,6 +300,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _lastDecorationId: number;
 	private _decorations: { [decorationId: string]: IntervalNode; };
 	private _decorationsTree: DecorationsTrees;
+	private readonly _decorationProvider: DecorationProvider;
 	//#endregion
 
 	//#region Tokenization
@@ -298,6 +310,22 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _tokens2: TokensStore2;
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
+
+	private readonly _bracketPairColorizer;
+
+	private _backgroundTokenizationState = BackgroundTokenizationState.Uninitialized;
+	public get backgroundTokenizationState(): BackgroundTokenizationState {
+		return this._backgroundTokenizationState;
+	}
+	private setBackgroundTokenizationState(newState: BackgroundTokenizationState) {
+		if (this._backgroundTokenizationState !== newState) {
+			this._backgroundTokenizationState = newState;
+			this._onBackgroundTokenizationStateChanged.fire();
+		}
+	}
+
+	private readonly _onBackgroundTokenizationStateChanged = this._register(new Emitter<void>());
+	public readonly onBackgroundTokenizationStateChanged: Event<void> = this._onBackgroundTokenizationStateChanged.event;
 
 	constructor(
 		source: string | model.ITextBufferFactory,
@@ -375,6 +403,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokens = new TokensStore();
 		this._tokens2 = new TokensStore2();
 		this._tokenization = new TextModelTokenization(this);
+
+		this._bracketPairColorizer = this._register(new BracketPairColorizer(this));
+		this._decorationProvider = this._bracketPairColorizer;
+
+		this._register(this._decorationProvider.onDidChangeDecorations(() => {
+			this._onDidChangeDecorations.beginDeferredEmit();
+			this._onDidChangeDecorations.fire();
+			this._onDidChangeDecorations.endDeferredEmit();
+		}));
 	}
 
 	public override dispose(): void {
@@ -410,6 +447,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
+		this._bracketPairColorizer.handleContentChanged(change);
 		if (this._isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
@@ -621,13 +659,15 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		let indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
+		let bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;
 
 		let newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
 			indentSize: indentSize,
 			insertSpaces: insertSpaces,
 			defaultEOL: this._options.defaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace
+			trimAutoWhitespace: trimAutoWhitespace,
+			bracketPairColorizationOptions,
 		});
 
 		if (this._options.equals(newOpts)) {
@@ -1713,7 +1753,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			return [];
 		}
-
 		return this.getLinesDecorations(lineNumber, lineNumber, ownerId, filterOutValidation);
 	}
 
@@ -1722,12 +1761,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		let startLineNumber = Math.min(lineCount, Math.max(1, _startLineNumber));
 		let endLineNumber = Math.min(lineCount, Math.max(1, _endLineNumber));
 		let endColumn = this.getLineMaxColumn(endLineNumber);
-		return this._getDecorationsInRange(new Range(startLineNumber, 1, endLineNumber, endColumn), ownerId, filterOutValidation);
+		const range = new Range(startLineNumber, 1, endLineNumber, endColumn);
+
+		const decorations = this._getDecorationsInRange(range, ownerId, filterOutValidation);
+		decorations.push(...this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
+		return decorations;
 	}
 
 	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		let validatedRange = this.validateRange(range);
-		return this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
+
+		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
+		decorations.push(...this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation));
+		return decorations;
 	}
 
 	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
@@ -1747,7 +1793,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		return this._decorationsTree.getAll(this, ownerId, filterOutValidation, false);
+		const result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, false);
+		result.push(...this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
+		return result;
 	}
 
 	private _getDecorationsInRange(filterRange: Range, filterOwnerId: number, filterOutValidation: boolean): model.IModelDecoration[] {
@@ -1916,44 +1964,43 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), tokens, false);
 	}
 
-	public setTokens(tokens: MultilineTokens[]): void {
-		if (tokens.length === 0) {
-			return;
-		}
+	public setTokens(tokens: MultilineTokens[], backgroundTokenizationCompleted: boolean = false): void {
+		if (tokens.length !== 0) {
+			let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
 
-		let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
-
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			const element = tokens[i];
-			let minChangedLineNumber = 0;
-			let maxChangedLineNumber = 0;
-			let hasChange = false;
-			for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
-				const lineNumber = element.startLineNumber + j;
-				if (hasChange) {
-					this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], false);
-					maxChangedLineNumber = lineNumber;
-				} else {
-					const lineHasChange = this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], true);
-					if (lineHasChange) {
-						hasChange = true;
-						minChangedLineNumber = lineNumber;
+			for (let i = 0, len = tokens.length; i < len; i++) {
+				const element = tokens[i];
+				let minChangedLineNumber = 0;
+				let maxChangedLineNumber = 0;
+				let hasChange = false;
+				for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
+					const lineNumber = element.startLineNumber + j;
+					if (hasChange) {
+						this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], false);
 						maxChangedLineNumber = lineNumber;
+					} else {
+						const lineHasChange = this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], true);
+						if (lineHasChange) {
+							hasChange = true;
+							minChangedLineNumber = lineNumber;
+							maxChangedLineNumber = lineNumber;
+						}
 					}
 				}
+				if (hasChange) {
+					ranges.push({ fromLineNumber: minChangedLineNumber, toLineNumber: maxChangedLineNumber });
+				}
 			}
-			if (hasChange) {
-				ranges.push({ fromLineNumber: minChangedLineNumber, toLineNumber: maxChangedLineNumber });
-			}
-		}
 
-		if (ranges.length > 0) {
-			this._emitModelTokensChangedEvent({
-				tokenizationSupportChanged: false,
-				semanticTokensApplied: false,
-				ranges: ranges
-			});
+			if (ranges.length > 0) {
+				this._emitModelTokensChangedEvent({
+					tokenizationSupportChanged: false,
+					semanticTokensApplied: false,
+					ranges: ranges
+				});
+			}
 		}
+		this.setBackgroundTokenizationState(backgroundTokenizationCompleted ? BackgroundTokenizationState.Completed : BackgroundTokenizationState.InProgress);
 	}
 
 	public setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void {

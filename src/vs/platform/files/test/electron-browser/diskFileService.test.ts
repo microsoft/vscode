@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { flakySuite, getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { join, basename, dirname, posix } from 'vs/base/common/path';
-import { Promises, rimrafSync } from 'vs/base/node/pfs';
-import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions, FilePermission, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { basename, dirname, join, posix } from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual, joinPath } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable, streamToBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
+import { URI } from 'vs/base/common/uri';
+import { Promises, rimrafSync } from 'vs/base/node/pfs';
+import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { etag, FileChangeType, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, IFileChange, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
@@ -348,12 +348,20 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(deep!.children!.length, 4);
 	});
 
-	test('resolve directory - resolveTo multiple directories', async () => {
+	test('resolve directory - resolveTo multiple directories', () => {
+		return testResolveDirectoryWithTarget(false);
+	});
+
+	test('resolve directory - resolveTo with a URI that has query parameter (https://github.com/microsoft/vscode/issues/128151)', () => {
+		return testResolveDirectoryWithTarget(true);
+	});
+
+	async function testResolveDirectoryWithTarget(withQueryParam: boolean): Promise<void> {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
-		const result = await service.resolve(URI.file(resolverFixturesPath), {
+		const result = await service.resolve(URI.file(resolverFixturesPath).with({ query: withQueryParam ? 'test' : undefined }), {
 			resolveTo: [
-				URI.file(join(resolverFixturesPath, 'other/deep')),
-				URI.file(join(resolverFixturesPath, 'examples'))
+				URI.file(join(resolverFixturesPath, 'other/deep')).with({ query: withQueryParam ? 'test' : undefined }),
+				URI.file(join(resolverFixturesPath, 'examples')).with({ query: withQueryParam ? 'test' : undefined })
 			]
 		});
 
@@ -378,7 +386,7 @@ flakySuite('Disk File Service', function () {
 		assert.ok(examples);
 		assert.ok(examples!.children!.length > 0);
 		assert.strictEqual(examples!.children!.length, 4);
-	});
+	}
 
 	test('resolve directory - resolveSingleChildFolders', async () => {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver/other');

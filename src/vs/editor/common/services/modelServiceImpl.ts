@@ -30,6 +30,7 @@ import { EditStackElement, isEditStackElement } from 'vs/editor/common/model/edi
 import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { getDocumentSemanticTokens, isSemanticTokens, isSemanticTokensEdits } from 'vs/editor/common/services/getSemanticTokens';
+import { equals } from 'vs/base/common/objects';
 
 export interface IEditorSemanticHighlightingOptions {
 	enabled: true | false | 'configuredByTheme';
@@ -101,6 +102,7 @@ interface IRawEditorConfig {
 	trimAutoWhitespace?: any;
 	creationOptions?: any;
 	largeFileOptimizations?: any;
+	bracketPairColorization?: any;
 }
 
 interface IRawConfig {
@@ -133,6 +135,7 @@ function schemaShouldMaintainUndoRedoElements(resource: URI) {
 		resource.scheme === Schemas.file
 		|| resource.scheme === Schemas.vscodeRemote
 		|| resource.scheme === Schemas.userData
+		|| resource.scheme === Schemas.vscodeNotebookCell
 		|| resource.scheme === 'fake-fs' // for tests
 	);
 }
@@ -232,6 +235,12 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (config.editor && typeof config.editor.largeFileOptimizations !== 'undefined') {
 			largeFileOptimizations = (config.editor.largeFileOptimizations === 'false' ? false : Boolean(config.editor.largeFileOptimizations));
 		}
+		let bracketPairColorizationOptions = EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions;
+		if (config.editor?.bracketPairColorization && typeof config.editor.bracketPairColorization === 'object') {
+			bracketPairColorizationOptions = {
+				enabled: !!config.editor.bracketPairColorization.enabled
+			};
+		}
 
 		return {
 			isForSimpleWidget: isForSimpleWidget,
@@ -241,7 +250,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
-			largeFileOptimizations: largeFileOptimizations
+			largeFileOptimizations: largeFileOptimizations,
+			bracketPairColorizationOptions
 		};
 	}
 
@@ -303,6 +313,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			&& (currentOptions.tabSize === newOptions.tabSize)
 			&& (currentOptions.indentSize === newOptions.indentSize)
 			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
+			&& equals(currentOptions.bracketPairColorizationOptions, newOptions.bracketPairColorizationOptions)
 		) {
 			// Same indent opts, no need to touch the model
 			return;
@@ -311,14 +322,16 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (newOptions.detectIndentation) {
 			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
 			model.updateOptions({
-				trimAutoWhitespace: newOptions.trimAutoWhitespace
+				trimAutoWhitespace: newOptions.trimAutoWhitespace,
+				bracketColorizationOptions: newOptions.bracketPairColorizationOptions
 			});
 		} else {
 			model.updateOptions({
 				insertSpaces: newOptions.insertSpaces,
 				tabSize: newOptions.tabSize,
 				indentSize: newOptions.indentSize,
-				trimAutoWhitespace: newOptions.trimAutoWhitespace
+				trimAutoWhitespace: newOptions.trimAutoWhitespace,
+				bracketColorizationOptions: newOptions.bracketPairColorizationOptions
 			});
 		}
 	}

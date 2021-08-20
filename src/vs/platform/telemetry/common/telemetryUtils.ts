@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Promises } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService, ITelemetryInfo, ITelemetryData, ICustomEndpointTelemetryService, ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
-import { Promises } from 'vs/base/common/async';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -56,15 +56,12 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
 	flush(): Promise<any>;
-	// If specified replaces common.product in the telemetry data
-	productIdentifier?: string;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
 	return {
 		log: (e, d) => appenders.forEach(a => a.log(e, d)),
 		flush: () => Promises.settled(appenders.map(a => a.flush())),
-		productIdentifier: appenders.find(a => a.productIdentifier !== undefined)?.productIdentifier
 	};
 }
 

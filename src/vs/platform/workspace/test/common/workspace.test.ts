@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 import { join } from 'vs/base/common/path';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { URI } from 'vs/base/common/uri';
-import { IRawFileWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IRawFileWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Workspace', () => {
 

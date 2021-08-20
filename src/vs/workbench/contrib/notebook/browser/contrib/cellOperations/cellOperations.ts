@@ -11,7 +11,7 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Range } from 'vs/editor/common/core/range';
 import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CellEditState, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -294,7 +294,12 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.splitCell', "Split Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						NOTEBOOK_EDITOR_EDITABLE,
+						NOTEBOOK_CELL_EDITABLE,
+						NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()
+					),
 					order: CellToolbarOrder.SplitCell,
 					group: CELL_TITLE_CELL_GROUP_ID
 				},
@@ -407,6 +412,7 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 	} | null = null;
 
 	if (context.ui) {
+		const focusMode = context.cell.focusMode;
 		const cellIndex = viewModel.getCellIndex(context.cell);
 		ret = await joinNotebookCells(viewModel, { start: cellIndex, end: cellIndex + 1 }, direction);
 		if (!ret) {
@@ -420,6 +426,9 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 		viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: ret.endFocus, selections: ret.endSelections });
 		ret.cell.updateEditState(CellEditState.Editing, 'joinCellsWithSurrounds');
 		context.notebookEditor.revealCellRangeInView(viewModel.getFocus());
+		if (focusMode === CellFocusMode.Editor) {
+			ret.cell.focusMode = CellFocusMode.Editor;
+		}
 	} else {
 		const selections = viewModel.getSelections();
 		if (!selections.length) {
@@ -427,6 +436,8 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 		}
 
 		const focus = viewModel.getFocus();
+		const focusMode = viewModel.cellAt(focus.start)?.focusMode;
+
 		let edits: ResourceEdit[] = [];
 		let cell: ICellViewModel | null = null;
 		let cells: ICellViewModel[] = [];
@@ -480,6 +491,10 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 
 		viewModel.updateSelectionsState({ kind: SelectionStateType.Handle, primary: cell.handle, selections: cells.map(cell => cell.handle) });
 		context.notebookEditor.revealCellRangeInView(viewModel.getFocus());
+		const newFocusedCell = viewModel.cellAt(viewModel.getFocus().start);
+		if (focusMode === CellFocusMode.Editor && newFocusedCell) {
+			newFocusedCell.focusMode = CellFocusMode.Editor;
+		}
 	}
 }
 

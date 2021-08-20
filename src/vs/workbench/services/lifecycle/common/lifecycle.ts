@@ -77,7 +77,7 @@ export const enum ShutdownReason {
 export const enum StartupKind {
 	NewWindow = 1,
 	ReloadedWindow = 3,
-	ReopenedWindow = 4,
+	ReopenedWindow = 4
 }
 
 export function StartupKindToString(startupKind: StartupKind): string {

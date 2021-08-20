@@ -25,7 +25,7 @@ import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferRea
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -443,10 +443,10 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 export class SimpleNotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
-	private readonly _onDidChangeDirty = new Emitter<void>();
-	private readonly _onDidSave = new Emitter<void>();
-	private readonly _onDidChangeOrphaned = new Emitter<void>();
-	private readonly _onDidChangeReadonly = new Emitter<void>();
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	private readonly _onDidSave = this._register(new Emitter<void>());
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
 
 	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
 	readonly onDidSave: Event<void> = this._onDidSave.event;
@@ -454,10 +454,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
 
 	private _workingCopy?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>;
-	private readonly _workingCopyListeners = new DisposableStore();
+	private readonly _workingCopyListeners = this._register(new DisposableStore());
 
 	constructor(
 		readonly resource: URI,
+		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -467,12 +468,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	override dispose(): void {
-		this._workingCopyListeners.dispose();
 		this._workingCopy?.dispose();
-		this._onDidChangeDirty.dispose();
-		this._onDidSave.dispose();
-		this._onDidChangeOrphaned.dispose();
-		this._onDidChangeReadonly.dispose();
 		super.dispose();
 	}
 
@@ -520,7 +516,11 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 		if (!this._workingCopy) {
 			if (this.resource.scheme === Schemas.untitled) {
-				this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+				if (this._hasAssociatedFilePath) {
+					this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
+				} else {
+					this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+				}
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, { forceReadFromFile: options?.forceReadFromFile });
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(() => this._onDidSave.fire()));
@@ -561,21 +561,22 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 }
 
-export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
+export class NotebookFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel, IUntitledFileWorkingCopyModel {
 
-	private readonly _onDidChangeContent = new Emitter<IStoredFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>();
-	private readonly _changeListener: IDisposable;
-
+	private readonly _onDidChangeContent = this._register(new Emitter<IStoredFileWorkingCopyModelContentChangedEvent & IUntitledFileWorkingCopyModelContentChangedEvent>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
+
 	readonly onWillDispose: Event<void>;
 
 	constructor(
 		private readonly _notebookModel: NotebookTextModel,
 		private readonly _notebookSerializer: INotebookSerializer
 	) {
+		super();
+
 		this.onWillDispose = _notebookModel.onWillDispose.bind(_notebookModel);
 
-		this._changeListener = _notebookModel.onDidChangeContent(e => {
+		this._register(_notebookModel.onDidChangeContent(e => {
 			for (const rawEvent of e.rawEvents) {
 				if (rawEvent.kind === NotebookCellsChangeType.Initialize) {
 					continue;
@@ -590,13 +591,12 @@ export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel
 				});
 				break;
 			}
-		});
+		}));
 	}
 
-	dispose(): void {
-		this._changeListener.dispose();
-		this._onDidChangeContent.dispose();
+	override dispose(): void {
 		this._notebookModel.dispose();
+		super.dispose();
 	}
 
 	get notebookModel() {

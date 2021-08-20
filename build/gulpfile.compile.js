@@ -14,6 +14,7 @@ const compilation = require('./lib/compilation');
 const compileBuildTask = task.define('compile-build',
 	task.series(
 		util.rimraf('out-build'),
+		util.buildWebNodePaths('out-build'),
 		compilation.compileTask('src', 'out-build', true)
 	)
 );

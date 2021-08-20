@@ -7,4 +7,3 @@
 This extension provides the following Jupyter-related features for VS Code:
 
 - Open, edit and save .ipynb files
-- Create New Jupyter Notebook command

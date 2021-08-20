@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client as IPCElectronClient } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 /**

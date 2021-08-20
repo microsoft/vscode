@@ -161,8 +161,6 @@ export class ExplorerView extends ViewPane {
 
 	private horizontalScrolling: boolean | undefined;
 
-	// Refresh is needed on the initial explorer open
-	private shouldRefresh = true;
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal: boolean | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
@@ -294,11 +292,8 @@ export class ExplorerView extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
-				// If a refresh was requested and we are now visible, run it
-				if (this.shouldRefresh) {
-					this.shouldRefresh = false;
-					await this.setTreeInput();
-				}
+				// Always refresh explorer when it becomes visible to compensate for missing file events #126817
+				await this.setTreeInput();
 				// Find resource to focus from active editor input if set
 				this.selectActiveFile(true);
 			}
@@ -596,8 +591,7 @@ export class ExplorerView extends ViewPane {
 	 */
 	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
 		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item))) {
-			// Tree node doesn't exist yet
-			this.shouldRefresh = true;
+			// Tree node doesn't exist yet, when it becomes visible we will refresh
 			return Promise.resolve(undefined);
 		}
 
@@ -620,7 +614,6 @@ export class ExplorerView extends ViewPane {
 
 	async setTreeInput(): Promise<void> {
 		if (!this.isBodyVisible()) {
-			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
 		}
 

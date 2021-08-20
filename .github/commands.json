@@ -15,7 +15,7 @@
 		"type": "label",
 		"name": "*question",
 		"action": "close",
-		"comment": "Please ask your question on [StackOverflow](https://aka.ms/vscodestackoverflow). We have a great community over [there](https://aka.ms/vscodestackoverflow). They have already answered thousands of questions and are happy to answer yours as well. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "We closed this issue because it is a question about using VS Code rather than an issue or feature request. Please search for help on [StackOverflow](https://aka.ms/vscodestackoverflow), where the community has already answered thousands of similar questions. You may find their [guide on asking a new question](https://aka.ms/vscodestackoverflowquestion) helpful if your question has not already been asked. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -68,7 +68,17 @@
 	{
 		"type": "label",
 		"name": "notebook",
-		"assign": ["rebornix"]
+		"assign": [
+			"rebornix"
+		]
+	},
+	{
+		"type": "label",
+		"name": "L10N",
+		"assign": [
+			"csigs",
+			"TylerLeonhardt"
+		]
 	},
 	{
 		"type": "comment",

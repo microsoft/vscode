@@ -16,6 +16,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 interface TrustedExtensionsQuickPickItem {
 	label: string;
@@ -143,7 +144,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -179,7 +181,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.removeSession(providerId, sessionId);
 	}
-	private async loginPrompt(providerName: string, extensionName: string, recreatingSession: boolean): Promise<boolean> {
+	private async loginPrompt(providerName: string, extensionName: string, recreatingSession: boolean, detail?: string): Promise<boolean> {
 		const message = recreatingSession
 			? nls.localize('confirmRelogin', "The extension '{0}' wants you to sign in again using {1}.", extensionName, providerName)
 			: nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName);
@@ -188,7 +190,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			message,
 			[nls.localize('allow', "Allow"), nls.localize('cancel', "Cancel")],
 			{
-				cancelId: 1
+				cancelId: 1,
+				detail
 			}
 		);
 
@@ -239,17 +242,17 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, potentialSessions);
 	}
 
-	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, forceRecreate: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
+	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, forceNewSession: boolean | { detail: string }, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
 		let silent = !options.createIfNone;
 
-		if (options.forceRecreate && !sessions.length) {
+		if (options.forceNewSession && !sessions.length) {
 			throw new Error('No existing sessions found.');
 		}
 
 		let session: modes.AuthenticationSession | undefined;
 		// Ignore existing sessions if we are forceRecreating
-		if (!options.forceRecreate && sessions.length) {
+		if (!options.forceNewSession && sessions.length) {
 			if (!this.authenticationService.supportsMultipleAccounts(providerId)) {
 				session = sessions[0];
 				const allowed = this.authenticationService.isAccessAllowed(providerId, session.account.label, extensionId);
@@ -271,9 +274,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 		} else {
 			// If we are forceRecreating, we need to show the prompt.
-			if (options.forceRecreate || !silent) {
+			if (options.forceNewSession || !silent) {
 				const providerName = this.authenticationService.getLabel(providerId);
-				const isAllowed = await this.loginPrompt(providerName, extensionName, options.forceRecreate);
+				const detail = (typeof options.forceNewSession === 'object') ? options.forceNewSession!.detail : undefined;
+				const isAllowed = await this.loginPrompt(providerName, extensionName, !!options.forceNewSession, detail);
 				if (!isAllowed) {
 					throw new Error('User did not consent to login.');
 				}
@@ -286,6 +290,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		if (session) {
+			type AuthProviderUsageClassification = {
+				extensionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				providerId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			this.telemetryService.publicLog2<{ extensionId: string, providerId: string }, AuthProviderUsageClassification>('authentication.providerUsage', { providerId, extensionId });
+
 			addAccountUsage(this.storageService, providerId, session.account.label, extensionId, extensionName);
 		}
 

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogger, ILoggerService, ILogger, AbstractLoggerService, ILoggerOptions } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
-import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { dirname, joinPath, basename } from 'vs/base/common/resources';
+import { basename, dirname, joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
+import { AbstractLogger, AbstractLoggerService, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 const MAX_FILE_SIZE = 5 * ByteSize.MB;
 

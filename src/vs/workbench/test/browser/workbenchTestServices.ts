@@ -126,9 +126,9 @@ import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEd
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { ICreateTerminalOptions, IShellLaunchConfig, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isArray } from 'vs/base/common/types';
 import { ILocalTerminalService, IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
@@ -664,6 +664,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 	onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
+	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 
@@ -713,6 +714,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	disposed!: boolean;
 	editors: readonly IEditorInput[] = [];
 	label!: string;
+	isLocked!: boolean;
 	ariaLabel!: string;
 	index!: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
@@ -756,6 +758,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	pinEditor(_editor?: IEditorInput): void { }
 	stickEditor(editor?: IEditorInput | undefined): void { }
 	unstickEditor(editor?: IEditorInput | undefined): void { }
+	lock(locked: boolean): void { }
 	focus(): void { }
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
 	setActive(_isActive: boolean): void { }
@@ -1667,7 +1670,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	onDidMoveWindowInstance = Event.None;
 	onDidRequestDetach = Event.None;
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> { return new TestTerminalChildProcess(shouldPersist); }
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> { return new TestTerminalChildProcess(shouldPersist); }
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
@@ -1703,6 +1706,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	input(data: string): void { }
 	resize(cols: number, rows: number): void { }
 	acknowledgeDataEvent(charCount: number): void { }
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async getLatency(): Promise<number> { return 0; }

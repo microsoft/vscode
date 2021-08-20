@@ -76,7 +76,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
  * Range of a word inside a model.
  * @internal
  */
-interface IWordRange {
+export interface IWordRange {
 	/**
 	 * The index where the word starts.
 	 */
@@ -90,7 +90,7 @@ interface IWordRange {
 /**
  * @internal
  */
-class MirrorModel extends BaseMirrorModel implements ICommonModel {
+export class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
@@ -326,7 +326,7 @@ declare const require: any;
 export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
-	private readonly _host: EditorWorkerHost;
+	protected readonly _host: EditorWorkerHost;
 	private _models: { [uri: string]: MirrorModel; };
 	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;

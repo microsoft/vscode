@@ -70,6 +70,12 @@ cd test/smoke
 yarn watch
 ```
 
+## Troubleshooting
+
+### Error: Could not get a unique tmp filename, max tries reached
+
+On Windows, check for the folder `C:\Users\<username>\AppData\Local\Temp\t`. If this folder exists, the `tmp` module can't run properly, resulting in the error above. In this case, delete the `t` folder.
+
 ## Pitfalls
 
 - Beware of workbench **state**. The tests within a single suite will share the same state.

@@ -1916,7 +1916,7 @@ export class Repository implements Disposable {
 		this.setCountBadge();
 
 		// Update context key with changed resources
-		commands.executeCommand('setContext', 'git.changedResources', workingTree.map(r => r.resourceUri.fsPath.toString()));
+		commands.executeCommand('setContext', 'git.changedResources', [...merge, ...index, ...workingTree, ...untracked].map(r => r.resourceUri.fsPath.toString()));
 
 		this._onDidChangeStatus.fire();
 

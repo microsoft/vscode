@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./splitview';
-import { IDisposable, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
-import { clamp } from 'vs/base/common/numbers';
-import { range, pushToStart, pushToEnd } from 'vs/base/common/arrays';
-import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Color } from 'vs/base/common/color';
 import { $, addDisposableListener, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+import * as types from 'vs/base/common/types';
+import 'vs/css!./splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface ISplitViewStyles {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
+import 'mocha';
 import * as vscode from 'vscode';
 import { assertNoRpc } from '../utils';
 

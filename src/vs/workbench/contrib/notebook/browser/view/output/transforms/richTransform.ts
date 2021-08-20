@@ -9,6 +9,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -18,7 +19,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
-import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutputItemDto, TextOutputLineLimit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 
 class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
@@ -63,19 +64,22 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
 
 	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const disposables = new DisposableStore();
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 
 		const text = getStringValue(item);
 		const contentNode = DOM.$('span.output-stream');
-		truncatedArrayOfString(notebookUri, output.cellViewModel, contentNode, [text], linkDetector, this.openerService, this.themeService);
+		const lineLimit = this.configurationService.getValue<number>(TextOutputLineLimit) ?? 30;
+		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [text], disposables, linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
-		return { type: RenderOutputType.Mainframe };
+		return { type: RenderOutputType.Mainframe, disposable: disposables };
 	}
 }
 
@@ -161,20 +165,23 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		public notebookEditor: ICommonNotebookEditor,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
 
 	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const disposables = new DisposableStore();
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 
 		const str = getStringValue(item);
 		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(notebookUri, output.cellViewModel, contentNode, [str], linkDetector, this.openerService, this.themeService);
+		const lineLimit = this.configurationService.getValue<number>(TextOutputLineLimit) ?? 30;
+		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [str], disposables, linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
-		return { type: RenderOutputType.Mainframe, supportAppend: true };
+		return { type: RenderOutputType.Mainframe, supportAppend: true, disposable: disposables };
 	}
 }
 
@@ -249,7 +256,7 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const disposable = new DisposableStore();
 
-		const blob = new Blob([item.data], { type: item.mime });
+		const blob = new Blob([item.data.buffer], { type: item.mime });
 		const src = URL.createObjectURL(blob);
 		disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
 
@@ -276,6 +283,5 @@ OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
 
 // --- utils ---
 export function getStringValue(item: IOutputItemDto): string {
-	// todo@jrieken NOT proper, should be VSBuffer
-	return new TextDecoder().decode(item.data);
+	return item.data.toString();
 }

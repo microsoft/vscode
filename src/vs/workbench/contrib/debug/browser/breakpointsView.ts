@@ -164,7 +164,8 @@ export class BreakpointsView extends ViewPane {
 			}
 			if (e.element instanceof InstructionBreakpoint) {
 				const disassemblyView = await this.editorService.openEditor(DisassemblyViewInput.instance);
-				(disassemblyView as DisassemblyView).goToAddress(e.element.instructionReference);
+				// Focus on double click
+				(disassemblyView as DisassemblyView).goToAddress(e.element.instructionReference, e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2);
 			}
 			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && e.element instanceof FunctionBreakpoint && e.element !== this.inputBoxData?.breakpoint) {
 				// double click
@@ -1027,7 +1028,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	if (debugActive && !breakpoint.verified) {
 		return {
 			icon: breakpointIcon.unverified,
-			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakopint', "Unverified Breakpoint")),
+			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakpoint', "Unverified Breakpoint")),
 		};
 	}
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, } from 'vs/base/common/errors';
-import { Emitter, Event, } from 'vs/base/common/event';
-import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { canceled } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -976,6 +976,10 @@ export class IdleValue<T> {
 			throw this._error;
 		}
 		return this._value!;
+	}
+
+	get isInitialized(): boolean {
+		return this._didRun;
 	}
 }
 

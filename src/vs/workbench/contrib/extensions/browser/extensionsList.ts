@@ -53,8 +53,6 @@ export class Delegate implements IListVirtualDelegate<IExtension> {
 	getTemplateId() { return 'extension'; }
 }
 
-const actionOptions = { icon: true, label: true, tabOnlyOnFocus: true };
-
 export type ExtensionListRendererOptions = {
 	hoverOptions: {
 		position: () => HoverPosition
@@ -140,7 +138,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		];
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
-		actionbar.push(actions, actionOptions);
+		actionbar.push(actions, { icon: true, label: true });
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers);
 
 		return {

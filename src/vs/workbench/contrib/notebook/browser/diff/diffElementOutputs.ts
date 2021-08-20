@@ -26,7 +26,7 @@ interface IMimeTypeRenderer extends IQuickPickItem {
 }
 
 export class OutputElement extends Disposable {
-	readonly resizeListener = new DisposableStore();
+	readonly resizeListener = this._register(new DisposableStore());
 	domNode!: HTMLElement;
 	renderResult?: IRenderOutput;
 

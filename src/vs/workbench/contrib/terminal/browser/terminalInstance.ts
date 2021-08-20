@@ -54,11 +54,10 @@ import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
+import { isIOS, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -67,6 +66,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -189,7 +190,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
 	get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
-	get hasChildProcesses(): boolean { return this._processManager.hasChildProcesses; }
+	get hasChildProcesses(): boolean { return this.shellLaunchConfig.attachPersistentProcess?.hasChildProcesses || this._processManager.hasChildProcesses; }
 	get areLinksReady(): boolean { return this._areLinksReady; }
 	get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	get exitCode(): number | undefined { return this._exitCode; }
@@ -239,6 +240,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidFocus = this._onDidFocus.event;
 	private readonly _onDidBlur = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidBlur = this._onDidBlur.event;
+	private readonly _onDidInputData = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidInputData = this._onDidInputData.event;
 	private readonly _onRequestAddInstanceToGroup = this._register(new Emitter<IRequestAddInstanceToGroupEvent>());
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
@@ -269,7 +272,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IProductService private readonly _productService: IProductService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
 
@@ -621,7 +625,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xterm.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
 
 		this._processManager.onProcessData(e => this._onProcessData(e));
-		this._xterm.onData(data => this._processManager.write(data));
+		this._xterm.onData(async data => {
+			await this._processManager.write(data);
+			this._onDidInputData.fire(this);
+		});
 		this._xterm.onBinary(data => this._processManager.processBinary(data));
 		this.processReady.then(async () => {
 			if (this._linkManager) {
@@ -762,7 +769,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							{
 								label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
 								run: () => {
-									this._preferencesService.openSettings(false, `@id:${TerminalSettingId.CommandsToSkipShell},${TerminalSettingId.SendKeybindingsToShell},${TerminalSettingId.AllowChords}`);
+									this._preferencesService.openSettings({ jsonEditor: false, query: `@id:${TerminalSettingId.CommandsToSkipShell},${TerminalSettingId.SendKeybindingsToShell},${TerminalSettingId.AllowChords}` });
 								}
 							} as IPromptChoice
 						]
@@ -1075,7 +1082,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
-		return this._processManager.write(text);
+		await this._processManager.write(text);
+		this._onDidInputData.fire(this);
 	}
 
 	setVisible(visible: boolean): void {
@@ -1129,7 +1137,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _refreshSelectionContextKey() {
 		const isActive = !!this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
-		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
+		let isEditorActive = false;
+		const editor = this._editorService.activeEditor;
+		if (editor) {
+			isEditorActive = editor instanceof TerminalEditorInput;
+		}
+		this._terminalHasTextContextKey.set((isActive || isEditorActive) && this.hasSelection());
 	}
 
 	protected _createProcessManager(): void {
@@ -1325,8 +1338,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
+		// First onExit to consumers, this can happen after the terminal has already been disposed.
 		this._onExit.fire(this._exitCode);
-		this._onExit.dispose();
+
+		// Dispose of the onExit event if the terminal will not be reused again
+		if (this._isDisposed) {
+			this._onExit.dispose();
+		}
 	}
 
 	/**
@@ -1360,7 +1378,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): void {
+	async reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): Promise<void> {
 		// Unsubscribe any key listener we may have.
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
@@ -1368,12 +1386,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._xterm) {
 			if (!reset) {
 				// Ensure new processes' output starts at start of new line
-				this._xterm.write('\n\x1b[G');
+				await new Promise<void>(r => this._xterm!.write('\n\x1b[G', r));
 			}
 
 			// Print initialText if specified
 			if (shell.initialText) {
-				this._xterm.writeln(shell.initialText);
+				await new Promise<void>(r => this._xterm!.writeln(shell.initialText!, r));
 			}
 
 			// Clean up waitOnExit state
@@ -1493,9 +1511,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
-
+		this._safeSetOption('customGlyphs', config.customGlyphs);
 		const suggestedRendererType = TerminalInstance._suggestedRendererType;
-		if ((config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
+		// @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
+		if ((!isIOS && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
@@ -1556,7 +1575,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermUnicode11 = new Addon();
 			this._xterm.loadAddon(this._xtermUnicode11);
 		}
-		this._xterm.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+		if (this._xterm.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
+			this._xterm.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+			this._processManager.setUnicodeVersion(this._configHelper.config.unicodeVersion);
+		}
 	}
 
 	updateAccessibilitySupport(): void {
@@ -2024,7 +2046,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	}
 
 	onDragEnter(e: DragEvent) {
-		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS)) {
+		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS, CodeDataTransfers.FILES)) {
 			return;
 		}
 
@@ -2085,17 +2107,17 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 
 		// Check if files were dragged from the tree explorer
 		let path: string | undefined;
-		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-		if (resources) {
-			const uri = URI.parse(JSON.parse(resources)[0]);
-			if (uri.scheme === Schemas.vscodeTerminal) {
-				const side = this._getDropSide(e);
-				this._onDropTerminal.fire({ uri, side });
-				return;
-			} else {
-				path = uri.fsPath;
-			}
-		} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+		if (rawResources) {
+			path = URI.parse(JSON.parse(rawResources)[0]).fsPath;
+		}
+
+		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
+		if (!path && rawCodeFiles) {
+			path = URI.file(JSON.parse(rawCodeFiles)[0]).fsPath;
+		}
+
+		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 			// Check if the file was dragged from the filesystem
 			path = URI.file(e.dataTransfer.files[0].path).fsPath;
 		}

@@ -9,14 +9,15 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { Schemas } from 'vs/base/common/network';
+import { isMacintosh } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -24,7 +25,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/api/common/shared/webview';
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
@@ -35,7 +37,7 @@ import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/n
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICreationRequestMessage, IMarkupCellInitialization, FromWebviewMessage, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ToWebviewMessage, IAckOutputHeight } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -65,15 +67,16 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
-	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
-	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
-	localResourceRootsCache: URI[] | undefined = undefined;
-	rendererRootsCache: URI[] = [];
+	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
+	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
+	private localResourceRootsCache: URI[] | undefined = undefined;
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
+
+	private readonly nonce = UUID.generateUuid();
 
 	constructor(
 		public readonly notebookEditor: ICommonNotebookEditor,
@@ -102,6 +105,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -127,6 +132,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				return Promise.resolve(true);
 			};
 		}
+
+		this._register(workspaceTrustManagementService.onDidChangeTrust(e => {
+			this._sendMessageToWebview({
+				type: 'updateWorkspaceTrust',
+				isTrusted: e,
+			});
+		}));
 	}
 
 	updateOptions(options: {
@@ -182,12 +194,30 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 	private generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
+		const preloadScript = preloadsScriptStr(
+			this.options,
+			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
+			renderersData,
+			this.workspaceTrustManagementService.isWorkspaceTrusted(),
+			this.nonce);
+
+		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
 		return html`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
-				<base href="${baseUrl}/"/>
-				<style>
+				<base href="${baseUrl}/" />
+				${enableCsp ?
+				`<meta http-equiv="Content-Security-Policy" content="
+					default-src 'none';
+					script-src ${webviewGenericCspSource} 'unsafe-inline' 'unsafe-eval';
+					style-src ${webviewGenericCspSource} 'unsafe-inline';
+					img-src ${webviewGenericCspSource} https: http: data:;
+					font-src ${webviewGenericCspSource} https:;
+					connect-src https:;
+					child-src https: data:;
+				">` : ''}
+				<style nonce="${this.nonce}">
 					#container .cell_container {
 						width: 100%;
 					}
@@ -277,7 +307,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					table, th, tr {
-						vertical-align: top;
+						vertical-align: middle;
 						text-align: right;
 					}
 
@@ -301,8 +331,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</style>
 			</head>
 			<body style="overflow: hidden;">
-				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script type="module">${preloadsScriptStr(this.options, { dragAndDropEnabled: this.options.dragAndDropEnabled }, renderersData)}</script>
+				<div id="container" class="widgetarea" style="position: absolute; width:100%; top: 0px"></div>
+				<script type="module" nonce="${this.nonce}">${preloadScript}</script>
 			</body>
 		</html>`;
 	}
@@ -461,6 +491,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						// const date = new Date();
 						// const top = data.data.top;
 						// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+						break;
+					}
+				case 'scroll-to-reveal':
+					{
+						this.notebookEditor.setScrollTop(data.scrollTop);
 						break;
 					}
 				case 'did-scroll-wheel':
@@ -659,15 +694,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		const rootPath = isWeb ? FileAccess.asBrowserUri('', require) : FileAccess.asFileUri('', require);
-
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 
 		this.localResourceRootsCache = [
 			...this.notebookService.getNotebookProviderResourceRoots(),
 			...this.notebookService.getRenderers().map(x => dirname(x.entrypoint)),
 			...workspaceFolders,
-			rootPath,
 		];
 
 		const webview = webviewService.createWebviewElement(this.id, {
@@ -679,7 +711,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache,
 		}, undefined);
-
+		// console.log(this.localResourceRootsCache);
 		webview.html = content;
 		return webview;
 	}
@@ -979,7 +1011,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					type: RenderOutputType.Extension,
 					outputId: output.outputId,
 					mimeType: first.mime,
-					valueBytes: first.data,
+					valueBytes: first.data.buffer,
 					metadata: output.metadata,
 				},
 			};
@@ -1130,7 +1162,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 		const mixedResourceRoots = [
 			...(this.localResourceRootsCache || []),
-			...this.rendererRootsCache,
 			...(this._currentKernel ? [this._currentKernel.localResourceRoot] : []),
 		];
 

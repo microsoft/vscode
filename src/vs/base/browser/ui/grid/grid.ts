@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, IGridViewOptions, IBoundarySashes } from './gridview';
+import { equals, tail2 as tail } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./gridview';
+import { Box, GridView, IBoundarySashes, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing } from './gridview';
 
-export { Orientation, IViewSize, orthogonal, LayoutPriority } from './gridview';
+export { IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
 
 export const enum Direction {
 	Up,

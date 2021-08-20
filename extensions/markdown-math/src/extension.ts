@@ -24,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
 		extendMarkdownIt(md: any) {
 			if (isEnabled()) {
 				const katex = require('@iktakahiro/markdown-it-katex');
-				return md.use(katex);
+				return md.use(katex, { globalGroup: true });
 			}
 			return md;
 		}

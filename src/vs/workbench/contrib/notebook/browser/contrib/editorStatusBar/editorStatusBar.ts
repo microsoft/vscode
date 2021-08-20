@@ -19,7 +19,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -28,7 +28,7 @@ import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/no
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 registerAction2(class extends Action2 {
@@ -44,7 +44,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.EditorTitle,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_VIEW_TYPE.isEqualTo('jupyter-notebook')),
+					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_MISSING_KERNEL_EXTENSION),
 					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 				),
 				group: 'navigation',
@@ -52,7 +52,7 @@ registerAction2(class extends Action2 {
 			}, {
 				id: MenuId.NotebookToolbar,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_VIEW_TYPE.isEqualTo('jupyter-notebook')),
+					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_MISSING_KERNEL_EXTENSION),
 					ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 				),
 				group: 'status',
@@ -152,7 +152,7 @@ registerAction2(class extends Action2 {
 				}
 				{ return res; }
 			});
-			if (!picks.length) {
+			if (!all.length && KERNEL_EXTENSIONS.get(notebook.viewType)) {
 				picks.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
@@ -172,7 +172,7 @@ registerAction2(class extends Action2 {
 
 			if (pick) {
 				if (pick.id === 'install') {
-					await this._showJupyterExtension(viewletService);
+					await this._showKernelExtension(viewletService, notebook.viewType);
 				} else if ('kernel' in pick) {
 					newKernel = pick.kernel;
 				}
@@ -186,10 +186,13 @@ registerAction2(class extends Action2 {
 		return false;
 	}
 
-	private async _showJupyterExtension(viewletService: IViewletService) {
-		const viewlet = await viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search('@id:ms-toolsai.jupyter');
+	private async _showKernelExtension(viewletService: IViewletService, viewType: string) {
+		const extId = KERNEL_EXTENSIONS.get(viewType);
+		if (extId) {
+			const viewlet = await viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+			const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+			view?.search(`@id:${extId}`);
+		}
 	}
 });
 

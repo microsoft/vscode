@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { isUUID } from 'vs/base/common/uuid';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { isUUID } from 'vs/base/common/uuid';
+import { mock } from 'vs/base/test/common/mock';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { mock } from 'vs/base/test/common/mock';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;

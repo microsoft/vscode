@@ -8,12 +8,6 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestMessageSeverity } from 'vs/workbench/api/common/extHostTypes';
-
-export interface ITestIdWithSrc {
-	testId: string;
-	controllerId: string;
-}
 
 export const enum TestResultState {
 	Unset = 0,
@@ -24,9 +18,6 @@ export const enum TestResultState {
 	Skipped = 5,
 	Errored = 6
 }
-
-export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
-	({ testId: test.item.extId, controllerId: test.controllerId });
 
 export const enum TestRunProfileBitset {
 	Run = 1 << 1,
@@ -55,6 +46,7 @@ export interface ITestRunProfile {
 	label: string;
 	group: TestRunProfileBitset;
 	isDefault: boolean;
+	tag: string | null;
 	hasConfigurationHandler: boolean;
 }
 
@@ -69,7 +61,7 @@ export interface ResolvedTestRunRequest {
 		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[]
-	exclude?: ITestIdWithSrc[];
+	exclude?: string[];
 	isAutoRun?: boolean;
 }
 
@@ -104,14 +96,27 @@ export interface IRichLocation {
 	uri: URI;
 }
 
-export interface ITestMessage {
+export const enum TestMessageType {
+	Error,
+	Info
+}
+
+export interface ITestErrorMessage {
 	message: string | IMarkdownString;
-	/** @deprecated */
-	severity: TestMessageSeverity;
-	expectedOutput: string | undefined;
-	actualOutput: string | undefined;
+	type: TestMessageType.Error;
+	expected: string | undefined;
+	actual: string | undefined;
 	location: IRichLocation | undefined;
 }
+
+export interface ITestOutputMessage {
+	message: string;
+	type: TestMessageType.Info;
+	offset: number;
+	location: IRichLocation | undefined;
+}
+
+export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
 
 export interface ITestTaskState {
 	state: TestResultState;
@@ -125,6 +130,17 @@ export interface ITestRunTask {
 	running: boolean;
 }
 
+export interface ITestTag {
+	id: string;
+	label?: string;
+}
+
+export interface ITestTagDisplayInfo {
+	id: string;
+	ctrlLabel: string;
+	label?: string;
+}
+
 /**
  * The TestItem from .d.ts, as a plain object without children.
  */
@@ -132,6 +148,7 @@ export interface ITestItem {
 	/** ID of the test given by the test controller */
 	extId: string;
 	label: string;
+	tags: string[];
 	busy?: boolean;
 	children?: never;
 	uri?: URI;
@@ -206,12 +223,10 @@ export interface ISerializedTestResults {
 	id: string;
 	/** Time the results were compelted */
 	completedAt: number;
-	/** Raw output, given for tests published by extensiosn */
-	output?: string;
 	/** Subset of test result items */
 	items: SerializedTestResultItem[];
 	/** Tasks involved in the run. */
-	tasks: ITestRunTask[];
+	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage[] }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */
@@ -271,6 +286,10 @@ export const enum TestDiffOpType {
 	IncrementPendingExtHosts,
 	/** Retires a test/result */
 	Retire,
+	/** Add a new test tag */
+	AddTag,
+	/** Remove a test tag */
+	RemoveTag,
 }
 
 export type TestsDiffOp =
@@ -278,7 +297,9 @@ export type TestsDiffOp =
 	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
 	| [op: TestDiffOpType.Remove, itemId: string]
 	| [op: TestDiffOpType.Retire, itemId: string]
-	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number];
+	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number]
+	| [op: TestDiffOpType.AddTag, tag: ITestTagDisplayInfo]
+	| [op: TestDiffOpType.RemoveTag, id: string];
 
 /**
  * Context for actions taken in the test explorer view.
@@ -336,6 +357,8 @@ export class IncrementalChangeCollector<T> {
  * Maintains tests in this extension host sent from the main thread.
  */
 export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
+	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
+
 	/**
 	 * Map of item IDs to test item objects.
 	 */
@@ -355,6 +378,11 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * Number of pending roots.
 	 */
 	protected pendingRootCount = 0;
+
+	/**
+	 * Known test tags.
+	 */
+	public readonly tags: ReadonlyMap<string, ITestTagDisplayInfo> = this._tags;
 
 	/**
 	 * Applies the diff to the collection.
@@ -443,6 +471,14 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 
 				case TestDiffOpType.IncrementPendingExtHosts:
 					this.updatePendingRoots(op[1]);
+					break;
+
+				case TestDiffOpType.AddTag:
+					this._tags.set(op[1].id, op[1]);
+					break;
+
+				case TestDiffOpType.RemoveTag:
+					this._tags.delete(op[1]);
 					break;
 			}
 		}

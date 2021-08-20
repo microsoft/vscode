@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -21,6 +21,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
+import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -53,6 +54,7 @@ export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEd
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false, localize('activeEditorGroupEmpty', "Whether the active editor group is empty"));
 export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0, localize('activeEditorGroupIndex', "The index of the active editor group"));
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false, localize('activeEditorGroupLast', "Whether the active editor group is the last group"));
+export const ActiveEditorGroupLockedContext = new RawContextKey<boolean>('activeEditorGroupLocked', false, localize('activeEditorGroupLocked', "Whether the active editor group is locked"));
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 
@@ -285,10 +287,15 @@ export interface IEditorSerializer {
 export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEditorInput {
 
 	/**
-	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * If the used scheme for the resource is not `untitled://`, `forceUntitled: true` must be configured to
-	 * force use the provided resource as associated path. As such, the resource will be used when saving
-	 * the untitled editor.
+	 * Optional resource for the untitled editor. Depending on the value, the editor:
+	 * - should get a unique name if `undefined` (for example `Untitled-1`)
+	 * - should use the resource directly if the scheme is `untitled:`
+	 * - should change the scheme to `untitled:` otherwise and assume an associated path
+	 *
+	 * Untitled editors with associated path behave slightly different from other untitled
+	 * editors:
+	 * - they are dirty right when opening
+	 * - they will not ask for a file path when saving but use the associated path
 	 */
 	readonly resource: URI | undefined;
 }
@@ -336,7 +343,7 @@ export function isUntitledResourceEditorInput(editor: unknown): editor is IUntit
 		return false;
 	}
 
-	return candidate?.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
+	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
 }
 
 export const enum Verbosity {
@@ -550,6 +557,20 @@ export interface IEditorInput extends IDisposable {
 	 * the save is scheduled to happen anyway.
 	 */
 	isSaving(): boolean;
+
+	/**
+	 * Optional: if this method is implemented, allows an editor to
+	 * control what should happen when the editor (or a list of editors
+	 * of the same kind) is dirty and there is an intent to close it.
+	 *
+	 * By default a file specific dialog will open. If the editor is
+	 * not dealing with files, this method should be implemented to
+	 * show a different dialog.
+	 *
+	 * @param editors if more than one editor is closed, will pass in
+	 * each editor of the same kind to be able to show a combined dialog.
+	 */
+	confirm?(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
 
 	/**
 	 * Saves the editor. The provided groupId helps implementors
@@ -833,6 +854,7 @@ interface IEditorPartConfiguration {
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	openSideBySideDirection?: 'right' | 'down';
 	closeEmptyGroups?: boolean;
+	experimentalAutoLockGroups?: Set<string>;
 	revealIfOpen?: boolean;
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
@@ -1093,11 +1115,13 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 
 	const editors = await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
-
 		if (!resource) {
 			return;
 		}
 
+		// Since we are possibly the first ones to use the file service
+		// on the resource, we must ensure to activate the provider first
+		// before asking whether the resource can be handled.
 		await fileService.activateProvider(resource.scheme);
 
 		if (!fileService.canHandleResource(resource)) {
@@ -1109,11 +1133,8 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		const options: ITextEditorOptions = (exists && typeof path.lineNumber === 'number') ? {
-			selection: {
-				startLineNumber: path.lineNumber,
-				startColumn: path.columnNumber || 1
-			},
+		const options: ITextEditorOptions = (exists && !isUndefined(path.selection)) ? {
+			selection: path.selection,
 			pinned: true,
 			override: path.editorOverrideId
 		} : {

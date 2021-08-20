@@ -388,11 +388,15 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 	}
 }
 
+export interface IEditorWorkerClient {
+	fhr(method: string, args: any[]): Promise<any>;
+}
+
 export class EditorWorkerHost {
 
-	private readonly _workerClient: EditorWorkerClient;
+	private readonly _workerClient: IEditorWorkerClient;
 
-	constructor(workerClient: EditorWorkerClient) {
+	constructor(workerClient: IEditorWorkerClient) {
 		this._workerClient = workerClient;
 	}
 
@@ -402,12 +406,12 @@ export class EditorWorkerHost {
 	}
 }
 
-export class EditorWorkerClient extends Disposable {
+export class EditorWorkerClient extends Disposable implements IEditorWorkerClient {
 
 	private readonly _modelService: IModelService;
 	private readonly _keepIdleModels: boolean;
-	private _worker: IWorkerClient<EditorSimpleWorker> | null;
-	private readonly _workerFactory: DefaultWorkerFactory;
+	protected _worker: IWorkerClient<EditorSimpleWorker> | null;
+	protected readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: EditorModelManager | null;
 	private _disposed = false;
 

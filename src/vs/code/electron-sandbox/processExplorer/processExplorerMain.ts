@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/processExplorer';
+import { $, append, createStyleSheet } from 'vs/base/browser/dom';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { localize } from 'vs/nls';
-import { ProcessExplorerStyles, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
+import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { ProcessItem } from 'vs/base/common/processes';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
-import { ProcessItem } from 'vs/base/common/processes';
-import { append, $, createStyleSheet } from 'vs/base/browser/dom';
-import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import 'vs/css!./media/processExplorer';
+import { localize } from 'vs/nls';
+import { IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { ByteSize } from 'vs/platform/files/common/files';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
+import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;

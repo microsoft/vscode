@@ -461,10 +461,10 @@ export function getPreviousFoldLine(lineNumber: number, foldingModel: FoldingMod
 		} else {
 			// Find min line number to stay within parent.
 			let expectedParentIndex = foldingRegion.parentIndex;
-			if (expectedParentIndex === -1) {
-				return null;
+			let minLineNumber = 0;
+			if (expectedParentIndex !== -1) {
+				minLineNumber = foldingModel.regions.getStartLineNumber(foldingRegion.parentIndex);
 			}
-			let minLineNumber = foldingModel.regions.getStartLineNumber(foldingRegion.parentIndex);
 
 			// Find fold at same level.
 			while (foldingRegion !== null) {
@@ -479,6 +479,22 @@ export function getPreviousFoldLine(lineNumber: number, foldingModel: FoldingMod
 					}
 				} else {
 					return null;
+				}
+			}
+		}
+	} else {
+		// Go to last fold that's before the current line.
+		if (foldingModel.regions.length > 0) {
+			foldingRegion = foldingModel.regions.toRegion(foldingModel.regions.length - 1);
+			while (foldingRegion !== null) {
+				// Found non-parent fold before current line.
+				if (foldingRegion.parentIndex === -1 && foldingRegion.startLineNumber < lineNumber) {
+					return foldingRegion.startLineNumber;
+				}
+				if (foldingRegion.regionIndex > 0) {
+					foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex - 1);
+				} else {
+					foldingRegion = null;
 				}
 			}
 		}
@@ -498,10 +514,14 @@ export function getNextFoldLine(lineNumber: number, foldingModel: FoldingModel):
 	if (foldingRegion !== null) {
 		// Find max line number to stay within parent.
 		let expectedParentIndex = foldingRegion.parentIndex;
-		if (expectedParentIndex === -1) {
+		let maxLineNumber = 0;
+		if (expectedParentIndex !== -1) {
+			maxLineNumber = foldingModel.regions.getEndLineNumber(foldingRegion.parentIndex);
+		} else if (foldingModel.regions.length === 0) {
 			return null;
+		} else {
+			maxLineNumber = foldingModel.regions.getEndLineNumber(foldingModel.regions.length - 1);
 		}
-		let maxLineNumber = foldingModel.regions.getEndLineNumber(foldingRegion.parentIndex);
 
 		// Find fold at same level.
 		while (foldingRegion !== null) {
@@ -516,6 +536,22 @@ export function getNextFoldLine(lineNumber: number, foldingModel: FoldingModel):
 				}
 			} else {
 				return null;
+			}
+		}
+	} else {
+		// Go to first fold that's after the current line.
+		if (foldingModel.regions.length > 0) {
+			foldingRegion = foldingModel.regions.toRegion(0);
+			while (foldingRegion !== null) {
+				// Found non-parent fold after current line.
+				if (foldingRegion.parentIndex === -1 && foldingRegion.startLineNumber > lineNumber) {
+					return foldingRegion.startLineNumber;
+				}
+				if (foldingRegion.regionIndex < foldingModel.regions.length) {
+					foldingRegion = foldingModel.regions.toRegion(foldingRegion.regionIndex + 1);
+				} else {
+					foldingRegion = null;
+				}
 			}
 		}
 	}

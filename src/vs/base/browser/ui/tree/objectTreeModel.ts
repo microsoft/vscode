@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
-import { IndexTreeModel, IIndexTreeModelOptions, IList, IIndexTreeModelSpliceOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { Event } from 'vs/base/common/event';
-import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IIndexTreeModelOptions, IIndexTreeModelSpliceOptions, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, ITreeSorter, TreeError } from 'vs/base/browser/ui/tree/tree';
+import { Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 

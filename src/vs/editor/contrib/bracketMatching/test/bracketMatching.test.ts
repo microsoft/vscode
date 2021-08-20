@@ -112,11 +112,11 @@ suite('bracket matching', () => {
 			assert.deepStrictEqual(editor.getPosition(), new Position(1, 20));
 			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 9, 1, 20));
 
-			// start position in close brackets
+			// start position in close brackets (should select backwards)
 			editor.setPosition(new Position(1, 20));
 			bracketMatchingController.selectToBracket(true);
-			assert.deepStrictEqual(editor.getPosition(), new Position(1, 20));
-			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 9, 1, 20));
+			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
+			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 20, 1, 9));
 
 			// start position between brackets
 			editor.setPosition(new Position(1, 16));
@@ -234,9 +234,9 @@ suite('bracket matching', () => {
 			]);
 			bracketMatchingController.selectToBracket(true);
 			assert.deepStrictEqual(editor.getSelections(), [
-				new Selection(1, 1, 1, 5),
-				new Selection(1, 8, 1, 13),
-				new Selection(1, 16, 1, 19)
+				new Selection(1, 5, 1, 1),
+				new Selection(1, 13, 1, 8),
+				new Selection(1, 19, 1, 16)
 			]);
 
 			bracketMatchingController.dispose();

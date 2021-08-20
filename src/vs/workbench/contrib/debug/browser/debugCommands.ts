@@ -30,6 +30,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
+import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -54,6 +55,7 @@ export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
 export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
+export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
 export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
 
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
@@ -420,10 +422,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.isEqualTo('inactive')),
 	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
 		const debugService = accessor.get(IDebugService);
+		await saveAllBeforeDebugStart(accessor.get(IConfigurationService), accessor.get(IEditorService));
 		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
 		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
-		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug });
+		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug }, false);
 	}
 });
 
@@ -501,7 +504,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		if (expression instanceof Expression) {
-			debugService.getViewModel().setSelectedExpression(expression);
+			debugService.getViewModel().setSelectedExpression(expression, false);
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SET_EXPRESSION_COMMAND_ID,
+	handler: async (accessor: ServicesAccessor, expression: Expression | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		if (expression instanceof Expression || expression instanceof Variable) {
+			debugService.getViewModel().setSelectedExpression(expression, true);
 		}
 	}
 });
@@ -520,7 +533,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (focused) {
 			const elements = focused.getFocus();
 			if (Array.isArray(elements) && elements[0] instanceof Variable) {
-				debugService.getViewModel().setSelectedExpression(elements[0]);
+				debugService.getViewModel().setSelectedExpression(elements[0], false);
 			}
 		}
 	}

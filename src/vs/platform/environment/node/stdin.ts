@@ -5,9 +5,9 @@
 /**
  * This code is also used by standalone cli's. Avoid adding dependencies to keep the size of the cli small.
  */
-import * as paths from 'vs/base/common/path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as paths from 'vs/base/common/path';
 import { resolveTerminalEncoding } from 'vs/base/node/terminalEncoding';
 
 export function hasStdinWithoutTty() {
@@ -36,7 +36,7 @@ export function stdinDataListener(durationinMs: number): Promise<boolean> {
 }
 
 export function getStdinFilePath(): string {
-	return paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
+	return paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}`);
 }
 
 export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event, Emitter, AsyncEmitter, IWaitUntil, EventBufferer, EventMultiplexer, PauseableEmitter, Relay, DebounceEmitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, PauseableEmitter, Relay } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 namespace Samples {
 

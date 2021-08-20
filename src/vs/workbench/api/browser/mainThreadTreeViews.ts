@@ -186,14 +186,14 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this.hasResolve = this._proxy.$hasResolve(this.treeViewId);
 	}
 
-	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[]> {
-		return Promise.resolve(this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
+	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
+		return this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
 			.then(
 				children => this.postGetChildren(children),
 				err => {
 					this.notificationService.error(err);
 					return [];
-				}));
+				});
 	}
 
 	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): ITreeItem[] {
@@ -230,7 +230,10 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		return this.itemsMap.size === 0;
 	}
 
-	private async postGetChildren(elements: ITreeItem[]): Promise<ResolvableTreeItem[]> {
+	private async postGetChildren(elements: ITreeItem[] | undefined): Promise<ResolvableTreeItem[] | undefined> {
+		if (elements === undefined) {
+			return undefined;
+		}
 		const result: ResolvableTreeItem[] = [];
 		const hasResolve = await this.hasResolve;
 		if (elements) {

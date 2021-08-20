@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { statSync, Stats } from 'fs';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createHash } from 'crypto';
-import { URI } from 'vs/base/common/uri';
+import { Stats, statSync } from 'fs';
 import { Schemas } from 'vs/base/common/network';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { originalFSPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

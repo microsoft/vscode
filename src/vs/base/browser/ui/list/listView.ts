@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getOrDefault } from 'vs/base/common/objects';
-import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { Event, Emitter } from 'vs/base/common/event';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions, Scrollable } from 'vs/base/common/scrollable';
-import { RangeMap, shift } from './rangeMap';
-import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListDragEvent, IListDragAndDrop, ListDragOverEffect } from './list';
-import { RowCache, IRow } from './rowCache';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { memoize } from 'vs/base/common/decorators';
-import { Range, IRange } from 'vs/base/common/range';
-import { equals, distinct } from 'vs/base/common/arrays';
-import { DataTransfers, StaticDND, IDragAndDropData } from 'vs/base/browser/dnd';
-import { disposableTimeout, Delayer } from 'vs/base/common/async';
 import { isFirefox } from 'vs/base/browser/browser';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { DataTransfers, IDragAndDropData, StaticDND } from 'vs/base/browser/dnd';
 import { $, addDisposableListener, animate, getContentHeight, getContentWidth, getTopLeftOffset, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
+import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { distinct, equals } from 'vs/base/common/arrays';
+import { Delayer, disposableTimeout } from 'vs/base/common/async';
+import { memoize } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { getOrDefault } from 'vs/base/common/objects';
+import { IRange, Range } from 'vs/base/common/range';
+import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+import { ISpliceable } from 'vs/base/common/sequence';
+import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffect } from './list';
+import { RangeMap, shift } from './rangeMap';
+import { IRow, RowCache } from './rowCache';
 
 interface IItem<T> {
 	readonly id: string;
@@ -408,7 +408,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		} else {
 			if (anchorIndex !== null && anchorIndex > index && anchorIndex <= lastRenderRange.end) {
 				// anchor in viewport
-				// resized elemnet in viewport and above the anchor
+				// resized element in viewport and above the anchor
 				heightDiff = size - this.items[index].size;
 			} else {
 				heightDiff = 0;

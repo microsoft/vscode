@@ -34,9 +34,9 @@ interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
 export abstract class DiffElementViewModelBase extends Disposable {
 	public metadataFoldingState: PropertyFoldingState;
 	public outputFoldingState: PropertyFoldingState;
-	protected _layoutInfoEmitter = new Emitter<CellDiffViewModelLayoutChangeEvent>();
+	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
 	onDidLayoutChange = this._layoutInfoEmitter.event;
-	protected _stateChangeEmitter = new Emitter<{ renderOutput: boolean; }>();
+	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean; }>());
 	onDidStateChange = this._stateChangeEmitter.event;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
@@ -515,12 +515,12 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 				return false;
 			}
 
-			if (aOutputItem.data.length !== bOutputItem.data.length) {
+			if (aOutputItem.data.buffer.length !== bOutputItem.data.buffer.length) {
 				return false;
 			}
 
-			for (let k = 0; k < aOutputItem.data.length; k++) {
-				if (aOutputItem.data[k] !== bOutputItem.data[k]) {
+			for (let k = 0; k < aOutputItem.data.buffer.length; k++) {
+				if (aOutputItem.data.buffer[k] !== bOutputItem.data.buffer[k]) {
 					return false;
 				}
 			}

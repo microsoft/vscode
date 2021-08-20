@@ -11,13 +11,11 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
-import { Schemas } from 'vs/base/common/network';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 
@@ -30,7 +28,6 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 	constructor(
 		extHostContext: IExtHostContext,
 		notebooksAndEditors: MainThreadNotebooksAndEditors,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
@@ -108,7 +105,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 				// is marked as dirty and that another event is fired
 				this._proxy.$acceptModelChanged(
 					textModel.uri,
-					eventDto,
+					new SerializableObjectWithBuffers(eventDto),
 					this._notebookEditorModelResolverService.isDirty(textModel.uri)
 				);
 
@@ -131,24 +128,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 
 
 	async $tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents> {
-
-		const info = this._notebookService.getContributedNotebookType(options.viewType);
-		if (!info) {
-			throw new Error('UNKNOWN view type: ' + options.viewType);
-		}
-
-		// find a free URI for the untitled case
-		const suffix = NotebookProviderInfo.possibleFileEnding(info.selectors) ?? '';
-		let uri: URI;
-		for (let counter = 1; ; counter++) {
-			let candidate = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}${suffix}`, query: options.viewType });
-			if (!this._notebookService.getNotebookTextModel(candidate)) {
-				uri = candidate;
-				break;
-			}
-		}
-
-		const ref = await this._notebookEditorModelResolverService.resolve(uri, options.viewType);
+		const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: undefined }, options.viewType);
 
 		// untitled notebooks are disposed when they get saved. we should not hold a reference
 		// to such a disposed notebook and therefore dispose the reference as well
@@ -157,14 +137,14 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		});
 
 		// untitled notebooks are dirty by default
-		this._proxy.$acceptDirtyStateChanged(uri, true);
+		this._proxy.$acceptDirtyStateChanged(ref.object.resource, true);
 
 		// apply content changes... slightly HACKY -> this triggers a change event
 		if (options.content) {
 			const data = NotebookDto.fromNotebookDataDto(options.content);
 			ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
 		}
-		return uri;
+		return ref.object.resource;
 	}
 
 	async $tryOpenNotebook(uriComponents: UriComponents): Promise<URI> {
