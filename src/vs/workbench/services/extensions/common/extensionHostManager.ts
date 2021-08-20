@@ -23,14 +23,40 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { timeout } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 
-export class ExtensionHostManager extends Disposable {
+export interface IExtensionHostManager {
+	readonly kind: ExtensionHostKind;
+	readonly onDidExit: Event<[number, string | null]>;
+	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
+	dispose(): void;
+	ready(): Promise<void>;
+	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
+	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
+	getInspectPort(tryEnableInspector: boolean): Promise<number>;
+	resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
+	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI>;
+	start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
+	extensionTestsExecute(): Promise<number>;
+	extensionTestsSendExit(exitCode: number): Promise<void>;
+	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
+}
+
+export function createExtensionHostManager(instantiationService: IInstantiationService, extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager {
+	if (extensionHost.lazyStart && isInitialStart && initialActivationEvents.length === 0) {
+		return instantiationService.createInstance(LazyStartExtensionHostManager, extensionHost);
+	}
+	return instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents);
+}
+
+class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 	public readonly kind: ExtensionHostKind;
 	public readonly onDidExit: Event<[number, string | null]>;
@@ -344,6 +370,127 @@ export class ExtensionHostManager extends Disposable {
 		}
 
 		return proxy.$setRemoteEnvironment(env);
+	}
+}
+
+/**
+ * Waits until `start()` and only if it has extensions proceeds to really start.
+ */
+class LazyStartExtensionHostManager extends Disposable implements IExtensionHostManager {
+	public readonly kind: ExtensionHostKind;
+	public readonly onDidExit: Event<[number, string | null]>;
+	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
+	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
+
+	private readonly _extensionHost: IExtensionHost;
+	private _startCalled: Barrier;
+	private _actual: ExtensionHostManager | null;
+
+	constructor(
+		extensionHost: IExtensionHost,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+		this._extensionHost = extensionHost;
+		this.kind = extensionHost.kind;
+		this.onDidExit = extensionHost.onExit;
+		this._startCalled = new Barrier();
+		this._actual = null;
+	}
+
+	private _createActual(reason: string): ExtensionHostManager {
+		this._logService.info(`Creating lazy extension host: ${reason}`);
+		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, []));
+		this._register(this._actual.onDidChangeResponsiveState((e) => this._onDidChangeResponsiveState.fire(e)));
+		return this._actual;
+	}
+
+	private async _getOrCreateActualAndStart(reason: string): Promise<ExtensionHostManager> {
+		if (this._actual) {
+			// already created/started
+			return this._actual;
+		}
+		const actual = this._createActual(reason);
+		await actual.start([]);
+		return actual;
+	}
+
+	public async ready(): Promise<void> {
+		await this._startCalled.wait();
+		if (this._actual) {
+			await this._actual.ready();
+		}
+	}
+	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
+		await this._startCalled.wait();
+		const extensionHostAlreadyStarted = Boolean(this._actual);
+		const shouldStartExtensionHost = (toAdd.length > 0);
+		if (extensionHostAlreadyStarted || shouldStartExtensionHost) {
+			const actual = await this._getOrCreateActualAndStart(`contains ${toAdd.length} new extension(s) (installed or enabled)`);
+			return actual.deltaExtensions(toAdd, toRemove);
+		}
+	}
+	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
+		await this._startCalled.wait();
+		if (this._actual) {
+			return this._actual.activate(extension, reason);
+		}
+		return false;
+	}
+	public async activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		await this._startCalled.wait();
+		if (this._actual) {
+			return this._actual.activateByEvent(activationEvent, activationKind);
+		}
+	}
+	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
+		await this._startCalled.wait();
+		if (this._actual) {
+			return this._actual.getInspectPort(tryEnableInspector);
+		}
+		return 0;
+	}
+	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+		await this._startCalled.wait();
+		if (this._actual) {
+			return this._actual.resolveAuthority(remoteAuthority);
+		}
+		throw new Error(`Cannot resolve authority`);
+	}
+	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+		await this._startCalled.wait();
+		if (this._actual) {
+			return this._actual.getCanonicalURI(remoteAuthority, uri);
+		}
+		throw new Error(`Cannot resolve canonical URI`);
+	}
+	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
+		if (enabledExtensionIds.length > 0) {
+			// there are actual extensions, so let's launch the extension host
+			const actual = this._createActual(`contains ${enabledExtensionIds.length} extension(s).`);
+			const result = actual.start(enabledExtensionIds);
+			this._startCalled.open();
+			return result;
+		}
+		// there are no actual extensions
+		this._startCalled.open();
+	}
+	public async extensionTestsExecute(): Promise<number> {
+		await this._startCalled.wait();
+		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
+		return actual.extensionTestsExecute();
+	}
+	public async extensionTestsSendExit(exitCode: number): Promise<void> {
+		await this._startCalled.wait();
+		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
+		return actual.extensionTestsSendExit(exitCode);
+	}
+	public async setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void> {
+		await this._startCalled.wait();
+		if (this._actual) {
+			return this._actual.setRemoteEnvironment(env);
+		}
 	}
 }
 
