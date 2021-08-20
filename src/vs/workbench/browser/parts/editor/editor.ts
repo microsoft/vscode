@@ -172,3 +172,14 @@ export interface EditorServiceImpl extends IEditorService {
 	 */
 	readonly onDidMostRecentlyActiveEditorsChange: Event<void>;
 }
+
+export interface IInternalEditorOpenOptions {
+
+	/**
+	 * Optimization: when we know that many editors open at once,
+	 * setting `skipTitleUpdate` for the `openEditor` call will
+	 * not bother to update the title area control. The caller has
+	 * to manually ensure the title area control is updated.
+	 */
+	skipTitleUpdate?: boolean;
+}
