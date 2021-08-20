@@ -9,7 +9,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId, IMenuService, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyExpr, ContextKeyEqualsExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeView, ITreeViewDescriptor, IViewsRegistry, Extensions, IViewDescriptorService, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ITreeItemLabel, ViewContainer, ViewContainerLocation, ResolvableTreeItem, ITreeViewDragAndDropController, ITreeDataTransfer, TREE_ITEM_DATA_TRANSFER_TYPE } from 'vs/workbench/common/views';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -379,7 +379,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					title: localize('refresh', "Refresh"),
 					menu: {
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.id), that.refreshContextKey),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', that.id), that.refreshContextKey),
 						group: 'navigation',
 						order: Number.MAX_SAFE_INTEGER - 1,
 					},
@@ -397,7 +397,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					title: localize('collapseAll', "Collapse All"),
 					menu: {
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', that.id), that.collapseAllContextKey),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', that.id), that.collapseAllContextKey),
 						group: 'navigation',
 						order: Number.MAX_SAFE_INTEGER,
 					},

@@ -8,7 +8,7 @@ import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewCont
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isString } from 'vs/base/common/types';
 import { MenuId, registerAction2, Action2, MenuRegistry, ICommandActionTitle, ILocalizedString } from 'vs/platform/actions/common/actions';
@@ -442,7 +442,7 @@ export class ViewsService extends Disposable implements IViewsService {
 							}
 						},
 						category: CATEGORIES.View.value,
-						precondition: ContextKeyDefinedExpr.create(`${viewDescriptor.id}.active`),
+						precondition: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 						keybinding: viewDescriptor.openCommandActionDescriptor!.keybindings ? { ...viewDescriptor.openCommandActionDescriptor!.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
 						f1: true
 					});
@@ -477,7 +477,7 @@ export class ViewsService extends Disposable implements IViewsService {
 							title: viewDescriptor.openCommandActionDescriptor.mnemonicTitle,
 						},
 						group: defaultLocation === ViewContainerLocation.Sidebar ? '3_views' : '4_panels',
-						when: ContextKeyDefinedExpr.create(`${viewDescriptor.id}.active`),
+						when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 						order: viewDescriptor.openCommandActionDescriptor.order ?? Number.MAX_VALUE
 					}));
 				}

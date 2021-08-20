@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, ViewVisibilityState, defaultViewIcon, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyOrExpr, ContextKeyTrueExpr, ContextKeyAndExpr, ContextKeyDefinedExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -759,29 +759,29 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 						super({
 							id: `${viewDescriptor.id}.toggleVisibility`,
 							viewPaneContainerId: viewContainerModel.viewContainer.id,
-							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
-							toggled: ContextKeyDefinedExpr.create(`${viewDescriptor.id}.visible`),
+							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
+							toggled: ContextKeyExpr.has(`${viewDescriptor.id}.visible`),
 							title: viewDescriptor.name,
 							menu: [{
 								id: ViewsSubMenu,
 								group: '1_toggleViews',
-								when: ContextKeyAndExpr.create([
-									ContextKeyEqualsExpr.create('viewContainer', viewContainerModel.viewContainer.id),
-									ContextKeyEqualsExpr.create('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-								]),
+								when: ContextKeyExpr.and(
+									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
+									ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+								),
 								order: index,
 							}, {
 								id: MenuId.ViewContainerTitleContext,
-								when: ContextKeyAndExpr.create([
-									ContextKeyEqualsExpr.create('viewContainer', viewContainerModel.viewContainer.id),
-								]),
+								when: ContextKeyExpr.and(
+									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
+								),
 								order: index,
 								group: '1_toggleVisibility'
 							}, {
 								id: MenuId.ViewTitleContext,
-								when: ContextKeyAndExpr.create([
-									viewContainerModel.visibleViewDescriptors.length > 1 ? ContextKeyOrExpr.create(viewContainerModel.visibleViewDescriptors.map(v => ContextKeyEqualsExpr.create('view', v.id))) : ContextKeyFalseExpr.INSTANCE
-								]),
+								when: ContextKeyExpr.and(
+									viewContainerModel.visibleViewDescriptors.length > 1 ? ContextKeyExpr.or(...viewContainerModel.visibleViewDescriptors.map(v => ContextKeyExpr.equals('view', v.id))) : ContextKeyExpr.false()
+								),
 								order: index,
 								group: '2_toggleVisibility'
 							}]
@@ -797,13 +797,13 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							id: `${viewDescriptor.id}.removeView`,
 							viewPaneContainerId: viewContainerModel.viewContainer.id,
 							title: localize('hideView', "Hide '{0}'", viewDescriptor.name),
-							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
+							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 							menu: [{
 								id: MenuId.ViewTitleContext,
-								when: ContextKeyAndExpr.create([
-									ContextKeyEqualsExpr.create('view', viewDescriptor.id),
-									ContextKeyDefinedExpr.create(`${viewDescriptor.id}.visible`),
-								]),
+								when: ContextKeyExpr.and(
+									ContextKeyExpr.equals('view', viewDescriptor.id),
+									ContextKeyExpr.has(`${viewDescriptor.id}.visible`),
+								),
 								group: '1_hide',
 								order: 1
 							}]

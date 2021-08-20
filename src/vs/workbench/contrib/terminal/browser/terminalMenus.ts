@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId, IMenuActionOptions, MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
@@ -244,10 +244,10 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
-					]),
+					),
 				}
 			},
 			{
@@ -260,8 +260,8 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(
@@ -281,7 +281,7 @@ export function setupTerminalMenus(): void {
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
 						)
-					]),
+					),
 				}
 			},
 			{
@@ -294,8 +294,8 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.or(
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
@@ -315,7 +315,7 @@ export function setupTerminalMenus(): void {
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 						)
-					])
+					)
 				}
 			},
 			{
@@ -328,8 +328,8 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.or(
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
@@ -349,7 +349,7 @@ export function setupTerminalMenus(): void {
 							),
 							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 						)
-					])
+					)
 				}
 			},
 			{
@@ -361,9 +361,9 @@ export function setupTerminalMenus(): void {
 					},
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
-					])
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID)
+					)
 				}
 			}
 		]

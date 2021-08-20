@@ -16,7 +16,7 @@ import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView
 import { IAction, Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -1029,7 +1029,7 @@ registerAction2(class Collapse extends ViewAction<CallStackView> {
 				id: MenuId.ViewTitle,
 				order: 10,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', CALLSTACK_VIEW_ID)
+				when: ContextKeyExpr.equals('view', CALLSTACK_VIEW_ID)
 			}
 		});
 	}

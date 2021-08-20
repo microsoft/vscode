@@ -19,7 +19,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -850,7 +850,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', VIEW_ID),
+				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 10
 			}
 		});
@@ -873,7 +873,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', VIEW_ID),
+				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 20
 			}
 		});
@@ -895,7 +895,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', VIEW_ID),
+				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 30
 			}
 		});
@@ -919,7 +919,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', VIEW_ID),
+				when: ContextKeyExpr.equals('view', VIEW_ID),
 				order: 40
 			}
 		});

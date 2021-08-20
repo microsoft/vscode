@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -113,7 +113,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.Escape,
 				when: inWelcomeContext
 			},
-			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
+			precondition: ContextKeyExpr.equals('activeEditor', 'gettingStartedPage'),
 			f1: true
 		});
 	}
