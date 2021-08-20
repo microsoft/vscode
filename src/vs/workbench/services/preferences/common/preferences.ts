@@ -41,6 +41,7 @@ export interface ISettingsGroup {
 	range: IRange;
 	title: string;
 	titleRange: IRange;
+	order: number;
 	sections: ISettingsSection[];
 	extensionInfo?: IConfigurationExtensionInfo;
 }

@@ -380,19 +380,10 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 		const extension = await extensionService.getExtension(extensionId);
 		const extensionName = extension!.displayName ?? extension!.name;
 
-		let sectionOrder = 0;
-		const extensionConfiguration = extension?.contributes?.configuration;
-		if (Array.isArray(extensionConfiguration)) {
-			const currentSection = extensionConfiguration.find((config) => config.id === group.id);
-			if (currentSection) {
-				sectionOrder = currentSection.order ?? 0;
-			}
-		}
-
 		const childEntry = {
 			id: group.id,
 			label: group.title,
-			order: sectionOrder,
+			order: group.order,
 			settings: flatSettings
 		};
 		addEntryToTree(extensionId, extensionName, childEntry);
@@ -409,7 +400,7 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 				// push a flattened setting
 				extGroups.push({
 					id: value.id,
-					label: value.label,
+					label: value.children![0].label,
 					settings: value.children![0].settings
 				});
 			} else {
