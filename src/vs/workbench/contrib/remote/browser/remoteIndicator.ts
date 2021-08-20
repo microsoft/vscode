@@ -10,7 +10,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Action2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';

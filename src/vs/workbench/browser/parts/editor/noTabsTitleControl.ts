@@ -129,6 +129,14 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	openEditor(editor: IEditorInput): void {
+		this.doHandleOpenEditor();
+	}
+
+	openEditors(editors: IEditorInput[]): void {
+		this.doHandleOpenEditor();
+	}
+
+	private doHandleOpenEditor(): void {
 		const activeEditorChanged = this.ifActiveEditorChanged(() => this.redraw());
 		if (!activeEditorChanged) {
 			this.ifActiveEditorPropertiesChanged(() => this.redraw());

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled, getErrorMessage } from 'vs/base/common/errors';
@@ -187,9 +188,20 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						}
 					}
 				} catch (error) {
-					this.logService.error('Error while preparing to install dependencies and extension packs of the extension:', installExtensionTask.identifier.id);
-					this.logService.error(error);
-					throw error;
+					// Installing through VSIX
+					if (URI.isUri(installExtensionTask.source)) {
+						// Ignore installing dependencies and packs
+						if (isNonEmptyArray(manifest.extensionDependencies)) {
+							this.logService.warn(`Cannot install dependencies of extension:`, installExtensionTask.identifier.id, error.message);
+						}
+						if (isNonEmptyArray(manifest.extensionPack)) {
+							this.logService.warn(`Cannot install packed extensions of extension:`, installExtensionTask.identifier.id, error.message);
+						}
+					} else {
+						this.logService.error('Error while preparing to install dependencies and extension packs of the extension:', installExtensionTask.identifier.id);
+						this.logService.error(error);
+						throw error;
+					}
 				}
 			}
 
