@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { MainThreadStatusBarShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -28,7 +28,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(entryId: number, id: string, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
+	$setEntry(entryId: number, id: string, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
 		// if there are icons in the text use the tooltip for the aria label
 		let ariaLabel: string;
 		let role: string | undefined = undefined;
@@ -47,6 +47,8 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		if (typeof priority === 'undefined') {
 			priority = 0;
 		}
+
+		const alignment = alignLeft ? StatusbarAlignment.LEFT : StatusbarAlignment.RIGHT;
 
 		// Reset existing entry if alignment or priority changed
 		let existingEntry = this.entries.get(entryId);
