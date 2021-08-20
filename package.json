@@ -165,7 +165,7 @@
     "istanbul-lib-instrument": "^4.0.0",
     "istanbul-lib-report": "^3.0.0",
     "istanbul-lib-source-maps": "^4.0.0",
-    "istanbul-reports": "^3.0.0",
+    "istanbul-reports": "^3.0.2",
     "jsdom-no-contextify": "^3.1.0",
     "lazy.js": "^0.4.2",
     "merge-options": "^1.0.1",
