@@ -415,6 +415,9 @@ class Extensions extends Disposable {
 	}
 
 	private async syncInstalledExtensionWithGallery(extension: Extension): Promise<void> {
+		if (!this.galleryService.isEnabled()) {
+			return;
+		}
 		const compatible = await this.galleryService.getCompatibleExtension(extension.identifier);
 		if (compatible) {
 			extension.gallery = compatible;
