@@ -17,7 +17,7 @@
     "vscode-uri": "^3.0.2"
   },
   "devDependencies": {
-    "@types/mocha": "^8.2.0",
+    "@types/mocha": "^8.2.3",
     "@types/node": "^12.19.9"
   },
   "scripts": {
