@@ -23,7 +23,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -31,7 +31,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalProfileProvider, ITerminalService, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
@@ -95,6 +95,8 @@ export class TerminalService implements ITerminalService {
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
+
+	get defaultLocation(): TerminalLocation { return this.configHelper.config.defaultLocation === TerminalLocationString.Editor ? TerminalLocation.Editor : TerminalLocation.Panel; }
 
 	private _activeInstance: ITerminalInstance | undefined;
 	get activeInstance(): ITerminalInstance | undefined {
@@ -412,7 +414,7 @@ export class TerminalService implements ITerminalService {
 							// create group and terminal
 							terminalInstance = await this.createTerminal({
 								config: { attachPersistentProcess: terminalLayout.terminal! },
-								target: TerminalLocation.TerminalView
+								location: TerminalLocation.Panel
 							});
 							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
@@ -420,7 +422,7 @@ export class TerminalService implements ITerminalService {
 							}
 						} else {
 							// add split terminals to this group
-							await this.createTerminal({ config: { attachPersistentProcess: terminalLayout.terminal! }, instanceToSplit: terminalInstance },);
+							await this.createTerminal({ config: { attachPersistentProcess: terminalLayout.terminal! }, location: { parentTerminal: terminalInstance } });
 						}
 					}
 					const activeInstance = this.instances.find(t => {
@@ -646,7 +648,7 @@ export class TerminalService implements ITerminalService {
 			await this._localTerminalsInitPromise;
 		}
 		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal({ target: TerminalLocation.TerminalView });
+			this.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
 
@@ -679,7 +681,7 @@ export class TerminalService implements ITerminalService {
 		if (source.target !== TerminalLocation.Editor) {
 			return;
 		}
-		source.target = TerminalLocation.TerminalView;
+		source.target = TerminalLocation.Panel;
 
 		let group: ITerminalGroup | undefined;
 		if (target) {
@@ -937,7 +939,7 @@ export class TerminalService implements ITerminalService {
 
 			if ('id' in value.profile) {
 				await this._createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
-					isSplitTerminal: !!(keyMods?.alt && activeInstance),
+					splitActiveTerminal: !!(keyMods?.alt && activeInstance),
 					icon: value.profile.icon,
 					color: value.profile.color
 				});
@@ -945,13 +947,13 @@ export class TerminalService implements ITerminalService {
 			} else {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
-					instance = await this.createTerminal({ instanceToSplit: activeInstance, config: value.profile });
+					instance = await this.createTerminal({ location: { parentTerminal: activeInstance }, config: value.profile });
 				} else {
-					instance = await this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });
+					instance = await this.createTerminal({ location: this.defaultLocation, config: value.profile, cwd });
 				}
 			}
 
-			if (instance && this.configHelper.config.defaultLocation !== TerminalLocation.Editor) {
+			if (instance && this.defaultLocation !== TerminalLocation.Editor) {
 				this._terminalGroupService.showPanel(true);
 				this.setActiveInstance(instance);
 				return instance;
@@ -992,18 +994,25 @@ export class TerminalService implements ITerminalService {
 
 
 	getDefaultInstanceHost(): ITerminalInstanceHost {
-		if (this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
+		if (this.defaultLocation === TerminalLocation.Editor) {
 			return this._terminalEditorService;
 		}
 		return this._terminalGroupService;
 	}
 
-	getInstanceHost(target: TerminalLocation | undefined): ITerminalInstanceHost {
-		if (target) {
-			if (target === TerminalLocation.Editor) {
+	getInstanceHost(location: ITerminalLocationOptions | undefined): ITerminalInstanceHost {
+		if (location) {
+			if (location === TerminalLocation.Editor) {
 				return this._terminalEditorService;
+			} else if (typeof location === 'object') {
+				if ('viewColumn' in location) {
+					return this._terminalEditorService;
+				} else if ('parentTerminal' in location) {
+					return location.parentTerminal.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+				}
+			} else {
+				return this._terminalGroupService;
 			}
-			return this._terminalGroupService;
 		}
 		return this;
 	}
@@ -1126,12 +1135,12 @@ export class TerminalService implements ITerminalService {
 		// Launch the contributed profile
 		if (contributedProfile) {
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
-				isSplitTerminal: options?.forceSplit || !!options?.instanceToSplit,
 				icon: contributedProfile.icon,
-				target: options?.target,
-				color: contributedProfile.color
+				color: contributedProfile.color,
+				splitActiveTerminal: typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? true : false
 			});
-			const instanceHost = options?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+			// TODO shouldn't the below use defaultLocation?
+			const instanceHost = options?.location === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
 			await instance.focusWhenReady();
 			return instance;
@@ -1139,15 +1148,6 @@ export class TerminalService implements ITerminalService {
 
 		if (options?.cwd) {
 			shellLaunchConfig.cwd = options.cwd;
-		}
-
-		// Use the URI from the base instance if it exists, this will correctly split local terminals
-		if (options?.instanceToSplit && typeof shellLaunchConfig.cwd !== 'object' && typeof options.instanceToSplit.shellLaunchConfig.cwd === 'object') {
-			shellLaunchConfig.cwd = URI.from({
-				scheme: options.instanceToSplit.shellLaunchConfig.cwd.scheme,
-				authority: options.instanceToSplit.shellLaunchConfig.cwd.authority,
-				path: shellLaunchConfig.cwd || options.instanceToSplit.shellLaunchConfig.cwd.path
-			});
 		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
@@ -1163,32 +1163,83 @@ export class TerminalService implements ITerminalService {
 		}
 
 		this._evaluateLocalCwd(shellLaunchConfig);
+		const location = this._resolveLocation(options?.location) || this.defaultLocation;
+		const parent = this._getSplitParent(options?.location);
 
-		let instance: ITerminalInstance;
-		const target = options?.target || this.configHelper.config.defaultLocation;
-		if (options?.instanceToSplit) {
-			if (target === TerminalLocation.Editor || options?.instanceToSplit?.target === TerminalLocation.Editor) {
-				instance = this._terminalEditorService.splitInstance(options.instanceToSplit, shellLaunchConfig);
-			} else {
-				const group = this._terminalGroupService.getGroupForInstance(options.instanceToSplit);
-				if (!group) {
-					throw new Error(`Cannot split a terminal without a group ${options.instanceToSplit}`);
-				}
-				instance = group.split(shellLaunchConfig);
-				this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
-			}
+		if (parent) {
+			return this._splitTerminal(shellLaunchConfig, location, parent);
 		} else {
-			if (target === TerminalLocation.Editor) {
-				instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
-				instance.target = TerminalLocation.Editor;
-				this._terminalEditorService.openEditor(instance, options?.forceSplit || !!options?.instanceToSplit);
-			} else {
-				// TODO: pass resource?
-				const group = this._terminalGroupService.createGroup(shellLaunchConfig);
-				instance = group.terminalInstances[0];
+			return this._createTerminal(shellLaunchConfig, location, options);
+		}
+	}
+
+	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {
+		let instance;
+		// Use the URI from the base instance if it exists, this will correctly split local terminals
+		if (typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
+			shellLaunchConfig.cwd = URI.from({
+				scheme: parent.shellLaunchConfig.cwd.scheme,
+				authority: parent.shellLaunchConfig.cwd.authority,
+				path: shellLaunchConfig.cwd || parent.shellLaunchConfig.cwd.path
+			});
+		}
+		if (location === TerminalLocation.Editor || parent.target === TerminalLocation.Editor) {
+			instance = this._terminalEditorService.splitInstance(parent, shellLaunchConfig);
+		} else {
+			const group = this._terminalGroupService.getGroupForInstance(parent);
+			if (!group) {
+				throw new Error(`Cannot split a terminal without a group ${parent}`);
 			}
+			instance = group.split(shellLaunchConfig);
+			this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
 		}
 		return instance;
+	}
+
+	private _createTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, options?: ICreateTerminalOptions): ITerminalInstance {
+		let instance;
+		const editorOptions = this._getEditorOptions(options?.location);
+		if (location === TerminalLocation.Editor) {
+			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, undefined, options?.resource);
+			instance.target = TerminalLocation.Editor;
+			this._terminalEditorService.openEditor(instance, editorOptions);
+		} else {
+			// TODO: pass resource?
+			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
+			instance = group.terminalInstances[0];
+		}
+		return instance;
+	}
+
+	private _resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined {
+		if (!location) {
+			return location;
+		} else if (typeof location === 'object') {
+			if ('parentTerminal' in location) {
+				return location.parentTerminal.target;
+			} else if ('viewColumn' in location) {
+				return TerminalLocation.Editor;
+			} else if ('splitActiveTerminal' in location) {
+				return this._activeInstance?.target || this.defaultLocation;
+			}
+		}
+		return location;
+	}
+
+	private _getSplitParent(location?: ITerminalLocationOptions): ITerminalInstance | undefined {
+		if (location && typeof location === 'object' && 'parentTerminal' in location) {
+			return location.parentTerminal;
+		} else if (location && typeof location === 'object' && 'splitActiveTerminal' in location) {
+			return this.activeInstance;
+		}
+		return undefined;
+	}
+
+	private _getEditorOptions(location?: ITerminalLocationOptions): TerminalEditorLocation | undefined {
+		if (location && typeof location === 'object' && 'viewColumn' in location) {
+			return location;
+		}
+		return undefined;
 	}
 
 	private _evaluateLocalCwd(shellLaunchConfig: IShellLaunchConfig) {

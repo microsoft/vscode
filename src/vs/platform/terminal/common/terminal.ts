@@ -392,13 +392,17 @@ export interface IShellLaunchConfig {
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	target?: TerminalLocation;
 	icon?: URI | string | { light: URI, dark: URI };
 	color?: string;
-	isSplitTerminal?: boolean;
+	splitActiveTerminal?: boolean;
 }
 
-export const enum TerminalLocation {
+export enum TerminalLocation {
+	Panel = 0,
+	Editor = 1
+}
+
+export const enum TerminalLocationString {
 	TerminalView = 'view',
 	Editor = 'editor'
 }

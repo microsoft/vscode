@@ -13,7 +13,8 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, IContextKeyServiceTarg
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
-export const HistoryNavigationEnablementContext = 'historyNavigationEnabled';
+const HistoryNavigationForwardsEnablementContext = 'historyNavigationForwardsEnabled';
+const HistoryNavigationBackwardsEnablementContext = 'historyNavigationBackwardsEnabled';
 
 function bindContextScopedWidget(contextKeyService: IContextKeyService, widget: IContextScopedWidget, contextKey: string): void {
 	new RawContextKey<IContextScopedWidget>(contextKey, widget).bindTo(contextKeyService);
@@ -35,11 +36,22 @@ interface IContextScopedHistoryNavigationWidget extends IContextScopedWidget {
 	historyNavigator: IHistoryNavigationWidget;
 }
 
-export function createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedHistoryNavigationWidget): { scopedContextKeyService: IContextKeyService, historyNavigationEnablement: IContextKey<boolean> } {
+export interface IHistoryNavigationContext {
+	scopedContextKeyService: IContextKeyService,
+	historyNavigationForwardsEnablement: IContextKey<boolean>,
+	historyNavigationBackwardsEnablement: IContextKey<boolean>,
+}
+
+export function createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedHistoryNavigationWidget): IHistoryNavigationContext {
 	const scopedContextKeyService = createWidgetScopedContextKeyService(contextKeyService, widget);
 	bindContextScopedWidget(scopedContextKeyService, widget, HistoryNavigationWidgetContext);
-	const historyNavigationEnablement = new RawContextKey<boolean>(HistoryNavigationEnablementContext, true).bindTo(scopedContextKeyService);
-	return { scopedContextKeyService, historyNavigationEnablement };
+	const historyNavigationForwardsEnablement = new RawContextKey<boolean>(HistoryNavigationForwardsEnablementContext, true).bindTo(scopedContextKeyService);
+	const historyNavigationBackwardsEnablement = new RawContextKey<boolean>(HistoryNavigationBackwardsEnablementContext, true).bindTo(scopedContextKeyService);
+	return {
+		scopedContextKeyService,
+		historyNavigationForwardsEnablement,
+		historyNavigationBackwardsEnablement,
+	};
 }
 
 export class ContextScopedHistoryInputBox extends HistoryInputBox {
@@ -77,10 +89,10 @@ export class ContextScopedReplaceInput extends ReplaceInput {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'history.showPrevious',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ContextKeyExpr.has(HistoryNavigationWidgetContext), ContextKeyExpr.equals(HistoryNavigationEnablementContext, true)),
+	when: ContextKeyExpr.and(ContextKeyExpr.has(HistoryNavigationWidgetContext), ContextKeyExpr.equals(HistoryNavigationBackwardsEnablementContext, true)),
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
-	handler: (accessor, arg2) => {
+	handler: (accessor) => {
 		const widget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext);
 		if (widget) {
 			const historyInputBox: IHistoryNavigationWidget = widget.historyNavigator;
@@ -92,10 +104,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'history.showNext',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(ContextKeyExpr.has(HistoryNavigationWidgetContext), ContextKeyExpr.equals(HistoryNavigationEnablementContext, true)),
+	when: ContextKeyExpr.and(ContextKeyExpr.has(HistoryNavigationWidgetContext), ContextKeyExpr.equals(HistoryNavigationForwardsEnablementContext, true)),
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],
-	handler: (accessor, arg2) => {
+	handler: (accessor) => {
 		const widget = getContextScopedWidget<IContextScopedHistoryNavigationWidget>(accessor.get(IContextKeyService), HistoryNavigationWidgetContext);
 		if (widget) {
 			const historyInputBox: IHistoryNavigationWidget = widget.historyNavigator;

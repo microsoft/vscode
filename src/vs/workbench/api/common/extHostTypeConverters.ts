@@ -32,7 +32,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, ITestTagDisplayInfo, SerializedTestResultItem, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, SerializedTestResultItem, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1665,14 +1665,6 @@ export namespace TestTag {
 
 	export const namespace = (ctrlId: string, tagId: string) =>
 		ctrlId + Constants.Delimiter + tagId;
-
-	export function display(controllerId: string, tag: vscode.TestTag): ITestTagDisplayInfo {
-		return {
-			displayId: tag.id,
-			id: namespace(controllerId, tag.id),
-			label: tag.label,
-		};
-	}
 
 	export const denamespace = (namespaced: string) => {
 		const index = namespaced.indexOf(Constants.Delimiter);

@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -51,8 +51,8 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
-	isSplitTerminal?: boolean;
-	target?: TerminalLocation;
+	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
+	splitActiveTerminal?: boolean;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -72,7 +72,7 @@ export class ExtHostTerminal {
 
 	constructor(
 		private _proxy: MainThreadTerminalServiceShape,
-		public _id: TerminalIdentifier,
+		public _id: ExtHostTerminalIdentifier,
 		private readonly _creationOptions: vscode.TerminalOptions | vscode.ExtensionTerminalOptions,
 		private _name?: string,
 	) {
@@ -147,12 +147,12 @@ export class ExtHostTerminal {
 			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
-			isSplitTerminal: internalOptions?.isSplitTerminal,
-			target: internalOptions?.target
+			location: this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier, internalOptions?.splitActiveTerminal)
 		});
 	}
 
-	public async createExtensionTerminal(isSplitTerminal?: boolean, target?: TerminalLocation, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
+
+	public async createExtensionTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier, iconPath?: TerminalIcon, color?: ThemeColor): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
@@ -161,14 +161,22 @@ export class ExtHostTerminal {
 			isExtensionCustomPtyTerminal: true,
 			icon: iconPath,
 			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
-			isSplitTerminal,
-			target
+			location: this._serializeParentTerminal(location, parentTerminal)
 		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
 			throw new Error('Terminal creation failed');
 		}
 		return this._id;
+	}
+
+	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier, splitActiveTerminal?: boolean): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean } | undefined {
+		if (typeof location === 'object' && 'parentTerminal' in location) {
+			return parentTerminal ? { parentTerminal } : undefined;
+		} else if (splitActiveTerminal) {
+			return { splitActiveTerminal: true };
+		}
+		return location;
 	}
 
 	private _checkDisposed() {
@@ -393,12 +401,19 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, internalOptions?.target, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
+		terminal.createExtensionTerminal(this._resolveLocation(options.location), internalOptions?.resolvedExtHostIdentifier, asTerminalIcon(options.iconPath), asTerminalColor(options.color)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
 		this._terminals.push(terminal);
 		return terminal.value;
+	}
+
+	private _resolveLocation(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions): undefined | TerminalLocation | vscode.TerminalEditorLocationOptions {
+		if (typeof location === 'object' && 'parentTerminal' in location) {
+			return undefined;
+		}
+		return location;
 	}
 
 	public attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void {
@@ -636,6 +651,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (!profile || !('options' in profile)) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
+
 		if ('pty' in profile.options) {
 			this.createExtensionTerminal(profile.options, options);
 			return;
@@ -739,7 +755,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return index !== null ? array[index] : null;
 	}
 
-	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: TerminalIdentifier): number | null {
+	private _getTerminalObjectIndexById<T extends ExtHostTerminal>(array: T[], id: ExtHostTerminalIdentifier): number | null {
 		let index: number | null = null;
 		array.some((item, i) => {
 			const thisId = item._id;

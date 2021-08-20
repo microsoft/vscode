@@ -449,9 +449,10 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 	constructor(
 		private viewer: WorkbenchObjectTree<RenderableMatch>,
-		private element: RenderableMatch
+		private element: RenderableMatch,
+		@IKeybindingService keyBindingService: IKeybindingService
 	) {
-		super('remove', RemoveAction.LABEL, ThemeIcon.asClassName(searchRemoveIcon));
+		super(Constants.RemoveActionId, appendKeyBindingLabel(RemoveAction.LABEL, keyBindingService.lookupKeybinding(Constants.RemoveActionId), keyBindingService), ThemeIcon.asClassName(searchRemoveIcon));
 	}
 
 	override run(): Promise<any> {

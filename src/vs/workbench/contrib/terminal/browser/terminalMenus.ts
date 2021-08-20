@@ -17,6 +17,7 @@ import { ICreateTerminalOptions, ITerminalService } from 'vs/workbench/contrib/t
 import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -571,7 +572,7 @@ export function setupTerminalMenus(): void {
 	});
 }
 
-export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], instantiationService: IInstantiationService, terminalService: ITerminalService, contextKeyService: IContextKeyService, commandService: ICommandService, dropdownMenu: IMenu): {
+export function getTerminalActionBarArgs(location: TerminalLocation, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], instantiationService: IInstantiationService, terminalService: ITerminalService, contextKeyService: IContextKeyService, commandService: ICommandService, dropdownMenu: IMenu): {
 	primaryAction: MenuItemAction,
 	dropdownAction: IAction,
 	dropdownMenuActions: IAction[],
@@ -586,7 +587,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 		const options: IMenuActionOptions = {
 			arg: {
 				config: p,
-				target
+				location
 			} as ICreateTerminalOptions,
 			shouldForwardArgs: true
 		};
@@ -608,17 +609,16 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 				id: contributed.id,
 				title
 			},
-			forceSplit: false,
-			target
+			location
 		})));
+		const splitLocation = location === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : location;
 		submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
 			config: {
 				extensionIdentifier: contributed.extensionIdentifier,
 				id: contributed.id,
 				title
 			},
-			forceSplit: true,
-			target
+			location: splitLocation
 		})));
 	}
 
@@ -651,7 +651,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 	const primaryAction = instantiationService.createInstance(
 		MenuItemAction,
 		{
-			id: target === TerminalLocation.TerminalView ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
+			id: location === TerminalLocation.Panel ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
 			title: localize('terminal.new', "New Terminal"),
 			icon: Codicon.plus
 		},
@@ -662,7 +662,7 @@ export function getTerminalActionBarArgs(target: TerminalLocation, profiles: ITe
 		},
 		{
 			shouldForwardArgs: true,
-			arg: { target } as ICreateTerminalOptions,
+			arg: { location } as ICreateTerminalOptions,
 		});
 
 	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
