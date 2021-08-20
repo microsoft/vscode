@@ -13,6 +13,17 @@
 .monaco-workbench .hover-language-status-element:not(:last-child) {
 	border-bottom: 1px solid var(--code-notifications-border);
 }
+
+.monaco-workbench .hover-language-status-element > .left > .label::after {
+	content: '–';
+	padding: 0 4px;
+	opacity: 0.6;
+}
+
+.monaco-workbench .hover-language-status-element > .left > .label:empty {
+	display: none;
+}
+
 .monaco-workbench .hover-language-status-element .right {
 	margin: auto 0;
 }

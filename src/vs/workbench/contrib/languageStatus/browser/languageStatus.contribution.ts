@@ -108,15 +108,15 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		left.classList.add('left');
 		node.appendChild(left);
 
-		const detail = document.createElement('div');
+		const label = document.createElement('span');
+		label.classList.add('label');
+		dom.append(label, ...renderLabelWithIcons(status.label));
+		left.appendChild(label);
+
+		const detail = document.createElement('span');
 		detail.classList.add('detail');
 		this._renderTextPlus(detail, status.detail);
 		left.appendChild(detail);
-
-		const label = document.createElement('div');
-		label.classList.add('label');
-		this._renderTextPlus(label, status.label);
-		left.appendChild(label);
 
 		const right = document.createElement('div');
 		right.classList.add('right');
