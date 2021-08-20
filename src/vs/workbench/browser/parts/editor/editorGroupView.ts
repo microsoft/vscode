@@ -24,6 +24,7 @@ import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { isErrorWithActions, isPromiseCanceledError } from 'vs/base/common/errors';
 import { combinedDisposable, dispose, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
@@ -32,7 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, EditorServiceImpl, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
@@ -945,8 +946,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region openEditor()
 
 	async openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined> {
+		return this.doOpenEditor(editor, options);
+	}
 
-		// Guard against invalid inputs. Disposed inputs
+	private async doOpenEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
+
+		// Guard against invalid editors. Disposed editors
 		// should never open because they emit no events
 		// e.g. to indicate dirty changes.
 		if (!editor || editor.isDisposed()) {
@@ -1030,7 +1035,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Show editor
-		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options);
+		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
 
 		// Finally make sure the group is active or restored as instructed
 		if (activateGroup) {
@@ -1042,7 +1047,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return showEditorResult;
 	}
 
-	private doShowEditor(editor: EditorInput, context: { active: boolean, isNew: boolean }, options?: IEditorOptions): Promise<IEditorPane | undefined> {
+	private doShowEditor(editor: EditorInput, context: { active: boolean, isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
 		let openEditorPromise: Promise<IEditorPane | undefined>;
@@ -1070,7 +1075,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Show in title control after editor control because some actions depend on it
-		this.titleAreaControl.openEditor(editor);
+		// but respect the internal options in case title control updates should skip.
+		if (!internalOptions?.skipTitleUpdate) {
+			this.titleAreaControl.openEditor(editor);
+		}
 
 		return openEditorPromise;
 	}
@@ -1164,27 +1172,38 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region openEditors()
 
 	async openEditors(editors: { editor: EditorInput, options?: IEditorOptions }[]): Promise<IEditorPane | null> {
-		if (!editors.length) {
+
+		// Guard against invalid editors. Disposed editors
+		// should never open because they emit no events
+		// e.g. to indicate dirty changes.
+		const editorsToOpen = coalesce(editors).filter(({ editor }) => !editor.isDisposed());
+
+		// Use the first editor as active editor
+		const firstEditor = firstOrDefault(editorsToOpen);
+		if (!firstEditor) {
 			return null;
 		}
 
-		// Do not modify original array
-		editors = editors.slice(0);
-
-		// Use the first editor as active editor
-		const { editor, options } = editors.shift()!;
-		await this.openEditor(editor, options);
+		await this.openEditor(firstEditor.editor, firstEditor.options);
 
 		// Open the other ones inactive
-		const startingIndex = this.getIndexOfEditor(editor) + 1;
-		await Promises.settled(editors.map(async ({ editor, options }, index) => {
-			const adjustedEditorOptions = options || Object.create(null);
-			adjustedEditorOptions.inactive = true;
-			adjustedEditorOptions.pinned = true;
-			adjustedEditorOptions.index = startingIndex + index;
-
-			await this.openEditor(editor, adjustedEditorOptions);
+		const inactiveEditors = editorsToOpen.slice(1);
+		const startingIndex = this.getIndexOfEditor(firstEditor.editor) + 1;
+		await Promises.settled(inactiveEditors.map(({ editor, options }, index) => {
+			return this.doOpenEditor(editor, {
+				...options,
+				inactive: true,
+				pinned: true,
+				index: startingIndex + index
+			}, {
+				// optimization: update the title control later
+				// https://github.com/microsoft/vscode/issues/130634
+				skipTitleUpdate: true
+			});
 		}));
+
+		// Update the title control all at once with all editors
+		this.titleAreaControl.openEditors(inactiveEditors.map(({ editor }) => editor));
 
 		// Opening many editors at once can put any editor to be
 		// the active one depending on options. As such, we simply

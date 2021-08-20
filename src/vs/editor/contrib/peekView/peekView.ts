@@ -92,7 +92,9 @@ export interface IPeekViewStyles extends IStyles {
 	secondaryHeadingColor?: Color;
 }
 
-export type IPeekViewOptions = IOptions & IPeekViewStyles;
+export type IPeekViewOptions = IOptions & IPeekViewStyles & {
+	supportOnTitleClick?: boolean;
+};
 
 const defaultOptions: IPeekViewOptions = {
 	headerBackgroundColor: Color.white,
@@ -178,8 +180,11 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	protected _fillHead(container: HTMLElement, noCloseAction?: boolean): void {
 		const titleElement = dom.$('.peekview-title');
+		if ((this.options as IPeekViewOptions).supportOnTitleClick) {
+			titleElement.classList.add('clickable');
+			dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
+		}
 		dom.append(this._headElement!, titleElement);
-		dom.addStandardDisposableListener(titleElement, 'click', event => this._onTitleClick(event));
 
 		this._fillTitleIcon(titleElement);
 		this._primaryHeading = dom.$('span.filename');
@@ -213,7 +218,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	protected _onTitleClick(event: IMouseEvent): void {
-		// implement me
+		// implement me if supportOnTitleClick option is set
 	}
 
 	setTitle(primaryHeading: string, secondaryHeading?: string): void {
