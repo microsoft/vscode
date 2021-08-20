@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "jsonc-parser": "^2.2.1",
-    "vscode-nls": "^4.1.1"
+    "vscode-nls": "^4.1.2"
   },
   "capabilities": {
     "virtualWorkspaces": true,
@@ -51,8 +51,8 @@
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-					"**/.devcontainer/devcontainer.json"
-				]
+          "**/.devcontainer/devcontainer.json"
+        ]
       }
     ],
     "jsonValidation": [
