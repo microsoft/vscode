@@ -395,6 +395,7 @@ export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI, dark: URI };
 	color?: string;
 	splitActiveTerminal?: boolean;
+	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean };
 }
 
 export enum TerminalLocation {

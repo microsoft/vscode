@@ -48,7 +48,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class TerminalService implements ITerminalService {
@@ -951,7 +951,8 @@ export class TerminalService implements ITerminalService {
 				await this._createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
 					splitActiveTerminal: !!(keyMods?.alt && activeInstance),
 					icon: value.profile.icon,
-					color: value.profile.color
+					color: value.profile.color,
+					location: this.defaultLocation
 				});
 				return;
 			} else {
@@ -1156,10 +1157,13 @@ export class TerminalService implements ITerminalService {
 
 		// Launch the contributed profile
 		if (contributedProfile) {
+			const resolvedLocation = this._resolveLocation(options?.location);
+			const split = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : false;
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				icon: contributedProfile.icon,
 				color: contributedProfile.color,
-				splitActiveTerminal: typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? true : false
+				splitActiveTerminal: split,
+				location: resolvedLocation === TerminalLocation.Editor && split ? { viewColumn: SIDE_GROUP } : resolvedLocation
 			});
 			const instanceHost = this._resolveLocation(options?.location) === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
