@@ -397,8 +397,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInlineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeIcon,
-						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
+						id: TerminalCommandId.ChangeIconPanel,
+						title: terminalStrings.changeIcon.value
 					},
 					group: ContextMenuGroup.Edit
 				}
@@ -407,8 +407,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInlineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.ChangeColor,
-						title: localize('workbench.action.terminal.changeColor', "Change Color...")
+						id: TerminalCommandId.ChangeColorPanel,
+						title: terminalStrings.changeColor.value
 					},
 					group: ContextMenuGroup.Edit
 				}
@@ -417,8 +417,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInlineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.Rename,
-						title: localize('workbench.action.terminal.rename', "Rename...")
+						id: TerminalCommandId.RenamePanel,
+						title: terminalStrings.rename.value
 					},
 					group: ContextMenuGroup.Edit
 				}
