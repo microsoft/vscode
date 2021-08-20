@@ -7,17 +7,21 @@
 	display: flex;
 	justify-content: space-between;
 	padding: 4px 8px;
+	vertical-align: middle;
 }
 
 .monaco-workbench .hover-language-status-element:not(:last-child) {
 	border-bottom: 1px solid var(--code-notifications-border);
 }
+.monaco-workbench .hover-language-status-element .right {
+	margin: auto 0;
+}
 
 .monaco-workbench .hover-language-status-element .right:not(:empty) {
-	padding-left: 24px;
+	padding-left: 16px;
 }
 
 .monaco-workbench .hover-language-status-element .right .monaco-button.monaco-text-button {
 	font-size: smaller;
-	padding: 2px 4px
+	padding: 2px 6px
 }
