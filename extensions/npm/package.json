@@ -28,7 +28,7 @@
     "which-pm": "^2.0.0"
   },
   "devDependencies": {
-    "@types/minimatch": "^3.0.3",
+    "@types/minimatch": "^3.0.5",
     "@types/node": "^12.19.9",
     "@types/which": "^2.0.0"
   },
