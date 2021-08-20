@@ -52,6 +52,7 @@ export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
+	splitActiveTerminal?: boolean;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -146,7 +147,7 @@ export class ExtHostTerminal {
 			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
-			location: this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier)
+			location: this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier, internalOptions?.splitActiveTerminal)
 		});
 	}
 
@@ -169,9 +170,11 @@ export class ExtHostTerminal {
 		return this._id;
 	}
 
-	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | undefined {
+	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier, splitActiveTerminal?: boolean): TerminalLocation | vscode.TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean } | undefined {
 		if (typeof location === 'object' && 'parentTerminal' in location) {
 			return parentTerminal ? { parentTerminal } : undefined;
+		} else if (splitActiveTerminal) {
+			return { splitActiveTerminal: true };
 		}
 		return location;
 	}
@@ -649,26 +652,11 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 
-		const internalOptions: ITerminalInternalOptions = this._resolveParentTerminal(options);
 		if ('pty' in profile.options) {
-			this.createExtensionTerminal(profile.options, internalOptions);
+			this.createExtensionTerminal(profile.options, options);
 			return;
 		}
-		this.createTerminalFromOptions(profile.options, internalOptions);
-	}
-
-	private _resolveParentTerminal(options: ICreateContributedTerminalProfileOptions): ITerminalInternalOptions {
-		let internalOptions: ITerminalInternalOptions = {};
-		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
-			const location = options.location;
-			if ('parentTerminal' in location) {
-				const extHostTerminal = this._terminals.find(t => t._id === location.parentTerminal.toString());
-				if (extHostTerminal) {
-					internalOptions.resolvedExtHostIdentifier = extHostTerminal._id;
-				}
-			}
-		}
-		return internalOptions;
+		this.createTerminalFromOptions(profile.options, options);
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {

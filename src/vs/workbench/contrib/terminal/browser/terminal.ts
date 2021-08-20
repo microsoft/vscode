@@ -210,7 +210,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	getInputFromResource(resource: URI): TerminalEditorInput;
 }
 
-export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance };
+export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean };
 
 export interface ICreateTerminalOptions {
 	/**

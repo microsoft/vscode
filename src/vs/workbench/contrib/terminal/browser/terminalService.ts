@@ -938,12 +938,8 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
-				let parentTerminal = undefined;
-				if (!!(keyMods?.alt && activeInstance?.instanceId)) {
-					parentTerminal = { parentTerminal: activeInstance.instanceId };
-				}
 				await this._createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
-					location: parentTerminal,
+					splitActiveTerminal: !!(keyMods?.alt && activeInstance),
 					icon: value.profile.icon,
 					color: value.profile.color
 				});
@@ -1138,13 +1134,12 @@ export class TerminalService implements ITerminalService {
 
 		// Launch the contributed profile
 		if (contributedProfile) {
-			const parent = this._getSplitParent(options?.location);
-			const location = this._resolveLocation(options?.location) || this.defaultLocation;
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				icon: contributedProfile.icon,
-				location: parent ? { parentTerminal: parent.instanceId } : location,
-				color: contributedProfile.color
+				color: contributedProfile.color,
+				splitActiveTerminal: typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? true : false
 			});
+			// TODO shouldn't the below use defaultLocation?
 			const instanceHost = options?.location === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
 			await instance.focusWhenReady();
@@ -1224,6 +1219,8 @@ export class TerminalService implements ITerminalService {
 				return location.parentTerminal.target;
 			} else if ('viewColumn' in location) {
 				return TerminalLocation.Editor;
+			} else if ('splitActiveTerminal' in location) {
+				return this._activeInstance?.target || this.defaultLocation;
 			}
 		}
 		return location;
@@ -1232,6 +1229,8 @@ export class TerminalService implements ITerminalService {
 	private _getSplitParent(location?: ITerminalLocationOptions): ITerminalInstance | undefined {
 		if (location && typeof location === 'object' && 'parentTerminal' in location) {
 			return location.parentTerminal;
+		} else if (location && typeof location === 'object' && 'splitActiveTerminal' in location) {
+			return this.activeInstance;
 		}
 		return undefined;
 	}

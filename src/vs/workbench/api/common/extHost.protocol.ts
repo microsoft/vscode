@@ -485,7 +485,7 @@ export interface TerminalLaunchConfig {
 	isFeatureTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
-	location?: TerminalLocation | { viewColumn: number, preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier };
+	location?: TerminalLocation | { viewColumn: number, preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
