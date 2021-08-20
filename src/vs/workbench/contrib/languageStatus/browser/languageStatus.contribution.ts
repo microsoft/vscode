@@ -105,6 +105,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		node.classList.add('hover-language-status-element');
 
 		const left = document.createElement('div');
+		left.classList.add('left');
 		node.appendChild(left);
 
 		const detail = document.createElement('div');
@@ -118,6 +119,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		left.appendChild(label);
 
 		const right = document.createElement('div');
+		right.classList.add('right');
 		node.appendChild(right);
 
 		const { command } = status;

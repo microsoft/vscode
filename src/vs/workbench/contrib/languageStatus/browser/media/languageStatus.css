@@ -13,7 +13,11 @@
 	border-bottom: 1px solid var(--code-notifications-border);
 }
 
-.monaco-workbench .hover-language-status-element .monaco-button.monaco-text-button {
+.monaco-workbench .hover-language-status-element .right:not(:empty) {
+	padding-left: 24px;
+}
+
+.monaco-workbench .hover-language-status-element .right .monaco-button.monaco-text-button {
 	font-size: smaller;
 	padding: 2px 4px
 }
