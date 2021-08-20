@@ -191,7 +191,8 @@ export class CodeLensContribution implements IEditorContribution {
 
 				// render lenses
 				this._renderCodeLensSymbols(result);
-				this._resolveCodeLensesInViewport();
+				// dom.scheduleAtNextAnimationFrame(() => this._resolveCodeLensesInViewport());
+				this._resolveCodeLensesInViewportSoon();
 			}, onUnexpectedError);
 
 		}, this._getCodeLensModelDelays.get(model));
