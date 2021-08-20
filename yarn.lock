@@ -4631,6 +4631,19 @@ gulp-vinyl-zip@^2.1.2:
     yauzl "^2.2.1"
     yazl "^2.2.1"
 
+gulp-vinyl-zip@^2.5.0:
+  version "2.5.0"
+  resolved "https://registry.yarnpkg.com/gulp-vinyl-zip/-/gulp-vinyl-zip-2.5.0.tgz#73eef9c067b8775b1ad07a34a41384e1c7b0041a"
+  integrity sha512-KPi5/2SUmkXXDvKU4L2U1dkPOP03SbhONTOgNZlL23l9Yopt+euJ1bBXwWrSMbsyh3JLW/TYuC8CI4c4Kq4qrw==
+  dependencies:
+    queue "^4.2.1"
+    through "^2.3.8"
+    through2 "^2.0.3"
+    vinyl "^2.0.2"
+    vinyl-fs "^3.0.3"
+    yauzl "^2.2.1"
+    yazl "^2.2.1"
+
 gulp@^4.0.0:
   version "4.0.2"
   resolved "https://registry.yarnpkg.com/gulp/-/gulp-4.0.2.tgz#543651070fd0f6ab0a0650c6a3e6ff5a7cb09caa"
