@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { ITextModel } from 'vs/editor/common/model';
+import { Command } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { LanguageSelector } from 'vs/editor/common/modes/languageSelector';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -20,6 +21,7 @@ export interface ILanguageStatus {
 	label: string;
 	detail: string;
 	source: string;
+	command: Command | undefined;
 }
 
 export interface ILanguageStatusProvider {

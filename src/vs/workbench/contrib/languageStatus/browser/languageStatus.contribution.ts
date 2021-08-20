@@ -11,7 +11,7 @@ import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { registerThemingParticipant, ThemeColor, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { NOTIFICATIONS_BORDER, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -21,9 +21,8 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 class EditorStatusContribution implements IWorkbenchContribution {
 
@@ -39,6 +38,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		_languageStatusService.onDidChange(this._update, this, this._disposables);
 		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
@@ -120,16 +120,18 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		const right = document.createElement('div');
 		node.appendChild(right);
 
-		const actions = new ActionBar(right, {});
-		actions.push(new Action(
-			'pin',
-			localize('label.pin', 'Pin'),
-			ThemeIcon.asClassName(Codicon.pin),
-			true,
-			() => {
-				console.log(status);
-			}
-		), { icon: true, label: false });
+		const { command } = status;
+		if (command) {
+			const btn = new Button(right, { title: command.tooltip });
+			btn.label = command.title;
+			btn.onDidClick(_e => {
+				if (command.arguments) {
+					this._commandService.executeCommand(command.id, ...command.arguments);
+				} else {
+					this._commandService.executeCommand(command.id);
+				}
+			});
+		}
 		return node;
 	}
 
