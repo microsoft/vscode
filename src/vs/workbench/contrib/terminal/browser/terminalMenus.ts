@@ -630,6 +630,12 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		})));
 	}
 
+	const defaultProfileAction = dropdownActions.find(d => d.label.endsWith('(Default)'));
+	if (defaultProfileAction) {
+		dropdownActions = dropdownActions.filter(d => d !== defaultProfileAction).sort((a, b) => a.label.localeCompare(b.label));
+		dropdownActions.unshift(defaultProfileAction);
+	}
+
 	if (dropdownActions.length > 0) {
 		dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
 		dropdownActions.push(new Separator());
@@ -644,15 +650,9 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		}
 	}
 
-	const defaultProfileAction = dropdownActions.find(d => d.label.endsWith('(Default)'));
-	if (defaultProfileAction) {
-		dropdownActions = dropdownActions.filter(d => d !== defaultProfileAction);
-		dropdownActions.unshift(defaultProfileAction);
-	}
-
 	const defaultSubmenuProfileAction = submenuActions.find(d => d.label.endsWith('(Default)'));
 	if (defaultSubmenuProfileAction) {
-		submenuActions = submenuActions.filter(d => d !== defaultSubmenuProfileAction);
+		submenuActions = submenuActions.filter(d => d !== defaultSubmenuProfileAction).sort((a, b) => a.label.localeCompare(b.label));
 		submenuActions.unshift(defaultSubmenuProfileAction);
 	}
 
