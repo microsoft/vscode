@@ -467,7 +467,7 @@ export interface MainThreadProgressShape extends IDisposable {
  * All other terminals (that are not created on the extension host side) always
  * use the numeric id.
  */
-export type TerminalIdentifier = number | string;
+export type ExtHostTerminalIdentifier = number | string;
 
 export interface TerminalLaunchConfig {
 	name?: string;
@@ -485,16 +485,15 @@ export interface TerminalLaunchConfig {
 	isFeatureTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
-	isSplitTerminal?: boolean;
-	target?: TerminalLocation;
+	location?: TerminalLocation | { viewColumn: number, preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
-	$dispose(id: TerminalIdentifier): void;
-	$hide(id: TerminalIdentifier): void;
-	$sendText(id: TerminalIdentifier, text: string, addNewLine: boolean): void;
-	$show(id: TerminalIdentifier, preserveFocus: boolean): void;
+	$dispose(id: ExtHostTerminalIdentifier): void;
+	$hide(id: ExtHostTerminalIdentifier): void;
+	$sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): void;
+	$show(id: ExtHostTerminalIdentifier, preserveFocus: boolean): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
 	$startLinkProvider(): void;

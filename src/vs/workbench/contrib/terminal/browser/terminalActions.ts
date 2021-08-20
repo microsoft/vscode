@@ -44,6 +44,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export const switchTerminalActionViewItemSeparator = '─────────';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -122,7 +123,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			if (terminalService.isProcessSupportRegistered) {
-				const instance = await terminalService.createTerminal({ target: terminalService.configHelper.config.defaultLocation });
+				const instance = await terminalService.createTerminal({ location: terminalService.defaultLocation });
 				if (!instance) {
 					return;
 				}
@@ -148,7 +149,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const instance = await terminalService.createTerminal({
-				target: TerminalLocation.Editor
+				location: TerminalLocation.Editor
 			});
 			instance.focusWhenReady();
 		}
@@ -167,8 +168,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const instance = await terminalService.createTerminal({
-				target: TerminalLocation.Editor,
-				forceSplit: true
+				location: { viewColumn: SIDE_GROUP }
 			});
 			instance.focusWhenReady();
 		}
@@ -386,7 +386,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const instance = terminalService.activeInstance || await terminalService.createTerminal({ target: TerminalLocation.TerminalView });
+			const instance = terminalService.activeInstance || await terminalService.createTerminal({ location: TerminalLocation.Panel });
 			if (!instance) {
 				return;
 			}
@@ -1425,7 +1425,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
-			const activeInstance = terminalService.getInstanceHost(options?.target).activeInstance;
+			const activeInstance = terminalService.getInstanceHost(options?.location).activeInstance;
 			if (!activeInstance) {
 				return;
 			}
@@ -1433,7 +1433,7 @@ export function registerTerminalActions() {
 			if (cwd === undefined) {
 				return undefined;
 			}
-			const instance = await terminalService.createTerminal({ instanceToSplit: activeInstance, config: options?.config, cwd, target: activeInstance.target });
+			const instance = await terminalService.createTerminal({ location: { parentTerminal: activeInstance }, config: options?.config, cwd });
 			if (instance) {
 				if (instance.target === TerminalLocation.Editor) {
 					instance.focusWhenReady();
@@ -1471,7 +1471,7 @@ export function registerTerminalActions() {
 					terminalService.setActiveInstance(t);
 					terminalService.doWithActiveInstance(async instance => {
 						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
-						await terminalService.createTerminal({ instanceToSplit: instance, cwd });
+						await terminalService.createTerminal({ location: { parentTerminal: instance }, cwd });
 						await terminalGroupService.showPanel(true);
 					});
 				}
@@ -1546,7 +1546,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			await terminalService.doWithActiveInstance(async t => {
 				const cwd = await getCwdForSplit(terminalService.configHelper, t);
-				const instance = await terminalService.createTerminal({ instanceToSplit: t, cwd });
+				const instance = await terminalService.createTerminal({ location: { parentTerminal: t }, cwd });
 				if (instance?.target !== TerminalLocation.Editor) {
 					await terminalGroupService.showPanel(true);
 				}
@@ -1613,14 +1613,14 @@ export function registerTerminalActions() {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					await terminalService.createTerminal({ instanceToSplit: activeInstance, cwd });
+					await terminalService.createTerminal({ location: { parentTerminal: activeInstance }, cwd });
 					return;
 				}
 			}
 
 			if (terminalService.isProcessSupportRegistered) {
 				eventOrOptions = !eventOrOptions || eventOrOptions instanceof MouseEvent ? {} : eventOrOptions;
-				eventOrOptions.target = eventOrOptions.target || terminalService.configHelper.config.defaultLocation;
+				eventOrOptions.location = eventOrOptions.location || terminalService.defaultLocation;
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a
@@ -2026,10 +2026,10 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (event && (event.altKey || event.ctrlKey)) {
-				const activeInstance = terminalService.activeInstance;
-				if (activeInstance) {
-					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					await terminalService.createTerminal({ instanceToSplit: activeInstance, config: options?.config, cwd });
+				const parentTerminal = terminalService.activeInstance;
+				if (parentTerminal) {
+					const cwd = await getCwdForSplit(terminalService.configHelper, parentTerminal);
+					await terminalService.createTerminal({ location: { parentTerminal }, config: options?.config, cwd });
 					return;
 				}
 			}

@@ -6,7 +6,7 @@
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -78,7 +78,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
-			enum: [TerminalLocation.Editor, TerminalLocation.TerminalView],
+			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
 			enumDescriptions: [
 				localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
 				localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
