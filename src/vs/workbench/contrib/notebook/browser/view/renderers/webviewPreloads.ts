@@ -575,7 +575,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					} else {
 						const rendererApi = preloadsAndErrors[0] as RendererApi;
 						try {
-							rendererApi.renderOutputItem(new OutputItem(outputId, outputNode, content.mimeType, content.mimeType, content.valueBytes), outputNode);
+							rendererApi.renderOutputItem(new OutputItem(outputId, outputNode, content.mimeType, content.metadata, content.valueBytes), outputNode);
 						} catch (e) {
 							showPreloadErrors(outputNode, e);
 						}
