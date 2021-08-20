@@ -187,6 +187,24 @@ suite('ContextKeyExpr', () => {
 		assert.strictEqual(actual!.equals(expected!), true);
 	});
 
+	test('issue #129625: Removes duplicated terms in OR expressions', () => {
+		const expr = ContextKeyExpr.or(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.has('B'),
+			ContextKeyExpr.has('A')
+		)!;
+		assert.strictEqual(expr.serialize(), 'A || B');
+	});
+
+	test('issue #129625: Removes duplicated terms in AND expressions', () => {
+		const expr = ContextKeyExpr.and(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.has('B'),
+			ContextKeyExpr.has('A')
+		)!;
+		assert.strictEqual(expr.serialize(), 'A && B');
+	});
+
 	test('Greater, GreaterEquals, Smaller, SmallerEquals evaluate', () => {
 		function checkEvaluate(expr: string, ctx: any, expected: any): void {
 			const _expr = ContextKeyExpr.deserialize(expr)!;

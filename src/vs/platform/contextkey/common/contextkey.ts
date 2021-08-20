@@ -1049,6 +1049,18 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 
 		expr.sort(cmp);
 
+		// eliminate duplicate terms
+		for (let i = 1; i < expr.length; i++) {
+			if (expr[i - 1].equals(expr[i])) {
+				expr.splice(i, 1);
+				i--;
+			}
+		}
+
+		if (expr.length === 1) {
+			return expr[0];
+		}
+
 		// We must distribute any OR expression because we don't support parens
 		// OR extensions will be at the end (due to sorting rules)
 		while (expr.length > 1) {
@@ -1108,16 +1120,7 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 export class ContextKeyOrExpr implements IContextKeyExpression {
 
 	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>): ContextKeyExpression | undefined {
-		const expr = ContextKeyOrExpr._normalizeArr(_expr);
-		if (expr.length === 0) {
-			return undefined;
-		}
-
-		if (expr.length === 1) {
-			return expr[0];
-		}
-
-		return new ContextKeyOrExpr(expr);
+		return ContextKeyOrExpr._normalizeArr(_expr);
 	}
 
 	public readonly type = ContextKeyExprType.Or;
@@ -1168,7 +1171,7 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 		return false;
 	}
 
-	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>): ContextKeyExpression[] {
+	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>): ContextKeyExpression | undefined {
 		let expr: ContextKeyExpression[] = [];
 		let hasFalse = false;
 
@@ -1187,7 +1190,7 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 
 				if (e.type === ContextKeyExprType.True) {
 					// anything || true ==> true
-					return [ContextKeyTrueExpr.INSTANCE];
+					return ContextKeyTrueExpr.INSTANCE;
 				}
 
 				if (e.type === ContextKeyExprType.Or) {
@@ -1199,13 +1202,33 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 			}
 
 			if (expr.length === 0 && hasFalse) {
-				return [ContextKeyFalseExpr.INSTANCE];
+				return ContextKeyFalseExpr.INSTANCE;
 			}
 
 			expr.sort(cmp);
 		}
 
-		return expr;
+		if (expr.length === 0) {
+			return undefined;
+		}
+
+		if (expr.length === 1) {
+			return expr[0];
+		}
+
+		// eliminate duplicate terms
+		for (let i = 1; i < expr.length; i++) {
+			if (expr[i - 1].equals(expr[i])) {
+				expr.splice(i, 1);
+				i--;
+			}
+		}
+
+		if (expr.length === 1) {
+			return expr[0];
+		}
+
+		return new ContextKeyOrExpr(expr);
 	}
 
 	public serialize(): string {
