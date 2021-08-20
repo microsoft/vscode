@@ -7,7 +7,7 @@
     "@azure/storage-blob": "^12.4.0",
     "@types/ansi-colors": "^3.2.0",
     "@types/azure": "0.9.19",
-    "@types/byline": "^4.2.32",
+    "@types/byline": "^4.2.33",
     "@types/debounce": "^1.0.0",
     "@types/eslint": "4.16.1",
     "@types/fancy-log": "^1.3.0",
