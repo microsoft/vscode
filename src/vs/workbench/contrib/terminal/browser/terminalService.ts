@@ -855,6 +855,7 @@ export class TerminalService implements ITerminalService {
 		const platformKey = await this._getPlatformKey();
 		const profilesKey = `${TerminalSettingPrefix.Profiles}${platformKey}`;
 		const defaultProfileKey = `${TerminalSettingPrefix.DefaultProfile}${platformKey}`;
+		const defaultProfileName = this._configurationService.getValue<string>(defaultProfileKey);
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
@@ -896,10 +897,11 @@ export class TerminalService implements ITerminalService {
 		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
 		if (configProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
-			quickPickItems.push(...configProfiles.map(e => this._createProfileQuickPickItem(e)));
+			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
 		}
 
 		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
+		const contributedProfiles: IProfileQuickPickItem[] = [];
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
 			if (typeof contributed.icon === 'string' && contributed.icon.startsWith('$(')) {
 				contributed.icon = contributed.icon.substring(2, contributed.icon.length - 1);
@@ -914,7 +916,7 @@ export class TerminalService implements ITerminalService {
 			if (colorClass) {
 				iconClasses.push(colorClass);
 			}
-			quickPickItems.push({
+			contributedProfiles.push({
 				label: `$(${icon.id}) ${contributed.title}`,
 				profile: {
 					extensionIdentifier: contributed.extensionIdentifier,
@@ -923,13 +925,18 @@ export class TerminalService implements ITerminalService {
 					id: contributed.id,
 					color: contributed.color
 				},
+				profileName: contributed.title,
 				iconClasses
 			});
 		}
 
+		if (contributedProfiles.length > 0) {
+			quickPickItems.push(...this._sortProfileQuickPickItems(contributedProfiles, defaultProfileName));
+		}
+
 		if (autoDetectedProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
-			quickPickItems.push(...autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)));
+			quickPickItems.push(...this._sortProfileQuickPickItems(autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
 		}
 
 		const value = await this._quickInputService.pick(quickPickItems, options);
@@ -1068,7 +1075,7 @@ export class TerminalService implements ITerminalService {
 		const label = `$(${icon.id}) ${profile.profileName}`;
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
-				return { label, description: `${profile.path} ${profile.args}`, profile, buttons };
+				return { label, description: `${profile.path} ${profile.args}`, profile, profileName: profile.profileName, buttons };
 			}
 			const argsString = profile.args.map(e => {
 				if (e.includes(' ')) {
@@ -1076,9 +1083,21 @@ export class TerminalService implements ITerminalService {
 				}
 				return e;
 			}).join(' ');
-			return { label, description: `${profile.path} ${argsString}`, profile, buttons };
+			return { label, description: `${profile.path} ${argsString}`, profile, profileName: profile.profileName, buttons };
 		}
-		return { label, description: profile.path, profile, buttons };
+		return { label, description: profile.path, profile, profileName: profile.profileName, buttons };
+	}
+
+	private _sortProfileQuickPickItems(items: IProfileQuickPickItem[], defaultProfileName: string) {
+		return items.sort((a, b) => {
+			if (b.profileName === defaultProfileName) {
+				return 1;
+			}
+			if (a.profileName === defaultProfileName) {
+				return -1;
+			}
+			return a.profileName.localeCompare(b.profileName);
+		});
 	}
 
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
@@ -1289,7 +1308,8 @@ export class TerminalService implements ITerminalService {
 }
 
 interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile | IExtensionTerminalProfile
+	profile: ITerminalProfile | IExtensionTerminalProfile;
+	profileName: string;
 }
 
 class TerminalEditorStyle extends Themable {
