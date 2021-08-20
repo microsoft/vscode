@@ -590,10 +590,12 @@
   resolved "https://registry.yarnpkg.com/@types/windows-mutex/-/windows-mutex-0.4.0.tgz#d27070418aa26047c6c860c704952ff26aeb961b"
   integrity sha512-zUMH4nutIURLARU6f10Ls6XcZWhUkwmzVEALs26dt1ZbaLv/qxsGdYiePUbwhQmrQUp3EPZ1HxopWpzzC8ot5A==
 
-"@types/windows-process-tree@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@types/windows-process-tree/-/windows-process-tree-0.2.0.tgz#2fa205c838a8ef0a07697cd747c954653978d22c"
-  integrity sha512-vQAnkWpMX4HUPjubkxKta4Rfh2EDy2ksalnr37gFHNrmk+uxx50PRH+/fM5nTsEBCi4ESFT/7t7Za3jGqyTZ4g==
+"@types/windows-process-tree@^0.3.1":
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/@types/windows-process-tree/-/windows-process-tree-0.3.1.tgz#193a91d7f320104b31c19da3e28e7904115c526b"
+  integrity sha512-moISLLGHvTr4jS4WnAAe5xeyk+Ow/fJmKnJhzmJswji17S3T5QZZOUidzTVPyg+IMciXKWA1ImOMzns+/Alt3A==
+  dependencies:
+    windows-process-tree "*"
 
 "@types/winreg@^1.2.30":
   version "1.2.30"
@@ -10150,7 +10152,7 @@ windows-mutex@0.3.0:
     bindings "^1.2.1"
     nan "^2.14.0"
 
-windows-process-tree@0.3.0:
+windows-process-tree@*, windows-process-tree@0.3.0:
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.3.0.tgz#cf0d9291b22fba2a7f5a687c8272866e28fbcafd"
   integrity sha512-0bKI4gcd5MOsOpn2TdStCSlnjThtH6BdHrocekY9qCgTqgEtdaUs0B5BaqyzF9jXoTSwz38NMdE1F55o4fgv9Q==
