@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./menuEntryActionViewItem';
-import { addDisposableListener, asCSSUrl, ModifierKeyEmitter, append, EventType, $ } from 'vs/base/browser/dom';
-import { IAction, IRunEvent, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon, IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { UILabelProvider } from 'vs/base/common/keybindingLabels';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { isWindows, isLinux, OS } from 'vs/base/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { $, addDisposableListener, append, asCSSUrl, EventType, ModifierKeyEmitter, prepend } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { ActionRunner, IAction, IRunEvent, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { Event } from 'vs/base/common/event';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isLinux, isWindows, OS } from 'vs/base/common/platform';
+import 'vs/css!./menuEntryActionViewItem';
+import { localize } from 'vs/nls';
+import { ICommandAction, Icon, IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
@@ -282,12 +282,15 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
 		action: SubmenuItemAction,
+		options: IDropdownMenuActionViewItemOptions | undefined,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		super(action, { getActions: () => action.actions }, contextMenuService, {
-			menuAsChild: true,
-			classNames: ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined,
+		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
+			menuAsChild: options?.menuAsChild ?? true,
+			classNames: options?.classNames ?? (ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined),
 		});
+
+		super(action, { getActions: () => action.actions }, contextMenuService, dropdownOptions);
 	}
 
 	override render(container: HTMLElement): void {
@@ -320,6 +323,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		submenuAction: SubmenuItemAction,
+		options: IDropdownMenuActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
@@ -343,10 +347,13 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, undefined);
 
-		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, {
-			menuAsChild: true,
-			classNames: ['codicon', 'codicon-chevron-down']
+		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
+			menuAsChild: options?.menuAsChild ?? true,
+			classNames: options?.classNames ?? ['codicon', 'codicon-chevron-down'],
+			actionRunner: options?.actionRunner ?? new ActionRunner()
 		});
+
+		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions);
 		this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
 			if (e.action instanceof MenuItemAction) {
 				this.update(e.action);
@@ -359,9 +366,14 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._defaultAction.dispose();
 		this._defaultAction = this._instaService.createInstance(MenuEntryActionViewItem, lastAction, undefined);
+		this._defaultAction.actionRunner = new class extends ActionRunner {
+			override async runAction(action: IAction, context?: unknown): Promise<void> {
+				await action.run(undefined);
+			}
+		}();
 
 		if (this._container) {
-			this.render(this._container);
+			this._defaultAction.render(prepend(this._container, $('.action-container')));
 		}
 	}
 
@@ -375,7 +387,7 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		this._container = container;
 		super.render(this._container);
 
-		this._container.classList.add('monaco-dropdown-with-primary');
+		this._container.classList.add('monaco-dropdown-with-default');
 
 		const primaryContainer = $('.action-container');
 		this._defaultAction.render(append(this._container, primaryContainer));
@@ -435,14 +447,14 @@ class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 /**
  * Creates action view items for menu actions or submenu actions.
  */
-export function createActionViewItem(instaService: IInstantiationService, action: IAction): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
+export function createActionViewItem(instaService: IInstantiationService, action: IAction, options?: IDropdownMenuActionViewItemOptions): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem | BaseActionViewItem {
 	if (action instanceof MenuItemAction) {
 		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
 		if (action.item.rememberDefaultAction) {
-			return instaService.createInstance(DropdownWithDefaultActionViewItem, action);
+			return instaService.createInstance(DropdownWithDefaultActionViewItem, action, options);
 		} else {
-			return instaService.createInstance(SubmenuEntryActionViewItem, action);
+			return instaService.createInstance(SubmenuEntryActionViewItem, action, options);
 		}
 	} else {
 		return undefined;

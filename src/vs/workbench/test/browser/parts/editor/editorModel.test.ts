@@ -27,6 +27,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Mimes } from 'vs/base/common/mime';
+import { LanguageDetectionService } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('EditorModel', () => {
 
@@ -45,6 +48,7 @@ suite('EditorModel', () => {
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
+		instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 		instantiationService.stub(IDialogService, dialogService);
@@ -84,7 +88,7 @@ suite('EditorModel', () => {
 	test('BaseTextEditorModel', async () => {
 		let modelService = stubModelService(instantiationService);
 
-		const model = new MyTextEditorModel(modelService, modeService);
+		const model = new MyTextEditorModel(modelService, modeService, instantiationService.createInstance(LanguageDetectionService));
 		await model.resolve();
 
 		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);

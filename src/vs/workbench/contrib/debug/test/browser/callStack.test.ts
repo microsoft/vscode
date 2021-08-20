@@ -366,7 +366,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(contributedContext, session.getId());
 	});
 
-	test('focusStackFrameThreadAndSesion', () => {
+	test('focusStackFrameThreadAndSession', () => {
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
 		const threadId2 = 2;

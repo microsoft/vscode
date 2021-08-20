@@ -267,7 +267,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						'terminal.integrated.cwd': this._configurationService.getValue(TerminalSettingId.Cwd) as string,
 						'terminal.integrated.detectLocale': terminalConfig.detectLocale
 					};
-					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
+					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, this._configHelper.config.unicodeVersion, shouldPersist);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._remoteTerminalService);
@@ -430,7 +430,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
-		return await localTerminalService.createProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
+		return await localTerminalService.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, useConpty, shouldPersist);
 	}
 
 	private _setupPtyHostListeners(offProcessTerminalService: IOffProcessTerminalService) {
@@ -490,6 +490,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		return this.ptyProcessReady.then(() => this._resize(cols, rows));
+	}
+
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		return this._process?.setUnicodeVersion(version);
 	}
 
 	private _resize(cols: number, rows: number) {
@@ -751,11 +755,11 @@ class SeamlessRelaunchDataFilter extends Disposable {
 
 	private _createRecorder(process: ITerminalChildProcess): [TerminalRecorder, IDisposable] {
 		const recorder = new TerminalRecorder(0, 0);
-		const disposable = process.onProcessData(e => recorder.recordData(typeof e === 'string' ? e : e.data));
+		const disposable = process.onProcessData(e => recorder.handleData(typeof e === 'string' ? e : e.data));
 		return [recorder, disposable];
 	}
 
 	private _getDataFromRecorder(recorder: TerminalRecorder): string {
-		return recorder.generateReplayEvent().events.filter(e => !!e.data).map(e => e.data).join('');
+		return recorder.generateReplayEventSync().events.filter(e => !!e.data).map(e => e.data).join('');
 	}
 }

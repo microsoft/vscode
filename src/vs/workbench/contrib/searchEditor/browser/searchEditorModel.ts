@@ -12,9 +12,8 @@ import { parseSavedSearchEditor, parseSerializedSearchEditor } from 'vs/workbenc
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { SearchConfiguration } from './searchEditorInput';
 import { assertIsDefined } from 'vs/base/common/types';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 
@@ -146,24 +145,11 @@ class SearchEditorModelFactory {
 	}
 
 	private async tryFetchModelFromBackupService(resource: URI, modeService: IModeService, modelService: IModelService, workingCopyBackupService: IWorkingCopyBackupService, instantiationService: IInstantiationService): Promise<SearchEditorData | undefined> {
-		let discardLegacyBackup = false;
-		let backup = await workingCopyBackupService.resolve({ resource, typeId: SearchEditorWorkingCopyTypeId });
-		if (!backup) {
-			// TODO@bpasero remove this fallback after some releases
-			backup = await workingCopyBackupService.resolve({ resource, typeId: NO_TYPE_ID });
-
-			if (backup && resource.scheme === SearchEditorScheme) {
-				discardLegacyBackup = true;
-			}
-		}
+		const backup = await workingCopyBackupService.resolve({ resource, typeId: SearchEditorWorkingCopyTypeId });
 
 		let model = modelService.getModel(resource);
 		if (!model && backup) {
 			const factory = await createTextBufferFactoryFromStream(backup.value);
-
-			if (discardLegacyBackup) {
-				await workingCopyBackupService.discardBackup({ resource, typeId: NO_TYPE_ID });
-			}
 
 			model = modelService.createModel(factory, modeService.create('search-result'), resource);
 		}

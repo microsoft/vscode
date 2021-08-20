@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { JSONSchemaType } from 'vs/base/common/jsonSchema';
 import { Color } from 'vs/base/common/color';
-import { isArray } from 'vs/base/common/types';
+import { isArray, isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
 type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
@@ -15,18 +15,22 @@ function canBeType(propTypes: (string | undefined)[], ...types: JSONSchemaType[]
 	return types.some(t => propTypes.includes(t));
 }
 
+function isNullOrEmpty(value: unknown): boolean {
+	return value === '' || isUndefinedOrNull(value);
+}
+
 export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
-	const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
+	const type: (string | undefined)[] = isArray(prop.type) ? prop.type : [prop.type];
 	const isNullable = canBeType(type, 'null');
 	const isNumeric = (canBeType(type, 'number') || canBeType(type, 'integer')) && (type.length === 1 || type.length === 2 && isNullable);
 
 	const numericValidations = getNumericValidators(prop);
 	const stringValidations = getStringValidators(prop);
 	const stringArrayValidator = getArrayOfStringValidator(prop);
+	const objectValidator = getObjectValidator(prop);
 
 	return value => {
-		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
-		if (isNullable && value === '') { return ''; }
+		if (isNullable && isNullOrEmpty(value)) { return ''; }
 
 		const errors: string[] = [];
 		if (stringArrayValidator) {
@@ -36,8 +40,19 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 			}
 		}
 
+		if (objectValidator) {
+			const err = objectValidator(value);
+			if (err) {
+				errors.push(err);
+			}
+		}
+
+		if (prop.type === 'boolean' && value !== true && value !== false) {
+			errors.push(nls.localize('validations.booleanIncorrectType', 'Incorrect type. Expected "boolean".'));
+		}
+
 		if (isNumeric) {
-			if (value === '' || isNaN(+value)) {
+			if (isNullOrEmpty(value) || isNaN(+value)) {
 				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
 			} else {
 				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
@@ -45,7 +60,13 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		}
 
 		if (prop.type === 'string') {
-			errors.push(...stringValidations.filter(validator => !validator.isValid('' + value)).map(validator => validator.message));
+			if (prop.enum && !isStringArray(prop.enum)) {
+				errors.push(nls.localize('validations.stringIncorrectEnumOptions', 'The enum options should be strings, but there is a non-string option. Please file an issue with the extension author.'));
+			} else if (!isString(value)) {
+				errors.push(nls.localize('validations.stringIncorrectType', 'Incorrect type. Expected "string".'));
+			} else {
+				errors.push(...stringValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));
+			}
 		}
 
 		if (errors.length) {
@@ -64,7 +85,7 @@ export function getInvalidTypeError(value: any, type: undefined | string | strin
 		return;
 	}
 
-	const typeArr = Array.isArray(type) ? type : [type];
+	const typeArr = isArray(type) ? type : [type];
 	if (!typeArr.some(_type => valueValidatesAsType(value, _type))) {
 		return nls.localize('invalidTypeError', "Setting has an invalid type, expected {0}. Fix in JSON.", JSON.stringify(type));
 	}
@@ -77,11 +98,11 @@ function valueValidatesAsType(value: any, type: string): boolean {
 	if (type === 'boolean') {
 		return valueType === 'boolean';
 	} else if (type === 'object') {
-		return value && !Array.isArray(value) && valueType === 'object';
+		return value && !isArray(value) && valueType === 'object';
 	} else if (type === 'null') {
 		return value === null;
 	} else if (type === 'array') {
-		return Array.isArray(value);
+		return isArray(value);
 	} else if (type === 'string') {
 		return valueType === 'string';
 	} else if (type === 'number' || type === 'integer') {
@@ -137,11 +158,19 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 			}),
 			message: nls.localize('validations.uriSchemeMissing', "URI with a scheme is expected.")
 		},
+		{
+			enabled: prop.enum !== undefined,
+			isValid: ((value: string) => {
+				return prop.enum!.includes(value);
+			}),
+			message: nls.localize('validations.invalidStringEnumValue', "Value is not accepted. Valid values: {0}.",
+				prop.enum ? prop.enum.map(key => `"${key}"`).join(', ') : '[]')
+		}
 	].filter(validation => validation.enabled);
 }
 
 function getNumericValidators(prop: IConfigurationPropertySchema): Validator<number>[] {
-	const type: (string | undefined)[] = Array.isArray(prop.type) ? prop.type : [prop.type];
+	const type: (string | undefined)[] = isArray(prop.type) ? prop.type : [prop.type];
 
 	const isNullable = canBeType(type, 'null');
 	const isIntegral = (canBeType(type, 'integer')) && (type.length === 1 || type.length === 2 && isNullable);
@@ -212,7 +241,13 @@ function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value:
 
 				let message = '';
 
-				const stringArrayValue = value as string[];
+				if (!isStringArray(value)) {
+					message += nls.localize('validations.stringArrayIncorrectType', 'Incorrect type. Expected a string array.');
+					message += '\n';
+					return message;
+				}
+
+				const stringArrayValue = value;
 
 				if (prop.uniqueItems) {
 					if (new Set(stringArrayValue).size < stringArrayValue.length) {
@@ -268,4 +303,67 @@ function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value:
 	}
 
 	return null;
+}
+
+function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
+	if (prop.type === 'object') {
+		const { properties, patternProperties, additionalProperties } = prop;
+		return value => {
+			if (!value) {
+				return null;
+			}
+
+			const errors: string[] = [];
+
+			if (!isObject(value)) {
+				errors.push(nls.localize('validations.objectIncorrectType', 'Incorrect type. Expected an object.'));
+			} else {
+				Object.keys(value).forEach((key: string) => {
+					const data = value[key];
+					if (properties && key in properties) {
+						const errorMessage = getErrorsForSchema(properties[key], data);
+						if (errorMessage) {
+							errors.push(`${key}: ${errorMessage}\n`);
+						}
+						return;
+					}
+
+					if (patternProperties) {
+						for (const pattern in patternProperties) {
+							if (RegExp(pattern).test(key)) {
+								const errorMessage = getErrorsForSchema(patternProperties[pattern], data);
+								if (errorMessage) {
+									errors.push(`${key}: ${errorMessage}\n`);
+								}
+								return;
+							}
+						}
+					}
+
+					if (additionalProperties === false) {
+						errors.push(nls.localize('validations.objectPattern', 'Property {0} is not allowed.\n', key));
+					} else if (typeof additionalProperties === 'object') {
+						const errorMessage = getErrorsForSchema(additionalProperties, data);
+						if (errorMessage) {
+							errors.push(`${key}: ${errorMessage}\n`);
+						}
+					}
+				});
+			}
+
+			if (errors.length) {
+				return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
+			}
+
+			return '';
+		};
+	}
+
+	return null;
+}
+
+function getErrorsForSchema(propertySchema: IConfigurationPropertySchema, data: any): string | null {
+	const validator = createValidator(propertySchema);
+	const errorMessage = validator(data);
+	return errorMessage;
 }

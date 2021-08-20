@@ -7,6 +7,7 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -15,6 +16,7 @@ import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/comm
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
+import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -175,6 +177,10 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 	}
 
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
+		return getInstanceFromResource(this.instances, resource);
+	}
+
 	findNext(): void {
 		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
 		if (pane?.terminalTabbedView) {
@@ -293,10 +299,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 		const activeInstanceIndex = instanceLocation.instanceIndex;
 
-		if (this.activeGroupIndex !== instanceLocation.groupIndex) {
-			this.activeGroupIndex = instanceLocation.groupIndex;
-			this._onDidChangeActiveGroup.fire(this.activeGroup);
-		}
+		this.activeGroupIndex = instanceLocation.groupIndex;
+		this._onDidChangeActiveGroup.fire(this.activeGroup);
 		instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
 		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
 

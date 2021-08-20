@@ -15,6 +15,8 @@ import * as nls from 'vs/nls';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GhostTextModel } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/consts';
 
 export class GhostTextController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
@@ -28,7 +30,7 @@ export class GhostTextController extends Disposable {
 
 	private triggeredExplicitly = false;
 	protected readonly activeController = this._register(new MutableDisposable<ActiveGhostTextController>());
-	private get activeModel(): GhostTextModel | undefined {
+	public get activeModel(): GhostTextModel | undefined {
 		return this.activeController.value?.model;
 	}
 
@@ -167,22 +169,24 @@ export class ActiveGhostTextController extends Disposable {
 const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);
 
 export const commitInlineSuggestionAction = new GhostTextCommand({
-	id: 'editor.action.inlineSuggest.commit',
-	precondition: ContextKeyExpr.and(
-		GhostTextController.inlineSuggestionVisible,
-		GhostTextController.inlineSuggestionHasIndentation.toNegated(),
-		EditorContextKeys.tabMovesFocus.toNegated()
-	),
-	kbOpts: {
-		weight: 200,
-		primary: KeyCode.Tab,
-	},
+	id: inlineSuggestCommitId,
+	precondition: GhostTextController.inlineSuggestionVisible,
 	handler(x) {
 		x.commit();
 		x.editor.focus();
 	}
 });
 registerEditorCommand(commitInlineSuggestionAction);
+KeybindingsRegistry.registerKeybindingRule({
+	primary: KeyCode.Tab,
+	weight: 200,
+	id: commitInlineSuggestionAction.id,
+	when: ContextKeyExpr.and(
+		commitInlineSuggestionAction.precondition,
+		EditorContextKeys.tabMovesFocus.toNegated(),
+		GhostTextController.inlineSuggestionHasIndentation.toNegated()
+	),
+});
 
 registerEditorCommand(new GhostTextCommand({
 	id: 'editor.action.inlineSuggest.hide',

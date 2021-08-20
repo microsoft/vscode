@@ -104,7 +104,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 }
 
 export function isStatusbarInDebugMode(state: State, session: IDebugSession | undefined): boolean {
-	if (state === State.Inactive || state === State.Initializing) {
+	if (state === State.Inactive || state === State.Initializing || session?.isSimpleUI) {
 		return false;
 	}
 	const isRunningWithoutDebug = session?.configuration?.noDebug;

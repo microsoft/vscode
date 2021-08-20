@@ -16,8 +16,8 @@ import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/comm
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
 export class InteractiveEditorInput extends SideBySideEditorInput implements ICompositeNotebookEditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI) {
-		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource);
+	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string) {
+		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource, title);
 	}
 
 	static override readonly ID: string = 'workbench.input.interactive';
@@ -25,6 +25,8 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	override get typeId(): string {
 		return InteractiveEditorInput.ID;
 	}
+
+	private _initTitle?: string;
 
 	private _notebookEditorInput: NotebookEditorInput;
 	get notebookEditorInput() {
@@ -60,6 +62,7 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	constructor(
 		resource: URI,
 		inputResource: URI,
+		title: string | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
@@ -68,6 +71,7 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 		super(undefined, undefined, input, input);
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
+		this._initTitle = title;
 		this._inputResource = inputResource;
 		this._inputResolver = null;
 		this._editorModelReference = null;
@@ -122,6 +126,10 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	}
 
 	override getName() {
+		if (this._initTitle) {
+			return this._initTitle;
+		}
+
 		const p = this.primary.resource!.path;
 		const basename = paths.basename(p);
 

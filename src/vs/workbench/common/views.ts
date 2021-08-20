@@ -819,7 +819,7 @@ export class ResolvableTreeItem implements ITreeItem {
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
 	onDidChangeEmpty?: Event<void>;
-	getChildren(element?: ITreeItem): Promise<ITreeItem[]>;
+	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
 }
 
 export const TREE_ITEM_DATA_TRANSFER_TYPE = 'text/treeitems';

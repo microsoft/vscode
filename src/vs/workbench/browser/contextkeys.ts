@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, EditorInputCapabilities, ActiveEditorCanRevertContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, EditorInputCapabilities, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType, WebFileSystemAccess } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,6 +26,9 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
+
+export const OpenFolderWorkspaceSupportContext = new RawContextKey<boolean>('openFolderWorkspaceSupport', true, true);
+export const EnterMultiRootWorkspaceSupportContext = new RawContextKey<boolean>('enterMultiRootWorkspaceSupport', true, true);
 export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWorkspaceSupport', true, true);
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false, localize('dirtyWorkingCopies', "Whether there are any dirty working copies"));
@@ -51,6 +54,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private activeEditorGroupEmpty: IContextKey<boolean>;
 	private activeEditorGroupIndex: IContextKey<number>;
 	private activeEditorGroupLast: IContextKey<boolean>;
+	private activeEditorGroupLocked: IContextKey<boolean>;
 	private multipleEditorGroupsContext: IContextKey<boolean>;
 
 	private editorsVisibleContext: IContextKey<boolean>;
@@ -60,7 +64,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private workbenchStateContext: IContextKey<string>;
 	private workspaceFolderCountContext: IContextKey<number>;
+
+	private openFolderWorkspaceSupportContext: IContextKey<boolean>;
+	private enterMultiRootWorkspaceSupportContext: IContextKey<boolean>;
 	private emptyWorkspaceSupportContext: IContextKey<boolean>;
+
+	private virtualWorkspaceContext: IContextKey<string>;
 
 	private inZenModeContext: IContextKey<boolean>;
 	private isFullscreenContext: IContextKey<boolean>;
@@ -70,8 +79,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private panelPositionContext: IContextKey<string>;
 	private panelVisibleContext: IContextKey<boolean>;
 	private panelMaximizedContext: IContextKey<boolean>;
-
-	private vitualWorkspaceContext: IContextKey<string>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -98,7 +105,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.remoteAuthority) || '');
 
-		this.vitualWorkspaceContext = VirtualWorkspaceContext.bindTo(this.contextKeyService);
+		this.virtualWorkspaceContext = VirtualWorkspaceContext.bindTo(this.contextKeyService);
 		this.updateVirtualWorkspaceContextKey();
 
 		// Capabilities
@@ -118,6 +125,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
 		this.activeEditorGroupIndex = ActiveEditorGroupIndexContext.bindTo(this.contextKeyService);
 		this.activeEditorGroupLast = ActiveEditorGroupLastContext.bindTo(this.contextKeyService);
+		this.activeEditorGroupLocked = ActiveEditorGroupLockedContext.bindTo(this.contextKeyService);
 		this.multipleEditorGroupsContext = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
 
 		// Working Copies
@@ -135,11 +143,29 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.workspaceFolderCountContext = WorkspaceFolderCountContext.bindTo(this.contextKeyService);
 		this.updateWorkspaceFolderCountContextKey();
 
-		// Empty workspace support: empty workspaces require a default "local" file
-		// system to operate with. We always have one when running natively or when
-		// we have a remote connection.
+		// Opening folder support: support for opening a folder workspace
+		// (e.g. "Open Folder...") is limited in web when not connected
+		// to a remote.
+		this.openFolderWorkspaceSupportContext = OpenFolderWorkspaceSupportContext.bindTo(this.contextKeyService);
+		this.openFolderWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
+
+		// Empty workspace support: empty workspaces require built-in file system
+		// providers to be available that allow to enter a workspace or open loose
+		// files. This condition is met:
+		// - desktop: always
+		// -     web: only when connected to a remote
 		this.emptyWorkspaceSupportContext = EmptyWorkspaceSupportContext.bindTo(this.contextKeyService);
 		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
+
+		// Entering a multi root workspace support: support for entering a multi-root
+		// workspace (e.g. "Open Workspace...", "Duplicate Workspace", "Save Workspace")
+		// is driven by the ability to resolve a workspace configuration file (*.code-workspace)
+		// with a built-in file system provider.
+		// This condition is met:
+		// - desktop: always
+		// -     web: only when connected to a remote
+		this.enterMultiRootWorkspaceSupportContext = EnterMultiRootWorkspaceSupportContext.bindTo(this.contextKeyService);
+		this.enterMultiRootWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
 
 		// Editor Layout
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
@@ -181,6 +207,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.editorGroupService.onDidRemoveGroup(() => this.updateEditorContextKeys()));
 		this._register(this.editorGroupService.onDidChangeGroupIndex(() => this.updateEditorContextKeys()));
 
+		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateEditorGroupContextKeys()));
+		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateEditorGroupContextKeys()));
+
 		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
@@ -213,7 +242,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateEditorContextKeys(): void {
-		const activeGroup = this.editorGroupService.activeGroup;
 		const activeEditorPane = this.editorService.activeEditorPane;
 		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 
@@ -232,15 +260,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorGroupEmpty.reset();
 		}
 
-		const groupCount = this.editorGroupService.count;
-		if (groupCount > 1) {
-			this.multipleEditorGroupsContext.set(true);
-		} else {
-			this.multipleEditorGroupsContext.reset();
-		}
-
-		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
-		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
+		this.updateEditorGroupContextKeys();
 
 		if (activeEditorPane) {
 			this.activeEditorContext.set(activeEditorPane.getId());
@@ -256,6 +276,20 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorCanRevert.reset();
 			this.activeEditorAvailableEditorIds.reset();
 		}
+	}
+
+	private updateEditorGroupContextKeys(): void {
+		const groupCount = this.editorGroupService.count;
+		if (groupCount > 1) {
+			this.multipleEditorGroupsContext.set(true);
+		} else {
+			this.multipleEditorGroupsContext.reset();
+		}
+
+		const activeGroup = this.editorGroupService.activeGroup;
+		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
+		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
+		this.activeEditorGroupLocked.set(activeGroup.isLocked);
 	}
 
 	private updateInputContextKeys(): void {
@@ -303,6 +337,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateVirtualWorkspaceContextKey(): void {
-		this.vitualWorkspaceContext.set(getVirtualWorkspaceScheme(this.contextService.getWorkspace()) || '');
+		this.virtualWorkspaceContext.set(getVirtualWorkspaceScheme(this.contextService.getWorkspace()) || '');
 	}
 }

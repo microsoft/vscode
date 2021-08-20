@@ -3,16 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
 import { localize } from 'vs/nls';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { MenuRegistry, MenuId, IMenuActionOptions, MenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { ICreateTerminalOptions, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -565,4 +570,101 @@ export function setupTerminalMenus(): void {
 		order: 0,
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal)
 	});
+}
+
+export function getTerminalActionBarArgs(location: TerminalLocation, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], instantiationService: IInstantiationService, terminalService: ITerminalService, contextKeyService: IContextKeyService, commandService: ICommandService, dropdownMenu: IMenu): {
+	primaryAction: MenuItemAction,
+	dropdownAction: IAction,
+	dropdownMenuActions: IAction[],
+	className: string,
+	dropdownIcon?: string
+} {
+	let dropdownActions: IAction[] = [];
+	let submenuActions: IAction[] = [];
+
+	for (const p of profiles) {
+		const isDefault = p.profileName === defaultProfileName;
+		const options: IMenuActionOptions = {
+			arg: {
+				config: p,
+				location
+			} as ICreateTerminalOptions,
+			shouldForwardArgs: true
+		};
+		if (isDefault) {
+			dropdownActions.unshift(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
+			submenuActions.unshift(new MenuItemAction({ id: TerminalCommandId.Split, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
+		} else {
+			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
+			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, contextKeyService, commandService));
+		}
+	}
+
+	for (const contributed of contributedProfiles) {
+		const isDefault = contributed.title === defaultProfileName;
+		const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
+		dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
+			config: {
+				extensionIdentifier: contributed.extensionIdentifier,
+				id: contributed.id,
+				title
+			},
+			location
+		})));
+		const splitLocation = location === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : location;
+		submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
+			config: {
+				extensionIdentifier: contributed.extensionIdentifier,
+				id: contributed.id,
+				title
+			},
+			location: splitLocation
+		})));
+	}
+
+	if (dropdownActions.length > 0) {
+		dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
+		dropdownActions.push(new Separator());
+	}
+
+	for (const [, configureActions] of dropdownMenu.getActions()) {
+		for (const action of configureActions) {
+			// make sure the action is a MenuItemAction
+			if ('alt' in action) {
+				dropdownActions.push(action);
+			}
+		}
+	}
+
+	const defaultProfileAction = dropdownActions.find(d => d.label.endsWith('(Default)'));
+	if (defaultProfileAction) {
+		dropdownActions = dropdownActions.filter(d => d !== defaultProfileAction);
+		dropdownActions.unshift(defaultProfileAction);
+	}
+
+	const defaultSubmenuProfileAction = submenuActions.find(d => d.label.endsWith('(Default)'));
+	if (defaultSubmenuProfileAction) {
+		submenuActions = submenuActions.filter(d => d !== defaultSubmenuProfileAction);
+		submenuActions.unshift(defaultSubmenuProfileAction);
+	}
+
+	const primaryAction = instantiationService.createInstance(
+		MenuItemAction,
+		{
+			id: location === TerminalLocation.Panel ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
+			title: localize('terminal.new', "New Terminal"),
+			icon: Codicon.plus
+		},
+		{
+			id: TerminalCommandId.Split,
+			title: terminalStrings.split.value,
+			icon: Codicon.splitHorizontal
+		},
+		{
+			shouldForwardArgs: true,
+			arg: { location } as ICreateTerminalOptions,
+		});
+
+	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
+	return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
 }

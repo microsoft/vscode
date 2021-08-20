@@ -23,7 +23,7 @@ export class MainThreadNotebookRenderers extends Disposable implements MainThrea
 		}));
 	}
 
-	$postMessage(editorId: string, rendererId: string, message: unknown): void {
-		this.messaging.fireDidReceiveMessage(editorId, rendererId, message);
+	$postMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean> {
+		return this.messaging.receiveMessage(editorId, rendererId, message);
 	}
 }

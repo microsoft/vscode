@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
@@ -157,7 +158,7 @@ export interface IOrderedMimeType {
 
 export interface IOutputItemDto {
 	readonly mime: string;
-	readonly data: Uint8Array;
+	readonly data: VSBuffer;
 }
 
 export interface IOutputDto {
@@ -344,7 +345,7 @@ export type ISelectionState = ISelectionHandleState | ISelectionIndexState;
 export type NotebookTextModelChangedEvent = {
 	readonly rawEvents: NotebookRawContentEvent[];
 	readonly versionId: number;
-	readonly synchronous: boolean;
+	readonly synchronous: boolean | undefined;
 	readonly endSelectionState: ISelectionState | undefined;
 };
 
@@ -850,6 +851,8 @@ export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
 export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
 export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
 export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
+export const TextOutputLineLimit = 'notebook.output.textLineLimit';
+export const GlobalToolbarShowLabel = 'notebook.globalToolbarShowLabel';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

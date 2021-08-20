@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./menubar';
 import * as browser from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
-import * as strings from 'vs/base/common/strings';
-import * as nls from 'vs/nls';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, IMenuStyles, Direction } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction, IActionRunner, SubmenuAction, Separator } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode, ResolvedKeybinding, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { asArray } from 'vs/base/common/arrays';
-import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
-import { isMacintosh } from 'vs/base/common/platform';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
+import { cleanMnemonic, Direction, IMenuOptions, IMenuStyles, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX } from 'vs/base/browser/ui/menu/menu';
+import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { asArray } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ScanCode, ScanCodeUtils } from 'vs/base/common/scanCode';
+import * as strings from 'vs/base/common/strings';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import 'vs/css!./menubar';
+import * as nls from 'vs/nls';
 
 const $ = DOM.$;
 

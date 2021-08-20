@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -89,6 +89,9 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
+	CustomGlyphs = 'terminal.integrated.customGlyphs',
+	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
+	PersistentSessionExperimentalSerializer = 'terminal.integrated.persistentSessionExperimentalSerializer',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 }
@@ -198,6 +201,7 @@ export interface IPtyService {
 		cwd: string,
 		cols: number,
 		rows: number,
+		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean,
@@ -221,6 +225,7 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
@@ -336,7 +341,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -386,30 +391,18 @@ export interface IShellLaunchConfig {
 	color?: string;
 }
 
-export interface ICreateTerminalOptions {
-	/**
-	 * The shell launch config or profile to launch with, when not specified the default terminal
-	 * profile will be used.
-	 */
-	config?: IShellLaunchConfig | ITerminalProfile;
-	/**
-	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
-	 * specified.
-	 */
-	cwd?: string | URI;
-	/**
-	 * Where to create the terminal, when not specified the default target will be used.
-	 */
-	target?: TerminalLocation;
-}
-
 export interface ICreateContributedTerminalProfileOptions {
-	isSplitTerminal: boolean;
-	target?: TerminalLocation;
-	icon?: string;
+	icon?: URI | string | { light: URI, dark: URI };
+	color?: string;
+	splitActiveTerminal?: boolean;
 }
 
-export const enum TerminalLocation {
+export enum TerminalLocation {
+	Panel = 0,
+	Editor = 1
+}
+
+export const enum TerminalLocationString {
 	TerminalView = 'view',
 	Editor = 'editor'
 }
@@ -499,14 +492,22 @@ export interface ITerminalChildProcess {
 	 */
 	acknowledgeDataEvent(charCount: number): void;
 
+	/**
+	 * Sets the unicode version for the process, this drives the size of some characters in the
+	 * xterm-headless instance.
+	 */
+	setUnicodeVersion(version: '6' | '11'): Promise<void>;
+
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
 }
 
 export interface IReconnectConstants {
-	GraceTime: number,
-	ShortGraceTime: number
+	graceTime: number;
+	shortGraceTime: number;
+	scrollback: number;
+	useExperimentalSerialization: boolean;
 }
 
 export const enum LocalReconnectConstants {
@@ -605,4 +606,21 @@ export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
 }
 
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
+}
+
+export interface ITerminalProfileContribution {
+	title: string;
+	id: string;
+	icon?: URI | { light: URI, dark: URI } | string;
+	color?: string;
+}
+
+export interface IExtensionTerminalProfile extends ITerminalProfileContribution {
+	extensionIdentifier: string;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
+export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;

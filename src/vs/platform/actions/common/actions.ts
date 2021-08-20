@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
-import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { UriDto } from 'vs/base/common/types';
-import { Iterable } from 'vs/base/common/iterator';
-import { LinkedList } from 'vs/base/common/linkedList';
 import { CSSIcon } from 'vs/base/common/codicons';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
+import { UriDto } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
+import { BrandedService, createDecorator, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingRule, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface ILocalizedString {
 	/**
@@ -43,8 +43,9 @@ export interface ICommandAction {
 	title: string | ICommandActionTitle;
 	shortTitle?: string | ICommandActionTitle;
 	category?: string | ILocalizedString;
-	tooltip?: string;
+	tooltip?: string | ILocalizedString;
 	icon?: Icon;
+	source?: string;
 	precondition?: ContextKeyExpression;
 	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString };
 }
@@ -95,6 +96,7 @@ export class MenuId {
 	static readonly EditorTitle = new MenuId('EditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
+	static readonly EmptyEditorGroup = new MenuId('EmptyEditorGroup');
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
@@ -129,6 +131,7 @@ export class MenuId {
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
 	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
 	static readonly TestItem = new MenuId('TestItem');
+	static readonly TestItemGutter = new MenuId('TestItemGutter');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');
 	static readonly TestPeekTitle = new MenuId('TestPeekTitle');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
@@ -151,6 +154,7 @@ export class MenuId {
 	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
 	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
+	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
@@ -161,6 +165,7 @@ export class MenuId {
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly NotebookOutputToolbar = new MenuId('NotebookOutputToolbar');
+	static readonly NotebookEditorLayoutConfigure = new MenuId('NotebookEditorLayoutConfigure');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
@@ -402,7 +407,7 @@ export class MenuItemAction implements IAction {
 		this.label = options?.renderShortTitle && item.shortTitle
 			? (typeof item.shortTitle === 'string' ? item.shortTitle : item.shortTitle.value)
 			: (typeof item.title === 'string' ? item.title : item.title.value);
-		this.tooltip = item.tooltip ?? '';
+		this.tooltip = (typeof item.tooltip === 'string' ? item.tooltip : item.tooltip?.value) ?? '';
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = false;
 

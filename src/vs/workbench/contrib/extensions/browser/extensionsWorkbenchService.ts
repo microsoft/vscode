@@ -1230,7 +1230,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (i === extension) {
 				return false;
 			}
-			if (!(i.enablementState === EnablementState.EnabledWorkspace || i.enablementState === EnablementState.EnabledGlobally)) {
+			if (!this.extensionEnablementService.isEnabledEnablementState(i.enablementState)) {
 				return false;
 			}
 			if (extensionsToDisable.indexOf(i) !== -1) {

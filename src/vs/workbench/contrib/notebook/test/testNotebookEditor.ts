@@ -47,6 +47,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { Mimes } from 'vs/base/common/mime';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -345,6 +346,6 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 	return cellList;
 }
 
-export function valueBytesFromString(value: string) {
-	return new TextEncoder().encode(value);
+export function valueBytesFromString(value: string): VSBuffer {
+	return VSBuffer.fromString(value);
 }

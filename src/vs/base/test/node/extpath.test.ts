@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
-import { Promises } from 'vs/base/node/pfs';
 import { realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
+import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('Extpath', () => {

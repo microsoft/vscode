@@ -20,6 +20,10 @@
 	outline: none;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer.loading {
+	display: none;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer img {
 	max-width: 100%;
 	max-height: 100%;
@@ -124,6 +128,14 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.header, .monaco-workbench .part.editor>.content .gettingStartedContainer.height-constrained .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.header {
 	display: none;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories li.showWalkthroughsEntry {
+	display: none;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer.noWalkthroughs .gettingStartedSlideCategories li.showWalkthroughsEntry {
+	display: unset;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>* {
@@ -465,24 +477,29 @@
 	padding: 0 32px;
 	display: grid;
 	grid-template-columns: 1fr 5fr 1fr 7fr 1fr;
-	grid-template-rows: calc(25% - 100px) 100px max-content 1fr;
+	grid-template-rows: calc(25% - 100px) auto auto 1fr auto;
 	grid-template-areas:
-		". back  . media ."
-		". title . media ."
-		". steps . media ."
-		". .     . media .";
+		". back   .      media  ."
+		". title  .      media  ."
+		". steps  .      media  ."
+		". .      .      media  ."
+		". footer footer footer .";
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	max-width: 500px;
 	grid-template-columns: auto;
-	grid-template-rows: 30px max-content minmax(0, max-content) minmax(30%, 1fr);
+	grid-template-rows: 30px max-content minmax(30%, max-content) minmax(30%, 1fr) auto;
 	row-gap: 4px;
-	grid-template-areas: "back" "title" "steps" "media";
+	grid-template-areas: "back" "title" "steps" "media" "footer";
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown {
+	grid-template-rows: 30px max-content minmax(30%, max-content) minmax(40%, 1fr) auto;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
-	grid-template-rows: 0 max-content minmax(0, max-content) minmax(30%, 1fr);
+	grid-template-rows: 0 max-content minmax(25%, max-content) minmax(25%, 1fr) auto;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.prev-button {
@@ -504,21 +521,28 @@
 	align-self: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-media.markdown {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown>.getting-started-media {
 	height: inherit;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-media.image {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.image>.getting-started-media {
 	grid-area: title-start / media-start / steps-end / media-end;
 	align-self: unset;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-media.image {
+.monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image>.getting-started-media {
 	grid-area: media;
 	height: inherit;
 	width: inherit;
 	display: flex;
 	justify-content: center;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent>.getting-started-footer {
+	grid-area: footer;
+	align-self: flex-end;
+	justify-self: center;
+	text-align: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right {

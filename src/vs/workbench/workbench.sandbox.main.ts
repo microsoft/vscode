@@ -86,9 +86,6 @@ registerSingleton(IUserDataAutoSyncEnablementService, UserDataAutoSyncEnablement
 // Logs
 import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
-// List
-import 'vs/workbench/contrib/list/browser/list.contribution';
-
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
@@ -107,9 +104,6 @@ import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
 
 // Extensions Management
 import 'vs/workbench/contrib/extensions/electron-sandbox/extensions.contribution';
-
-// Telemetry Opt Out
-import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-sandbox/telemetryOptOut.contribution';
 
 // Issues
 import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';

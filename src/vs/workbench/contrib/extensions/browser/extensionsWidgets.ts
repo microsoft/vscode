@@ -12,10 +12,10 @@ import { localize } from 'vs/nls';
 import { EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionStatusIconAction, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, IColorTheme, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionStatusAction, ReloadAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { IThemeService, ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,6 +30,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import Severity from 'vs/base/common/severity';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { Color } from 'vs/base/common/color';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -157,57 +158,13 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
-export class TooltipWidget extends ExtensionWidget {
-
-	constructor(
-		private readonly parent: HTMLElement,
-		private readonly tooltipAction: ExtensionToolTipAction,
-		private readonly recommendationWidget: RecommendationWidget,
-		@ILabelService private readonly labelService: ILabelService
-	) {
-		super();
-		this._register(Event.any<any>(
-			this.tooltipAction.onDidChange,
-			this.recommendationWidget.onDidChangeTooltip,
-			this.labelService.onDidChangeFormatters
-		)(() => this.render()));
-	}
-
-	render(): void {
-		this.parent.title = this.getTooltip();
-	}
-
-	private getTooltip(): string {
-		if (!this.extension) {
-			return '';
-		}
-		if (this.tooltipAction.label) {
-			return this.tooltipAction.label;
-		}
-		return this.recommendationWidget.tooltip;
-	}
-
-}
-
 export class RecommendationWidget extends ExtensionWidget {
 
 	private element?: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
 
-	private _tooltip: string = '';
-	get tooltip(): string { return this._tooltip; }
-	set tooltip(tooltip: string) {
-		if (this._tooltip !== tooltip) {
-			this._tooltip = tooltip;
-			this._onDidChangeTooltip.fire();
-		}
-	}
-	private _onDidChangeTooltip: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeTooltip: Event<void> = this._onDidChangeTooltip.event;
-
 	constructor(
 		private parent: HTMLElement,
-		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService
 	) {
 		super();
@@ -217,7 +174,6 @@ export class RecommendationWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		this.tooltip = '';
 		if (this.element) {
 			this.parent.removeChild(this.element);
 		}
@@ -235,15 +191,6 @@ export class RecommendationWidget extends ExtensionWidget {
 			this.element = append(this.parent, $('div.extension-bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));
 			append(recommendation, $('span' + ThemeIcon.asCSSSelector(ratingIcon)));
-			const applyBookmarkStyle = (theme: IColorTheme) => {
-				const bgColor = theme.getColor(extensionButtonProminentBackground);
-				const fgColor = theme.getColor(extensionButtonProminentForeground);
-				recommendation.style.borderTopColor = bgColor ? bgColor.toString() : 'transparent';
-				recommendation.style.color = fgColor ? fgColor.toString() : 'white';
-			};
-			applyBookmarkStyle(this.themeService.getColorTheme());
-			this.themeService.onDidColorThemeChange(applyBookmarkStyle, this, this.disposables);
-			this.tooltip = extRecommendations[this.extension.identifier.id.toLowerCase()].reasonText;
 		}
 	}
 
@@ -346,7 +293,7 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	render(): void {
 		this.clear();
-		if (!this.extension || !this.extension.extensionPack.length) {
+		if (!this.extension || !(this.extension.categories?.some(category => category.toLowerCase() === 'extension packs')) || !this.extension.extensionPack.length) {
 			return;
 		}
 		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
@@ -433,11 +380,13 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly options: ExtensionHoverOptions,
-		private readonly extensionStatusIconAction: ExtensionStatusIconAction,
-		private readonly tooltipAction: ExtensionToolTipAction,
-		private readonly recommendationWidget: RecommendationWidget,
+		private readonly extensionStatusAction: ExtensionStatusAction,
+		private readonly reloadAction: ReloadAction,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 	}
@@ -446,11 +395,12 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		this.hover.value = undefined;
 		if (this.extension) {
 			this.hover.value = setupCustomHover({
-				delay: 500,
+				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: (options) => {
 					return this.hoverService.showHover({
 						...options,
 						hoverPosition: this.options.position(),
+						forcePosition: true,
 						additionalClasses: ['extension-hover']
 					});
 				},
@@ -468,32 +418,32 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
 		markdown.appendText(`\n`);
 
-		const toolTip = this.getTooltip();
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		if (this.extension.description) {
+			markdown.appendMarkdown(`${this.extension.description}`);
+			markdown.appendText(`\n`);
+		}
 
-		if (toolTip || extensionStatus) {
-			if (toolTip) {
-				if (this.extensionStatusIconAction.statusIcon) {
-					markdown.appendMarkdown(`$(${this.extensionStatusIconAction.statusIcon.id})&nbsp;`);
-				}
-				markdown.appendMarkdown(`${toolTip}`);
-				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
-					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
-				}
-				markdown.appendText(`\n`);
-			}
+		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		const extensionStatus = this.extensionStatusAction.status;
+		const reloadRequiredMessage = this.reloadAction.enabled ? this.reloadAction.tooltip : '';
+		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-			if (extensionStatus) {
-				if (extensionStatus.activationTimes) {
-					const activationTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
-					markdown.appendMarkdown(`${localize('activation', "Activation time")}${extensionStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : \`${activationTime}ms\``);
+		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage) {
+
+			markdown.appendMarkdown(`---`);
+			markdown.appendText(`\n`);
+
+			if (extensionRuntimeStatus) {
+				if (extensionRuntimeStatus.activationTimes) {
+					const activationTime = extensionRuntimeStatus.activationTimes.codeLoadingTime + extensionRuntimeStatus.activationTimes.activateCallTime;
+					markdown.appendMarkdown(`${localize('activation', "Activation time")}${extensionRuntimeStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''}: \`${activationTime}ms\``);
 					markdown.appendText(`\n`);
 				}
-				if (extensionStatus.runtimeErrors.length || extensionStatus.messages.length) {
-					const hasErrors = extensionStatus.runtimeErrors.length || extensionStatus.messages.some(message => message.type === Severity.Error);
-					const hasWarnings = extensionStatus.messages.some(message => message.type === Severity.Warning);
-					const errorsLink = extensionStatus.runtimeErrors.length ? `[${extensionStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
-					const messageLink = extensionStatus.messages.length ? `[${extensionStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
+				if (extensionRuntimeStatus.runtimeErrors.length || extensionRuntimeStatus.messages.length) {
+					const hasErrors = extensionRuntimeStatus.runtimeErrors.length || extensionRuntimeStatus.messages.some(message => message.type === Severity.Error);
+					const hasWarnings = extensionRuntimeStatus.messages.some(message => message.type === Severity.Warning);
+					const errorsLink = extensionRuntimeStatus.runtimeErrors.length ? `[${extensionRuntimeStatus.runtimeErrors.length === 1 ? localize('uncaught error', '1 uncaught error') : localize('uncaught errors', '{0} uncaught errors', extensionRuntimeStatus.runtimeErrors.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
+					const messageLink = extensionRuntimeStatus.messages.length ? `[${extensionRuntimeStatus.messages.length === 1 ? localize('message', '1 message') : localize('messages', '{0} messages', extensionRuntimeStatus.messages.length)}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.RuntimeStatus]))}`)})` : undefined;
 					markdown.appendMarkdown(`$(${hasErrors ? errorIcon.id : hasWarnings ? warningIcon.id : infoIcon.id}) This extension has reported `);
 					if (errorsLink && messageLink) {
 						markdown.appendMarkdown(`${errorsLink} and ${messageLink}`);
@@ -504,27 +454,41 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				}
 			}
 
-			markdown.appendMarkdown(`---`);
-			markdown.appendText(`\n`);
-		}
+			if (extensionStatus) {
+				if (extensionStatus.icon) {
+					markdown.appendMarkdown(`$(${extensionStatus.icon.id})&nbsp;`);
+				}
+				markdown.appendMarkdown(extensionStatus.message.value);
+				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
+					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
+				}
+				markdown.appendText(`\n`);
+			}
 
-		if (this.extension.description) {
-			markdown.appendMarkdown(`${this.extension.description}`);
-			markdown.appendText(`\n`);
+			if (reloadRequiredMessage) {
+				markdown.appendMarkdown(`$(${infoIcon.id})&nbsp;`);
+				markdown.appendMarkdown(`${reloadRequiredMessage}`);
+				markdown.appendText(`\n`);
+			}
+
+			if (recommendationMessage) {
+				markdown.appendMarkdown(recommendationMessage);
+				markdown.appendText(`\n`);
+			}
 		}
 
 		return markdown;
 	}
 
-	private getTooltip(): string {
-		if (!this.extension) {
-			return '';
+	private getRecommendationMessage(extension: IExtension): string | undefined {
+		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
+		if (recommendation?.reasonText) {
+			const bgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentBackground);
+			return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
 		}
-		if (this.tooltipAction.label) {
-			return this.tooltipAction.label;
-		}
-		return this.recommendationWidget.tooltip;
+		return undefined;
 	}
+
 }
 
 // Rating icon
@@ -534,7 +498,16 @@ registerThemingParticipant((theme, collector) => {
 	const extensionRatingIcon = theme.getColor(extensionRatingIconColor);
 	if (extensionRatingIcon) {
 		collector.addRule(`.extension-ratings .codicon-extensions-star-full, .extension-ratings .codicon-extensions-star-half { color: ${extensionRatingIcon}; }`);
-		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starFullIcon)} { color: ${extensionRatingIcon}; }`);
-		collector.addRule(`.monaco-hover.extension-hover .markdown-hover .hover-contents ${ThemeIcon.asCSSSelector(starHalfIcon)} { color: ${extensionRatingIcon}; }`);
+	}
+
+	const fgColor = theme.getColor(extensionButtonProminentForeground);
+	if (fgColor) {
+		collector.addRule(`.extension-bookmark .recommendation { color: ${fgColor}; }`);
+	}
+
+	const bgColor = theme.getColor(extensionButtonProminentBackground);
+	if (bgColor) {
+		collector.addRule(`.extension-bookmark .recommendation { border-top-color: ${bgColor}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor > .header > .details > .recommendation .codicon { color: ${bgColor}; }`);
 	}
 });

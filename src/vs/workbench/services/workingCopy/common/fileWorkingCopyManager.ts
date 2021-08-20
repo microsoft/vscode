@@ -32,7 +32,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -149,7 +148,6 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@ITextFileService textFileService: ITextFileService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@INotificationService notificationService: INotificationService,
@@ -167,8 +165,8 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			this.workingCopyTypeId,
 			this.storedWorkingCopyModelFactory,
 			fileService, lifecycleService, labelService, logService, workingCopyFileService,
-			workingCopyBackupService, uriIdentityService, textFileService, filesConfigurationService,
-			workingCopyService, notificationService, workingCopyEditorService, editorService, elevatedFileService
+			workingCopyBackupService, uriIdentityService, filesConfigurationService, workingCopyService,
+			notificationService, workingCopyEditorService, editorService, elevatedFileService
 		));
 
 		// Untitled file working copies manager

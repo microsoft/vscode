@@ -181,14 +181,17 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'notebook/toolbar',
 		id: MenuId.NotebookToolbar,
-		description: localize('notebook.toolbar', "The contributed notebook toolbar menu"),
-		proposed: true
+		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
 	},
 	{
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
-		description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
-		proposed: true
+		description: localize('notebook.cell.title', "The contributed notebook cell title menu")
+	},
+	{
+		key: 'notebook/cell/execute',
+		id: MenuId.NotebookCellExecute,
+		description: localize('notebook.cell.execute', "The contributed notebook cell execution menu")
 	},
 	{
 		key: 'interactive/toolbar',
@@ -205,8 +208,12 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
-		description: localize('testing.item.title', "The contributed test item menu"),
-		proposed: true
+		description: localize('testing.item.context', "The contributed test item menu"),
+	},
+	{
+		key: 'testing/item/gutter',
+		id: MenuId.TestItemGutter,
+		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
 	},
 	{
 		key: 'extension/context',
@@ -241,7 +248,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'file/newFile',
 		id: MenuId.NewFile,
-		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu. Supports property `{0}` to override the default title if needed.)", 'title'),
+		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
 		supportsSubmenus: false,
 	},
 	{
@@ -537,11 +544,11 @@ namespace schema {
 				type: 'string'
 			},
 			shortTitle: {
-				description: localize('vscode.extension.contributes.commandType.shortTitle', 'Short title by which the command is represented in the UI'),
+				markdownDescription: localize('vscode.extension.contributes.commandType.shortTitle', '(Optional) Short title by which the command is represented in the UI. Menus pick either `title` or `shortTitle` depending on the context in which they show commands.'),
 				type: 'string'
 			},
 			category: {
-				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by the command is grouped in the UI'),
+				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by which the command is grouped in the UI'),
 				type: 'string'
 			},
 			enablement: {
@@ -618,7 +625,9 @@ commandsExtensionPoint.setHandler(extensions => {
 		bucket.push({
 			id: command,
 			title,
+			source: extension.description.displayName ?? extension.description.name,
 			shortTitle: extension.description.enableProposedApi ? shortTitle : undefined,
+			tooltip: extension.description.enableProposedApi ? title : undefined,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon

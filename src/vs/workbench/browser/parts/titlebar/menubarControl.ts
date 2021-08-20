@@ -359,7 +359,7 @@ export abstract class MenubarControl extends Disposable {
 			{
 				label: localize('goToSetting', "Open Settings"),
 				run: () => {
-					return this.preferencesService.openGlobalSettings(undefined, { query: 'window.titleBarStyle' });
+					return this.preferencesService.openUserSettings({ query: 'window.titleBarStyle' });
 				}
 			}
 		]);

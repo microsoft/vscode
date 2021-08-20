@@ -135,7 +135,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 									}
 								*/
-								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language });
+								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language: locale });
 							};
 
 							const searchAction = {

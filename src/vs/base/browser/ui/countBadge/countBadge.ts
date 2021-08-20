@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./countBadge';
 import { $, append } from 'vs/base/browser/dom';
-import { format } from 'vs/base/common/strings';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { format } from 'vs/base/common/strings';
 import { IThemable } from 'vs/base/common/styler';
+import 'vs/css!./countBadge';
 
 export interface ICountBadgeOptions extends ICountBadgetyles {
 	count?: number;

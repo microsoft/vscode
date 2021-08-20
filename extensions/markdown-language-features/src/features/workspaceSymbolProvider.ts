@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { SkinnyTextDocument, SkinnyTextLine } from '../tableOfContentsProvider';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
-import { SkinnyTextDocument, SkinnyTextLine } from '../tableOfContentsProvider';
 
 export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
@@ -26,10 +26,25 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
 
-	async getAllMarkdownDocuments() {
+	private readonly utf8Decoder = new TextDecoder('utf-8');
+
+	/**
+	 * Reads and parses all .md documents in the workspace.
+	 * Files are processed in batches, to keep the number of open files small.
+	 *
+	 * @returns Array of processed .md files.
+	 */
+	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
+		const maxConcurrent = 20;
+		const docList: SkinnyTextDocument[] = [];
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
-		const docs = await Promise.all(resources.map(doc => this.getMarkdownDocument(doc)));
-		return docs.filter(doc => !!doc) as SkinnyTextDocument[];
+
+		for (let i = 0; i < resources.length; i += maxConcurrent) {
+			const resourceBatch = resources.slice(i, i + maxConcurrent);
+			const documentBatch = (await Promise.all(resourceBatch.map(this.getMarkdownDocument))).filter((doc) => !!doc) as SkinnyTextDocument[];
+			docList.push(...documentBatch);
+		}
+		return docList;
 	}
 
 	public get onDidChangeMarkdownDocument() {
@@ -88,7 +103,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 		const bytes = await vscode.workspace.fs.readFile(resource);
 
 		// We assume that markdown is in UTF-8
-		const text = Buffer.from(bytes).toString('utf-8');
+		const text = this.utf8Decoder.decode(bytes);
 
 		const lines: SkinnyTextLine[] = [];
 		const parts = text.split(/(\r?\n)/);

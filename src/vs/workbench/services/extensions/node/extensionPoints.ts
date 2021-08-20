@@ -88,6 +88,21 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	}
 }
 
+interface MessageBag {
+	[key: string]: string | { message: string; comment: string[] };
+}
+
+interface TranslationBundle {
+	contents: {
+		package: MessageBag;
+	};
+}
+
+interface LocalizedMessages {
+	values: MessageBag | undefined;
+	default: string | null;
+}
+
 class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 
 	private readonly _nlsConfig: NlsConfiguration;
@@ -98,21 +113,6 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	}
 
 	public replaceNLS(extensionDescription: IExtensionDescription): Promise<IExtensionDescription> {
-		interface MessageBag {
-			[key: string]: string;
-		}
-
-		interface TranslationBundle {
-			contents: {
-				package: MessageBag;
-			};
-		}
-
-		interface LocalizedMessages {
-			values: MessageBag | undefined;
-			default: string | null;
-		}
-
 		const reportErrors = (localized: string | null, errors: json.ParseError[]): void => {
 			errors.forEach((error) => {
 				this._log.error(this._absoluteFolderPath, nls.localize('jsonsParseReportErrors', "Failed to parse {0}: {1}.", localized, getParseErrorMessage(error.error)));
@@ -247,21 +247,22 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * This routine makes the following assumptions:
 	 * The root element is an object literal
 	 */
-	private static _replaceNLStrings<T extends object>(nlsConfig: NlsConfiguration, literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string } | null, log: ILog, messageScope: string): void {
+	private static _replaceNLStrings<T extends object>(nlsConfig: NlsConfiguration, literal: T, messages: MessageBag, originalMessages: MessageBag | null, log: ILog, messageScope: string): void {
 		function processEntry(obj: any, key: string | number, command?: boolean) {
-			let value = obj[key];
+			const value = obj[key];
 			if (types.isString(value)) {
-				let str = <string>value;
-				let length = str.length;
+				const str = <string>value;
+				const length = str.length;
 				if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
-					let messageKey = str.substr(1, length - 2);
-					let message = messages[messageKey];
+					const messageKey = str.substr(1, length - 2);
+					let translated = messages[messageKey];
 					// If the messages come from a language pack they might miss some keys
 					// Fill them from the original messages.
-					if (message === undefined && originalMessages) {
-						message = originalMessages[messageKey];
+					if (translated === undefined && originalMessages) {
+						translated = originalMessages[messageKey];
 					}
-					if (message) {
+					let message: string | undefined = typeof translated === 'string' ? translated : (typeof translated?.message === 'string' ? translated.message : undefined);
+					if (message !== undefined) {
 						if (nlsConfig.pseudo) {
 							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
 							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';

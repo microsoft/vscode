@@ -24,7 +24,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
@@ -35,14 +35,18 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IThemable } from 'vs/base/common/styler';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { createAndBindHistoryNavigationWidgetScopedContextKeyService, IHistoryNavigationContext } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
-interface SuggestResultsProvider {
+export interface SuggestResultsProvider {
 	/**
 	 * Provider function for suggestion results.
 	 *
 	 * @param query the full text of the input.
 	 */
-	provideResults: (query: string) => string[];
+	provideResults: (query: string) => (modes.CompletionItemLabel | string)[];
 
 	/**
 	 * Trigger characters for this input. Suggestions will appear when one of these is typed,
@@ -106,9 +110,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
-	private readonly inputWidget: CodeEditorWidget;
+	protected readonly inputWidget: CodeEditorWidget;
 	private readonly inputModel: ITextModel;
-	private stylingContainer: HTMLDivElement;
+	protected stylingContainer: HTMLDivElement;
 	private placeholderText: HTMLDivElement;
 
 	constructor(
@@ -118,8 +122,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		ariaLabel: string,
 		resourceHandle: string,
 		options: SuggestEnabledInputOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService defaultInstantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -129,6 +134,12 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		const editorOptions: IEditorOptions = mixin(
 			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
+
+		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService, parent);
+
+		const instantiationService = scopedContextKeyService
+			? defaultInstantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
+			: defaultInstantiationService;
 
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
@@ -199,18 +210,32 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				}
 
 				return {
-					suggestions: suggestionProvider.provideResults(query).map(result => {
-						return <modes.CompletionItem>{
-							label: result,
-							insertText: result,
+					suggestions: suggestionProvider.provideResults(query).map((result): modes.CompletionItem => {
+						let label: string;
+						let rest: Partial<modes.CompletionItem> | undefined;
+						if (typeof result === 'string') {
+							label = result;
+						} else {
+							label = result.label;
+							rest = result;
+						}
+
+						return {
+							label,
+							insertText: label,
 							range: Range.fromPositions(position.delta(0, -alreadyTypedCount), position),
-							sortText: validatedSuggestProvider.sortKey(result),
-							kind: modes.CompletionItemKind.Keyword
+							sortText: validatedSuggestProvider.sortKey(label),
+							kind: modes.CompletionItemKind.Keyword,
+							...rest
 						};
 					})
 				};
 			}
 		}));
+	}
+
+	protected getScopedContextKeyService(_contextKeyService: IContextKeyService, _parent: HTMLElement): IContextKeyService | undefined {
+		return undefined;
 	}
 
 	public updateAriaLabel(label: string): void {
@@ -230,7 +255,6 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 	public getValue(): string {
 		return this.inputWidget.getValue();
 	}
-
 
 	public style(colors: ISuggestEnabledInputStyles): void {
 		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
@@ -268,6 +292,127 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 	private selectAll(): void {
 		this.inputWidget.setSelection(new Range(1, 1, 1, this.getValue().length + 1));
+	}
+}
+
+export interface ISuggestEnabledHistoryOptions {
+	id: string,
+	ariaLabel: string,
+	parent: HTMLElement,
+	suggestionProvider: SuggestResultsProvider,
+	resourceHandle: string,
+	suggestOptions: SuggestEnabledInputOptions,
+	history: string[],
+}
+
+export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implements IHistoryNavigationWidget {
+	protected readonly history: HistoryNavigator<string>;
+
+	constructor(
+		{ id, parent, ariaLabel, suggestionProvider, resourceHandle, suggestOptions, history }: ISuggestEnabledHistoryOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService);
+		this.history = new HistoryNavigator<string>(history, 100);
+	}
+
+	public addToHistory(): void {
+		const value = this.getValue();
+		if (value && value !== this.getCurrentValue()) {
+			this.history.add(value);
+		}
+	}
+
+	public getHistory(): string[] {
+		return this.history.getHistory();
+	}
+
+	public showNextValue(): void {
+		if (!this.history.has(this.getValue())) {
+			this.addToHistory();
+		}
+
+		let next = this.getNextValue();
+		if (next) {
+			next = next === this.getValue() ? this.getNextValue() : next;
+		}
+
+		if (next) {
+			this.setValue(next);
+		}
+	}
+
+	public showPreviousValue(): void {
+		if (!this.history.has(this.getValue())) {
+			this.addToHistory();
+		}
+
+		let previous = this.getPreviousValue();
+		if (previous) {
+			previous = previous === this.getValue() ? this.getPreviousValue() : previous;
+		}
+
+		if (previous) {
+			this.setValue(previous);
+			this.inputWidget.setPosition({ lineNumber: 0, column: 0 });
+		}
+	}
+
+	public clearHistory(): void {
+		this.history.clear();
+	}
+
+	private getCurrentValue(): string | null {
+		let currentValue = this.history.current();
+		if (!currentValue) {
+			currentValue = this.history.last();
+			this.history.next();
+		}
+		return currentValue;
+	}
+
+	private getPreviousValue(): string | null {
+		return this.history.previous() || this.history.first();
+	}
+
+	private getNextValue(): string | null {
+		return this.history.next() || this.history.last();
+	}
+}
+
+export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledInputWithHistory {
+	private historyContext!: IHistoryNavigationContext;
+
+	constructor(
+		options: ISuggestEnabledHistoryOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super(options, instantiationService, modelService, contextKeyService);
+
+		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this.historyContext;
+		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {
+			const viewModel = this.inputWidget._getViewModel()!;
+			const lastLineNumber = viewModel.getLineCount();
+			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+			historyNavigationBackwardsEnablement.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
+			historyNavigationForwardsEnablement.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
+		}));
+	}
+
+	protected override getScopedContextKeyService(contextKeyService: IContextKeyService, parent: HTMLElement) {
+		const scoped = this.historyContext = createAndBindHistoryNavigationWidgetScopedContextKeyService(
+			contextKeyService,
+			{ target: parent, historyNavigator: this },
+		);
+
+		this._register(scoped.scopedContextKeyService);
+
+		return scoped.scopedContextKeyService;
 	}
 }
 

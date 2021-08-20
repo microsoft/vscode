@@ -24,7 +24,7 @@ export class FindModel extends Disposable {
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
 	private _currentMatchDecorations: ICellModelDecorations[] = [];
-	private _modelDisposable = new DisposableStore();
+	private readonly _modelDisposable = this._register(new DisposableStore());
 
 	get findMatches() {
 		return this._findMatches;
@@ -143,6 +143,11 @@ export class FindModel extends Disposable {
 			return;
 		}
 
+		if (findMatches.length === 0) {
+			this.set([], false);
+			return;
+		}
+
 		if (this._currentMatch === -1) {
 			// no active current match
 			this.set(findMatches, false);
@@ -186,7 +191,7 @@ export class FindModel extends Disposable {
 					?? this._findMatches[oldCurrIndex.index].matches[oldCurrIndex.remainder].range;
 
 				// not attached, just use the range
-				const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex);
+				const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
 				if (findMatches[matchAfterSelection].index > oldCurrMatchCellIndex) {
 					// there is no search result in curr cell anymore
 					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
@@ -215,6 +220,12 @@ export class FindModel extends Disposable {
 			this.constructFindMatchesStarts();
 			this._currentMatch = -1;
 			this.clearCurrentFindMatchDecoration();
+
+			this._state.changeMatchInfo(
+				this._currentMatch,
+				this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+				undefined
+			);
 			return;
 		}
 

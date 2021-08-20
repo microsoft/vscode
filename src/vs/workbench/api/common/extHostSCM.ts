@@ -20,6 +20,8 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -275,7 +277,7 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this._proxy.$setInputBoxFocus(this._sourceControlHandle);
 	}
 
-	showValidationMessage(message: string, type: vscode.SourceControlInputBoxValidationType) {
+	showValidationMessage(message: string | vscode.MarkdownString, type: vscode.SourceControlInputBoxValidationType) {
 		checkProposedApiEnabled(this._extension);
 
 		this._proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
@@ -770,7 +772,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return group.$executeResourceCommand(handle, preserveFocus);
 	}
 
-	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string, number] | undefined> {
+	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined> {
 		this.logService.trace('ExtHostSCM#$validateInput', sourceControlHandle);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
@@ -788,7 +790,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 				return Promise.resolve(undefined);
 			}
 
-			return Promise.resolve<[string, number]>([result.message, result.type]);
+			const message = MarkdownString.fromStrict(result.message);
+			if (!message) {
+				return Promise.resolve(undefined);
+			}
+
+			return Promise.resolve<[string | IMarkdownString, number]>([message, result.type]);
 		});
 	}
 

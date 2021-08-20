@@ -6,9 +6,8 @@
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { WelcomePageContribution, WelcomeInputSerializer } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
+import { WelcomePageContribution, } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
@@ -35,5 +34,3 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WelcomePageContribution, LifecyclePhase.Restored);
-
-Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(WelcomeInputSerializer.ID, WelcomeInputSerializer);

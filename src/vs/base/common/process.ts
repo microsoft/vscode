@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, isMacintosh, setImmediate, globals, INodeProcess } from 'vs/base/common/platform';
+import { globals, INodeProcess, isMacintosh, isWindows, setImmediate } from 'vs/base/common/platform';
 
 let safeProcess: INodeProcess & { nextTick: (callback: (...args: any[]) => void) => void; };
 declare const process: INodeProcess;

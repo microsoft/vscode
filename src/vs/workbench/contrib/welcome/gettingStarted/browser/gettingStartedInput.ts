@@ -37,11 +37,12 @@ export class GettingStartedInput extends EditorInput {
 	}
 
 	constructor(
-		options: { selectedCategory?: string, selectedStep?: string }
+		options: { selectedCategory?: string, selectedStep?: string, showTelemetryNotice?: boolean, }
 	) {
 		super();
 		this.selectedCategory = options.selectedCategory;
 		this.selectedStep = options.selectedStep;
+		this.showTelemetryNotice = !!options.showTelemetryNotice;
 	}
 
 	override getName() {
@@ -50,4 +51,5 @@ export class GettingStartedInput extends EditorInput {
 
 	selectedCategory: string | undefined;
 	selectedStep: string | undefined;
+	showTelemetryNotice: boolean;
 }
