@@ -586,6 +586,8 @@ export namespace Codicon {
 	export const gitPullRequestDraft = new Codicon('git-pull-request-draft', { fontCharacter: '\\ebdb' });
 	export const debugAll = new Codicon('debug-all', { fontCharacter: '\\ebdc' });
 	export const debugCoverage = new Codicon('debug-coverage', { fontCharacter: '\\ebdd' });
+	export const runErrors = new Codicon('run-errors', { fontCharacter: '\\ebde' });
+	export const folderLibrary = new Codicon('folder-library', { fontCharacter: '\\ebdf' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

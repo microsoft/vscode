@@ -455,12 +455,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	interface IOutputItem {
 		readonly id: string;
 
-		/** @deprecated */
-		readonly outputId?: string;
-
-		/** @deprecated */
-		readonly element: HTMLElement;
-
 		readonly mime: string;
 		metadata: unknown;
 
@@ -468,8 +462,34 @@ async function webviewPreloads(ctx: PreloadContext) {
 		json(): any;
 		data(): Uint8Array;
 		blob(): Blob;
-		/** @deprecated */
-		bytes(): Uint8Array;
+	}
+
+	class OutputItem implements IOutputItem {
+		constructor(
+			public readonly id: string,
+			public readonly element: HTMLElement,
+			public readonly mime: string,
+			public readonly metadata: unknown,
+			public readonly valueBytes: Uint8Array
+		) { }
+
+		data() {
+			return this.valueBytes;
+		}
+
+		bytes() { return this.data(); }
+
+		text() {
+			return new TextDecoder().decode(this.valueBytes);
+		}
+
+		json() {
+			return JSON.parse(this.text());
+		}
+
+		blob() {
+			return new Blob([this.valueBytes], { type: this.mime });
+		}
 	}
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
@@ -555,25 +575,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					} else {
 						const rendererApi = preloadsAndErrors[0] as RendererApi;
 						try {
-							rendererApi.renderOutputItem({
-								id: outputId,
-								element: outputNode,
-								mime: content.mimeType,
-								metadata: content.metadata,
-								data() {
-									return content.valueBytes;
-								},
-								bytes() { return this.data(); },
-								text() {
-									return new TextDecoder().decode(content.valueBytes);
-								},
-								json() {
-									return JSON.parse(this.text());
-								},
-								blob() {
-									return new Blob([content.valueBytes], { type: content.mimeType });
-								}
-							}, outputNode);
+							rendererApi.renderOutputItem(new OutputItem(outputId, outputNode, content.mimeType, content.mimeType, content.valueBytes), outputNode);
 						} catch (e) {
 							showPreloadErrors(outputNode, e);
 						}
@@ -956,7 +958,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public deleteMarkupCell(id: string) {
 			const cell = this.getExpectedMarkupCell(id);
 			if (cell) {
-				cell.element.remove();
+				cell.remove();
 				this._markupCells.delete(id);
 			}
 		}
@@ -1066,6 +1068,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public readonly ready: Promise<void>;
 
+		public readonly element: HTMLElement;
+
 		/// Internal field that holds text content
 		private _content: string;
 
@@ -1097,12 +1101,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		//#region IOutputItem
 		public readonly id: string;
-		public readonly mime;
-		public readonly element: HTMLElement;
-
-		// deprecated fields
+		public readonly mime: string;
 		public readonly metadata = undefined;
-		public readonly outputId?: string | undefined;
 
 		text() { return this._content; }
 		json() { return undefined; }
@@ -1228,6 +1228,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public rerender() {
 			this.updateContentAndRender(this._content);
+		}
+
+		public remove() {
+			this.element.remove();
 		}
 
 		private async updateMarkupDimensions() {

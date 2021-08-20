@@ -5,21 +5,21 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, INotebookSearchOptions, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { Mimes } from 'vs/base/common/mime';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { CellEditState, CellFocusMode, CellViewModelStateChangeEvent, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -109,7 +109,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	get editorAttached(): boolean {
 		return !!this._textEditor;
 	}
-	private _cursorChangeListener: IDisposable | null = null;
+	private _editorListeners: IDisposable[] = [];
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
 
@@ -153,7 +153,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		private readonly _viewContext: ViewContext,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _modelService: ITextModelService,
-		private readonly _undoRedoService: IUndoRedoService
+		private readonly _undoRedoService: IUndoRedoService,
+		// private readonly _keymapService: INotebookKeymapService
 	) {
 		super();
 
@@ -191,14 +192,21 @@ export abstract class BaseCellViewModel extends Disposable {
 		return false;
 	}
 
+	// private handleKeyDown(e: IKeyboardEvent) {
+	// 	if (this.viewType === IPYNB_VIEW_TYPE && isWindows && e.ctrlKey && e.keyCode === KeyCode.Enter) {
+	// 		this._keymapService.promptKeymapRecommendation();
+	// 	}
+	// }
+
 	attachTextEditor(editor: ICodeEditor) {
 		if (!editor.hasModel()) {
 			throw new Error('Invalid editor: model is missing');
 		}
 
 		if (this._textEditor === editor) {
-			if (this._cursorChangeListener === null) {
-				this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); });
+			if (this._editorListeners.length === 0) {
+				this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
+				// this._editorListeners.push(this._textEditor.onKeyDown(e => this.handleKeyDown(e)));
 				this._onDidChangeState.fire({ selectionChanged: true });
 			}
 			return;
@@ -222,7 +230,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			}
 		});
 
-		this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); });
+		this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
+		// this._editorListeners.push(this._textEditor.onKeyDown(e => this.handleKeyDown(e)));
 		this._onDidChangeState.fire({ selectionChanged: true });
 		this._onDidChangeEditorAttachState.fire();
 	}
@@ -239,8 +248,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this._cursorChangeListener?.dispose();
-		this._cursorChangeListener = null;
+		this._editorListeners.forEach(e => e.dispose());
+		this._editorListeners = [];
 		this._onDidChangeEditorAttachState.fire();
 
 		if (this._textModelRef) {
@@ -542,6 +551,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	override dispose() {
 		super.dispose();
 
+		this._editorListeners.forEach(e => e.dispose());
 		this._undoRedoService.removeElements(this.uri);
 
 		if (this._textModelRef) {

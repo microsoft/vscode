@@ -17,7 +17,6 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as extpath from 'vs/base/common/extpath';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { splitGlobAware } from 'vs/base/common/glob';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
@@ -46,16 +45,16 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByNameTestItemElement, HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
+import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { labelForTestInState, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -74,7 +73,7 @@ export class TestingExplorerView extends ViewPane {
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
 	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
-	private readonly location = TestingContextKeys.explorerLocation.bindTo(this.contextKeyService);
+	private filter?: TestingExplorerFilter;
 	private readonly dimensions = { width: 0, height: 0 };
 
 	constructor(
@@ -94,7 +93,6 @@ export class TestingExplorerView extends ViewPane {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.location.set(viewDescriptorService.getViewLocationById(Testing.ExplorerViewId) ?? ViewContainerLocation.Sidebar);
 
 		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
 		this._register(this.onDidChangeViewWelcomeState(() => {
@@ -211,10 +209,7 @@ export class TestingExplorerView extends ViewPane {
 
 		this.container = dom.append(container, dom.$('.test-explorer'));
 		this.treeHeader = dom.append(this.container, dom.$('.test-explorer-header'));
-
-		if (this.location.get() === ViewContainerLocation.Sidebar) {
-			this.filterActionBar.value = this.createFilterActionBar();
-		}
+		this.filterActionBar.value = this.createFilterActionBar();
 
 		const messagesContainer = dom.append(this.treeHeader, dom.$('.test-explorer-messages'));
 		this._register(this.testProgressService.onTextChange(text => {
@@ -250,7 +245,7 @@ export class TestingExplorerView extends ViewPane {
 	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
 			case Testing.FilterActionId:
-				return this.instantiationService.createInstance(TestingExplorerFilter, action);
+				return this.filter = this.instantiationService.createInstance(TestingExplorerFilter, action);
 			case RunSelectedAction.ID:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
 			case DebugSelectedAction.ID:
@@ -336,6 +331,7 @@ export class TestingExplorerView extends ViewPane {
 	 * @override
 	 */
 	public override saveState() {
+		this.filter?.saveState();
 		super.saveState();
 	}
 
@@ -391,6 +387,7 @@ export class TestingExplorerView extends ViewPane {
 		this.dimensions.width = width;
 		this.container.style.height = `${height}px`;
 		this.viewModel.layout(height - this.treeHeader.clientHeight, width);
+		this.filter?.layout(width);
 	}
 }
 
@@ -520,9 +517,6 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this._register(Event.any(
 			filterState.text.onDidChange,
-			filterState.stateFilter.onDidChange,
-			filterState.showExcludedTests.onDidChange,
-			filterState.currentDocumentOnly.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
 		)(this.tree.refilter, this.tree));
 
@@ -599,19 +593,9 @@ export class TestingExplorerViewModel extends Disposable {
 			this.tree.rerender();
 		}));
 
-		this._register(filterState.currentDocumentOnly.onDidChange(() => {
-			if (!filterState.currentDocumentOnly.value) {
-				this.filter.filterToDocumentUri(undefined);
-			} else if (editorService.activeEditor?.resource) {
-				this.filter.filterToDocumentUri(editorService.activeEditor.resource);
-			}
-
-			this.tree.refilter();
-		}));
-
 		const onEditorChange = () => {
-			if (filterState.currentDocumentOnly.value && editorService.activeEditor?.resource) {
-				this.filter.filterToDocumentUri(editorService.activeEditor.resource);
+			this.filter.filterToDocumentUri(editorService.activeEditor?.resource);
+			if (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc)) {
 				this.tree.refilter();
 			}
 		};
@@ -669,7 +653,7 @@ export class TestingExplorerViewModel extends Disposable {
 			// excluded tests' checkbox automatically.
 			for (let n: TestItemTreeElement | null = element; n instanceof TestItemTreeElement; n = n.parent) {
 				if (n.test && this.testService.excluded.contains(n.test)) {
-					this.filterState.showExcludedTests.value = true;
+					this.filterState.toggleFilteringFor(TestFilterTerm.Hidden, true);
 					break;
 				}
 			}
@@ -760,7 +744,7 @@ export class TestingExplorerViewModel extends Disposable {
 	private reevaluateWelcomeState() {
 		const shouldShowWelcome = this.testService.collection.busyProviders === 0 && testCollectionIsEmpty(this.testService.collection);
 		const welcomeExperience = shouldShowWelcome
-			? (this.filterState.currentDocumentOnly.value ? WelcomeExperience.ForDocument : WelcomeExperience.ForWorkspace)
+			? (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc) ? WelcomeExperience.ForDocument : WelcomeExperience.ForWorkspace)
 			: WelcomeExperience.None;
 
 		if (welcomeExperience !== this.welcomeExperience) {
@@ -845,8 +829,6 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: 
 };
 
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
-	private lastText?: string;
-	private filters: [include: boolean, value: string][] | undefined;
 	private documentUri: URI | undefined;
 
 	constructor(
@@ -856,28 +838,6 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	) { }
 
 	/**
-	 * Parses and updates the tree filter. Supports lists of patterns that can be !negated.
-	 */
-	private setFilter(text: string) {
-		this.lastText = text;
-		text = text.trim();
-
-		if (!text) {
-			this.filters = undefined;
-			return;
-		}
-
-		this.filters = [];
-		for (const filter of splitGlobAware(text, ',').map(s => s.trim()).filter(s => !!s.length)) {
-			if (filter.startsWith('!')) {
-				this.filters.push([false, filter.slice(1).toLowerCase()]);
-			} else {
-				this.filters.push([true, filter.toLowerCase()]);
-			}
-		}
-	}
-
-	/**
 	 * @inheritdoc
 	 */
 	public filter(element: TestItemTreeElement): TreeFilterResult<void> {
@@ -885,19 +845,15 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			return TreeVisibility.Visible;
 		}
 
-		if (this.state.text.value !== this.lastText) {
-			this.setFilter(this.state.text.value);
-		}
-
 		if (
 			element.test
-			&& !this.state.showExcludedTests.value
+			&& !this.state.isFilteringFor(TestFilterTerm.Hidden)
 			&& this.testService.excluded.contains(element.test)
 		) {
 			return TreeVisibility.Hidden;
 		}
 
-		switch (Math.min(this.testFilterText(element), this.testLocation(element), this.testState(element))) {
+		switch (Math.min(this.testFilterText(element), this.testLocation(element), this.testState(element), this.testTags(element))) {
 			case FilterResult.Exclude:
 				return TreeVisibility.Hidden;
 			case FilterResult.Include:
@@ -911,15 +867,26 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		this.documentUri = uri;
 	}
 
-	private testState(element: TestItemTreeElement): FilterResult {
-		switch (this.state.stateFilter.value) {
-			case TestExplorerStateFilter.All:
-				return FilterResult.Include;
-			case TestExplorerStateFilter.OnlyExecuted:
-				return element.state !== TestResultState.Unset ? FilterResult.Include : FilterResult.Inherit;
-			case TestExplorerStateFilter.OnlyFailed:
-				return isFailedState(element.state) ? FilterResult.Include : FilterResult.Inherit;
+	private testTags(element: TestItemTreeElement): FilterResult {
+		if (!this.state.onlyTags.size) {
+			return FilterResult.Include;
 		}
+
+		return element.test.item.tags.some(t => this.state.onlyTags.has(t))
+			? FilterResult.Include
+			: FilterResult.Inherit;
+	}
+
+	private testState(element: TestItemTreeElement): FilterResult {
+		if (this.state.isFilteringFor(TestFilterTerm.Failed)) {
+			return isFailedState(element.state) ? FilterResult.Include : FilterResult.Inherit;
+		}
+
+		if (this.state.isFilteringFor(TestFilterTerm.Executed)) {
+			return element.state !== TestResultState.Unset ? FilterResult.Include : FilterResult.Inherit;
+		}
+
+		return FilterResult.Include;
 	}
 
 	private testLocation(element: TestItemTreeElement): FilterResult {
@@ -927,7 +894,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			return FilterResult.Include;
 		}
 
-		if (!this.state.currentDocumentOnly.value || !(element instanceof TestItemTreeElement)) {
+		if (!this.state.isFilteringFor(TestFilterTerm.CurrentDoc) || !(element instanceof TestItemTreeElement)) {
 			return FilterResult.Include;
 		}
 
@@ -936,17 +903,17 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	}
 
 	private testFilterText(element: TestItemTreeElement) {
-		if (!this.filters) {
+		if (this.state.globList.length === 0) {
 			return FilterResult.Include;
 		}
 
 		for (let e: TestItemTreeElement | null = element; e; e = e.parent) {
 			// start as included if the first glob is a negation
-			let included = this.filters[0][0] === false ? FilterResult.Include : FilterResult.Inherit;
+			let included = this.state.globList[0].include === false ? FilterResult.Include : FilterResult.Inherit;
 			const data = e.label.toLowerCase();
 
-			for (const [include, filter] of this.filters) {
-				if (data.includes(filter)) {
+			for (const { include, text } of this.state.globList) {
+				if (data.includes(text)) {
 					included = include ? FilterResult.Include : FilterResult.Exclude;
 				}
 			}
@@ -999,7 +966,7 @@ class NoTestsForDocumentWidget extends Disposable {
 		const button = this._register(new Button(el, { title: buttonLabel }));
 		button.label = buttonLabel;
 		this._register(attachButtonStyler(button, themeService));
-		this._register(button.onDidClick(() => filterState.currentDocumentOnly.value = false));
+		this._register(button.onDidClick(() => filterState.toggleFilteringFor(TestFilterTerm.CurrentDoc, false)));
 	}
 
 	public setVisible(isVisible: boolean) {

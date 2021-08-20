@@ -79,7 +79,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		truncatedArrayOfString(notebookUri, output.cellViewModel, Math.max(lineLimit, 6), contentNode, [text], disposables, linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
-		return { type: RenderOutputType.Mainframe };
+		return { type: RenderOutputType.Mainframe, disposable: disposables };
 	}
 }
 

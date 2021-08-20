@@ -971,7 +971,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
 		 */
-		export const onDidChangeTerminalState: Event<TerminalStateChangeEvent>;
+		export const onDidChangeTerminalState: Event<Terminal>;
 	}
 
 	//#endregion

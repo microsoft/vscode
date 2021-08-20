@@ -91,6 +91,8 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransfo
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
+import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/notebookKeymapServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -607,6 +609,7 @@ registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
 registerSingleton(INotebookKernelService, NotebookKernelService, true);
 registerSingleton(INotebookExecutionService, NotebookExecutionService, true);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, true);
+registerSingleton(INotebookKeymapService, NotebookKeymapService, true);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
@@ -712,7 +715,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[FocusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as a cell border or a highlight bar on the left gutter"),
+			description: nls.localize('notebook.focusIndicator.description', "Controls where the focus indicator is rendered, either along the cell borders or on the left gutter"),
 			type: 'string',
 			enum: ['border', 'gutter'],
 			default: 'gutter',
