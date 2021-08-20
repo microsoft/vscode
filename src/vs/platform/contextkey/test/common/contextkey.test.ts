@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, implies } from 'vs/platform/contextkey/common/contextkey';
 
 function createContext(ctx: any) {
 	return {
@@ -203,6 +203,29 @@ suite('ContextKeyExpr', () => {
 			ContextKeyExpr.has('A')
 		)!;
 		assert.strictEqual(expr.serialize(), 'A && B');
+	});
+
+	test('issue #129625: Remove duplicated terms when negating', () => {
+		const expr = ContextKeyExpr.and(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.or(
+				ContextKeyExpr.has('B1'),
+				ContextKeyExpr.has('B2'),
+			)
+		)!;
+		assert.strictEqual(expr.serialize(), 'A && B1 || A && B2');
+		assert.strictEqual(expr.negate()!.serialize(), '!A || !B1 && !B2');
+		assert.strictEqual(expr.negate()!.negate()!.serialize(), 'A && B1 || A && B2');
+		assert.strictEqual(expr.negate()!.negate()!.negate()!.serialize(), '!A || !B1 && !B2');
+	});
+
+	test('issue #129625: remove redundant terms in OR expressions', () => {
+		function strImplies(p0: string, q0: string): boolean {
+			const p = ContextKeyExpr.deserialize(p0)!;
+			const q = ContextKeyExpr.deserialize(q0)!;
+			return implies(p, q);
+		}
+		assert.strictEqual(strImplies('a', 'a && b'), true);
 	});
 
 	test('Greater, GreaterEquals, Smaller, SmallerEquals evaluate', () => {
