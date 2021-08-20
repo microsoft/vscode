@@ -219,10 +219,10 @@
   resolved "https://registry.yarnpkg.com/@types/events/-/events-1.2.0.tgz#81a6731ce4df43619e5c8c945383b3e62a89ea86"
   integrity sha512-KEIlhXnIutzKwRbQkGWb/I4HFqBuUykAdHgDED6xqwXJfONCjF5VoE0cXEiurh3XauygxzeDzgtXUqvLkxFzzA==
 
-"@types/fancy-log@^1.3.0":
-  version "1.3.0"
-  resolved "https://registry.yarnpkg.com/@types/fancy-log/-/fancy-log-1.3.0.tgz#a61ab476e5e628cd07a846330df53b85e05c8ce0"
-  integrity sha512-mQjDxyOM1Cpocd+vm1kZBP7smwKZ4TNokFeds9LV7OZibmPJFEzY3+xZMrKfUdNT71lv8GoCPD6upKwHxubClw==
+"@types/fancy-log@^1.3.1":
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/@types/fancy-log/-/fancy-log-1.3.1.tgz#dd94fbc8c2e2ab8ab402ca8d04bb8c34965f0696"
+  integrity sha512-31Dt9JaGfHretvwVxCBrCFL5iC9MQ3zOXpu+8C4qzW0cxc5rJJVGxB5c/vZ+wmeTk/JjPz/D0gv8BZ+Ip6iCqQ==
 
 "@types/form-data@*":
   version "2.2.1"
