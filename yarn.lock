@@ -7827,12 +7827,12 @@ querystring@0.2.0:
   resolved "https://registry.yarnpkg.com/querystring/-/querystring-0.2.0.tgz#b209849203bb25df820da756e747005878521620"
   integrity sha1-sgmEkgO7Jd+CDadW50cAWHhSFiA=
 
-queue@3.0.6:
-  version "3.0.6"
-  resolved "https://registry.yarnpkg.com/queue/-/queue-3.0.6.tgz#66c0ffd0a1d9d28045adebda966a2d3946ab9f13"
-  integrity sha1-ZsD/0KHZ0oBFrevalmotOUarnxM=
+queue@6.0.2:
+  version "6.0.2"
+  resolved "https://registry.yarnpkg.com/queue/-/queue-6.0.2.tgz#b91525283e2315c7553d2efa18d83e76432fed65"
+  integrity sha512-iHZWu+q3IdFZFX36ro/lKBkSvfkztY5Y7HMiPlOUjhupPcG2JMfst2KKEpu5XndviX/3UhFbRngUPNKtgvtZiA==
   dependencies:
-    inherits "~2.0.0"
+    inherits "~2.0.3"
 
 queue@^3.0.10, queue@^3.1.0:
   version "3.1.0"
