@@ -176,9 +176,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION
 			},
 			'extensions.webWorker': {
-				type: 'boolean',
+				type: ['boolean', 'string'],
+				enum: [true, false, 'auto'],
+				enumDescriptions: [
+					localize('extensionsWebWorker.true', "The Web Worker Extension Host will always be launched."),
+					localize('extensionsWebWorker.false', "The Web Worker Extension Host will never be launched."),
+					localize('extensionsWebWorker.auto', "The Web Worker Extension Host will be launched when a web extension needs it."),
+				],
 				description: localize('extensionsWebWorker', "Enable web worker extension host."),
-				default: false
+				default: 'auto'
 			},
 			'extensions.supportVirtualWorkspaces': {
 				type: 'object',

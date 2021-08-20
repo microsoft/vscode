@@ -21,8 +21,8 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService, toExtension, ExtensionHostKind, IExtensionHost, webWorkerExtHostConfig, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { IExtensionService, toExtension, ExtensionHostKind, IExtensionHost, webWorkerExtHostConfig, ExtensionRunningLocation, WebWorkerExtHostConfigValue } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -47,6 +47,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
 	private readonly _enableLocalWebWorker: boolean;
+	private readonly _lazyLocalWebWorker: boolean;
 	private readonly _remoteInitData: Map<string, IRemoteExtensionHostInitData>;
 	private readonly _extensionScanner: CachedExtensionScanner;
 
@@ -92,7 +93,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			webExtensionsScannerService
 		);
 
-		this._enableLocalWebWorker = this._isLocalWebWorkerEnabled();
+		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();
 		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 
@@ -110,14 +111,26 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		});
 	}
 
-	private _isLocalWebWorkerEnabled() {
-		if (this._configurationService.getValue(webWorkerExtHostConfig)) {
-			return true;
-		}
+	private _isLocalWebWorkerEnabled(): [boolean, boolean] {
+		let isEnabled: boolean;
+		let isLazy: boolean;
 		if (this._environmentService.isExtensionDevelopment && this._environmentService.extensionDevelopmentKind?.some(k => k === 'web')) {
-			return true;
+			isEnabled = true;
+			isLazy = false;
+		} else {
+			const config = this._configurationService.getValue<WebWorkerExtHostConfigValue>(webWorkerExtHostConfig);
+			if (config === true) {
+				isEnabled = true;
+				isLazy = false;
+			} else if (config === 'auto') {
+				isEnabled = true;
+				isLazy = true;
+			} else {
+				isEnabled = false;
+				isLazy = false;
+			}
 		}
-		return false;
+		return [isEnabled, isLazy];
 	}
 
 	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
@@ -220,7 +233,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		result.push(localProcessExtHost);
 
 		if (this._enableLocalWebWorker) {
-			const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalWebWorker));
+			const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, this._lazyLocalWebWorker, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalWebWorker));
 			result.push(webWorkerExtHost);
 		}
 
@@ -233,7 +246,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return result;
 	}
 
-	protected override _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
+	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
 		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values());
 		super._onExtensionHostCrashed(extensionHost, code, signal);
 
