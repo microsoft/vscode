@@ -391,9 +391,9 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersTooltip(stats: MarkerStatistics): string {
-		const errorTitle = (n: number) => localize('totalErrors', "{0} Errors", n);
-		const warningTitle = (n: number) => localize('totalWarnings', "{0} Warnings", n);
-		const infoTitle = (n: number) => localize('totalInfos', "{0} Infos", n);
+		const errorTitle = (n: number) => localize('totalErrors', "Errors: {0}", n);
+		const warningTitle = (n: number) => localize('totalWarnings', "Warnings: {0}", n);
+		const infoTitle = (n: number) => localize('totalInfos', "Infos: {0}", n);
 
 		const titles: string[] = [];
 
