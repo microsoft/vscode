@@ -89,7 +89,8 @@ class CellExecution implements INotebookCellExecution, IDisposable {
 			editType: CellEditType.PartialInternalMetadata,
 			handle: cellHandle,
 			internalMetadata: {
-				runState: NotebookCellExecutionState.Pending
+				runState: NotebookCellExecutionState.Pending,
+				executionOrder: null
 			}
 		};
 		this._applyExecutionEdits([startExecuteEdit]);

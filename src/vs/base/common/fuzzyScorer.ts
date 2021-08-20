@@ -392,9 +392,9 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean
 	// - whether fuzzy matching is enabled or not
 	let cacheHash: string;
 	if (description) {
-		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;
+		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}${query.expectExactMatch}`;
 	} else {
-		cacheHash = `${label}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;
+		cacheHash = `${label}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}${query.expectExactMatch}`;
 	}
 
 	const cached = cache[cacheHash];
@@ -461,7 +461,11 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 
 	// Prefer label matches if told so or we have no description
 	if (preferLabelMatches || !description) {
-		const [labelScore, labelPositions] = scoreFuzzy(label, query.normalized, query.normalizedLowercase, fuzzy);
+		const [labelScore, labelPositions] = scoreFuzzy(
+			label,
+			query.normalized,
+			query.normalizedLowercase,
+			fuzzy && !query.expectExactMatch);
 		if (labelScore) {
 
 			// If we have a prefix match on the label, we give a much
@@ -499,7 +503,11 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 		const descriptionPrefixLength = descriptionPrefix.length;
 		const descriptionAndLabel = `${descriptionPrefix}${label}`;
 
-		const [labelDescriptionScore, labelDescriptionPositions] = scoreFuzzy(descriptionAndLabel, query.normalized, query.normalizedLowercase, fuzzy);
+		const [labelDescriptionScore, labelDescriptionPositions] = scoreFuzzy(
+			descriptionAndLabel,
+			query.normalized,
+			query.normalizedLowercase,
+			fuzzy && !query.expectExactMatch);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];
@@ -793,6 +801,13 @@ export interface IPreparedQueryPiece {
 	 */
 	normalized: string;
 	normalizedLowercase: string;
+
+	/**
+	 * The query is wrapped in quotes which means
+	 * this query must be a substring of the input.
+	 * In other words, no fuzzy matching is used.
+	 */
+	expectExactMatch: boolean;
 }
 
 export interface IPreparedQuery extends IPreparedQueryPiece {
@@ -808,6 +823,14 @@ export interface IPreparedQuery extends IPreparedQueryPiece {
 	containsPathSeparator: boolean;
 }
 
+/*
+ * If a query is wrapped in quotes, the user does not want to
+ * use fuzzy search for this query.
+ */
+function queryExpectsExactMatch(query: string) {
+	return query.startsWith('"') && query.endsWith('"');
+}
+
 /**
  * Helper function to prepare a search value for scoring by removing unwanted characters
  * and allowing to score on multiple pieces separated by whitespace character.
@@ -821,12 +844,14 @@ export function prepareQuery(original: string): IPreparedQuery {
 	const originalLowercase = original.toLowerCase();
 	const { pathNormalized, normalized, normalizedLowercase } = normalizeQuery(original);
 	const containsPathSeparator = pathNormalized.indexOf(sep) >= 0;
+	const expectExactMatch = queryExpectsExactMatch(original);
 
 	let values: IPreparedQueryPiece[] | undefined = undefined;
 
 	const originalSplit = original.split(MULTIPLE_QUERY_VALUES_SEPARATOR);
 	if (originalSplit.length > 1) {
 		for (const originalPiece of originalSplit) {
+			const expectExactMatchPiece = queryExpectsExactMatch(originalPiece);
 			const {
 				pathNormalized: pathNormalizedPiece,
 				normalized: normalizedPiece,
@@ -843,13 +868,14 @@ export function prepareQuery(original: string): IPreparedQuery {
 					originalLowercase: originalPiece.toLowerCase(),
 					pathNormalized: pathNormalizedPiece,
 					normalized: normalizedPiece,
-					normalizedLowercase: normalizedLowercasePiece
+					normalizedLowercase: normalizedLowercasePiece,
+					expectExactMatch: expectExactMatchPiece
 				});
 			}
 		}
 	}
 
-	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator };
+	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectExactMatch };
 }
 
 function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
@@ -860,7 +886,8 @@ function normalizeQuery(original: string): { pathNormalized: string, normalized:
 		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
 	}
 
-	const normalized = stripWildcards(pathNormalized).replace(/\s/g, '');
+	// we remove quotes here because quotes are used for exact match search
+	const normalized = stripWildcards(pathNormalized).replace(/\s|"/g, '');
 
 	return {
 		pathNormalized,

@@ -95,7 +95,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private dimension!: dom.Dimension;
 	private replInputLineCount = 1;
 	private model: ITextModel | undefined;
-	private historyNavigationEnablement!: IContextKey<boolean>;
+	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
@@ -153,7 +153,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 						triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
 						provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 							// Disable history navigation because up and down are used to navigate through the suggest widget
-							this.historyNavigationEnablement.set(false);
+							this.setHistoryNavigationEnablement(false);
 
 							const model = this.replInput.getModel();
 							if (model) {
@@ -373,7 +373,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			aria.status(historyInput);
 			// always leave cursor at the end.
 			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
-			this.historyNavigationEnablement.set(true);
+			this.setHistoryNavigationEnablement(true);
 		}
 	}
 
@@ -609,8 +609,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 		dom.append(this.replInputContainer, $('.repl-input-chevron' + ThemeIcon.asCSSSelector(debugConsoleEvaluationPrompt)));
 
-		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: container, historyNavigator: this });
-		this.historyNavigationEnablement = historyNavigationEnablement;
+		const { scopedContextKeyService, historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: container, historyNavigator: this });
+		this.setHistoryNavigationEnablement = enabled => {
+			historyNavigationBackwardsEnablement.set(enabled);
+			historyNavigationForwardsEnablement.set(enabled);
+		};
 		this._register(scopedContextKeyService);
 		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 
@@ -626,7 +629,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this._register(this.replInput.onDidChangeModelContent(() => {
 			const model = this.replInput.getModel();
-			this.historyNavigationEnablement.set(!!model && model.getValue() === '');
+			this.setHistoryNavigationEnablement(!!model && model.getValue() === '');
 			const lineCount = model ? Math.min(10, model.getLineCount()) : 1;
 			if (lineCount !== this.replInputLineCount) {
 				this.replInputLineCount = lineCount;

@@ -233,7 +233,7 @@ import { assertNoRpc } from '../utils';
 			deepStrictEqual(terminal.state, { interactedWith: false });
 			const eventState = await new Promise<TerminalState>(r => {
 				disposables.push(window.onDidChangeTerminalState(e => {
-					if (e.terminal === terminal) {
+					if (e === terminal) {
 						r(e.state);
 					}
 				}));

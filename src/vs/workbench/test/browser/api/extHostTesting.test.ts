@@ -9,9 +9,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TestRunProfileImpl, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
+import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestMessage, TestResultState, TestRunProfileKind } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessage, TestResultState, TestRunProfileKind, TestTag } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
@@ -169,6 +169,45 @@ suite('ExtHost Testing', () => {
 				[single.root.id, 'id-a', 'id-aa', 'id-ab', 'id-ac', 'id-b'],
 			);
 			assert.strictEqual(single.tree.size, 6);
+		});
+
+		test('manages tags correctly', () => {
+			single.expand(single.root.id, Infinity);
+			single.collectDiff();
+			const tag1 = new TestTag('tag1', 'Tag 1');
+			const tag2 = new TestTag('tag2', 'Tag 2');
+			const tag3 = new TestTag('tag3');
+			const child = new TestItemImpl('ctrlId', 'id-ac', 'c', undefined);
+			child.tags = [tag1, tag2];
+			single.root.children.get('id-a')!.children.add(child);
+
+			assert.deepStrictEqual(single.collectDiff(), [
+				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag1', label: 'Tag 1' }],
+				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag2', label: 'Tag 2' }],
+				[TestDiffOpType.Add, {
+					controllerId: 'ctrlId',
+					parent: new TestId(['ctrlId', 'id-a']).toString(),
+					expand: TestItemExpandState.NotExpandable,
+					item: convert.TestItem.from(child),
+				}],
+			]);
+
+			child.tags = [tag2, tag3];
+			assert.deepStrictEqual(single.collectDiff(), [
+				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag3', label: undefined }],
+				[TestDiffOpType.Update, {
+					extId: new TestId(['ctrlId', 'id-a', 'id-ac']).toString(),
+					item: { tags: ['ctrlId\0tag2', 'ctrlId\0tag3'] }
+				}],
+				[TestDiffOpType.RemoveTag, 'ctrlId\0tag1'],
+			]);
+
+			const a = single.root.children.get('id-a')!;
+			a.tags = [tag2];
+			a.children.replace([]);
+			assert.deepStrictEqual(single.collectDiff().filter(t => t[0] === TestDiffOpType.RemoveTag), [
+				[TestDiffOpType.RemoveTag, 'ctrlId\0tag3'],
+			]);
 		});
 
 		test('treats in-place replacement as mutation', () => {

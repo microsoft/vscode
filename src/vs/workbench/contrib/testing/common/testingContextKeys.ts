@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { TestExplorerViewMode, TestExplorerViewSorting } from 'vs/workbench/contrib/testing/common/constants';
 import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 
@@ -31,7 +30,6 @@ export namespace TestingContextKeys {
 	export const isRunning = new RawContextKey('testing.isRunning', false);
 	export const isInPeek = new RawContextKey('testing.isInPeek', true);
 	export const isPeekVisible = new RawContextKey('testing.isPeekVisible', false);
-	export const explorerLocation = new RawContextKey('testing.explorerLocation', ViewContainerLocation.Sidebar);
 	export const autoRun = new RawContextKey('testing.autoRun', false);
 
 	export const peekItemType = new RawContextKey<string | undefined>('peekItemType', undefined, {

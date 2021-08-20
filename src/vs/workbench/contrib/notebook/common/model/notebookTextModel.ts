@@ -166,7 +166,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	readonly onWillAddRemoveCells = this._onWillAddRemoveCells.event;
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 	private _cellhandlePool: number = 0;
-	private _cellListeners: Map<number, IDisposable> = new Map();
+	private readonly _cellListeners: Map<number, IDisposable> = new Map();
 	private _cells: NotebookCellTextModel[] = [];
 
 	metadata: NotebookDocumentMetadata = {};
@@ -340,7 +340,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	override dispose() {
 		this._onWillDispose.fire();
 		this._undoService.removeElements(this.uri);
+
 		dispose(this._cellListeners.values());
+		this._cellListeners.clear();
+
 		dispose(this._cells);
 		super.dispose();
 	}

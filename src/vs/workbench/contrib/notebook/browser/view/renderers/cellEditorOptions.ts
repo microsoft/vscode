@@ -46,7 +46,7 @@ export class CellEditorOptions extends Disposable {
 
 	private _value: IEditorOptions;
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
-	private readonly _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _localDisposableStore = this._register(new DisposableStore());
 
@@ -112,11 +112,6 @@ export class CellEditorOptions extends Disposable {
 		};
 
 		return computed;
-	}
-
-	override dispose(): void {
-		this._onDidChange.dispose();
-		super.dispose();
 	}
 
 	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {

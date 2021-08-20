@@ -211,6 +211,13 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(!noRes.labelMatch);
 		assert.ok(!noRes.descriptionMatch);
 
+		// No Exact Match
+		const noExactRes = scoreItem(resource, '"sF"', true, ResourceAccessor);
+		assert.ok(!noExactRes.score);
+		assert.ok(!noExactRes.labelMatch);
+		assert.ok(!noExactRes.descriptionMatch);
+		assert.strictEqual(noRes.score, noExactRes.score);
+
 		// Verify Scores
 		assert.ok(identityRes.score > basenamePrefixRes.score);
 		assert.ok(basenamePrefixRes.score > basenameRes.score);
@@ -1075,9 +1082,12 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
+		assert.strictEqual(prepareQuery('model Tester.ts').expectExactMatch, false); // doesn't have quotes in it
 		assert.strictEqual(prepareQuery('Model Tester.ts').normalizedLowercase, 'modeltester.ts');
 		assert.strictEqual(prepareQuery('ModelTester.ts').containsPathSeparator, false);
 		assert.strictEqual(prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
+		assert.strictEqual(prepareQuery('"hello"').expectExactMatch, true);
+		assert.strictEqual(prepareQuery('"hello"').normalized, 'hello');
 
 		// with spaces
 		let query = prepareQuery('He*llo World');

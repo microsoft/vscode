@@ -49,7 +49,7 @@ export class NotebookProviderInfoStore extends Disposable {
 	private _handled: boolean = false;
 
 	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
-	private readonly _contributedEditorDisposables = new DisposableStore();
+	private readonly _contributedEditorDisposables = this._register(new DisposableStore());
 
 	constructor(
 		@IStorageService storageService: IStorageService,

@@ -8,7 +8,7 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { Range } from 'vs/editor/common/core/range';
@@ -43,17 +43,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return this.view.containerDomNode;
 	}
 	private _previousFocusedElements: CellViewModel[] = [];
-	private _localDisposableStore = new DisposableStore();
-	private _viewModelStore = new DisposableStore();
+	private readonly _localDisposableStore = new DisposableStore();
+	private readonly _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
 
-	private readonly _onDidRemoveOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	private readonly _onDidRemoveOutputs = this._localDisposableStore.add(new Emitter<readonly ICellOutputViewModel[]>());
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
 
-	private readonly _onDidHideOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	private readonly _onDidHideOutputs = this._localDisposableStore.add(new Emitter<readonly ICellOutputViewModel[]>());
 	readonly onDidHideOutputs = this._onDidHideOutputs.event;
 
-	private readonly _onDidRemoveCellsFromView = new Emitter<readonly ICellViewModel[]>();
+	private readonly _onDidRemoveCellsFromView = this._localDisposableStore.add(new Emitter<readonly ICellViewModel[]>());
 	readonly onDidRemoveCellsFromView = this._onDidRemoveCellsFromView.event;
 
 	private _viewModel: NotebookViewModel | null = null;
@@ -63,7 +63,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
 
-	private readonly _onDidChangeVisibleRanges = new Emitter<void>();
+	private readonly _onDidChangeVisibleRanges = this._localDisposableStore.add(new Emitter<void>());
 
 	onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
 	private _visibleRanges: ICellRange[] = [];
@@ -128,8 +128,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
-		let cursorSelectionListener: IDisposable | null = null;
-		let textEditorAttachListener: IDisposable | null = null;
+		const cursorSelectionListener = this._localDisposableStore.add(new MutableDisposable());
+		const textEditorAttachListener = this._localDisposableStore.add(new MutableDisposable());
 
 		const recomputeContext = (element: CellViewModel) => {
 			switch (element.cursorAtBoundary()) {
@@ -153,18 +153,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		// Cursor Boundary context
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			if (e.elements.length) {
-				cursorSelectionListener?.dispose();
-				textEditorAttachListener?.dispose();
 				// we only validate the first focused element
 				const focusedElement = e.elements[0];
 
-				cursorSelectionListener = focusedElement.onDidChangeState((e) => {
+				cursorSelectionListener.value = focusedElement.onDidChangeState((e) => {
 					if (e.selectionChanged) {
 						recomputeContext(focusedElement);
 					}
 				});
 
-				textEditorAttachListener = focusedElement.onDidChangeEditorAttachState(() => {
+				textEditorAttachListener.value = focusedElement.onDidChangeEditorAttachState(() => {
 					if (focusedElement.editorAttached) {
 						recomputeContext(focusedElement);
 					}
