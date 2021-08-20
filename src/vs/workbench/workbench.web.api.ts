@@ -138,7 +138,7 @@ interface IHomeIndicator {
 
 	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
-	 * icons from our Codicon icon set. For example `sync`.
+	 * icons from our Codicon icon set. For example `code`.
 	 */
 	icon: string;
 
@@ -154,6 +154,13 @@ interface IWelcomeBanner {
 	 * Welcome banner message to appear as text.
 	 */
 	message: string;
+
+	/**
+	 * Optional icon for the banner. This needs to be one of the existing
+	 * icons from our Codicon icon set. For example `code`. If not provided,
+	 * a default icon will be used.
+	 */
+	icon?: string;
 
 	/**
 	 * Optional actions to appear as links after the welcome banner message.
