@@ -245,7 +245,7 @@
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "^16.6.2"
   },
   "repository": {
     "type": "git",
