@@ -156,10 +156,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/byline@^4.2.32":
-  version "4.2.32"
-  resolved "https://registry.yarnpkg.com/@types/byline/-/byline-4.2.32.tgz#9d35ec15968056118548412ee24c2c3026c997dc"
-  integrity sha512-qtlm/J6XOO9p+Ep/ZB5+mCFEDhzWDDHWU4a1eReN7lkPZXW9rkloq2jcAhvKKmlO5tL2GSvKROb+PTsNVhBiyQ==
+"@types/byline@^4.2.33":
+  version "4.2.33"
+  resolved "https://registry.yarnpkg.com/@types/byline/-/byline-4.2.33.tgz#001f504f4353b84c503e74da0ed9bdf291484af2"
+  integrity sha512-LJYez7wrWcJQQDknqZtrZuExMGP0IXmPl1rOOGDqLbu+H7UNNRfKNuSxCBcQMLH1EfjeWidLedC/hCc5dDfBog==
   dependencies:
     "@types/node" "*"
 
