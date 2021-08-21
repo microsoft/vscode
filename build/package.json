@@ -14,7 +14,7 @@
     "@types/glob": "^7.1.1",
     "@types/gulp": "^4.0.5",
     "@types/gulp-concat": "^0.0.32",
-    "@types/gulp-filter": "^3.0.32",
+    "@types/gulp-filter": "^3.0.34",
     "@types/gulp-gzip": "^0.0.31",
     "@types/gulp-json-editor": "^2.2.31",
     "@types/gulp-rename": "^0.0.33",
