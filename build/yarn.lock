@@ -144,10 +144,12 @@
   dependencies:
     defer-to-connect "^2.0.0"
 
-"@types/ansi-colors@^3.2.0":
-  version "3.2.0"
-  resolved "https://registry.yarnpkg.com/@types/ansi-colors/-/ansi-colors-3.2.0.tgz#3e4fe85d9131ce1c6994f3040bd0b25306c16a6e"
-  integrity sha512-0caWAhXht9N2lOdMzJLXybsSkYCx1QOdxx6pae48tswI9QV3DFX26AoOpy0JxwhCb+zISTqmd6H8t9Zby9BoZg==
+"@types/ansi-colors@^3.2.2":
+  version "3.2.2"
+  resolved "https://registry.yarnpkg.com/@types/ansi-colors/-/ansi-colors-3.2.2.tgz#eef6ba52d6ec7f0e381aa3afcec9416521663412"
+  integrity sha512-DkX/S7NQKUZ+6w4i6/LwYj6yP5DWHNv3DnK79Kbrn6IfrIJdg69KFL69/LoSXuqb9otgXRo/wDFGTQxqSgeKPw==
+  dependencies:
+    ansi-colors "*"
 
 "@types/azure@0.9.19":
   version "0.9.19"
@@ -573,6 +575,11 @@ ajv@^6.12.3:
     fast-json-stable-stringify "^2.0.0"
     json-schema-traverse "^0.4.1"
     uri-js "^4.2.2"
+
+ansi-colors@*:
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/ansi-colors/-/ansi-colors-4.1.1.tgz#cbb9ae256bf750af1eab344f229aa27fe94ba348"
+  integrity sha512-JoX0apGbHaUJBNl6yF+p6JAFYZ666/hhCGKN5t9QFjbJQKUU/g8MNbFDbvfrgKXvI1QpZplPOnwIo99lX/AAmA==
 
 applicationinsights@1.0.8:
   version "1.0.8"

@@ -5,7 +5,7 @@
   "devDependencies": {
     "@azure/cosmos": "^3.9.3",
     "@azure/storage-blob": "^12.4.0",
-    "@types/ansi-colors": "^3.2.0",
+    "@types/ansi-colors": "^3.2.2",
     "@types/azure": "0.9.19",
     "@types/byline": "^4.2.33",
     "@types/debounce": "^1.0.0",
