@@ -10,6 +10,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import { parseTree, findNodeAtLocation, Node as JsonNode } from 'jsonc-parser';
+import GitHost = require('hosted-git-info');
 import * as MarkdownItType from 'markdown-it';
 
 import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env } from 'vscode';
@@ -44,8 +45,7 @@ interface TokenAndPosition {
 
 interface PackageJsonInfo {
 	isExtension: boolean;
-	hasHttpsRepository: boolean;
-	repository: Uri;
+	repository: GitHost | undefined;
 }
 
 export class ExtensionLinter {
@@ -260,16 +260,22 @@ export class ExtensionLinter {
 	private readPackageJsonInfo(folder: Uri, tree: JsonNode | undefined) {
 		const engine = tree && findNodeAtLocation(tree, ['engines', 'vscode']);
 		const repo = tree && findNodeAtLocation(tree, ['repository']);
-		const repoUrl = repo && (repo.type === 'string' ? repo : findNodeAtLocation(repo, ['url']))
-		const uri = repoUrl && repoUrl.type === 'string' && parseUri(repoUrl.value);
+		let repoUrl: string | undefined;
+		if (repo && repo.type === 'string') {
+			repoUrl = repo.value;
+		} else if (repo) {
+			const urlNode = findNodeAtLocation(repo, ['url']);
+			if (urlNode && urlNode.type === 'string') {
+				repoUrl = urlNode.value;
+			}
+		}
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			hasHttpsRepository: !!(uri && uri.scheme.toLowerCase() === 'https'),
-			repository: uri!
+			repository: repoUrl && GitHost.fromUrl(repoUrl, { noGitPlus: true }) || undefined
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
-		if (oldInfo && (oldInfo.isExtension !== info.isExtension || oldInfo.hasHttpsRepository !== info.hasHttpsRepository)) {
+		if (oldInfo && (oldInfo.isExtension !== info.isExtension || oldInfo.repository?.toString() !== info.repository?.toString())) {
 			this.packageJsonChanged(folder); // clears this.folderToPackageJsonInfo[str]
 		}
 		this.folderToPackageJsonInfo[str] = info;
@@ -302,7 +308,7 @@ export class ExtensionLinter {
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
 		const hasScheme = /^\w[\w\d+.-]*:/.test(src);
-		const uri = parseUri(src, info.repository ? info.repository.toString() : document.uri.toString());
+		const uri = parseUri(src, info.repository ? info.repository.browse() : document.uri.toString());
 		if (!uri) {
 			return;
 		}
@@ -318,7 +324,7 @@ export class ExtensionLinter {
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!hasScheme && !info.hasHttpsRepository) {
+		if (!hasScheme && info.repository?.default !== 'https') {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			let message = (() => {
 				switch (context) {
