@@ -38,37 +38,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, al
 	// }
 
 	const targetLower = target.toLowerCase();
-
-	// When not searching fuzzy, we require the query to be contained fully
-	// in the target string contiguously.
-	if (!allowNonContiguousMatches) {
-		const matchIndex = targetLower.indexOf(queryLower);
-		if (matchIndex === -1) {
-
-			// if (DEBUG) {
-			// 	console.log(`Characters not matching consecutively ${queryLower} within ${targetLower}`);
-			// }
-
-			return NO_SCORE;
-		}
-
-		const indexesArray: number[] = [];
-		for (let i = 0; i < queryLower.length; i++) {
-			indexesArray.push(i + matchIndex);
-		}
-
-		// TODO: what's a better value for the score?
-		const res: FuzzyScore = [100, indexesArray];
-
-		// if (DEBUG) {
-		// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
-		// 	console.groupEnd();
-		// }
-
-		return res;
-	}
-
-	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength);
+	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength, allowNonContiguousMatches);
 
 	// if (DEBUG) {
 	// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
@@ -78,7 +48,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, al
 	return res;
 }
 
-function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): FuzzyScore {
+function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number, allowNonContiguousMatches: boolean): FuzzyScore {
 	const scores: number[] = [];
 	const matches: number[] = [];
 
@@ -133,7 +103,17 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 			// We have a score and its equal or larger than the left score
 			// Match: sequence continues growing from previous diag value
 			// Score: increases by diag score value
-			if (score && diagScore + score >= leftScore) {
+			const isValidScore = score && diagScore + score >= leftScore;
+			if (isValidScore && (
+				// We don't need to check if it's contiguous if we allow non-contiguous matches
+				allowNonContiguousMatches ||
+				// We must be looking for a contiguous match.
+				// Looking at an index higher than 0 in the query means we must have already
+				// found out this is contiguous otherwise there wouldn't have been a score
+				queryIndexGtNull ||
+				// lastly check if the query is completely contiguous at this index in the target
+				target.startsWith(query, targetIndex)
+			)) {
 				matches[currentIndex] = matchesSequenceLength + 1;
 				scores[currentIndex] = diagScore + score;
 			}
