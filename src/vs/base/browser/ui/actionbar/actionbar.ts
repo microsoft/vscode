@@ -328,9 +328,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			item.setActionContext(this.context);
 			item.render(actionViewItemElement);
 
-			if (this.focusable && item instanceof BaseActionViewItem && this.viewItems.length === 0) {
+			if (this.focusable && item instanceof BaseActionViewItem) {
 				// We need to allow for the first enabled item to be focused on using tab navigation #106441
-				item.setFocusable(true);
+				item.setFocusable(this.viewItems.length === 0);
 			}
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
