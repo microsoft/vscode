@@ -35,7 +35,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	constructor(
 		private readonly editor: IActiveCodeEditor,
 		private readonly cache: SharedInlineCompletionCache,
-		private readonly commandService: ICommandService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
