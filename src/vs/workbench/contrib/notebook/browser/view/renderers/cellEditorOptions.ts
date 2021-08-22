@@ -14,8 +14,10 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'v
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ActiveEditorContext } from 'vs/workbench/common/editor';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -162,12 +164,6 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{
-					id: MenuId.NotebookEditorLayoutConfigure,
-					group: 'notebookLayoutDetails',
-					order: 1,
-					when: NOTEBOOK_IS_ACTIVE_EDITOR
-				},
-				{
 					id: MenuId.NotebookToolbar,
 					group: 'notebookLayout',
 					order: 2,
@@ -199,7 +195,7 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 		super({
 			id: 'notebook.cell.toggleLineNumbers',
 			title: 'Show Cell Line Numbers',
-			precondition: NOTEBOOK_EDITOR_FOCUSED,
+			precondition: ActiveEditorContext.isEqualTo(NotebookEditor.ID),
 			menu: [{
 				id: MenuId.NotebookCellTitle,
 				group: 'View',
