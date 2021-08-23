@@ -88,5 +88,15 @@
 		"prefix": "strikethrough",
 		"body": "~~${1:${TM_SELECTED_TEXT}}~~",
 		"description": "Insert strikethrough"
-	},	
+	},
+	"table": {
+		"scope": "markdown",
+		"prefix": "table",
+		"body": [
+			"|${0:title}| |",
+			"| - | - |",
+			"|   |   |",
+		],
+		"description": "Insert an simple markdown table"
+	}
 }
