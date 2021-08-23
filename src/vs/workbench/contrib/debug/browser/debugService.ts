@@ -526,7 +526,7 @@ export class DebugService implements IDebugService {
 	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (this.model.getSessions().some(s => s.getLabel() === session.getLabel())) {
+		if (options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel())) {
 			// There is already a session with the same name, prompt user #127721
 			const result = await this.dialogService.confirm({ message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", session.getLabel()) });
 			if (!result.confirmed) {

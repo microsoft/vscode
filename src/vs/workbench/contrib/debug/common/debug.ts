@@ -191,6 +191,7 @@ export interface IDebugSessionOptions {
 	debugUI?: {
 		simple?: boolean;
 	};
+	startedByUser?: boolean;
 }
 
 export interface IDataBreakpointInfoResponse {
