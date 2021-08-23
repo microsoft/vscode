@@ -516,6 +516,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.NavigationModeFocusNext,
 	TerminalCommandId.NavigationModeFocusPrevious,
 	'editor.action.toggleTabFocusMode',
+	'notifications.hideToasts',
 	'workbench.action.quickOpen',
 	'workbench.action.quickOpenPreviousEditor',
 	'workbench.action.showCommands',
