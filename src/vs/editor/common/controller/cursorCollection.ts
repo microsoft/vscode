@@ -64,10 +64,6 @@ export class CursorCollection {
 		return result;
 	}
 
-	public hasMarkers() {
-		return this.primaryCursor.hasMarker() && this.secondaryCursors.every(c => c.hasMarker());
-	}
-
 	public getAll(): CursorState[] {
 		let result: CursorState[] = [];
 		result[0] = this.primaryCursor.asCursorState();

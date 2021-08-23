@@ -331,17 +331,19 @@ export class CursorsController extends Disposable {
 	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
 		if (e instanceof ModelInjectedTextChangedEvent) {
 			// If injected texts change, the view positions of all cursors need to be updated.
-			if (this._cursors.hasMarkers()) {
-				const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-				const newState = CursorState.fromModelSelections(selectionsFromMarkers);
+			if (this._isHandling) {
+				// The view positions will be updated when handling finishes
+				return;
+			}
+			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
+			const newState = CursorState.fromModelSelections(selectionsFromMarkers);
 
-				if (didStateChange(this.getCursorStates(), newState || [])) {
-					// setStates might remove markers, which could trigger a decoration change.
-					// If there are injected text decorations for that line, `onModelContentChanged` is emitted again
-					// and an endless recursion happens.
-					// This is why we only call setStates if we really need to (this fixes recursion).
-					this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, newState);
-				}
+			if (didStateChange(this.getCursorStates(), newState || [])) {
+				// setStates might remove markers, which could trigger a decoration change.
+				// If there are injected text decorations for that line, `onModelContentChanged` is emitted again
+				// and an endless recursion happens.
+				// This is why we only call setStates if we really need to (this fixes recursion).
+				this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, newState);
 			}
 		} else {
 			this._knownModelVersionId = e.versionId;

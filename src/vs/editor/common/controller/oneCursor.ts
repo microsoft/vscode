@@ -69,10 +69,6 @@ export class Cursor {
 		return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
 	}
 
-	public hasMarker(): boolean {
-		return this._trackSelection;
-	}
-
 	public ensureValidState(context: CursorContext): void {
 		this._setState(context, this.modelState, this.viewState);
 	}
