@@ -99,6 +99,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 				(
 					(5 << MetadataConsts.FOREGROUND_OFFSET)
 					| ((FontStyle.Underline) << MetadataConsts.FONT_STYLE_OFFSET)
+					| ((FontStyle.Strikethrough) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			)
 		]);
@@ -232,6 +233,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 				(
 					(5 << MetadataConsts.FOREGROUND_OFFSET)
 					| ((FontStyle.Underline) << MetadataConsts.FONT_STYLE_OFFSET)
+					| ((FontStyle.Strikethrough) << MetadataConsts.FONT_STYLE_OFFSET)
 				) >>> 0
 			)
 		]);
