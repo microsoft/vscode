@@ -427,7 +427,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		const extensionHostAlreadyStarted = Boolean(this._actual);
 		const shouldStartExtensionHost = (toAdd.length > 0);
 		if (extensionHostAlreadyStarted || shouldStartExtensionHost) {
-			const actual = await this._getOrCreateActualAndStart(`contains ${toAdd.length} new extension(s) (installed or enabled)`);
+			const actual = await this._getOrCreateActualAndStart(`contains ${toAdd.length} new extension(s) (installed or enabled): ${toAdd.map(ext => ext.identifier.value)}`);
 			return actual.deltaExtensions(toAdd, toRemove);
 		}
 	}
@@ -468,7 +468,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
 		if (enabledExtensionIds.length > 0) {
 			// there are actual extensions, so let's launch the extension host
-			const actual = this._createActual(`contains ${enabledExtensionIds.length} extension(s).`);
+			const actual = this._createActual(`contains ${enabledExtensionIds.length} extension(s): ${enabledExtensionIds.map(extId => extId.value)}.`);
 			const result = actual.start(enabledExtensionIds);
 			this._startCalled.open();
 			return result;

@@ -5,6 +5,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecuteUpdate, INotebookCellExecution, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -23,7 +24,7 @@ export class NotebookExecutionService implements INotebookExecutionService {
 	}
 }
 
-function updateToEdit(update: ICellExecuteUpdate, cellHandle: number): ICellEditOperation {
+function updateToEdit(update: ICellExecuteUpdate, cellHandle: number, model: NotebookCellTextModel): ICellEditOperation {
 	if (update.editType === CellExecutionUpdateType.Output) {
 		return {
 			editType: CellEditType.Output,
@@ -45,7 +46,10 @@ function updateToEdit(update: ICellExecuteUpdate, cellHandle: number): ICellEdit
 			internalMetadata: {
 				runState: null,
 				lastRunSuccess: update.lastRunSuccess,
-				runEndTime: update.runEndTime
+				runStartTime: model.internalMetadata.didPause ? null : model.internalMetadata.runStartTime,
+				runEndTime: model.internalMetadata.didPause ? null : update.runEndTime,
+				isPaused: false,
+				didPause: false
 			}
 		};
 	} else if (update.editType === CellExecutionUpdateType.ExecutionState) {
@@ -90,7 +94,8 @@ class CellExecution implements INotebookCellExecution, IDisposable {
 			handle: cellHandle,
 			internalMetadata: {
 				runState: NotebookCellExecutionState.Pending,
-				executionOrder: null
+				executionOrder: null,
+				didPause: false
 			}
 		};
 		this._applyExecutionEdits([startExecuteEdit]);
@@ -101,7 +106,12 @@ class CellExecution implements INotebookCellExecution, IDisposable {
 			throw new Error('Cannot update disposed execution');
 		}
 
-		const edits = updates.map(update => updateToEdit(update, this.cellHandle));
+		const cellModel = this._notebookModel.cells.find(c => c.handle === this.cellHandle);
+		if (!cellModel) {
+			throw new Error('Cell not found: ' + this.cellHandle);
+		}
+
+		const edits = updates.map(update => updateToEdit(update, this.cellHandle, cellModel));
 		this._applyExecutionEdits(edits);
 
 		if (updates.some(u => u.editType === CellExecutionUpdateType.Complete)) {

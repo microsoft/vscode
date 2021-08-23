@@ -331,6 +331,10 @@ export class CursorsController extends Disposable {
 	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
 		if (e instanceof ModelInjectedTextChangedEvent) {
 			// If injected texts change, the view positions of all cursors need to be updated.
+			if (this._isHandling) {
+				// The view positions will be updated when handling finishes
+				return;
+			}
 			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
 			const newState = CursorState.fromModelSelections(selectionsFromMarkers);
 

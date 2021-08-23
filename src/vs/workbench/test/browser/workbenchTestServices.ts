@@ -669,6 +669,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidChangeEditorPartOptions = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
+	isReady = true;
 	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasRestorableState = false;
@@ -797,6 +798,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
+	onDidEditorsChange: Event<void> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;

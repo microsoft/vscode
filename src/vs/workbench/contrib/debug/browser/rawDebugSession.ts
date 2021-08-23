@@ -265,7 +265,7 @@ export class RawDebugSession implements IDisposable {
 	 * Send client capabilities to the debug adapter and receive DA capabilities in return.
 	 */
 	async initialize(args: DebugProtocol.InitializeRequestArguments): Promise<DebugProtocol.InitializeResponse | undefined> {
-		const response = await this.send('initialize', args);
+		const response = await this.send('initialize', args, undefined, undefined, false);
 		if (response) {
 			this.mergeCapabilities(response.body);
 		}
@@ -284,7 +284,7 @@ export class RawDebugSession implements IDisposable {
 	//---- DAP requests
 
 	async launchOrAttach(config: IConfig): Promise<DebugProtocol.Response | undefined> {
-		const response = await this.send(config.request, config);
+		const response = await this.send(config.request, config, undefined, undefined, false);
 		if (response) {
 			this.mergeCapabilities(response.body);
 		}
@@ -660,7 +660,7 @@ export class RawDebugSession implements IDisposable {
 		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, vscodeArgs.env, !!vscodeArgs.debugRenderer);
 	}
 
-	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R | undefined> {
+	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number, showErrors = true): Promise<R | undefined> {
 		return new Promise<DebugProtocol.Response | undefined>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
 				if (this.inShutdown) {
@@ -693,10 +693,10 @@ export class RawDebugSession implements IDisposable {
 					}
 				});
 			}
-		}).then(undefined, err => Promise.reject(this.handleErrorResponse(err)));
+		}).then(undefined, err => Promise.reject(this.handleErrorResponse(err, showErrors)));
 	}
 
-	private handleErrorResponse(errorResponse: DebugProtocol.Response): Error {
+	private handleErrorResponse(errorResponse: DebugProtocol.Response, showErrors: boolean): Error {
 
 		if (errorResponse.command === 'canceled' && errorResponse.message === 'canceled') {
 			return errors.canceled();
@@ -723,7 +723,7 @@ export class RawDebugSession implements IDisposable {
 				})]
 			});
 		}
-		if (error && error.format && error.showUser) {
+		if (showErrors && error && error.format && error.showUser) {
 			this.notificationService.error(userMessage);
 		}
 		const result = new Error(userMessage);

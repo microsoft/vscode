@@ -6,6 +6,7 @@
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal, ITerminalInternalOptions } from 'vs/workbench/api/common/extHostTerminalService';
+import { TerminalLocation } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
@@ -37,6 +38,10 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 					internalOptions.resolvedExtHostIdentifier = parentExtHostTerminal._id;
 				}
 			}
+		} else if (!internalOptions.splitActiveTerminal && options.location === TerminalLocation.Editor || options.location === TerminalLocation.Panel) {
+			internalOptions.location = options.location;
+		} else if (internalOptions.splitActiveTerminal) {
+			internalOptions.location = { splitActiveTerminal: true };
 		}
 		return internalOptions;
 	}

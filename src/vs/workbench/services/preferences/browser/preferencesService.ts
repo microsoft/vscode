@@ -250,7 +250,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				target: ConfigurationTarget.USER_REMOTE,
 			};
 
-			this.open(this.environmentService.settingsResource, options);
+			this.open(environment.settingsPath, options);
 		}
 		return undefined;
 	}

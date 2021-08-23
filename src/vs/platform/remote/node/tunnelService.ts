@@ -98,7 +98,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		// pause reading on the socket until we have a chance to forward its data
 		localSocket.pause();
 
-		const protocol = await connectRemoteAgentTunnel(this._options, this.tunnelRemotePort);
+		const protocol = await connectRemoteAgentTunnel(this._options, this.tunnelRemoteHost, this.tunnelRemotePort);
 		const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
 		const dataChunk = protocol.readEntireBuffer();
 		protocol.dispose();

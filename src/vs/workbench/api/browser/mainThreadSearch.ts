@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchConfiguration, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
@@ -26,8 +26,8 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
 
-		const forceEHSearch = _configurationService.getValue('search.experimental.forceExtensionHostSearch');
-		if (forceEHSearch) {
+		const searchConfig = _configurationService.getValue<ISearchConfiguration>().search;
+		if (searchConfig.experimental.forceExtensionHostSearch) {
 			this._proxy.$enableExtensionHostSearch();
 		}
 	}

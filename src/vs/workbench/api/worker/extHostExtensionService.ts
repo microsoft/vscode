@@ -153,7 +153,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	}
 
 	async $setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> {
-		throw new Error('Not supported');
+		return;
 	}
 
 	private async _waitForDebuggerAttachment(waitTimeout = 5000) {

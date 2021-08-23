@@ -274,7 +274,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				} else {
 					data.icon.style.visibility = 'inherit';
 				}
-				data.name.textContent = element.marketplaceInfo?.displayName || element.description.identifier.value;
+				data.name.textContent = (element.marketplaceInfo?.displayName || element.description.identifier.value).substr(0, 50);
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;

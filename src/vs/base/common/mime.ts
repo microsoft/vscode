@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { match } from 'vs/base/common/glob';
+import { ParsedPattern, parse } from 'vs/base/common/glob';
 import { Schemas } from 'vs/base/common/network';
 import { basename, extname, posix } from 'vs/base/common/path';
 import { DataUri } from 'vs/base/common/resources';
@@ -30,7 +30,7 @@ export interface ITextMimeAssociation {
 interface ITextMimeAssociationItem extends ITextMimeAssociation {
 	readonly filenameLowercase?: string;
 	readonly extensionLowercase?: string;
-	readonly filepatternLowercase?: string;
+	readonly filepatternLowercase?: ParsedPattern;
 	readonly filepatternOnPath?: boolean;
 }
 
@@ -89,7 +89,7 @@ function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMime
 		userConfigured: association.userConfigured,
 		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
 		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
-		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : undefined,
+		filepatternLowercase: association.filepattern ? parse(association.filepattern.toLowerCase()) : undefined,
 		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(posix.sep) >= 0 : false
 	};
 }
@@ -178,7 +178,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		if (association.filepattern) {
 			if (!patternMatch || association.filepattern.length > patternMatch.filepattern!.length) {
 				const target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
-				if (match(association.filepatternLowercase!, target)) {
+				if (association.filepatternLowercase?.(target)) {
 					patternMatch = association;
 				}
 			}

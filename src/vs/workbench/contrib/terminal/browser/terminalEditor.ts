@@ -31,7 +31,7 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const findWidgetSelector = '.simple-find-part-wrapper';
 
@@ -201,7 +201,8 @@ export class TerminalEditor extends EditorPane {
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.CreateWithProfileButton: {
-				const actions = getTerminalActionBarArgs(TerminalLocation.Editor, this._terminalService.availableProfiles, this._getDefaultProfileName(), this._terminalContributionService.terminalProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
+				const location = { viewColumn: ACTIVE_GROUP };
+				const actions = getTerminalActionBarArgs(location, this._terminalService.availableProfiles, this._getDefaultProfileName(), this._terminalContributionService.terminalProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
 				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {});
 				return button;
 			}

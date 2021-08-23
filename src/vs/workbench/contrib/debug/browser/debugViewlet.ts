@@ -22,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyDefinedExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
@@ -152,7 +152,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 }
 
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-	when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
 		ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked'))),
 	order: 10,
 	group: 'navigation',
@@ -179,13 +179,13 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewContainerTitle,
 				group: 'navigation',
 				order: 20,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
 					ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked')))
 			}, {
 				id: MenuId.ViewContainerTitle,
 				order: 20,
 				// Show in debug viewlet secondary actions when debugging and debug toolbar is docked
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'))
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'))
 			}, {
 				id: MenuId.MenubarDebugMenu,
 				group: '2_configuration',
@@ -230,12 +230,12 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'debug.toggleReplIgnoreFocus',
 			title: nls.localize('debugPanel', "Debug Console"),
-			toggled: ContextKeyDefinedExpr.create(`view.${REPL_VIEW_ID}.visible`),
+			toggled: ContextKeyExpr.has(`view.${REPL_VIEW_ID}.visible`),
 			menu: [{
 				id: ViewsSubMenu,
 				group: '3_toggleRepl',
 				order: 30,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID))
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID))
 			}]
 		});
 	}
@@ -251,7 +251,7 @@ registerAction2(class extends Action2 {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-	when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked')),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked')),
 	order: 10,
 	command: {
 		id: SELECT_AND_START_ID,

@@ -98,6 +98,16 @@ export interface IEditorService {
 	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
+	 * An aggregated event for a set of editor related events
+	 * across all editor groups:
+	 * - active editor changes
+	 * - editors opening/closing
+	 * - editors moving
+	 * - groups moving (unless they are empty)
+	 */
+	readonly onDidEditorsChange: Event<void>;
+
+	/**
 	 * Emitted when an editor is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;

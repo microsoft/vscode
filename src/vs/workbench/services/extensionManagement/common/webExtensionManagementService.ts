@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -44,7 +44,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	}
 
 	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
-		const compatibleExtension = await this.galleryService.getCompatibleExtension(gallery);
+		const compatibleExtension = await this.galleryService.getCompatibleExtension(gallery, TargetPlatform.WEB);
 		if (!compatibleExtension) {
 			return false;
 		}

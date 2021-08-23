@@ -6,6 +6,7 @@
 import { $, EventHelper, EventLike } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -72,7 +73,9 @@ export class Link extends Disposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.Enter)
 			.event;
-		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress);
+		const onTap = this._register(new DomEmitter(this.el, TouchEventType.Tap)).event;
+		this._register(Gesture.addTarget(this.el));
+		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress, onTap);
 
 		this._register(onOpen(e => {
 			if (!this.enabled) {

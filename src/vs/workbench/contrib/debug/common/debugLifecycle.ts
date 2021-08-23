@@ -37,13 +37,14 @@ export class DebugLifecycle implements IWorkbenchContribution {
 	protected async _showWindowCloseConfirmation(numSessions: number): Promise<boolean> {
 		let message: string;
 		if (numSessions === 1) {
-			message = nls.localize('debug.debugSessionCloseConfirmationSingular', "There is an active debug session, are you sure you want to terminate it?");
+			message = nls.localize('debug.debugSessionCloseConfirmationSingular', "There is an active debug session, are you sure you want to stop it?");
 		} else {
-			message = nls.localize('debug.debugSessionCloseConfirmationPlural', "There are active debug sessions, are you sure you want to terminate them?");
+			message = nls.localize('debug.debugSessionCloseConfirmationPlural', "There are active debug sessions, are you sure you want to stop them?");
 		}
 		const res = await this.dialogService.confirm({
 			message,
 			type: 'warning',
+			primaryButton: nls.localize('debug.stop', "Stop Debugging")
 		});
 		return !res.confirmed;
 	}

@@ -206,6 +206,12 @@ export interface IEditorGroupsService {
 	readonly orientation: GroupOrientation;
 
 	/**
+	 * A property that indicates when groups have been created
+	 * and are ready to be used.
+	 */
+	readonly isReady: boolean;
+
+	/**
 	 * A promise that resolves when groups have been created
 	 * and are ready to be used.
 	 *

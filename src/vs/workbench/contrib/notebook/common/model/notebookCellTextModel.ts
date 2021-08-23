@@ -260,7 +260,7 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 			/* paste should generate new outputId */ outputId: UUID.generateUuid()
 		})),
 		metadata: { ...cell.metadata },
-		internalMetadata: { ...cell.internalMetadata },
+		// Don't include internalMetadata, ie execution state, this is not to be shared
 	};
 }
 

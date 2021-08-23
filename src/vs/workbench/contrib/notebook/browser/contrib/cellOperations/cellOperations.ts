@@ -295,7 +295,6 @@ registerAction2(class extends NotebookCellAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
 						NOTEBOOK_EDITOR_EDITABLE,
 						NOTEBOOK_CELL_EDITABLE,
 						NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()

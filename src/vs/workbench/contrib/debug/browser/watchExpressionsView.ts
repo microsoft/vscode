@@ -23,7 +23,7 @@ import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { IContextKeyService, ContextKeyEqualsExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -381,7 +381,7 @@ registerAction2(class Collapse extends ViewAction<WatchExpressionsView> {
 				id: MenuId.ViewTitle,
 				order: 30,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', WATCH_VIEW_ID)
+				when: ContextKeyExpr.equals('view', WATCH_VIEW_ID)
 			}
 		});
 	}
@@ -404,7 +404,7 @@ registerAction2(class AddWatchExpressionAction extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', WATCH_VIEW_ID)
+				when: ContextKeyExpr.equals('view', WATCH_VIEW_ID)
 			}
 		});
 	}
@@ -429,7 +429,7 @@ registerAction2(class RemoveAllWatchExpressionsAction extends Action2 {
 				id: MenuId.ViewTitle,
 				order: 20,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', WATCH_VIEW_ID)
+				when: ContextKeyExpr.equals('view', WATCH_VIEW_ID)
 			}
 		});
 	}

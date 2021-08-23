@@ -2382,7 +2382,7 @@
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
     "iconv-lite-umd": "0.6.8",
-    "jschardet": "2.3.0",
+    "jschardet": "3.0.0",
     "vscode-extension-telemetry": "0.2.8",
     "vscode-nls": "^4.0.0",
     "vscode-uri": "^2.0.0",

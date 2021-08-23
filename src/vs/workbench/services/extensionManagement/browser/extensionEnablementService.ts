@@ -593,6 +593,7 @@ class ExtensionsManager extends Disposable {
 	readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
 
 	private readonly initializePromise;
+	private disposed: boolean = false;
 
 	constructor(
 		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
@@ -600,6 +601,7 @@ class ExtensionsManager extends Disposable {
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+		this._register(toDisposable(() => this.disposed = true));
 		this.initializePromise = this.initialize();
 	}
 
@@ -610,6 +612,9 @@ class ExtensionsManager extends Disposable {
 	private async initialize(): Promise<void> {
 		try {
 			this._extensions = await this.extensionManagementService.getInstalled();
+			if (this.disposed) {
+				return;
+			}
 			this._onDidChangeExtensions.fire({ added: this.extensions, removed: [] });
 		} catch (error) {
 			this.logService.error(error);

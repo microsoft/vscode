@@ -43,7 +43,7 @@ import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/pla
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyAndExpr, ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1525,10 +1525,10 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-const navWhen = ContextKeyAndExpr.create([
+const navWhen = ContextKeyExpr.and(
 	EditorContextKeys.focus,
 	TestingContextKeys.isPeekVisible,
-]);
+);
 
 /**
  * Gets the editor where the peek may be shown, bubbling upwards if the given
