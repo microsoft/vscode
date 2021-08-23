@@ -39,6 +39,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Mimes } from 'vs/base/common/mime';
 import { TypeConstraint } from 'vs/base/common/types';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = 'notebook.selectKernel';
@@ -1731,6 +1732,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const modeService = accessor.get(IModeService);
 		const modelService = accessor.get(IModelService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const languageDetectionService = accessor.get(ILanguageDetectionService);
 
 		const providerLanguages = new Set([
 			...(context.notebookEditor.activeKernel?.supportedLanguages ?? modeService.getRegisteredModes()),
@@ -1769,15 +1771,26 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 			return a.description.localeCompare(b.description);
 		});
 
+		// Offer to "Auto Detect"
+		const autoDetectMode: IQuickPickItem = {
+			label: localize('autoDetect', "Auto Detect")
+		};
+
 		const picks: QuickPickInput[] = [
+			autoDetectMode,
+			{ type: 'separator', label: localize('languagesPicks', "languages (identifier)") },
 			...topItems,
 			{ type: 'separator' },
 			...mainItems
 		];
 
 		const selection = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode") }) as ILanguagePickInput | undefined;
-		if (selection && selection.languageId) {
-			await this.setLanguage(context, selection.languageId);
+		let languageId = selection === autoDetectMode
+			? await languageDetectionService.detectLanguage(context.cell.uri)
+			: selection?.languageId;
+
+		if (languageId) {
+			await this.setLanguage(context, languageId);
 		}
 	}
 
