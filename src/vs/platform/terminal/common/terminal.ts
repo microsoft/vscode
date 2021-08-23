@@ -398,8 +398,8 @@ export interface ICreateContributedTerminalProfileOptions {
 }
 
 export enum TerminalLocation {
-	Panel = 0,
-	Editor = 1
+	Panel = 1,
+	Editor = 2
 }
 
 export const enum TerminalLocationString {

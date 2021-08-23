@@ -926,8 +926,8 @@ declare module 'vscode' {
 	}
 
 	export enum TerminalLocation {
-		Panel = 0,
-		Editor = 1,
+		Panel = 1,
+		Editor = 2,
 	}
 
 	export interface TerminalEditorLocationOptions {

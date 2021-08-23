@@ -611,7 +611,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	for (const contributed of contributedProfiles) {
 		const isDefault = contributed.title === defaultProfileName;
 		const title = isDefault ? localize('defaultTerminalProfile', "{0} (Default)", contributed.title.replace(/[\n\r\t]/g, '')) : contributed.title.replace(/[\n\r\t]/g, '');
-		dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
+		dropdownActions.push(new Action('contributed', title, undefined, true, () => terminalService.createTerminal({
 			config: {
 				extensionIdentifier: contributed.extensionIdentifier,
 				id: contributed.id,
@@ -620,7 +620,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 			location
 		})));
 		const splitLocation = location === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
-		submenuActions.push(new Action(TerminalCommandId.NewWithProfile, title, undefined, true, () => terminalService.createTerminal({
+		submenuActions.push(new Action('contributed-split', title, undefined, true, () => terminalService.createTerminal({
 			config: {
 				extensionIdentifier: contributed.extensionIdentifier,
 				id: contributed.id,
@@ -656,10 +656,11 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		submenuActions.unshift(defaultSubmenuProfileAction);
 	}
 
+	const primaryActionLocation = terminalService.resolveLocation(location);
 	const primaryAction = instantiationService.createInstance(
 		MenuItemAction,
 		{
-			id: location === TerminalLocation.Panel ? TerminalCommandId.New : TerminalCommandId.CreateTerminalEditor,
+			id: primaryActionLocation === TerminalLocation.Editor ? TerminalCommandId.CreateTerminalEditor : TerminalCommandId.New,
 			title: localize('terminal.new', "New Terminal"),
 			icon: Codicon.plus
 		},
@@ -670,9 +671,9 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		},
 		{
 			shouldForwardArgs: true,
-			arg: { location } as ICreateTerminalOptions,
+			arg: { location: primaryActionLocation } as ICreateTerminalOptions,
 		});
 
 	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
-	return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
+	return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: `terminal-tab-actions-${terminalService.resolveLocation(location)}` };
 }

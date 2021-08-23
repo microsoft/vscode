@@ -1661,7 +1661,7 @@ export function registerTerminalActions() {
 
 			if (terminalService.isProcessSupportRegistered) {
 				eventOrOptions = !eventOrOptions || eventOrOptions instanceof MouseEvent ? {} : eventOrOptions;
-				eventOrOptions.location = eventOrOptions.location || terminalService.defaultLocation;
+
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a
@@ -2004,8 +2004,12 @@ export function validateTerminalName(name: string): { content: string, severity:
 }
 
 function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
-	if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
-		return { config: optionsOrProfile as ITerminalProfile };
+	if (typeof optionsOrProfile === 'object') {
+		if ('profileName' in optionsOrProfile) {
+			return { config: optionsOrProfile as ITerminalProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
+		} else if ('location' in optionsOrProfile) {
+			return { location: (optionsOrProfile as ICreateTerminalOptions).location };
+		}
 	}
 	return optionsOrProfile;
 }

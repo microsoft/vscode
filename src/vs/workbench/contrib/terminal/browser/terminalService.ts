@@ -1156,7 +1156,7 @@ export class TerminalService implements ITerminalService {
 
 		// Launch the contributed profile
 		if (contributedProfile) {
-			const resolvedLocation = this._resolveLocation(options?.location);
+			const resolvedLocation = this.resolveLocation(options?.location);
 			const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : false;
 			const location = splitActiveTerminal ? resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true } : resolvedLocation;
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
@@ -1187,9 +1187,8 @@ export class TerminalService implements ITerminalService {
 		}
 
 		this._evaluateLocalCwd(shellLaunchConfig);
-		const location = this._resolveLocation(options?.location) || this.defaultLocation;
+		const location = this.resolveLocation(options?.location) || this.defaultLocation;
 		const parent = this._getSplitParent(options?.location);
-
 		if (parent) {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		} else {
@@ -1235,16 +1234,16 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	private _resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined {
-		if (!location) {
-			return location;
-		} else if (typeof location === 'object') {
+	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined {
+		if (location && typeof location === 'object') {
 			if ('parentTerminal' in location) {
-				return location.parentTerminal.target;
+				// since we don't set the target unless it's an editor terminal, this is necessary
+				return !location.parentTerminal.target ? TerminalLocation.Panel : location.parentTerminal.target;
 			} else if ('viewColumn' in location) {
 				return TerminalLocation.Editor;
 			} else if ('splitActiveTerminal' in location) {
-				return this._activeInstance?.target || this.defaultLocation;
+				// since we don't set the target unless it's an editor terminal, this is necessary
+				return !this._activeInstance?.target ? TerminalLocation.Panel : this._activeInstance?.target;
 			}
 		}
 		return location;
