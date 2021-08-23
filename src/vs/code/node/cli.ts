@@ -361,6 +361,7 @@ export async function main(argv: string[]): Promise<any> {
 			const requiresWait = args['status'] || args['verbose'] || hasReadStdinArg;
 			const envVars: string[] = [];
 			for (const envKey in env) {
+				// Skip this envKey, otherwise we get a malformed argument warning in the console
 				if (envKey === '_') {
 					continue;
 				}
@@ -377,6 +378,7 @@ export async function main(argv: string[]): Promise<any> {
 				tmpfile = `${tmpdir()}/vscode-wait-transfer-${time}.log`;
 				tmpfileError = `${tmpdir()}/vscode-wait-transfer-error-${time}.log`;
 				writeFileSync(tmpfile, '');
+				writeFileSync(tmpfileError, '');
 				openArgs.push('-W');
 				openArgs.push('--stdout', tmpfile);
 				openArgs.push('--stderr', tmpfileError);
@@ -390,28 +392,20 @@ export async function main(argv: string[]): Promise<any> {
 
 			if (requiresWait) {
 				const openPromise = (child: ChildProcess) => new Promise<void>((c) => {
-					console.log('Temp file location: ' + tmpfile);
-					if (args['verbose']) {
+					if (args['verbose'] || args['status']) {
 						const stream = openSync(tmpfile, 'r');
-						const bufferSize = 50;
+						const bufferSize = 500;
 						const buffer = Buffer.alloc(bufferSize);
 						const interval = setInterval(() => {
 							const readAmount = readSync(stream, buffer, 0, bufferSize, null);
 							process.stdout.write(buffer.toString(undefined, 0, readAmount));
-						}, 50);
+						}, 0);
 						child.on('exit', () => {
 							setTimeout(() => {
 								clearTimeout(interval);
 								closeSync(stream);
 								c();
-							}, 1500);
-						});
-					} else if (args['status']) {
-						child.on('exit', () => {
-							const buffer = readFileSync(tmpfile);
-							let bufferContents = buffer.toString().trim();
-							console.log(bufferContents);
-							c();
+							}, 500);
 						});
 					}
 				}).then(() => {
