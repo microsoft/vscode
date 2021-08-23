@@ -16,7 +16,7 @@ import { IDebugService, State, IBreakpoint } from 'vs/workbench/contrib/debug/co
 import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, NotebookCellsChangeType, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -195,10 +195,17 @@ class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
 		const parsed = CellUri.parse(cellUri);
 		if (parsed) {
 			const notebookModel = this._notebookService.getNotebookTextModel(parsed.notebook);
+			const internalMetadata: NullablePartialNotebookCellInternalMetadata = {
+				isPaused
+			};
+			if (isPaused) {
+				internalMetadata.didPause = true;
+			}
+
 			notebookModel?.applyEdits([{
 				editType: CellEditType.PartialInternalMetadata,
 				handle: parsed.handle,
-				internalMetadata: { isPaused },
+				internalMetadata,
 			}], true, undefined, () => undefined, undefined);
 		}
 	}
