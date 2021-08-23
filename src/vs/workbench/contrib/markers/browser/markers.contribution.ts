@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -319,7 +319,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			title: localize('collapseAll', "Collapse All"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyEqualsExpr.create('view', Constants.MARKERS_VIEW_ID),
+				when: ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID),
 				group: 'navigation',
 				order: 2,
 			},
@@ -339,7 +339,7 @@ registerAction2(class extends Action2 {
 			title: localize('filter', "Filter"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', Constants.MARKERS_VIEW_ID), Constants.MarkersViewSmallLayoutContextKey.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID), Constants.MarkersViewSmallLayoutContextKey.negate()),
 				group: 'navigation',
 				order: 1,
 			},

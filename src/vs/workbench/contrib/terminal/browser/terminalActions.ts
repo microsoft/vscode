@@ -146,11 +146,10 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
-		async run(accessor: ServicesAccessor) {
+		async run(accessor: ServicesAccessor, args?: unknown) {
 			const terminalService = accessor.get(ITerminalService);
-			const instance = await terminalService.createTerminal({
-				location: TerminalLocation.Editor
-			});
+			const options = (typeof args === 'object' && args && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
+			const instance = await terminalService.createTerminal(options);
 			instance.focusWhenReady();
 		}
 	});
@@ -756,6 +755,20 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.ChangeIconPanel,
+				title: terminalStrings.changeIcon,
+				f1: true,
+				category,
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalGroupService).activeInstance?.changeIcon();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.ChangeIconInstance,
 				title: terminalStrings.changeIcon,
 				f1: false,
@@ -784,6 +797,20 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.ChangeColorPanel,
+				title: terminalStrings.changeColor,
+				f1: true,
+				category,
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalGroupService).activeInstance?.changeColor();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.ChangeColorInstance,
 				title: terminalStrings.changeColor,
 				f1: false,
@@ -807,6 +834,20 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			return accessor.get(ITerminalService).activeInstance?.rename();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.RenamePanel,
+				title: terminalStrings.rename,
+				f1: false,
+				category,
+				precondition: TerminalContextKeys.processSupported
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalGroupService).activeInstance?.rename();
 		}
 	});
 	registerAction2(class extends Action2 {

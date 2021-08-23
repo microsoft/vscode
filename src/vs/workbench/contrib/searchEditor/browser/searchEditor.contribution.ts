@@ -12,7 +12,7 @@ import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKe
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -514,7 +514,7 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyEqualsExpr.create('view', VIEW_ID),
+				when: ContextKeyExpr.equals('view', VIEW_ID),
 			}]
 		});
 	}

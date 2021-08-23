@@ -17,7 +17,7 @@ import { IEditorInput, Verbosity, EditorResourceAccessor, SideBySideEditor, Edit
 import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -727,7 +727,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 10
 			}
 		});
@@ -759,7 +759,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 20
 			}
 		});
@@ -781,7 +781,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 30
 			}
 		});
@@ -804,7 +804,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 5
 			}
 		});

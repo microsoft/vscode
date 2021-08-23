@@ -709,7 +709,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[CompactView]: {
-			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. "),
+			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. For example, when turned on, it will decrease the left margin width."),
 			type: 'boolean',
 			default: true,
 			tags: ['notebookLayout']

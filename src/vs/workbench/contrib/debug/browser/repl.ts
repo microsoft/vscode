@@ -16,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService, IContextKey, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -828,7 +828,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', REPL_VIEW_ID),
+				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
 				order: 10
 			}
 		});
@@ -850,7 +850,7 @@ registerAction2(class extends ViewAction<Repl> {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', REPL_VIEW_ID), CONTEXT_MULTI_SESSION_REPL),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', REPL_VIEW_ID), CONTEXT_MULTI_SESSION_REPL),
 				order: 20
 			}
 		});
@@ -885,7 +885,7 @@ registerAction2(class extends ViewAction<Repl> {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', REPL_VIEW_ID),
+				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
 				order: 30
 			}, {
 				id: MenuId.DebugConsoleContext,

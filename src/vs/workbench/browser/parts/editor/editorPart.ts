@@ -209,6 +209,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return (this.gridWidget && this.gridWidget.orientation === Orientation.VERTICAL) ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
+	private _isReady = false;
+	get isReady(): boolean { return this._isReady; }
+
 	private whenReadyResolve: (() => void) | undefined;
 	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
 
@@ -848,6 +851,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Signal ready
 		this.whenReadyResolve?.();
+		this._isReady = true;
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {

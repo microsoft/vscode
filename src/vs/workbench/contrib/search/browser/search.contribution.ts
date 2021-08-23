@@ -17,13 +17,14 @@ import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncAct
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyRegexExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import product from 'vs/platform/product/common/product';
 import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -378,7 +379,7 @@ registerAction2(class CancelSearchAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', VIEW_ID), SearchStateKey.isEqualTo(SearchUIState.SlowSearch)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), SearchStateKey.isEqualTo(SearchUIState.SlowSearch)),
 			}]
 		});
 	}
@@ -400,7 +401,7 @@ registerAction2(class RefreshAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', VIEW_ID), SearchStateKey.isEqualTo(SearchUIState.SlowSearch).negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), SearchStateKey.isEqualTo(SearchUIState.SlowSearch).negate()),
 			}]
 		});
 	}
@@ -422,7 +423,7 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', VIEW_ID), ContextKeyExpr.or(Constants.HasSearchResults.negate(), Constants.ViewHasSomeCollapsibleKey)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ContextKeyExpr.or(Constants.HasSearchResults.negate(), Constants.ViewHasSomeCollapsibleKey)),
 			}]
 		});
 	}
@@ -444,7 +445,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', VIEW_ID), Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey.toNegated()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey.toNegated()),
 			}]
 		});
 	}
@@ -466,7 +467,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyEqualsExpr.create('view', VIEW_ID),
+				when: ContextKeyExpr.equals('view', VIEW_ID),
 			}]
 		});
 	}
@@ -637,7 +638,7 @@ const viewDescriptor: IViewDescriptor = {
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
 			// Yes, this is weird. See #116188, #115556, #115511, and now #124146, for examples of what can go wrong here.
-			when: ContextKeyRegexExpr.create('neverMatch', /doesNotMatch/)
+			when: ContextKeyExpr.regex('neverMatch', /doesNotMatch/)
 		},
 		order: 1
 	}
@@ -1020,6 +1021,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
+		},
+		'search.experimental.forceExtensionHostSearch': {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			description: nls.localize('search.experimental.forceExtensionHostSearch', "When enabled, search always runs in the extension host instead of a separate search process.")
 		}
 	}
 });
