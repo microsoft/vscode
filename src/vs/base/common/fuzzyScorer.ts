@@ -112,7 +112,7 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 				// found out this is contiguous otherwise there wouldn't have been a score
 				queryIndexGtNull ||
 				// lastly check if the query is completely contiguous at this index in the target
-				target.startsWith(query, targetIndex)
+				targetLower.startsWith(queryLower, targetIndex)
 			)) {
 				matches[currentIndex] = matchesSequenceLength + 1;
 				scores[currentIndex] = diagScore + score;
