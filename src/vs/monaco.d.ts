@@ -5936,6 +5936,12 @@ declare namespace monaco.languages {
 		 * How the completion was triggered.
 		 */
 		readonly triggerKind: InlineCompletionTriggerKind;
+		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	}
+
+	export interface SelectedSuggestionInfo {
+		range: IRange;
+		text: string;
 	}
 
 	export interface InlineCompletion {

@@ -2415,6 +2415,18 @@ declare module 'vscode' {
 		 * How the completion was triggered.
 		 */
 		readonly triggerKind: InlineCompletionTriggerKind;
+
+		/**
+		 * Provides information about the currently selected item in the suggest widget.
+		 * If set, provided inline completions must extend the text of the selected item
+		 * and use the same range, otherwise they are not shown as preview.
+		*/
+		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	}
+
+	export interface SelectedSuggestionInfo {
+		range: Range;
+		text: string;
 	}
 
 	/**

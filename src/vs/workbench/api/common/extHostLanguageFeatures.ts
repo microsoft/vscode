@@ -1033,11 +1033,20 @@ class InlineCompletionAdapter {
 		private readonly _commands: CommandsConverter,
 	) { }
 
-	public async provideInlineCompletions(resource: URI, position: IPosition, context: vscode.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
+	public async provideInlineCompletions(resource: URI, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
-		const result = await this._provider.provideInlineCompletionItems(doc, pos, context, token);
+		const result = await this._provider.provideInlineCompletionItems(doc, pos, {
+			selectedSuggestionInfo:
+				context.selectedSuggestionInfo
+					? {
+						range: typeConvert.Range.to(context.selectedSuggestionInfo.range),
+						text: context.selectedSuggestionInfo.text
+					}
+					: undefined,
+			triggerKind: context.triggerKind
+		}, token);
 
 		if (!result) {
 			// undefined and null are valid results
