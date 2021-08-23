@@ -2889,17 +2889,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/129053
-
-	export namespace env {
-		/**
-		 * The environment in which the app is embedded in. i.e. 'desktop', 'codespaces', 'web'.
-		 */
-		export const embedderIdentifier: string;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/88716
 	export interface QuickPickItem {
 		buttons?: QuickInputButton[];

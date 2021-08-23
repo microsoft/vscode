@@ -383,7 +383,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
-				embedderIdentifier: this._productService.embedderIdentifier || 'web',
+				appHost: this._productService.embedderIdentifier || 'web',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
