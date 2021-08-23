@@ -248,7 +248,6 @@ const hostMessaging = new class HostMessaging {
 
 		window.addEventListener('message', (e) => {
 			if (e.origin !== parentOrigin) {
-				console.error('Skipping post m');
 				return;
 			}
 
