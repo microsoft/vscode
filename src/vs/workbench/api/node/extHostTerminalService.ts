@@ -38,9 +38,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 					internalOptions.resolvedExtHostIdentifier = parentExtHostTerminal._id;
 				}
 			}
-		} else if (!internalOptions.splitActiveTerminal && options.location === TerminalLocation.Editor || options.location === TerminalLocation.Panel) {
+		} else if (options.location === TerminalLocation.Editor || options.location === TerminalLocation.Panel) {
 			internalOptions.location = options.location;
-		} else if (internalOptions.splitActiveTerminal) {
+		} else if (internalOptions.location && typeof internalOptions.location === 'object' && 'splitActiveTerminal' in internalOptions.location) {
 			internalOptions.location = { splitActiveTerminal: true };
 		}
 		return internalOptions;

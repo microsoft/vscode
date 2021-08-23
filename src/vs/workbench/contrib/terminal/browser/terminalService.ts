@@ -949,10 +949,9 @@ export class TerminalService implements ITerminalService {
 
 			if ('id' in value.profile) {
 				await this._createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
-					splitActiveTerminal: !!(keyMods?.alt && activeInstance),
 					icon: value.profile.icon,
 					color: value.profile.color,
-					location: this.defaultLocation
+					location: !!(keyMods?.alt && activeInstance) ? { splitActiveTerminal: true } : this.defaultLocation
 				});
 				return;
 			} else {
@@ -1158,14 +1157,14 @@ export class TerminalService implements ITerminalService {
 		// Launch the contributed profile
 		if (contributedProfile) {
 			const resolvedLocation = this._resolveLocation(options?.location);
-			const split = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : false;
+			const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : false;
+			const location = splitActiveTerminal ? resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true } : resolvedLocation;
 			await this._createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				icon: contributedProfile.icon,
 				color: contributedProfile.color,
-				splitActiveTerminal: split,
-				location: resolvedLocation === TerminalLocation.Editor && split ? { viewColumn: SIDE_GROUP } : resolvedLocation
+				location
 			});
-			const instanceHost = this._resolveLocation(options?.location) === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
 			await instance.focusWhenReady();
 			return instance;
