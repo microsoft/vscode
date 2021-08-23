@@ -112,7 +112,8 @@ export interface IModelDecorationOptions {
 	collapseOnReplaceEdit?: boolean;
 	/**
 	 * Specifies the stack order of a decoration.
-	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 * A decoration with greater stack order is always in front of a decoration with
+	 * a lower stack order when the decorations are on the same line.
 	 */
 	zIndex?: number;
 	/**
