@@ -266,7 +266,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		await this.clipboardService.writeText(keybinding.keybindingItem.command);
 	}
 
-	private async copyKeybindingCommandTitle(keybinding: IKeybindingItemEntry): Promise<void> {
+	async copyKeybindingCommandTitle(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		await this.clipboardService.writeText(keybinding.keybindingItem.commandLabel);
