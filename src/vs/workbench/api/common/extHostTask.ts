@@ -8,7 +8,6 @@ import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as Objects from 'vs/base/common/objects';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspaceProvider, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import type * as vscode from 'vscode';
@@ -320,7 +319,7 @@ export namespace TaskDTO {
 		if (value.group !== undefined) {
 			result.group = types.TaskGroup.from(value.group._id);
 			if (result.group) {
-				result.group = Objects.deepClone(result.group);
+				result.group = new types.TaskGroup(result.group.id, result.group.label);
 				if (value.group.isDefault) {
 					result.group.isDefault = value.group.isDefault;
 				}
