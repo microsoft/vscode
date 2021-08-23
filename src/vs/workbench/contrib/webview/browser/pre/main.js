@@ -21,6 +21,7 @@ const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
 const onElectron = searchParams.get('platform') === 'electron';
 const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
+const parentOrigin = searchParams.get('parentOrigin');
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -246,6 +247,11 @@ const hostMessaging = new class HostMessaging {
 		this.handlers = new Map();
 
 		window.addEventListener('message', (e) => {
+			if (e.origin !== parentOrigin) {
+				console.error('Skipping post m');
+				return;
+			}
+
 			const channel = e.data.channel;
 			const handlers = this.handlers.get(channel);
 			if (handlers) {
@@ -263,7 +269,7 @@ const hostMessaging = new class HostMessaging {
 	 * @param {any} data
 	 */
 	postMessage(channel, data) {
-		window.parent.postMessage({ target: ID, channel, data }, '*');
+		window.parent.postMessage({ target: ID, channel, data }, parentOrigin);
 	}
 
 	/**
@@ -858,7 +864,7 @@ onDomReady(() => {
 				}
 
 				pendingMessages.forEach((message) => {
-					contentWindow.postMessage(message.message, '*', message.transfer);
+					contentWindow.postMessage(message.message, window.origin, message.transfer);
 				});
 				pendingMessages = [];
 			}
@@ -920,7 +926,7 @@ onDomReady(() => {
 		if (!pending) {
 			const target = getActiveFrame();
 			if (target) {
-				assertIsDefined(target.contentWindow).postMessage(data.message, '*', data.transfer);
+				assertIsDefined(target.contentWindow).postMessage(data.message, window.origin, data.transfer);
 				return;
 			}
 		}

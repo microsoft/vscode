@@ -291,6 +291,10 @@ export class IFrameWebview extends Disposable implements Webview {
 		}));
 
 		this._register(addDisposableListener(window, 'message', e => {
+			if (e.origin !== this.webviewContentEndpoint) {
+				return;
+			}
+
 			if (e?.data?.target === this.id) {
 				const handlers = this._messageHandlers.get(e.data.channel);
 				handlers?.forEach(handler => handler(e.data.data));
@@ -388,6 +392,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
+			parentOrigin: window.origin,
 		};
 
 		if (options.purpose) {
@@ -417,7 +422,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 	private doPostMessage(channel: string, data?: any): void {
 		if (this.element) {
-			this.element.contentWindow!.postMessage({ channel, args: data }, '*');
+			this.element.contentWindow!.postMessage({ channel, args: data }, this.webviewContentEndpoint);
 		}
 	}
 
