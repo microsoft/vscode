@@ -36,6 +36,7 @@ export interface IProcessEnvironment {
  */
 export interface INodeProcess {
 	platform: string;
+	arch: string;
 	env: IProcessEnvironment;
 	nextTick?: (callback: (...args: any[]) => void) => void;
 	versions?: {

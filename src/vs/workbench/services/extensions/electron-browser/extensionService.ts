@@ -43,6 +43,7 @@ import { updateProxyConfigurationsScope } from 'vs/platform/request/common/reque
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -526,7 +527,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					label: nls.localize('install', 'Install and Reload'),
 					run: async () => {
 						sendTelemetry('install');
-						const galleryExtension = await this._extensionGalleryService.getCompatibleExtension({ id: resolverExtensionId });
+						const [galleryExtension] = await this._extensionGalleryService.getExtensions([{ id: resolverExtensionId }], CancellationToken.None);
 						if (galleryExtension) {
 							await this._extensionManagementService.installFromGallery(galleryExtension);
 							await this._hostService.reload();
