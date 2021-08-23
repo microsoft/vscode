@@ -34,6 +34,7 @@ export const enum TargetPlatform {
 
 	UNIVERSAL = 'universal',
 	UNKNOWN = 'unknown',
+	UNDEFINED = 'undefined',
 }
 
 export function toTargetPlatform(targetPlatform: string): TargetPlatform {

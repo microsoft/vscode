@@ -313,7 +313,7 @@ function getIsPreview(flags: string): boolean {
 }
 
 function getTargetPlatform(version: IRawGalleryExtensionVersion): TargetPlatform {
-	return version.targetPlatform ? toTargetPlatform(version.targetPlatform) : TargetPlatform.UNIVERSAL;
+	return version.targetPlatform ? toTargetPlatform(version.targetPlatform) : TargetPlatform.UNDEFINED;
 }
 
 function getAllTargetPlatforms(rawGalleryExtension: IRawGalleryExtension): TargetPlatform[] {
@@ -348,6 +348,11 @@ function isTargetPlatformCompatible(extensionTargetPlatform: TargetPlatform, all
 	// Not compatible when extension is not a web extension in web target platform
 	if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, productTargetPlatform)) {
 		return false;
+	}
+
+	// Compatible when extension target platform is not defined
+	if (extensionTargetPlatform === TargetPlatform.UNDEFINED) {
+		return true;
 	}
 
 	// Compatible when extension target platform is universal
