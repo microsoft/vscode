@@ -626,7 +626,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			id: command,
 			title,
 			source: extension.description.displayName ?? extension.description.name,
-			shortTitle: extension.description.enableProposedApi ? shortTitle : undefined,
+			shortTitle,
 			tooltip: extension.description.enableProposedApi ? title : undefined,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
