@@ -987,9 +987,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		if (!this.enabled) {
 			return;
 		}
-		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension!.gallery!, await this.extension!.server!.getTargetPlatform());
-		const versionEntries = allVersions.map((v, i) => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === this.extension!.version ? ` (${localize('current', "Current")})` : ''}`, latest: i === 0 }));
-		const pick = await this.quickInputService.pick(versionEntries, { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true });
+		const pick = await this.quickInputService.pick(this.getVersionEntries(), { placeHolder: localize('selectVersion', "Select Version to Install"), matchOnDetail: true });
 		if (pick) {
 			if (this.extension!.version === pick.id) {
 				return;
@@ -1005,6 +1003,11 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			}
 		}
 		return null;
+	}
+
+	private async getVersionEntries(): Promise<(IQuickPickItem & { latest: boolean, id: string })[]> {
+		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension!.gallery!, await this.extension!.server!.getTargetPlatform());
+		return allVersions.map((v, i) => ({ id: v.version, label: v.version, description: `${getRelativeDateLabel(new Date(Date.parse(v.date)))}${v.version === this.extension!.version ? ` (${localize('current', "Current")})` : ''}`, latest: i === 0 }));
 	}
 }
 
