@@ -90,7 +90,6 @@
 		"description": "Insert strikethrough"
 	},
 	"table": {
-		"scope": "markdown",
 		"prefix": "table",
 		"body": [
 			"|${0:title}| |",
