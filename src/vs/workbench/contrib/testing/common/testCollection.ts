@@ -137,7 +137,7 @@ export interface ITestTag {
 
 export interface ITestTagDisplayInfo {
 	id: string;
-	displayId: string;
+	ctrlLabel: string;
 	label?: string;
 }
 
@@ -286,6 +286,10 @@ export const enum TestDiffOpType {
 	IncrementPendingExtHosts,
 	/** Retires a test/result */
 	Retire,
+	/** Add a new test tag */
+	AddTag,
+	/** Remove a test tag */
+	RemoveTag,
 }
 
 export type TestsDiffOp =
@@ -293,7 +297,9 @@ export type TestsDiffOp =
 	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
 	| [op: TestDiffOpType.Remove, itemId: string]
 	| [op: TestDiffOpType.Retire, itemId: string]
-	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number];
+	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number]
+	| [op: TestDiffOpType.AddTag, tag: ITestTagDisplayInfo]
+	| [op: TestDiffOpType.RemoveTag, id: string];
 
 /**
  * Context for actions taken in the test explorer view.
@@ -351,6 +357,8 @@ export class IncrementalChangeCollector<T> {
  * Maintains tests in this extension host sent from the main thread.
  */
 export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
+	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
+
 	/**
 	 * Map of item IDs to test item objects.
 	 */
@@ -370,6 +378,11 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * Number of pending roots.
 	 */
 	protected pendingRootCount = 0;
+
+	/**
+	 * Known test tags.
+	 */
+	public readonly tags: ReadonlyMap<string, ITestTagDisplayInfo> = this._tags;
 
 	/**
 	 * Applies the diff to the collection.
@@ -458,6 +471,14 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 
 				case TestDiffOpType.IncrementPendingExtHosts:
 					this.updatePendingRoots(op[1]);
+					break;
+
+				case TestDiffOpType.AddTag:
+					this._tags.set(op[1].id, op[1]);
+					break;
+
+				case TestDiffOpType.RemoveTag:
+					this._tags.delete(op[1]);
 					break;
 			}
 		}

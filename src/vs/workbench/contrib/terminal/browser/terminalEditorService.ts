@@ -11,7 +11,7 @@ import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IEditorInput } from 'vs/workbench/common/editor';
-import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
@@ -158,7 +158,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._onDidChangeActiveInstance.fire(this.activeInstance);
 	}
 
-	async openEditor(instance: ITerminalInstance, sideGroup: boolean = false): Promise<void> {
+	async openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void> {
 		const resource = this.resolveResource(instance);
 		if (resource) {
 			await this._editorService.openEditor({
@@ -166,10 +166,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				options:
 				{
 					pinned: true,
-					forceReload: true
+					forceReload: true,
+					preserveFocus: editorOptions?.preserveFocus
 				}
-			},
-				sideGroup ? SIDE_GROUP : undefined);
+			}, editorOptions?.viewColumn);
 		}
 	}
 

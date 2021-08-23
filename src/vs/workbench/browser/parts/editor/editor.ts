@@ -54,7 +54,16 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 
 	const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
 	if (config?.workbench?.editor) {
+
+		// Assign all primitive configuration over
 		Object.assign(options, config.workbench.editor);
+
+		// Special handle array types and convert to Set
+		if (Array.isArray(config.workbench.editor.experimentalAutoLockGroups)) {
+			options.experimentalAutoLockGroups = new Set(config.workbench.editor.experimentalAutoLockGroups);
+		} else {
+			options.experimentalAutoLockGroups = undefined;
+		}
 	}
 
 	return options;
@@ -162,4 +171,15 @@ export interface EditorServiceImpl extends IEditorService {
 	 * Emitted when the list of most recently active editors change.
 	 */
 	readonly onDidMostRecentlyActiveEditorsChange: Event<void>;
+}
+
+export interface IInternalEditorOpenOptions {
+
+	/**
+	 * Optimization: when we know that many editors open at once,
+	 * setting `skipTitleUpdate` for the `openEditor` call will
+	 * not bother to update the title area control. The caller has
+	 * to manually ensure the title area control is updated.
+	 */
+	skipTitleUpdate?: boolean;
 }

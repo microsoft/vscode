@@ -1735,6 +1735,11 @@ export class TerminalLink implements vscode.TerminalLink {
 	}
 }
 
+export enum TerminalLocation {
+	Panel = 0,
+	Editor = 1,
+}
+
 export class TerminalProfile implements vscode.TerminalProfile {
 	constructor(
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
@@ -3335,7 +3340,11 @@ export class TestTag implements vscode.TestTag {
 	constructor(
 		public readonly id: string,
 		public readonly label?: string,
-	) { }
+	) {
+		if (/\s/.test(id)) {
+			throw new Error(`Test tag ID "${id}" may not include whitespace`);
+		}
+	}
 }
 
 //#endregion

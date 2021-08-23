@@ -9,12 +9,14 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionsProvider, InlineCompletionsProviderRegistry } from 'vs/editor/common/modes';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { InlineCompletionsModel, inlineCompletionToGhostText } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
+import { inlineCompletionToGhostText } from '../inlineCompletionToGhostText';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
+import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,7 +86,7 @@ suite('Inline Completions', () => {
 		});
 	});
 
-	test('Does trigger automatically if disabled', async function () {
+	test('Does not trigger automatically if disabled', async function () {
 		const provider = new MockInlineCompletionsProvider();
 		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
 			{ fakeClock: true, provider, inlineSuggest: { enabled: false } },
@@ -147,13 +149,14 @@ suite('Inline Completions', () => {
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 
-				context.keyboardType('foo');
 				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				context.keyboardType('foo');
 				model.trigger();
 				await timeout(1000);
 
 				provider.setReturnValue({ text: 'foobizz', range: new Range(1, 1, 1, 6) });
-				context.keyboardType('bi');
+				context.keyboardType('b');
+				context.keyboardType('i');
 				await timeout(1000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
@@ -449,11 +452,6 @@ suite('Inline Completions', () => {
 					{ position: '(1,5)', text: 'foob', triggerKind: 0, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
-					/*
-						TODO: Remove this flickering. Fortunately, it is not visible.
-						It is caused by the text model updating before the cursor position.
-					*/
-					'foob',
 					'foob[ar]',
 					'foob[az]'
 				]);
@@ -506,7 +504,8 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 
 			let result: T;
 			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
-				const model = instantiationService.createInstance(InlineCompletionsModel, editor);
+				const cache = disposableStore.add(new SharedInlineCompletionCache());
+				const model = instantiationService.createInstance(InlineCompletionsModel, editor, cache);
 				const context = new GhostTextContext(model, editor);
 				result = await callback({ editor, editorViewModel, model, context });
 				context.dispose();

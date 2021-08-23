@@ -50,7 +50,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		const target = new CellHoverTarget(container, this._targetOptions);
 		const hover = this._hoverService.showHover({
 			target,
-			text: this._text,
+			content: this._text,
 			linkHandler: this._linkHandler,
 			// .xterm-hover lets xterm know that the hover is part of a link
 			additionalClasses: ['xterm-hover']

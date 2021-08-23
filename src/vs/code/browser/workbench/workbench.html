@@ -27,12 +27,13 @@
 	</body>
 
 	<!-- Startup (do not modify order of script tags!) -->
+	<script src="./static/out/vs/loader.js"></script>
 	<script src="./static/out/vs/webPackagePaths.js"></script>
 	<script>
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${window.location.origin}/static/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
-		self.require = {
+		require.config({
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
 			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
@@ -41,9 +42,8 @@
 				}
 			}),
 			paths: self.webPackagePaths
-		};
+		});
 	</script>
-	<script src="./static/out/vs/loader.js"></script>
 	<script>
 		performance.mark('code/willLoadWorkbenchMain');
 	</script>

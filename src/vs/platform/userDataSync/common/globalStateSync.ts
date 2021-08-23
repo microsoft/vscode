@@ -105,7 +105,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const lastSyncGlobalState: IGlobalState | null = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
 
-		const localGloablState = await this.getLocalGlobalState();
+		const localGlobalState = await this.getLocalGlobalState();
 
 		if (remoteGlobalState) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote ui state with local ui state...`);
@@ -114,7 +114,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 
 		const storageKeys = this.getStorageKeys(lastSyncGlobalState);
-		const { local, remote } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, storageKeys, this.logService);
+		const { local, remote } = merge(localGlobalState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, storageKeys, this.logService);
 		const previewResult: IGlobalStateResourceMergeResult = {
 			content: null,
 			local,
@@ -125,8 +125,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 		return [{
 			localResource: this.localResource,
-			localContent: formatAndStringify(localGloablState),
-			localUserData: localGloablState,
+			localContent: formatAndStringify(localGlobalState),
+			localUserData: localGlobalState,
 			remoteResource: this.remoteResource,
 			remoteContent: remoteGlobalState ? formatAndStringify(remoteGlobalState) : null,
 			previewResource: this.previewResource,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -508,39 +508,42 @@ class NotebookCellExecutionTask extends Disposable {
 
 class TimeoutBasedCollector<T> {
 	private batch: T[] = [];
-	private waitPromise: Promise<void> | undefined;
-	private lastFlush = Date.now();
+	private startedTimer = Date.now();
+	private currentDeferred: DeferredPromise<void> | undefined;
 
 	constructor(
 		private readonly delay: number,
-		private readonly callback: (items: T[]) => Promise<void> | void) { }
+		private readonly callback: (items: T[]) => Promise<void>) { }
 
 	addItem(item: T): Promise<void> {
 		this.batch.push(item);
-		if (!this.waitPromise) {
-			this.waitPromise = timeout(this.delay).then(() => {
+		if (!this.currentDeferred) {
+			this.currentDeferred = new DeferredPromise<void>();
+			this.startedTimer = Date.now();
+			timeout(this.delay).then(() => {
 				return this.flush();
 			});
 		}
 
 		// This can be called by the extension repeatedly for a long time before the timeout is able to run.
 		// Force a flush after the delay.
-		if (Date.now() - this.lastFlush > this.delay) {
-			this.flush();
+		if (Date.now() - this.startedTimer > this.delay) {
+			return this.flush();
 		}
 
-		return this.waitPromise;
+		return this.currentDeferred.p;
 	}
 
-	flush(): void | Promise<void> {
-		if (this.batch.length === 0) {
-			return;
+	flush(): Promise<void> {
+		if (this.batch.length === 0 || !this.currentDeferred) {
+			return Promise.resolve();
 		}
 
-		this.lastFlush = Date.now();
-		this.waitPromise = undefined;
+		const deferred = this.currentDeferred;
+		this.currentDeferred = undefined;
 		const batch = this.batch;
 		this.batch = [];
-		return this.callback(batch);
+		return this.callback(batch)
+			.finally(() => deferred.complete());
 	}
 }

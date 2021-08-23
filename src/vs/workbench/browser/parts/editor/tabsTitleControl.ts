@@ -391,6 +391,14 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	openEditor(editor: IEditorInput): void {
+		this.doHandleOpenEditor();
+	}
+
+	openEditors(editors: IEditorInput[]): void {
+		this.doHandleOpenEditor();
+	}
+
+	private doHandleOpenEditor(): void {
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);

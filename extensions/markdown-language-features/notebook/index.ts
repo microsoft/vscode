@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 const MarkdownIt = require('markdown-it');
+import * as DOMPurify from 'dompurify';
 import type * as markdownIt from 'markdown-it';
 
-export function activate() {
+const sanitizerOptions: DOMPurify.Config = {
+	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+};
+
+export function activate(ctx: { workspace: { isTrusted: boolean } }) {
 	let markdownIt = new MarkdownIt({
 		html: true
 	});
@@ -174,8 +179,10 @@ export function activate() {
 			} else {
 				previewNode.classList.remove('emptyMarkdownCell');
 
-				const rendered = markdownIt.render(text);
-				previewNode.innerHTML = rendered;
+				const unsanitizedRenderedMarkdown = markdownIt.render(text);
+				previewNode.innerHTML = ctx.workspace.isTrusted
+					? unsanitizedRenderedMarkdown
+					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {

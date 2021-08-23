@@ -1080,7 +1080,7 @@ export class ListTopCellToolbar extends Disposable {
 	private topCellToolbar: HTMLElement;
 	private menu: IMenu;
 	private toolbar: ToolBar;
-	private _modelDisposables = new DisposableStore();
+	private readonly _modelDisposables = this._register(new DisposableStore());
 	constructor(
 		protected readonly notebookEditor: INotebookEditor,
 

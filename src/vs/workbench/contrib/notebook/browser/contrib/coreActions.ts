@@ -71,6 +71,7 @@ const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
 const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+const TOGGLE_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.toggleOutputs';
 const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
 const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
@@ -608,8 +609,6 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction<
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		await runCell(accessor, context);
-
 		if (context.ui && context.cell) {
 			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		} else if (context.selectedCells) {
@@ -619,6 +618,8 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction<
 				context.notebookEditor.focusNotebookCell(firstCell, 'container', { skipReveal: true });
 			}
 		}
+
+		await runCell(accessor, context);
 	}
 });
 
@@ -688,6 +689,46 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction<INoteboo
 		} else if (context.selectedCells) {
 			return context.notebookEditor.cancelNotebookCells(context.selectedCells);
 		}
+	}
+});
+
+registerAction2(class extends NotebookMultiCellAction<INotebookActionContext> {
+	constructor() {
+		super({
+			id: TOGGLE_CELL_OUTPUTS_COMMAND_ID,
+			precondition: NOTEBOOK_CELL_LIST_FOCUSED,
+			title: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
+			description: {
+				description: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
+				args: cellExecutionArgs
+			}
+		});
+	}
+
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const textModel = context.notebookEditor.viewModel.notebookDocument;
+		let cells: ICellViewModel[] = [];
+		if (context.ui && context.cell) {
+			cells = [context.cell];
+		} else if (context.selectedCells) {
+			cells = [...context.selectedCells];
+		} else {
+			cells = [...context.notebookEditor.viewModel.getCells()];
+		}
+
+		const edits: ICellEditOperation[] = [];
+		for (const cell of cells) {
+			const index = textModel.cells.indexOf(cell.model);
+			if (index >= 0) {
+				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...cell.metadata, outputCollapsed: !cell.metadata.outputCollapsed } });
+			}
+		}
+
+		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
 	}
 });
 
@@ -2025,15 +2066,31 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
 				{
-					id: MenuId.NotebookEditorLayoutConfigure,
-					group: 'notebookLayout',
-					when: NOTEBOOK_IS_ACTIVE_EDITOR,
-					order: 1
-				},
-				{
 					id: MenuId.NotebookToolbar,
 					group: 'notebookLayout',
 					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					order: 1
+				}
+			]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:notebookLayout' });
+	}
+});
+
+registerAction2(class NotebookConfigureLayoutFromEditorTitle extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.notebook.layout.configure.editorTitle',
+			title: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
+			f1: true,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			menu: [
+				{
+					id: MenuId.NotebookEditorLayoutConfigure,
+					group: 'notebookLayout',
+					when: NOTEBOOK_IS_ACTIVE_EDITOR,
 					order: 1
 				}
 			]
@@ -2054,13 +2111,70 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: NOTEBOOK_IS_ACTIVE_EDITOR
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookEditorLayoutConfigure, {
-	command: {
-		id: 'breadcrumbs.toggle',
-		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-	},
-	group: 'notebookLayoutDetails',
-	order: 2
+registerAction2(class ToggleLineNumberFromEditorTitle extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.toggleLineNumbersFromEditorTitle',
+			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			precondition: NOTEBOOK_EDITOR_FOCUSED,
+			menu: [
+				{
+					id: MenuId.NotebookEditorLayoutConfigure,
+					group: 'notebookLayoutDetails',
+					order: 1,
+					when: NOTEBOOK_IS_ACTIVE_EDITOR
+				}],
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			f1: true,
+			toggled: {
+				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
+				title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(ICommandService).executeCommand('notebook.toggleLineNumbers');
+	}
+});
+
+registerAction2(class ToggleCellToolbarPositionFromEditorTitle extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.toggleCellToolbarPositionFromEditorTitle',
+			title: { value: localize('notebook.toggleCellToolbarPosition', "Toggle Cell Toolbar Position"), original: 'Toggle Cell Toolbar Position' },
+			menu: [{
+				id: MenuId.NotebookEditorLayoutConfigure,
+				group: 'notebookLayoutDetails',
+				order: 3
+			}],
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		return accessor.get(ICommandService).executeCommand('notebook.toggleCellToolbarPosition', ...args);
+	}
+});
+
+registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
+	constructor() {
+		super({
+			id: 'breadcrumbs.toggleFromEditorTitle',
+			title: { value: localize('notebook.toggleBreadcrumb', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+			menu: [{
+				id: MenuId.NotebookEditorLayoutConfigure,
+				group: 'notebookLayoutDetails',
+				order: 2
+			}],
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		return accessor.get(ICommandService).executeCommand('breadcrumbs.toggle');
+	}
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {

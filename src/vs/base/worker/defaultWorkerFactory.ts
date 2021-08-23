@@ -15,8 +15,8 @@ function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 			return globals.MonacoEnvironment.getWorker(workerId, label);
 		}
 		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
-			const wokerUrl = <string>globals.MonacoEnvironment.getWorkerUrl(workerId, label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(wokerUrl) as unknown as string : wokerUrl, { name: label });
+			const workerUrl = <string>globals.MonacoEnvironment.getWorkerUrl(workerId, label);
+			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 		}
 	}
 	// ESM-comment-begin
