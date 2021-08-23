@@ -155,7 +155,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 
 		if (extensionIds.length) {
-			const galleryExtensions = await this.galleryService.getExtensions(extensionIds, CancellationToken.None);
+			const galleryExtensions = await this.galleryService.getExtensions(extensionIds.map(id => ({ id })), CancellationToken.None);
 			const missingExtensions = extensionIds.filter(id => !galleryExtensions.find(({ identifier }) => areSameExtensions(identifier, { id })));
 			if (missingExtensions.length) {
 				this.logService.info('Cannot find static extensions from gallery', missingExtensions);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, getTargetPlatformFromOS } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -22,23 +22,22 @@ import { IExtensionManagementServer } from 'vs/workbench/services/extensionManag
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class NativeRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
-	private readonly localExtensionManagementService: IExtensionManagementService;
-
 	constructor(
 		channel: IChannel,
-		localExtensionManagementServer: IExtensionManagementServer,
+		private readonly localExtensionManagementServer: IExtensionManagementServer,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 	) {
 		super(channel, galleryService, configurationService, productService, extensionManifestPropertiesService);
-		this.localExtensionManagementService = localExtensionManagementServer.extensionManagementService;
 	}
 
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
@@ -85,7 +84,11 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 	}
 
 	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
-		const compatible = await this.galleryService.getCompatibleExtension(extension);
+		const remoteEnvironment = await this.remoteAgentService.getEnvironment();
+		if (!remoteEnvironment) {
+			return Promise.reject(new Error('Cannot get the remote environment'));
+		}
+		const compatible = await this.galleryService.getCompatibleExtension(extension, getTargetPlatformFromOS(remoteEnvironment.os, remoteEnvironment.arch));
 		if (!compatible) {
 			return Promise.reject(new Error(localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.identifier.id, this.productService.version)));
 		}
@@ -99,11 +102,11 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 
 	private async installUIDependenciesAndPackedExtensions(local: ILocalExtension): Promise<void> {
 		const uiExtensions = await this.getAllUIDependenciesAndPackedExtensions(local.manifest, CancellationToken.None);
-		const installed = await this.localExtensionManagementService.getInstalled();
+		const installed = await this.localExtensionManagementServer.extensionManagementService.getInstalled();
 		const toInstall = uiExtensions.filter(e => installed.every(i => !areSameExtensions(i.identifier, e.identifier)));
 		if (toInstall.length) {
 			this.logService.info(`Installing UI dependencies and packed extensions of '${local.identifier.id}' locally`);
-			await Promises.settled(toInstall.map(d => this.localExtensionManagementService.installFromGallery(d)));
+			await Promises.settled(toInstall.map(d => this.localExtensionManagementServer.extensionManagementService.installFromGallery(d)));
 		}
 	}
 
@@ -131,7 +134,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 			return Promise.resolve();
 		}
 
-		const extensions = await this.galleryService.getExtensions(toGet, token);
+		const extensions = await this.galleryService.getExtensions(toGet.map(id => ({ id })), token);
 		const manifests = await Promise.all(extensions.map(e => this.galleryService.getManifest(e, token)));
 		const extensionsManifests: IExtensionManifest[] = [];
 		for (let idx = 0; idx < extensions.length; idx++) {
