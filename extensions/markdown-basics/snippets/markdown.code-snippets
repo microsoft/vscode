@@ -96,6 +96,11 @@
 			"| - | - |",
 			"|   |   |",
 		],
-		"description": "Insert an simple markdown table"
+		"description": "Insert a simple markdown table"
+	},
+	"task list": {
+		"prefix": "task list",
+		"body": "- [ ] ${0:task list}",
+		"description": "Insert task list"
 	}
 }
