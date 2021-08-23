@@ -389,9 +389,9 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContig
 	// - whether fuzzy matching is enabled or not
 	let cacheHash: string;
 	if (description) {
-		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${allowNonContiguousMatches}${query.expectExactMatch}`;
+		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${allowNonContiguousMatches}${query.expectContiguousMatch}`;
 	} else {
-		cacheHash = `${label}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${allowNonContiguousMatches}${query.expectExactMatch}`;
+		cacheHash = `${label}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${allowNonContiguousMatches}${query.expectContiguousMatch}`;
 	}
 
 	const cached = cache[cacheHash];
@@ -462,7 +462,7 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 			label,
 			query.normalized,
 			query.normalizedLowercase,
-			allowNonContiguousMatches && !query.expectExactMatch);
+			allowNonContiguousMatches && !query.expectContiguousMatch);
 		if (labelScore) {
 
 			// If we have a prefix match on the label, we give a much
@@ -504,7 +504,7 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 			descriptionAndLabel,
 			query.normalized,
 			query.normalizedLowercase,
-			allowNonContiguousMatches && !query.expectExactMatch);
+			allowNonContiguousMatches && !query.expectContiguousMatch);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];
@@ -804,7 +804,7 @@ export interface IPreparedQueryPiece {
 	 * this query must be a substring of the input.
 	 * In other words, no fuzzy matching is used.
 	 */
-	expectExactMatch: boolean;
+	expectContiguousMatch: boolean;
 }
 
 export interface IPreparedQuery extends IPreparedQueryPiece {
@@ -866,13 +866,13 @@ export function prepareQuery(original: string): IPreparedQuery {
 					pathNormalized: pathNormalizedPiece,
 					normalized: normalizedPiece,
 					normalizedLowercase: normalizedLowercasePiece,
-					expectExactMatch: expectExactMatchPiece
+					expectContiguousMatch: expectExactMatchPiece
 				});
 			}
 		}
 	}
 
-	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectExactMatch };
+	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectContiguousMatch: expectExactMatch };
 }
 
 function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
