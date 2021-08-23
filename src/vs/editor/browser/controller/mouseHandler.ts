@@ -176,7 +176,9 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, testEventTarget ? e.target : null);
+		const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
+		const target = shadowRoot ? shadowRoot.elementsFromPoint(e.posx, e.posy).find(el => this.viewHelper.viewDomNode.contains(el)) : e.target;
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, testEventTarget ? target : null);
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {
