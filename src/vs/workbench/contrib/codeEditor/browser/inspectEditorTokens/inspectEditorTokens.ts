@@ -140,6 +140,7 @@ interface IDecodedMetadata {
 	bold?: boolean;
 	italic?: boolean;
 	underline?: boolean;
+	strikethrough?: boolean;
 	foreground?: string;
 	background?: string;
 }
@@ -415,7 +416,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 		const fontStyleLabels = new Array<HTMLElement | string>();
 
-		function addStyle(key: 'bold' | 'italic' | 'underline') {
+		function addStyle(key: 'bold' | 'italic' | 'underline' | 'strikethrough') {
 			let label: HTMLElement | string | undefined;
 			if (semantic && semantic[key]) {
 				label = $('span.tiw-metadata-semantic', undefined, key);
@@ -432,6 +433,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		addStyle('bold');
 		addStyle('italic');
 		addStyle('underline');
+		addStyle('strikethrough');
 		if (fontStyleLabels.length) {
 			elements.push($('tr', undefined,
 				$('td.tiw-metadata-key', undefined, 'font style' as string),
@@ -454,6 +456,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			bold: (fontStyle & FontStyle.Bold) ? true : undefined,
 			italic: (fontStyle & FontStyle.Italic) ? true : undefined,
 			underline: (fontStyle & FontStyle.Underline) ? true : undefined,
+			strikethrough: (fontStyle & FontStyle.Strikethrough) ? true : undefined,
 			foreground: colorMap[foreground],
 			background: colorMap[background]
 		};

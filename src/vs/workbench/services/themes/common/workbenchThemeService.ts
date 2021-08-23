@@ -164,14 +164,15 @@ export interface ITextMateThemingRule {
 export interface ITokenColorizationSetting {
 	foreground?: string;
 	background?: string;
-	fontStyle?: string; /* [italic|underline|bold] */
+	fontStyle?: string; /* [italic|underline|strikethrough|bold] */
 }
 
 export interface ISemanticTokenColorizationSetting {
 	foreground?: string;
-	fontStyle?: string; /* [italic|underline|bold] */
+	fontStyle?: string; /* [italic|underline|strikethrough|bold] */
 	bold?: boolean;
 	underline?: boolean;
+	strikethrough?: boolean;
 	italic?: boolean;
 }
 

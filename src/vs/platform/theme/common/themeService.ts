@@ -91,6 +91,7 @@ export interface ITokenStyle {
 	readonly foreground?: number;
 	readonly bold?: boolean;
 	readonly underline?: boolean;
+	readonly strikethrough?: boolean;
 	readonly italic?: boolean;
 }
 
