@@ -8,6 +8,6 @@ import { IComposite } from 'vs/workbench/common/composite';
 
 export interface IPaneComposite extends IComposite {
 	openView<T extends IView>(id: string, focus?: boolean): T | undefined;
-	getViewPaneContainer(): IViewPaneContainer;
+	getViewPaneContainer(): IViewPaneContainer | undefined;
 	saveState(): void;
 }

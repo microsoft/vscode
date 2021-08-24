@@ -5,4 +5,3 @@ build/**
 extension.webpack.config.js
 tsconfig.json
 yarn.lock
-README.md

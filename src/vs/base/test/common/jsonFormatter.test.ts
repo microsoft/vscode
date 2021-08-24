@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as Formatter from 'vs/base/common/jsonFormatter';
 import * as assert from 'assert';
+import * as Formatter from 'vs/base/common/jsonFormatter';
 
 suite('JSON - formatter', () => {
 
@@ -28,7 +28,7 @@ suite('JSON - formatter', () => {
 			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
 		}
 
-		assert.equal(content, expected);
+		assert.strictEqual(content, expected);
 	}
 
 	test('object - single property', () => {

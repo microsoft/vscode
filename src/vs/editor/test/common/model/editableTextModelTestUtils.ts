@@ -20,7 +20,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 		let inverseEdits = model.applyEdits(edits, true);
 
 		// Assert edits produced expected result
-		assert.deepEqual(model.getValue(EndOfLinePreference.LF), expectedStr);
+		assert.deepStrictEqual(model.getValue(EndOfLinePreference.LF), expectedStr);
 
 		assertMirrorModels();
 
@@ -28,7 +28,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 		let inverseInverseEdits = model.applyEdits(inverseEdits, true);
 
 		// Assert the inverse edits brought back model to original state
-		assert.deepEqual(model.getValue(EndOfLinePreference.LF), originalStr);
+		assert.deepStrictEqual(model.getValue(EndOfLinePreference.LF), originalStr);
 
 		if (!inputEditsAreInvalid) {
 			const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
@@ -41,7 +41,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 				};
 			};
 			// Assert the inverse of the inverse edits are the original edits
-			assert.deepEqual(inverseInverseEdits.map(simplifyEdit), edits.map(simplifyEdit));
+			assert.deepStrictEqual(inverseInverseEdits.map(simplifyEdit), edits.map(simplifyEdit));
 		}
 
 		assertMirrorModels();
@@ -59,16 +59,16 @@ function assertOneDirectionLineMapping(model: TextModel, direction: AssertDocume
 	let line = 1, column = 1, previousIsCarriageReturn = false;
 	for (let offset = 0; offset <= allText.length; offset++) {
 		// The position coordinate system cannot express the position between \r and \n
-		let position = new Position(line, column + (previousIsCarriageReturn ? -1 : 0));
+		let position: Position = new Position(line, column + (previousIsCarriageReturn ? -1 : 0));
 
 		if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
 			let actualPosition = model.getPositionAt(offset);
-			assert.equal(actualPosition.toString(), position.toString(), msg + ' - getPositionAt mismatch for offset ' + offset);
+			assert.strictEqual(actualPosition.toString(), position.toString(), msg + ' - getPositionAt mismatch for offset ' + offset);
 		} else {
 			// The position coordinate system cannot express the position between \r and \n
-			let expectedOffset = offset + (previousIsCarriageReturn ? -1 : 0);
+			let expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
 			let actualOffset = model.getOffsetAt(position);
-			assert.equal(actualOffset, expectedOffset, msg + ' - getOffsetAt mismatch for position ' + position.toString());
+			assert.strictEqual(actualOffset, expectedOffset, msg + ' - getOffsetAt mismatch for position ' + position.toString());
 		}
 
 		if (allText.charAt(offset) === '\n') {
@@ -112,8 +112,8 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 
 	let assertMirrorModels = () => {
 		assertLineMapping(model, 'model');
-		assert.equal(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
-		assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
+		assert.strictEqual(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
+		assert.strictEqual(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
 	};
 
 	callback(model, assertMirrorModels);

@@ -39,7 +39,7 @@ class ProtocolBuffer {
 		if (this.buffer.length - this.index >= toAppend.length) {
 			toAppend.copy(this.buffer, this.index, 0, toAppend.length);
 		} else {
-			let newSize = (Math.ceil((this.index + toAppend.length) / defaultSize) + 1) * defaultSize;
+			const newSize = (Math.ceil((this.index + toAppend.length) / defaultSize) + 1) * defaultSize;
 			if (this.index === 0) {
 				this.buffer = Buffer.allocUnsafe(newSize);
 				toAppend.copy(this.buffer, 0, 0, toAppend.length);
@@ -61,14 +61,14 @@ class ProtocolBuffer {
 			return result;
 		}
 		current += contentLengthSize;
-		let start = current;
+		const start = current;
 		while (current < this.index && this.buffer[current] !== backslashR) {
 			current++;
 		}
 		if (current + 3 >= this.index || this.buffer[current + 1] !== backslashN || this.buffer[current + 2] !== backslashR || this.buffer[current + 3] !== backslashN) {
 			return result;
 		}
-		let data = this.buffer.toString('utf8', start, current);
+		const data = this.buffer.toString('utf8', start, current);
 		result = parseInt(data);
 		this.buffer = this.buffer.slice(current + 4);
 		this.index = this.index - (current + 4);
@@ -79,7 +79,7 @@ class ProtocolBuffer {
 		if (this.index < length) {
 			return null;
 		}
-		let result = this.buffer.toString('utf8', 0, length);
+		const result = this.buffer.toString('utf8', 0, length);
 		let sourceStart = length;
 		while (sourceStart < this.index && (this.buffer[sourceStart] === backslashR || this.buffer[sourceStart] === backslashN)) {
 			sourceStart++;
@@ -173,12 +173,19 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 	}
 
 	private static getExecArgv(kind: TsServerProcessKind, configuration: TypeScriptServiceConfiguration): string[] {
+		const args: string[] = [];
+
 		const debugPort = this.getDebugPort(kind);
-		const inspectFlag = process.env['TSS_DEBUG_BRK'] ? '--inspect-brk' : '--inspect';
-		return [
-			...(debugPort ? [`${inspectFlag}=${debugPort}`] : []),
-			...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
-		];
+		if (debugPort) {
+			const inspectFlag = ChildServerProcess.getTssDebugBrk() ? '--inspect-brk' : '--inspect';
+			args.push(`${inspectFlag}=${debugPort}`);
+		}
+
+		if (configuration.maxTsServerMemory) {
+			args.push(`--max-old-space-size=${configuration.maxTsServerMemory}`);
+		}
+
+		return args;
 	}
 
 	private static getDebugPort(kind: TsServerProcessKind): number | undefined {
@@ -186,7 +193,7 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 			// We typically only want to debug the main semantic server
 			return undefined;
 		}
-		const value = process.env['TSS_DEBUG_BRK'] || process.env['TSS_DEBUG'];
+		const value = ChildServerProcess.getTssDebugBrk() || ChildServerProcess.getTssDebug();
 		if (value) {
 			const port = parseInt(value);
 			if (!isNaN(port)) {
@@ -194,6 +201,14 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 			}
 		}
 		return undefined;
+	}
+
+	private static getTssDebug(): string | undefined {
+		return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG' : 'TSS_DEBUG'];
+	}
+
+	private static getTssDebugBrk(): string | undefined {
+		return process.env[vscode.env.remoteName ? 'TSS_REMOTE_DEBUG_BRK' : 'TSS_DEBUG_BRK'];
 	}
 
 	private constructor(
@@ -211,7 +226,7 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 		this._reader.onData(handler);
 	}
 
-	onExit(handler: (code: number | null) => void): void {
+	onExit(handler: (code: number | null, signal: string | null) => void): void {
 		this._process.on('exit', handler);
 	}
 
