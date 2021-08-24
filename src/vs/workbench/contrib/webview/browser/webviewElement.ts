@@ -291,12 +291,12 @@ export class IFrameWebview extends Disposable implements Webview {
 		}));
 
 		this._register(addDisposableListener(window, 'message', e => {
-			if (e.origin !== this.webviewContentOrigin) {
-				console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
-				return;
-			}
-
 			if (e?.data?.target === this.id) {
+				if (e.origin !== this.webviewContentOrigin) {
+					console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
+					return;
+				}
+
 				const handlers = this._messageHandlers.get(e.data.channel);
 				handlers?.forEach(handler => handler(e.data.data));
 			}
