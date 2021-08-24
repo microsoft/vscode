@@ -236,7 +236,7 @@ const workerReady = new Promise(async (resolve, reject) => {
 			navigator.serviceWorker.addEventListener('message', versionHandler);
 
 			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' })
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' });
 			};
 
 			// At this point, either the service worker is ready and
