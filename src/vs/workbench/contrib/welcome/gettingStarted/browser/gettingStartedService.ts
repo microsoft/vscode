@@ -61,6 +61,8 @@ export interface IWalkthrough {
 	| { type: 'image', path: string }
 }
 
+export type IWalkthroughLoose = Omit<IWalkthrough, 'steps'> & { steps: (Omit<IWalkthroughStep, 'description'> & { description: string })[] };
+
 export interface IResolvedWalkthrough extends IWalkthrough {
 	steps: IResolvedWalkthroughStep[]
 	newItems: boolean
@@ -99,7 +101,7 @@ export interface IWalkthroughsService {
 	getWalkthroughs(): IResolvedWalkthrough[]
 	getWalkthrough(id: string): IResolvedWalkthrough
 
-	registerWalkthrough(descriptor: IWalkthrough): void;
+	registerWalkthrough(descriptor: IWalkthroughLoose): void;
 
 	progressByEvent(eventName: string): void;
 	progressStep(id: string): void;
@@ -184,7 +186,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this.installedExtensionsRegistered = new Promise(r => this.triggerInstalledExtensionsRegistered = r);
 
 		walkthroughs.forEach(async (category, index) => {
-			this.registerWalkthrough({
+			this._registerWalkthrough({
 				...category,
 				icon: { type: 'icon', icon: category.icon },
 				order: walkthroughs.length - index,
@@ -416,7 +418,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
 			} as const;
 
-			this.registerWalkthrough(walkthoughDescriptor);
+			this._registerWalkthrough(walkthoughDescriptor);
 
 			this._onDidAddWalkthrough.fire(this.resolveWalkthrough(walkthoughDescriptor));
 		}));
@@ -542,7 +544,14 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
 	}
 
-	registerWalkthrough(walkthroughDescriptor: IWalkthrough): void {
+	registerWalkthrough(walkthoughDescriptor: IWalkthroughLoose) {
+		this._registerWalkthrough({
+			...walkthoughDescriptor,
+			steps: walkthoughDescriptor.steps.map(step => ({ ...step, description: parseDescription(step.description) }))
+		});
+	}
+
+	_registerWalkthrough(walkthroughDescriptor: IWalkthrough): void {
 		const oldCategory = this.gettingStartedContributions.get(walkthroughDescriptor.id);
 		if (oldCategory) {
 			console.error(`Skipping attempt to overwrite walkthrough. (${walkthroughDescriptor.id})`);
