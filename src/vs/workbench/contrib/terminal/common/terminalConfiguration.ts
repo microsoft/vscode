@@ -455,6 +455,11 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer"),
 			type: 'boolean',
 			default: true
+		},
+		[TerminalSettingId.ignoreProcessNames]: {
+			description: localize('terminal.integrated.confirmIgnoreProcesses', "Configurable to provide a custom setting to ignore processes"),
+            		type: 'array',
+            		default : ['starship','oh-my-posh','bash','zsh'] 
 		}
 	}
 };
