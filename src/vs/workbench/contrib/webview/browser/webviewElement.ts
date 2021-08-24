@@ -426,7 +426,7 @@ export class IFrameWebview extends Disposable implements Webview {
 	private get webviewContentOrigin(): string {
 		if (!this._webviewContentOrigin) {
 			const uri = URI.parse(this.webviewContentEndpoint);
-			this._webviewContentOrigin = uri.scheme + '://' + uri.authority;
+			this._webviewContentOrigin = uri.scheme + '://' + uri.authority.toLowerCase();
 		}
 		return this._webviewContentOrigin;
 	}
