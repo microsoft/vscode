@@ -91,7 +91,7 @@
 	},
 	"task list": {
 		"prefix": "task list",
-		"body": ["- [ ] ${1:task-frist}$0"],
+		"body": ["- [ ] ${1:task}$0"],
 		"description": "Insert task list"
 	}
 }
