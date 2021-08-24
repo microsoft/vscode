@@ -1213,6 +1213,7 @@ export class TerminalService implements ITerminalService {
 			if (!group) {
 				throw new Error(`Cannot split a terminal without a group ${parent}`);
 			}
+			shellLaunchConfig.parentTerminalId = parent.instanceId;
 			instance = group.split(shellLaunchConfig);
 			this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
 		}
