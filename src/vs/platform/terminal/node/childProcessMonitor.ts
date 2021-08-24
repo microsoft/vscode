@@ -28,6 +28,7 @@ const ignoreProcessNames = [
 	'oh-my-posh',
 	// Git bash may runs a subprocess of itself (bin\bash.exe -> usr\bin\bash.exe)
 	'bash',
+	'zsh',
 ];
 
 /**
