@@ -7,90 +7,117 @@
 
 //@ts-check
 
-function _factory(sharedObj) {
+(function () {
 
-	sharedObj.MonacoPerformanceMarks = sharedObj.MonacoPerformanceMarks || [];
+	/**
+	 * @returns {{mark(name:string):void, getMarks():{name:string, startTime:number}[]}}
+	 */
+	function _definePolyfillMarks(timeOrigin) {
 
-	const _dataLen = 2;
-	const _timeStamp = typeof console.timeStamp === 'function' ? console.timeStamp.bind(console) : () => { };
-
-	function importEntries(entries) {
-		sharedObj.MonacoPerformanceMarks.splice(0, 0, ...entries);
-	}
-
-	function exportEntries() {
-		return sharedObj.MonacoPerformanceMarks.slice(0);
-	}
-
-	function getEntries() {
-		const result = [];
-		const entries = sharedObj.MonacoPerformanceMarks;
-		for (let i = 0; i < entries.length; i += _dataLen) {
-			result.push({
-				name: entries[i],
-				startTime: entries[i + 1],
-			});
+		const _data = [];
+		if (typeof timeOrigin === 'number') {
+			_data.push('code/timeOrigin', timeOrigin);
 		}
-		return result;
-	}
 
-	function getDuration(from, to) {
-		const entries = sharedObj.MonacoPerformanceMarks;
-		let target = to;
-		let endIndex = 0;
-		for (let i = entries.length - _dataLen; i >= 0; i -= _dataLen) {
-			if (entries[i] === target) {
-				if (target === to) {
-					// found `to` (end of interval)
-					endIndex = i;
-					target = from;
-				} else {
-					// found `from` (start of interval)
-					return entries[endIndex + 1] - entries[i + 1];
-				}
+		function mark(name) {
+			_data.push(name, Date.now());
+		}
+		function getMarks() {
+			const result = [];
+			for (let i = 0; i < _data.length; i += 2) {
+				result.push({
+					name: _data[i],
+					startTime: _data[i + 1],
+				});
 			}
+			return result;
 		}
-		return 0;
+		return { mark, getMarks };
 	}
 
-	function mark(name) {
-		sharedObj.MonacoPerformanceMarks.push(name, Date.now());
-		_timeStamp(name);
+	/**
+	 * @returns {{mark(name:string):void, getMarks():{name:string, startTime:number}[]}}
+	 */
+	function _define() {
+
+		if (typeof performance === 'object' && typeof performance.mark === 'function') {
+			// in a browser context, reuse performance-util
+
+			if (typeof performance.timeOrigin !== 'number' && !performance.timing) {
+				// safari & webworker: because there is no timeOrigin and no workaround
+				// we use the `Date.now`-based polyfill.
+				return _definePolyfillMarks();
+
+			} else {
+				// use "native" performance for mark and getMarks
+				return {
+					mark(name) {
+						performance.mark(name);
+					},
+					getMarks() {
+						let timeOrigin = performance.timeOrigin;
+						if (typeof timeOrigin !== 'number') {
+							// safari: there is no timerOrigin but in renderers there is the timing-property
+							// see https://bugs.webkit.org/show_bug.cgi?id=174862
+							timeOrigin = performance.timing.navigationStart || performance.timing.redirectStart || performance.timing.fetchStart;
+						}
+						const result = [{ name: 'code/timeOrigin', startTime: Math.round(timeOrigin) }];
+						for (const entry of performance.getEntriesByType('mark')) {
+							result.push({
+								name: entry.name,
+								startTime: Math.round(timeOrigin + entry.startTime)
+							});
+						}
+						return result;
+					}
+				};
+			}
+
+		} else if (typeof process === 'object') {
+			// node.js: use the normal polyfill but add the timeOrigin
+			// from the node perf_hooks API as very first mark
+			const timeOrigin = Math.round((require.nodeRequire || require)('perf_hooks').performance.timeOrigin);
+			return _definePolyfillMarks(timeOrigin);
+
+		} else {
+			// unknown environment
+			console.trace('perf-util loaded in UNKNOWN environment');
+			return _definePolyfillMarks();
+		}
 	}
 
-	const exports = {
-		mark: mark,
-		getEntries: getEntries,
-		getDuration: getDuration,
-		importEntries: importEntries,
-		exportEntries: exportEntries
-	};
+	function _factory(sharedObj) {
+		if (!sharedObj.MonacoPerformanceMarks) {
+			sharedObj.MonacoPerformanceMarks = _define();
+		}
+		return sharedObj.MonacoPerformanceMarks;
+	}
 
-	return exports;
-}
+	// This module can be loaded in an amd and commonjs-context.
+	// Because we want both instances to use the same perf-data
+	// we store them globally
 
-// This module can be loaded in an amd and commonjs-context.
-// Because we want both instances to use the same perf-data
-// we store them globally
+	// eslint-disable-next-line no-var
+	var sharedObj;
+	if (typeof global === 'object') {
+		// nodejs
+		sharedObj = global;
+	} else if (typeof self === 'object') {
+		// browser
+		sharedObj = self;
+	} else {
+		sharedObj = {};
+	}
 
-// eslint-disable-next-line no-var
-var sharedObj;
-if (typeof global === 'object') {
-	// nodejs
-	sharedObj = global;
-} else if (typeof self === 'object') {
-	// browser
-	sharedObj = self;
-} else {
-	sharedObj = {};
-}
+	if (typeof define === 'function') {
+		// amd
+		define([], function () { return _factory(sharedObj); });
+	} else if (typeof module === 'object' && typeof module.exports === 'object') {
+		// commonjs
+		module.exports = _factory(sharedObj);
+	} else {
+		console.trace('perf-util defined in UNKNOWN context (neither requirejs or commonjs)');
+		sharedObj.perf = _factory(sharedObj);
+	}
 
-if (typeof define === 'function') {
-	// amd
-	define([], function () { return _factory(sharedObj); });
-} else if (typeof module === 'object' && typeof module.exports === 'object') {
-	// commonjs
-	module.exports = _factory(sharedObj);
-} else {
-	sharedObj.perf = _factory(sharedObj);
-}
+})();

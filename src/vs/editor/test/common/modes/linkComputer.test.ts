@@ -49,7 +49,7 @@ function assertLink(text: string, extractedLink: string): void {
 	}
 
 	let r = myComputeLinks([text]);
-	assert.deepEqual(r, [{
+	assert.deepStrictEqual(r, [{
 		range: {
 			startLineNumber: 1,
 			startColumn: startColumn,
@@ -64,7 +64,7 @@ suite('Editor Modes - Link Computer', () => {
 
 	test('Null model', () => {
 		let r = computeLinks(null);
-		assert.deepEqual(r, []);
+		assert.deepStrictEqual(r, []);
 	});
 
 	test('Parsing', () => {
@@ -228,6 +228,27 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'aa  http://tree-mark.chips.jp/レーズン＆ベリーミックス  aa',
 			'    http://tree-mark.chips.jp/レーズン＆ベリーミックス    '
+		);
+	});
+
+	test('issue #121438: Link detection stops at【...】', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/【我推的孩子】 aa',
+			'    https://zh.wikipedia.org/wiki/【我推的孩子】   '
+		);
+	});
+
+	test('issue #121438: Link detection stops at《...》', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/《新青年》编辑部旧址 aa',
+			'    https://zh.wikipedia.org/wiki/《新青年》编辑部旧址   '
+		);
+	});
+
+	test('issue #121438: Link detection stops at “...”', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/“常凯申”误译事件 aa',
+			'    https://zh.wikipedia.org/wiki/“常凯申”误译事件   '
 		);
 	});
 });

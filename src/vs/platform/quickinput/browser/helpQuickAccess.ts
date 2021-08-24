@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickPick, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IQuickAccessProvider, IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { Extensions, IQuickAccessProvider, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 interface IHelpQuickAccessPickItem extends IQuickPickItem {
 	prefix: string;

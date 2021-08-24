@@ -8,14 +8,14 @@ import { RequestType, Connection } from 'vscode-languageserver';
 import { RuntimeEnvironment } from './htmlServer';
 
 export namespace FsContentRequest {
-	export const type: RequestType<{ uri: string; encoding?: string; }, string, any, any> = new RequestType('fs/content');
+	export const type: RequestType<{ uri: string; encoding?: string; }, string, any> = new RequestType('fs/content');
 }
 export namespace FsStatRequest {
-	export const type: RequestType<string, FileStat, any, any> = new RequestType('fs/stat');
+	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');
 }
 
 export namespace FsReadDirRequest {
-	export const type: RequestType<string, [string, FileType][], any, any> = new RequestType('fs/readDir');
+	export const type: RequestType<string, [string, FileType][], any> = new RequestType('fs/readDir');
 }
 
 export enum FileType {

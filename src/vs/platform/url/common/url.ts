@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IURLService = createDecorator<IURLService>('urlService');
 
@@ -18,6 +18,8 @@ export interface IOpenURLOptions {
 	 * might be shown to the user.
 	 */
 	trusted?: boolean;
+
+	originalUrl?: string;
 }
 
 export interface IURLHandler {

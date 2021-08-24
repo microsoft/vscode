@@ -10,8 +10,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { IRemoteAgentService, IRemoteAgentConnection } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RequestService } from 'vs/platform/request/browser/requestService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export class BrowserRequestService extends RequestService {
 
@@ -23,7 +23,7 @@ export class BrowserRequestService extends RequestService {
 		super(configurationService, logService);
 	}
 
-	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	override async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		try {
 			const context = await super.request(options, token);
 			const connection = this.remoteAgentService.getConnection();
@@ -45,4 +45,14 @@ export class BrowserRequestService extends RequestService {
 	}
 }
 
-registerSingleton(IRequestService, BrowserRequestService, true);
+// --- Internal commands to help authentication for extensions
+
+CommandsRegistry.registerCommand('_workbench.fetchJSON', async function (accessor: ServicesAccessor, url: string, method: string) {
+	const result = await fetch(url, { method, headers: { Accept: 'application/json' } });
+
+	if (result.ok) {
+		return result.json();
+	} else {
+		throw new Error(result.statusText);
+	}
+});

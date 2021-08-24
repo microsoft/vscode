@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace } from 'vscode';
+import { MarkdownString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, Uri } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -37,7 +37,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
 
-	public collectDefaultSuggestions(_resource: string, collector: ISuggestionsCollector): Thenable<any> {
+	public collectDefaultSuggestions(_resource: Uri, collector: ISuggestionsCollector): Thenable<any> {
 		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
@@ -53,7 +53,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(_resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
+	public collectPropertySuggestions(_resource: Uri, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}
@@ -63,7 +63,7 @@ export class BowerJSONContribution implements IJSONContribution {
 
 				return this.xhr({
 					url: queryUrl,
-					agent: USER_AGENT
+					headers: { agent: USER_AGENT }
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
@@ -125,7 +125,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public collectValueSuggestions(_resource: string, location: Location, collector: ISuggestionsCollector): Promise<any> | null {
+	public collectValueSuggestions(_resource: Uri, location: Location, collector: ISuggestionsCollector): Promise<any> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}
@@ -141,9 +141,15 @@ export class BowerJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem | null> | null {
+	public resolveSuggestion(_resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
-			return this.getInfo(item.label).then(documentation => {
+
+			let label = item.label;
+			if (typeof label !== 'string') {
+				label = label.label;
+			}
+
+			return this.getInfo(label).then(documentation => {
 				if (documentation) {
 					item.documentation = documentation;
 					return item;
@@ -159,7 +165,7 @@ export class BowerJSONContribution implements IJSONContribution {
 
 		return this.xhr({
 			url: queryUrl,
-			agent: USER_AGENT
+			headers: { agent: USER_AGENT }
 		}).then((success) => {
 			try {
 				const obj = JSON.parse(success.responseText);
@@ -182,7 +188,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		});
 	}
 
-	public getInfoContribution(_resource: string, location: Location): Thenable<MarkdownString[] | null> | null {
+	public getInfoContribution(_resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}

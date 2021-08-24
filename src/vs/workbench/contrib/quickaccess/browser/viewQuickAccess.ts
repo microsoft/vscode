@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/q
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewDescriptorService, IViewsService, ViewContainer } from 'vs/workbench/common/views';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -21,6 +21,7 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -36,6 +37,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IViewsService private readonly viewsService: IViewsService,
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
+		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
 		@IPanelService private readonly panelService: IPanelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
@@ -47,7 +49,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		});
 	}
 
-	protected getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
+	protected _getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
 		const filteredViewEntries = this.doGetViewPickItems().filter(entry => {
 			if (!filter) {
 				return true;
@@ -146,15 +148,14 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		}
 
 		// Terminals
-		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
-			tab.terminalInstances.forEach((terminal, terminalIndex) => {
-				const label = localize('terminalTitle', "{0}: {1}", `${tabIndex + 1}.${terminalIndex + 1}`, terminal.title);
+		this.terminalGroupService.groups.forEach((group, groupIndex) => {
+			group.terminalInstances.forEach((terminal, terminalIndex) => {
+				const label = localize('terminalTitle', "{0}: {1}", `${groupIndex + 1}.${terminalIndex + 1}`, terminal.title);
 				viewEntries.push({
 					label,
 					containerLabel: localize('terminals', "Terminal"),
 					accept: async () => {
-						await this.terminalService.showPanel(true);
-
+						await this.terminalGroupService.showPanel(true);
 						this.terminalService.setActiveInstance(terminal);
 					}
 				});
@@ -188,8 +189,6 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 
 //#region Actions
 
-const viewCategory = { value: localize('view', "View"), original: 'View' };
-
 export class OpenViewPickerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openView';
@@ -198,7 +197,7 @@ export class OpenViewPickerAction extends Action2 {
 		super({
 			id: OpenViewPickerAction.ID,
 			title: { value: localize('openView', "Open View"), original: 'Open View' },
-			category: viewCategory,
+			category: CATEGORIES.View,
 			f1: true
 		});
 	}
@@ -221,7 +220,7 @@ export class QuickAccessViewPickerAction extends Action2 {
 		super({
 			id: QuickAccessViewPickerAction.ID,
 			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
-			category: viewCategory,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
