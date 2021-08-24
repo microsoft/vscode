@@ -138,7 +138,7 @@ interface IHomeIndicator {
 
 	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
-	 * icons from our Codicon icon set. For example `sync`.
+	 * icons from our Codicon icon set. For example `code`.
 	 */
 	icon: string;
 
@@ -146,6 +146,45 @@ interface IHomeIndicator {
 	 * A tooltip that will appear while hovering over the home indicator.
 	 */
 	title: string;
+}
+
+interface IWelcomeBanner {
+
+	/**
+	 * Welcome banner message to appear as text.
+	 */
+	message: string;
+
+	/**
+	 * Optional icon for the banner. This needs to be one of the existing
+	 * icons from our Codicon icon set. For example `code`. If not provided,
+	 * a default icon will be used.
+	 */
+	icon?: string;
+
+	/**
+	 * Optional actions to appear as links after the welcome banner message.
+	 */
+	actions?: IWelcomeBannerAction[];
+}
+
+interface IWelcomeBannerAction {
+
+	/**
+	 * The link to open when clicking. Supports command invocation when
+	 * using the `command:<commandId>` value.
+	 */
+	href: string;
+
+	/**
+	 * The label to show for the action link.
+	 */
+	label: string;
+
+	/**
+	 * A tooltip that will appear while hovering over the action link.
+	 */
+	title?: string;
 }
 
 interface IWindowIndicator {
@@ -425,6 +464,12 @@ interface IWorkbenchConstructionOptions {
 	readonly homeIndicator?: IHomeIndicator;
 
 	/**
+	 * Optional welcome banner to appear above the workbench. Can be dismissed by the
+	 * user.
+	 */
+	readonly welcomeBanner?: IWelcomeBanner;
+
+	/**
 	 * Optional override for the product configuration properties.
 	 */
 	readonly productConfiguration?: Partial<IProductConfiguration>;
@@ -701,6 +746,8 @@ export {
 
 	// Branding
 	IHomeIndicator,
+	IWelcomeBanner,
+	IWelcomeBannerAction,
 	IProductConfiguration,
 	IWindowIndicator,
 	IInitialColorTheme,

@@ -11,7 +11,7 @@ import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'v
 import { LRUCache } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyEqualsExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -363,7 +363,7 @@ registerAction2(class Collapse extends ViewAction<OutlinePane> {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
+				when: ContextKeyExpr.equals('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -384,7 +384,7 @@ registerAction2(class FollowCursor extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'config',
 				order: 1,
-				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
+				when: ContextKeyExpr.equals('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -405,7 +405,7 @@ registerAction2(class FilterOnType extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'config',
 				order: 2,
-				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
+				when: ContextKeyExpr.equals('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -427,7 +427,7 @@ registerAction2(class SortByPosition extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'sort',
 				order: 1,
-				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
+				when: ContextKeyExpr.equals('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -448,7 +448,7 @@ registerAction2(class SortByName extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'sort',
 				order: 2,
-				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
+				when: ContextKeyExpr.equals('view', OutlinePane.Id)
 			}
 		});
 	}
@@ -469,7 +469,7 @@ registerAction2(class SortByKind extends ViewAction<OutlinePane> {
 				id: MenuId.ViewTitle,
 				group: 'sort',
 				order: 3,
-				when: ContextKeyEqualsExpr.create('view', OutlinePane.Id)
+				when: ContextKeyExpr.equals('view', OutlinePane.Id)
 			}
 		});
 	}

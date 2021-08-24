@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.60.0",
-  "distro": "0d8a917f4624b966e7031ad64f2f7504926ae67d",
+  "distro": "e2945b313a75c410259b11409fd34ca1a215c222",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -60,7 +60,7 @@
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
     "@vscode/sqlite3": "4.0.12",
-    "@vscode/vscode-languagedetection": "1.0.18",
+    "@vscode/vscode-languagedetection": "1.0.20",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "graceful-fs": "4.2.6",
@@ -84,12 +84,12 @@
     "vscode-regexpp": "^3.1.0",
     "vscode-ripgrep": "^1.12.0",
     "vscode-textmate": "5.4.0",
-    "xterm": "4.14.0-beta.18",
+    "xterm": "4.14.0-beta.22",
     "xterm-addon-search": "0.9.0-beta.4",
-    "xterm-addon-serialize": "0.6.0-beta.7",
+    "xterm-addon-serialize": "0.6.0-beta.8",
     "xterm-addon-unicode11": "0.3.0-beta.6",
-    "xterm-addon-webgl": "0.12.0-beta.8",
-    "xterm-headless": "4.14.0-beta.8",
+    "xterm-addon-webgl": "0.12.0-beta.10",
+    "xterm-headless": "4.14.0-beta.12",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

@@ -292,6 +292,11 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this._register(addDisposableListener(window, 'message', e => {
 			if (e?.data?.target === this.id) {
+				if (e.origin !== this.webviewContentOrigin) {
+					console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
+					return;
+				}
+
 				const handlers = this._messageHandlers.get(e.data.channel);
 				handlers?.forEach(handler => handler(e.data.data));
 			}
@@ -388,6 +393,7 @@ export class IFrameWebview extends Disposable implements Webview {
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
+			parentOrigin: window.origin,
 		};
 
 		if (options.purpose) {
@@ -415,9 +421,19 @@ export class IFrameWebview extends Disposable implements Webview {
 		return endpoint;
 	}
 
+	private _webviewContentOrigin?: string;
+
+	private get webviewContentOrigin(): string {
+		if (!this._webviewContentOrigin) {
+			const uri = URI.parse(this.webviewContentEndpoint);
+			this._webviewContentOrigin = uri.scheme + '://' + uri.authority.toLowerCase();
+		}
+		return this._webviewContentOrigin;
+	}
+
 	private doPostMessage(channel: string, data?: any): void {
 		if (this.element) {
-			this.element.contentWindow!.postMessage({ channel, args: data }, '*');
+			this.element.contentWindow!.postMessage({ channel, args: data }, this.webviewContentEndpoint);
 		}
 	}
 

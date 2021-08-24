@@ -21,7 +21,7 @@ import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
-	static readonly enablementSettingKey = 'workbench.editor.untitled.languageDetection';
+	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
 
 	_serviceBrand: undefined;
 

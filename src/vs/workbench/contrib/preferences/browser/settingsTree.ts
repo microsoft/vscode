@@ -868,7 +868,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 						this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
 					}
 				},
-				disposeables
+				disposables: disposeables
 			},
 			asyncRenderCallback: () => {
 				const height = container.clientHeight;
@@ -1594,7 +1594,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 						callback: (content) => {
 							this._openerService.open(content).catch(onUnexpectedError);
 						},
-						disposeables: disposables
+						disposables: disposables
 					},
 					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
 				};

@@ -89,6 +89,7 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
+	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	PersistentSessionExperimentalSerializer = 'terminal.integrated.persistentSessionExperimentalSerializer',
 	InheritEnv = 'terminal.integrated.inheritEnv',
@@ -388,16 +389,27 @@ export interface IShellLaunchConfig {
 	 * The color ID to use for this terminal. If not specified it will use the default fallback
 	 */
 	color?: string;
+
+	/**
+	 * When a parent terminal is provided via API, the group needs
+	 * to find the index in order to place the child
+	 * directly to the right of its parent.
+	 */
+	parentTerminalId?: number;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	target?: TerminalLocation;
 	icon?: URI | string | { light: URI, dark: URI };
 	color?: string;
-	isSplitTerminal?: boolean;
+	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean };
 }
 
-export const enum TerminalLocation {
+export enum TerminalLocation {
+	Panel = 1,
+	Editor = 2
+}
+
+export const enum TerminalLocationString {
 	TerminalView = 'view',
 	Editor = 'editor'
 }

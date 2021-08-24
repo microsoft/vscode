@@ -12,7 +12,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyGreaterExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -270,11 +270,11 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 						? ActionOrder.Debug
 						: ActionOrder.Coverage,
 				group: 'navigation',
-				when: ContextKeyAndExpr.create([
-					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 					TestingContextKeys.isRunning.isEqualTo(false),
 					TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
-				])
+				)
 			}],
 			category,
 			viewId: Testing.ExplorerViewId,
@@ -403,10 +403,10 @@ export class CancelTestRunAction extends Action2 {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Run,
 				group: 'navigation',
-				when: ContextKeyAndExpr.create([
-					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
-					ContextKeyEqualsExpr.create(TestingContextKeys.isRunning.serialize(), true),
-				])
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
+					ContextKeyExpr.equals(TestingContextKeys.isRunning.serialize(), true),
+				)
 			}
 		});
 	}
@@ -437,7 +437,7 @@ export class TestingViewAsListAction extends ViewAction<TestingExplorerView> {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.DisplayMode,
 				group: 'viewAs',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -462,7 +462,7 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.DisplayMode,
 				group: 'viewAs',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -488,7 +488,7 @@ export class TestingSortByStatusAction extends ViewAction<TestingExplorerView> {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Sort,
 				group: 'sortBy',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -513,7 +513,7 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Sort,
 				group: 'sortBy',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -543,7 +543,7 @@ export class ShowMostRecentOutputAction extends Action2 {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Collapse,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 			}, {
 				id: MenuId.CommandPalette,
 				when: TestingContextKeys.hasAnyResults.isEqualTo(true)
@@ -569,7 +569,7 @@ export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Collapse,
 				group: 'displayAction',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -599,7 +599,7 @@ export class ClearTestResultsAction extends Action2 {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.ClearResults,
 				group: 'displayAction',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}],
 		});
 	}
@@ -648,15 +648,15 @@ abstract class ToggleAutoRun extends Action2 {
 			id: ToggleAutoRun.ID,
 			title,
 			icon: icons.testingAutorunIcon,
-			toggled: whenToggleIs === true ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
+			toggled: whenToggleIs === true ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.AutoRun,
 				group: 'navigation',
-				when: ContextKeyAndExpr.create([
-					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 					TestingContextKeys.autoRun.isEqualTo(whenToggleIs)
-				])
+				)
 			}
 		});
 	}
@@ -896,10 +896,10 @@ abstract class RunOrDebugLastRun extends RunOrDebugExtsByPath {
 			...options,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyAndExpr.create([
+				when: ContextKeyExpr.and(
 					hasAnyTestProvider,
 					TestingContextKeys.hasAnyResults.isEqualTo(true),
-				]),
+				),
 			},
 		});
 	}

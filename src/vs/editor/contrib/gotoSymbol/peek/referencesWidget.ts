@@ -224,7 +224,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true }, _instantiationService);
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, supportOnTitleClick: true }, _instantiationService);
 
 		this._applyTheme(themeService.getColorTheme());
 		this._callOnDispose.add(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));

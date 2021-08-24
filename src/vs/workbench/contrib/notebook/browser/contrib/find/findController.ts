@@ -335,6 +335,10 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 		return false;
 	}
 
+	if (!editor.hasEditorFocus() && !editor.hasWebviewFocus()) {
+		return false;
+	}
+
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
 	controller.show();
 	return true;

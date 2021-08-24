@@ -52,6 +52,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.Remote;
 	public readonly remoteAuthority: string;
+	public readonly lazyStart = false;
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
@@ -230,7 +231,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				isExtensionDevelopmentDebug,
 				appRoot: remoteInitData.appRoot,
 				appName: this._productService.nameLong,
-				embedderIdentifier: this._productService.embedderIdentifier || 'desktop',
+				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,

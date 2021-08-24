@@ -1735,6 +1735,11 @@ export class TerminalLink implements vscode.TerminalLink {
 	}
 }
 
+export enum TerminalLocation {
+	Panel = 1,
+	Editor = 2,
+}
+
 export class TerminalProfile implements vscode.TerminalProfile {
 	constructor(
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
@@ -1790,11 +1795,11 @@ export class TaskGroup implements vscode.TaskGroup {
 		}
 	}
 
-	constructor(id: string, _label: string) {
+	constructor(id: string, public readonly label: string) {
 		if (typeof id !== 'string') {
 			throw illegalArgument('name');
 		}
-		if (typeof _label !== 'string') {
+		if (typeof label !== 'string') {
 			throw illegalArgument('name');
 		}
 		this._id = id;
@@ -3335,7 +3340,11 @@ export class TestTag implements vscode.TestTag {
 	constructor(
 		public readonly id: string,
 		public readonly label?: string,
-	) { }
+	) {
+		if (/\s/.test(id)) {
+			throw new Error(`Test tag ID "${id}" may not include whitespace`);
+		}
+	}
 }
 
 //#endregion

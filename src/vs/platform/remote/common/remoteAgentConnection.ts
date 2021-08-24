@@ -354,6 +354,7 @@ async function doConnectRemoteAgentExtensionHost(options: ISimpleConnectionOptio
 }
 
 export interface ITunnelConnectionStartParams {
+	host: string;
 	port: number;
 }
 
@@ -427,9 +428,9 @@ export async function connectRemoteAgentExtensionHost(options: IConnectionOption
 	}
 }
 
-export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunnelRemotePort: number): Promise<PersistentProtocol> {
+export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number): Promise<PersistentProtocol> {
 	const simpleOptions = await resolveConnectionOptions(options, generateUuid(), null);
-	const protocol = await doConnectRemoteAgentTunnel(simpleOptions, { port: tunnelRemotePort }, CancellationToken.None);
+	const protocol = await doConnectRemoteAgentTunnel(simpleOptions, { host: tunnelRemoteHost, port: tunnelRemotePort }, CancellationToken.None);
 	return protocol;
 }
 

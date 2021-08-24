@@ -29,6 +29,11 @@ import { format2 } from 'vs/base/common/strings';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
@@ -79,6 +84,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
 			this.builtinExtensionsPromise = this.readSystemExtensions();
 			this.customBuiltinExtensionsPromise = this.readCustomBuiltinExtensions();
+			this.registerActions();
 		}
 	}
 
@@ -155,7 +161,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 
 		if (extensionIds.length) {
-			const galleryExtensions = await this.galleryService.getExtensions(extensionIds, CancellationToken.None);
+			const galleryExtensions = await this.galleryService.getExtensions(extensionIds.map(id => ({ id })), CancellationToken.None);
 			const missingExtensions = extensionIds.filter(id => !galleryExtensions.find(({ identifier }) => areSameExtensions(identifier, { id })));
 			if (missingExtensions.length) {
 				this.logService.info('Cannot find static extensions from gallery', missingExtensions);
@@ -480,6 +486,24 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			this.resourcesAccessQueueMap.set(file, resourceQueue);
 		}
 		return resourceQueue;
+	}
+
+	private registerActions(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
+					title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
+					category: CATEGORIES.Developer,
+					f1: true,
+					precondition: IsWebContext
+				});
+			}
+			run(serviceAccessor: ServicesAccessor): void {
+				serviceAccessor.get(IEditorService).openEditor({ resource: that.installedExtensionsResource });
+			}
+		}));
 	}
 
 }

@@ -9,7 +9,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
+import { BINARY_FILE_EDITOR_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -78,15 +78,10 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			// If the result if a file editor, the user indicated to open
 			// the binary file as text. As such we adjust the input for that.
 			if (isEditorInputWithOptions(resolvedEditor)) {
-				if (resolvedEditor.editor instanceof FileEditorInput) {
-					resolvedEditor.editor.setForceOpenAsText();
-				} else if (resolvedEditor.editor instanceof DiffEditorInput) {
-					if (resolvedEditor.editor.original instanceof FileEditorInput) {
-						resolvedEditor.editor.original.setForceOpenAsText();
-					}
-
-					if (resolvedEditor.editor.modified instanceof FileEditorInput) {
-						resolvedEditor.editor.modified.setForceOpenAsText();
+				for (const editor of resolvedEditor.editor instanceof DiffEditorInput ? [resolvedEditor.editor.original, resolvedEditor.editor.modified] : [resolvedEditor.editor]) {
+					if (editor instanceof FileEditorInput) {
+						editor.setForceOpenAsText();
+						editor.setPreferredMode(BINARY_TEXT_FILE_MODE); // https://github.com/microsoft/vscode/issues/131076
 					}
 				}
 			}

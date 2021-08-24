@@ -11,7 +11,7 @@ import { TreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeVie
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle as IResourceHandle, SyncStatus, IUserDataSyncResourceEnablementService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataAutoSyncEnablementService, getLastSyncResourceUri } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -107,7 +107,7 @@ export class UserDataSyncDataViews extends Disposable {
 					icon: Codicon.edit,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', id)),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', id)),
 						group: 'inline',
 					},
 				});
@@ -127,7 +127,7 @@ export class UserDataSyncDataViews extends Disposable {
 					title: localize('workbench.actions.sync.turnOffSyncOnMachine', "Turn off Settings Sync"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', id), ContextKeyEqualsExpr.create('viewItem', 'sync-machine')),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', id), ContextKeyExpr.equals('viewItem', 'sync-machine')),
 					},
 				});
 			}
@@ -182,7 +182,7 @@ export class UserDataSyncDataViews extends Disposable {
 					title: localize('workbench.actions.sync.resolveResourceRef', "Show raw JSON sync data"),
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i))
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i))
 					},
 				});
 			}
@@ -201,7 +201,7 @@ export class UserDataSyncDataViews extends Disposable {
 					icon: Codicon.discard,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i)),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i)),
 						group: 'inline',
 					},
 				});

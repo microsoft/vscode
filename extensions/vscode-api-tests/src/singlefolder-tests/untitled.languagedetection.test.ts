@@ -20,7 +20,7 @@ suite('vscode - untitled automatic language detection', () => {
 
 		assert.strictEqual(editor.document.languageId, 'plaintext');
 
-		const settingResult = vscode.workspace.getConfiguration().get<boolean>('workbench.editor.untitled.languageDetection');
+		const settingResult = vscode.workspace.getConfiguration().get<boolean>('workbench.editor.languageDetection');
 		assert.ok(settingResult);
 
 		const result = await editor.edit(editBuilder => {

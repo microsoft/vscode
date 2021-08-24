@@ -19,6 +19,7 @@ export interface IRemoteAgentEnvironment {
 	workspaceStorageHome: URI;
 	userHome: URI;
 	os: OperatingSystem;
+	arch: string;
 	marks: performance.PerformanceMark[];
 	useHostProxy: boolean;
 }

@@ -5,6 +5,10 @@
 
 declare let MonacoEnvironment: monaco.Environment | undefined;
 
+interface Window {
+	MonacoEnvironment?: monaco.Environment | undefined;
+}
+
 declare namespace monaco {
 
 	export type Thenable<T> = PromiseLike<T>;
@@ -1398,7 +1402,8 @@ declare namespace monaco.editor {
 		isWholeLine?: boolean;
 		/**
 		 * Specifies the stack order of a decoration.
-		 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+		 * A decoration with greater stack order is always in front of a decoration with
+		 * a lower stack order when the decorations are on the same line.
 		 */
 		zIndex?: number;
 		/**
@@ -5350,7 +5355,7 @@ declare namespace monaco.languages {
 	/**
 	 * Register a code action provider (used by e.g. quick fix).
 	 */
-	export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable;
+	export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable;
 
 	/**
 	 * Register a formatter that can handle only entire models.
@@ -5441,6 +5446,21 @@ declare namespace monaco.languages {
 		 * Provide commands for the given document and range.
 		 */
 		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
+	}
+
+	/**
+	 * Metadata about the type of code actions that a {@link CodeActionProvider} provides.
+	 */
+	export interface CodeActionProviderMetadata {
+		/**
+		 * List of code action kinds that a {@link CodeActionProvider} may return.
+		 *
+		 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
+		 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
+		 * list of kinds may either be generic, such as `["quickfix", "refactor", "source"]`, or list out every kind provided,
+		 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
+		 */
+		readonly providedCodeActionKinds?: readonly string[];
 	}
 
 	/**
@@ -5931,6 +5951,12 @@ declare namespace monaco.languages {
 		 * How the completion was triggered.
 		 */
 		readonly triggerKind: InlineCompletionTriggerKind;
+		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	}
+
+	export interface SelectedSuggestionInfo {
+		range: IRange;
+		text: string;
 	}
 
 	export interface InlineCompletion {

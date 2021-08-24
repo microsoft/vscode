@@ -28,7 +28,7 @@ import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/commo
 import { IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -112,7 +112,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('switchToOutput.label', "Switch to Output"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 				group: 'navigation',
 				order: 1
 			},
@@ -133,7 +133,7 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 				group: 'navigation',
 				order: 2
 			}, {
@@ -162,7 +162,7 @@ registerAction2(class extends Action2 {
 			tooltip: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID)),
 				group: 'navigation',
 				order: 3,
 			},
@@ -186,7 +186,7 @@ registerAction2(class extends Action2 {
 			title: { value: nls.localize('openActiveLogOutputFile', "Open Log Output File"), original: 'Open Log Output File' },
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 				group: 'navigation',
 				order: 4
 			}, {

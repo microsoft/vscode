@@ -703,7 +703,7 @@ export class GettingStartedPage extends EditorPane {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
@@ -1260,7 +1260,7 @@ export class GettingStartedPage extends EditorPane {
 				const p = append(container, $('p'));
 				for (const node of linkedText.nodes) {
 					if (typeof node === 'string') {
-						append(p, renderFormattedText(node, { inline: true, renderCodeSegements: true }));
+						append(p, renderFormattedText(node, { inline: true, renderCodeSegments: true }));
 					} else {
 						const link = this.instantiationService.createInstance(Link, node, {});
 
@@ -1467,6 +1467,7 @@ registerThemingParticipant((theme, collector) => {
 	if (descriptionColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .description { color: ${descriptionColor}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .category-progress .message { color: ${descriptionColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer { color: ${descriptionColor}; }`);
 	}
 
 	const iconColor = theme.getColor(textLinkForeground);

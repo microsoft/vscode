@@ -244,7 +244,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (!session) {
 			const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
-			await debugService.startDebugging(launch, name, { noDebug: false });
+			await debugService.startDebugging(launch, name, { noDebug: false, startedByUser: true });
 		} else {
 			const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 			// Stop should be sent to the root parent session
@@ -426,7 +426,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
 		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
-		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug }, false);
+		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug, startedByUser: true }, false);
 	}
 });
 

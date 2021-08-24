@@ -131,7 +131,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private async _activate(link: string) {
 		// Normalize the link and remove any leading ./ or ../ since quick access doesn't understand
 		// that format
-		link = normalize(link).replace(/^(\.+\/)+/, '');
+		link = normalize(link).replace(/^(\.+[\\/])+/, '');
 
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue

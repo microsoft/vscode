@@ -43,11 +43,11 @@ export namespace TsServerLogLevel {
 	}
 }
 
-export const enum SeparateSyntaxServerConfiguration {
-	Disabled,
-	Enabled,
+export const enum SyntaxServerConfiguration {
+	Never,
+	Always,
 	/** Use a single syntax server for every request, even on desktop */
-	ForAllRequests,
+	Auto,
 }
 
 export class ImplicitProjectConfiguration {
@@ -96,7 +96,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly tsServerPluginPaths: readonly string[];
 	readonly implicitProjectConfiguration: ImplicitProjectConfiguration;
 	readonly disableAutomaticTypeAcquisition: boolean;
-	readonly separateSyntaxServer: SeparateSyntaxServerConfiguration;
+	readonly useSyntaxServer: SyntaxServerConfiguration;
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
@@ -126,7 +126,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			tsServerPluginPaths: this.readTsServerPluginPaths(configuration),
 			implicitProjectConfiguration: new ImplicitProjectConfiguration(configuration),
 			disableAutomaticTypeAcquisition: this.readDisableAutomaticTypeAcquisition(configuration),
-			separateSyntaxServer: this.readUseSeparateSyntaxServer(configuration),
+			useSyntaxServer: this.readUseSyntaxServer(configuration),
 			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
 			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
 			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(configuration),
@@ -160,15 +160,23 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return configuration.get<string | null>('typescript.locale', null);
 	}
 
-	protected readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): SeparateSyntaxServerConfiguration {
-		const value = configuration.get<boolean | string>('typescript.tsserver.useSeparateSyntaxServer', true);
-		if (value === 'forAllRequests') {
-			return SeparateSyntaxServerConfiguration.ForAllRequests;
+	protected readUseSyntaxServer(configuration: vscode.WorkspaceConfiguration): SyntaxServerConfiguration {
+		const value = configuration.get<string>('typescript.tsserver.useSyntaxServer');
+		switch (value) {
+			case 'never': return SyntaxServerConfiguration.Never;
+			case 'always': return SyntaxServerConfiguration.Always;
+			case 'auto': return SyntaxServerConfiguration.Auto;
 		}
-		if (value === true) {
-			return SeparateSyntaxServerConfiguration.Enabled;
+
+		// Fallback to deprecated setting
+		const deprecatedValue = configuration.get<boolean | string>('typescript.tsserver.useSeparateSyntaxServer', true);
+		if (deprecatedValue === 'forAllRequests') { // Undocumented setting
+			return SyntaxServerConfiguration.Always;
 		}
-		return SeparateSyntaxServerConfiguration.Disabled;
+		if (deprecatedValue === true) {
+			return SyntaxServerConfiguration.Auto;
+		}
+		return SyntaxServerConfiguration.Never;
 	}
 
 	protected readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled, getErrorMessage } from 'vs/base/common/errors';
@@ -13,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
 	DidUninstallExtensionEvent, ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOperation, InstallOptions,
-	InstallVSIXOptions, INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, IReportedExtension, StatisticType, UninstallOptions
+	InstallVSIXOptions, INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, IReportedExtension, StatisticType, CURRENT_TARGET_PLATFORM, UninstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -86,7 +87,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 
 		try {
-			extension = await this.checkAndGetCompatibleVersion(extension);
+			extension = await this.checkAndGetCompatibleVersion(extension, !options.installGivenVersion);
 		} catch (error) {
 			this.logService.error(getErrorMessage(error));
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
@@ -187,9 +188,20 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						}
 					}
 				} catch (error) {
-					this.logService.error('Error while preparing to install dependencies and extension packs of the extension:', installExtensionTask.identifier.id);
-					this.logService.error(error);
-					throw error;
+					// Installing through VSIX
+					if (URI.isUri(installExtensionTask.source)) {
+						// Ignore installing dependencies and packs
+						if (isNonEmptyArray(manifest.extensionDependencies)) {
+							this.logService.warn(`Cannot install dependencies of extension:`, installExtensionTask.identifier.id, error.message);
+						}
+						if (isNonEmptyArray(manifest.extensionPack)) {
+							this.logService.warn(`Cannot install packed extensions of extension:`, installExtensionTask.identifier.id, error.message);
+						}
+					} else {
+						this.logService.error('Error while preparing to install dependencies and extension packs of the extension:', installExtensionTask.identifier.id);
+						this.logService.error(error);
+						throw error;
+					}
 				}
 			}
 
@@ -311,7 +323,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const allDependenciesAndPacks: { gallery: IGalleryExtension, manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
-			const dependenciesAndPackExtensions: string[] = manifest.extensionDependencies || [];
+			const dependecies: string[] = manifest.extensionDependencies || [];
+			const dependenciesAndPackExtensions = [...dependecies];
 			if (manifest.extensionPack) {
 				const existing = getOnlyNewlyAddedFromExtensionPack ? installed.find(e => areSameExtensions(e.identifier, extensionIdentifier)) : undefined;
 				for (const extension of manifest.extensionPack) {
@@ -334,11 +347,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						if (identifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 							continue;
 						}
-						const compatibleExtension = await this.checkAndGetCompatibleVersion(galleryExtension);
-						if (!await this.canInstall(compatibleExtension)) {
-							this.logService.info('Skipping the extension as it cannot be installed', compatibleExtension.identifier.id);
+						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
+						if (!isDependency && !await this.canInstall(galleryExtension)) {
+							this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id);
 							continue;
 						}
+						const compatibleExtension = await this.checkAndGetCompatibleVersion(galleryExtension, true);
 						const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
 						if (manifest === null) {
 							throw new ExtensionManagementError(`Missing manifest for extension ${compatibleExtension.identifier.id}`, INSTALL_ERROR_VALIDATING);
@@ -355,12 +369,20 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return allDependenciesAndPacks.filter(e => !installed.some(i => areSameExtensions(i.identifier, e.gallery.identifier)));
 	}
 
-	private async checkAndGetCompatibleVersion(extension: IGalleryExtension): Promise<IGalleryExtension> {
+	private async checkAndGetCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean): Promise<IGalleryExtension> {
 		if (await this.isMalicious(extension)) {
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), INSTALL_ERROR_MALICIOUS);
 		}
 
-		const compatibleExtension = await this.galleryService.getCompatibleExtension(extension);
+		let compatibleExtension: IGalleryExtension | null = null;
+		if (await this.galleryService.isExtensionCompatible(extension, CURRENT_TARGET_PLATFORM)) {
+			compatibleExtension = extension;
+		}
+
+		if (!compatibleExtension && fetchCompatibleVersion) {
+			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, CURRENT_TARGET_PLATFORM);
+		}
+
 		if (!compatibleExtension) {
 			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of VS Code (version {1}).", extension.identifier.id, product.version), INSTALL_ERROR_INCOMPATIBLE);
 		}

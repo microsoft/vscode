@@ -13,7 +13,7 @@ import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbe
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { timeout, TaskSequentializer, ThrottledDelayer } from 'vs/base/common/async';
+import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
@@ -25,8 +25,8 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { extUri } from 'vs/base/common/resources';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -77,6 +77,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	readonly capabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.labelService.getUriLabel(this.resource));
+	private resourceHasExtension: boolean = !!extUri.extname(this.resource);
 
 	private contentEncoding: string | undefined; // encoding as reported from disk
 
@@ -90,7 +91,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	private readonly saveSequentializer = new TaskSequentializer();
-	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));
 
 	private dirty = false;
 	private inConflictMode = false;
@@ -531,13 +531,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Model Listeners
 		this.installModelListeners(textModel);
 
-		// Try to detect language from content (debounced by some time to reduce pressure).
-		this._autoDetectLanguageThrottler.trigger(async () => {
-			const currentMode = this.getMode();
-			if (this.resource.scheme === this.pathService.defaultUriScheme && (!currentMode || currentMode === PLAINTEXT_MODE_ID)) {
-				await this.autoDetectLanguage();
-			}
-		});
+		// Detect language from content
+		this.autoDetectLanguage();
 	}
 
 	private doUpdateTextModel(value: ITextBufferFactory): void {
@@ -608,13 +603,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Emit as event
 		this._onDidChangeContent.fire();
 
-		// Try to detect language from content (debounced by some time to reduce pressure).
-		this._autoDetectLanguageThrottler.trigger(async () => {
-			const currentMode = this.getMode();
-			if (this.resource.scheme === this.pathService.defaultUriScheme && (!currentMode || currentMode === PLAINTEXT_MODE_ID)) {
-				await this.autoDetectLanguage();
-			}
-		});
+		// Detect language from content
+		this.autoDetectLanguage();
+	}
+
+	protected override async autoDetectLanguage(): Promise<void> {
+		if (
+			this.resource.scheme === this.pathService.defaultUriScheme &&	// make sure to not detect language for non-user visible documents
+			!this.resourceHasExtension										// only run if this particular file doesn't have an extension
+		) {
+			return super.autoDetectLanguage();
+		}
 	}
 
 	//#endregion

@@ -21,6 +21,7 @@ const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
 const onElectron = searchParams.get('platform') === 'electron';
 const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
+const parentOrigin = searchParams.get('parentOrigin');
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -233,7 +234,28 @@ const workerReady = new Promise(async (resolve, reject) => {
 				}
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
-			assertIsDefined(registration.active).postMessage({ channel: 'version' });
+
+			const postVersionMessage = () => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' });
+			};
+
+			// At this point, either the service worker is ready and
+			// became our controller, or we need to wait for it.
+			// Note that navigator.serviceWorker.controller could be a
+			// controller from a previously loaded service worker.
+			const currentController = navigator.serviceWorker.controller;
+			if (currentController && currentController.scriptURL.endsWith(swPath)) {
+				// service worker already loaded & ready to receive messages
+				postVersionMessage();
+			} else {
+				// either there's no controlling service worker, or it's an old one:
+				// wait for it to change before posting the message
+				const onControllerChange = () => {
+					navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+					postVersionMessage();
+				};
+				navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+			}
 		},
 		error => {
 			reject(new Error(`Could not register service workers: ${error}.`));
@@ -246,6 +268,11 @@ const hostMessaging = new class HostMessaging {
 		this.handlers = new Map();
 
 		window.addEventListener('message', (e) => {
+			if (e.origin !== parentOrigin) {
+				console.log(`skipping webview message due to mismatched origins: ${e.origin} ${parentOrigin}`);
+				return;
+			}
+
 			const channel = e.data.channel;
 			const handlers = this.handlers.get(channel);
 			if (handlers) {
@@ -263,7 +290,7 @@ const hostMessaging = new class HostMessaging {
 	 * @param {any} data
 	 */
 	postMessage(channel, data) {
-		window.parent.postMessage({ target: ID, channel, data }, '*');
+		window.parent.postMessage({ target: ID, channel, data }, parentOrigin);
 	}
 
 	/**
@@ -858,7 +885,7 @@ onDomReady(() => {
 				}
 
 				pendingMessages.forEach((message) => {
-					contentWindow.postMessage(message.message, '*', message.transfer);
+					contentWindow.postMessage(message.message, window.origin, message.transfer);
 				});
 				pendingMessages = [];
 			}
@@ -920,7 +947,7 @@ onDomReady(() => {
 		if (!pending) {
 			const target = getActiveFrame();
 			if (target) {
-				assertIsDefined(target.contentWindow).postMessage(data.message, '*', data.transfer);
+				assertIsDefined(target.contentWindow).postMessage(data.message, window.origin, data.transfer);
 				return;
 			}
 		}

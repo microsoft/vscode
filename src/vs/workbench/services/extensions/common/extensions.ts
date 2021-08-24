@@ -24,6 +24,7 @@ export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	isBuiltin: false,
 });
 
+export type WebWorkerExtHostConfigValue = boolean | 'auto';
 export const webWorkerExtHostConfig = 'extensions.webWorker';
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
@@ -102,6 +103,7 @@ export const enum ExtensionHostKind {
 export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
 	readonly remoteAuthority: string | null;
+	readonly lazyStart: boolean;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;

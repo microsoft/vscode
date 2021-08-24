@@ -325,7 +325,7 @@ suite('KeybindingResolver', () => {
 		let testKey = (commandId: string, expectedKeys: number[]) => {
 			// Test lookup
 			let lookupResult = resolver.lookupKeybindings(commandId);
-			assert.strictEqual(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId + '; GOT: ' + JSON.stringify(lookupResult, null, '\t'));
+			assert.strictEqual(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId);
 			for (let i = 0, len = lookupResult.length; i < len; i++) {
 				const expected = new USLayoutResolvedKeybinding(createKeybinding(expectedKeys[i], OS)!, OS);
 

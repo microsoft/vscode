@@ -14,7 +14,7 @@ import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, CURRENT_TARGET_PLATFORM } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -375,7 +375,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				}
 
 				// User Extension Sync: Install/Update, Enablement & State
-				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier);
+				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier, CURRENT_TARGET_PLATFORM);
 
 				/* Update extension state only if
 				 *	extension is installed and version is same as synced version or

@@ -131,7 +131,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.onMouseDblClick(async e => {
 			const focus = this.getFocus();
 			if (focus.length === 0) {
-				const instance = await this._terminalService.createTerminal({ target: TerminalLocation.TerminalView });
+				const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
@@ -144,7 +144,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		// unless multi-selection is in progress
 		this.onMouseClick(async e => {
 			if (e.browserEvent.altKey && e.element) {
-				await this._terminalService.createTerminal({ instanceToSplit: e.element });
+				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
 			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
@@ -459,7 +459,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		// If the instance is within the selection, split all selected
 		const actions = [
 			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._terminalService.createTerminal({ instanceToSplit: e }));
+				this._runForSelectionOrInstance(instance, e => this._terminalService.createTerminal({ location: { parentTerminal: e } }));
 			}),
 			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
 				this._runForSelectionOrInstance(instance, e => e.dispose());

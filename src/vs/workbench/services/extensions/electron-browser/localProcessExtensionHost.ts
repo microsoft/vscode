@@ -67,6 +67,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.LocalProcess;
 	public readonly remoteAuthority = null;
+	public readonly lazyStart = false;
 
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onExit: Event<[number, string]> = this._onExit.event;
@@ -353,7 +354,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		const expected = this._environmentService.debugExtensionHost.port;
-		const port = await findFreePort(expected, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */);
+		const port = await findFreePort(expected, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, 2048 /* skip 2048 ports between attempts */);
 
 		if (!this._isExtensionDevTestFromCli) {
 			if (!port) {
@@ -470,7 +471,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 				appName: this._productService.nameLong,
-				embedderIdentifier: this._productService.embedderIdentifier || 'desktop',
+				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,

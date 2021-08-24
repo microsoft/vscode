@@ -1511,7 +1511,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
-
+		this._safeSetOption('customGlyphs', config.customGlyphs);
 		const suggestedRendererType = TerminalInstance._suggestedRendererType;
 		// @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
 		if ((!isIOS && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {

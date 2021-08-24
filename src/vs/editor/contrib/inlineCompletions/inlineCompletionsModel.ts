@@ -5,23 +5,23 @@
 
 import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/modes';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { GhostTextWidgetModel, GhostText, BaseGhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { inlineCompletionToGhostText, NormalizedInlineCompletion } from './inlineCompletionToGhostText';
 import { inlineSuggestCommitId } from './consts';
-import { BaseGhostTextWidgetModel, GhostText, GhostTextPart, GhostTextWidgetModel } from './ghostText';
+import { SharedInlineCompletionCache } from './ghostTextModel';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -34,7 +34,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
-		@ICommandService private readonly commandService: ICommandService
+		private readonly cache: SharedInlineCompletionCache,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -126,7 +127,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		if (this.completionSession.value) {
 			return;
 		}
-		this.completionSession.value = new InlineCompletionsSession(this.editor, this.editor.getPosition(), () => this.active, this.commandService);
+		this.completionSession.value = new InlineCompletionsSession(this.editor, this.editor.getPosition(), () => this.active, this.commandService, this.cache);
 		this.completionSession.value.takeOwnership(
 			this.completionSession.value.onDidChange(() => {
 				this.onDidChangeEmitter.fire();
@@ -162,16 +163,15 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public readonly minReservedLineCount = 0;
 
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
-	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
 
 	private readonly updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
-	private readonly textModel = this.editor.getModel();
 
 	constructor(
 		editor: IActiveCodeEditor,
 		private readonly triggerPosition: Position,
 		private readonly shouldUpdate: () => boolean,
 		private readonly commandService: ICommandService,
+		private readonly cache: SharedInlineCompletionCache,
 	) {
 		super(editor);
 
@@ -195,24 +195,6 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.editor.onDidChangeModelContent((e) => {
-			if (this.cache.value) {
-				let hasChanged = false;
-				for (const c of this.cache.value.completions) {
-					const newRange = this.textModel.getDecorationRange(c.decorationId);
-					if (!newRange) {
-						onUnexpectedError(new Error('Decoration has no range'));
-						continue;
-					}
-					if (!c.synchronizedRange.equalsRange(newRange)) {
-						hasChanged = true;
-						c.synchronizedRange = newRange;
-					}
-				}
-				if (hasChanged) {
-					this.onDidChangeEmitter.fire();
-				}
-			}
-
 			this.scheduleAutomaticUpdate();
 		}));
 
@@ -311,14 +293,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		if (!completion) {
 			return undefined;
 		}
-		return {
-			text: completion.inlineCompletion.text,
-			range: completion.synchronizedRange,
-			command: completion.inlineCompletion.command,
-			sourceProvider: completion.inlineCompletion.sourceProvider,
-			sourceInlineCompletions: completion.inlineCompletion.sourceInlineCompletions,
-			sourceInlineCompletion: completion.inlineCompletion.sourceInlineCompletion,
-		};
+		return completion.toLiveInlineCompletion();
 	}
 
 	get isValid(): boolean {
@@ -344,7 +319,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			try {
 				result = await provideInlineCompletions(position,
 					this.editor.getModel(),
-					{ triggerKind },
+					{ triggerKind, selectedSuggestionInfo: undefined },
 					token
 				);
 			} catch (e) {
@@ -356,10 +331,9 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				return;
 			}
 
-			this.cache.value = new SynchronizedInlineCompletionsCache(
+			this.cache.setValue(
 				this.editor,
 				result,
-				() => this.onDidChangeEmitter.fire(),
 				triggerKind
 			);
 			this.onDidChangeEmitter.fire();
@@ -414,7 +388,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 }
 
-class UpdateOperation implements IDisposable {
+export class UpdateOperation implements IDisposable {
 	constructor(public readonly promise: CancelablePromise<void>, public readonly triggerKind: InlineCompletionTriggerKind) {
 	}
 
@@ -427,7 +401,7 @@ class UpdateOperation implements IDisposable {
  * The cache keeps itself in sync with the editor.
  * It also owns the completions result and disposes it when the cache is diposed.
 */
-class SynchronizedInlineCompletionsCache extends Disposable {
+export class SynchronizedInlineCompletionsCache extends Disposable {
 	public readonly completions: readonly CachedInlineCompletion[];
 
 	constructor(
@@ -483,6 +457,7 @@ class CachedInlineCompletion {
 		startColumn: this.inlineCompletion.range.startColumn,
 		command: this.inlineCompletion.command
 	});
+
 	/**
 	 * The range, synchronized with text model changes.
 	*/
@@ -494,133 +469,17 @@ class CachedInlineCompletion {
 	) {
 		this.synchronizedRange = inlineCompletion.range;
 	}
-}
 
-export interface NormalizedInlineCompletion extends InlineCompletion {
-	range: Range;
-}
-
-export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subword' | 'subwordSmart', cursorPosition?: Position): GhostText | undefined {
-	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
-		// Only single line replacements are supported.
-		return undefined;
-	}
-
-	// This is a single line string
-	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
-
-	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.text);
-
-	const lineNumber = inlineCompletion.range.startLineNumber;
-
-	const parts = new Array<GhostTextPart>();
-
-	if (mode === 'prefix') {
-		const filteredChanges = changes.filter(c => c.originalLength === 0);
-		if (filteredChanges.length > 1 || filteredChanges.length === 1 && filteredChanges[0].originalStart !== valueToBeReplaced.length) {
-			// Prefixes only have a single change.
-			return undefined;
-		}
-	}
-
-	for (const c of changes) {
-		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
-
-		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
-			// No ghost text before cursor
-			return undefined;
-		}
-
-		if (c.originalLength > 0) {
-			const originalText = valueToBeReplaced.substr(c.originalStart, c.originalLength);
-			const firstNonWsCol = textModel.getLineFirstNonWhitespaceColumn(lineNumber);
-			if (!(/^(\t| )*$/.test(originalText) && (firstNonWsCol === 0 || insertColumn <= firstNonWsCol))) {
-				return undefined;
-			}
-		}
-
-		if (c.modifiedLength === 0) {
-			continue;
-		}
-
-		const text = inlineCompletion.text.substr(c.modifiedStart, c.modifiedLength);
-		const lines = strings.splitLines(text);
-		parts.push(new GhostTextPart(insertColumn, lines));
-	}
-
-	return new GhostText(lineNumber, parts, 0);
-}
-
-let lastRequest: { originalValue: string, newValue: string, changes: readonly IDiffChange[] } | undefined = undefined;
-function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
-	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
-		return lastRequest?.changes;
-	} else {
-		const changes = smartDiff(originalValue, newValue);
-		lastRequest = {
-			originalValue,
-			newValue,
-			changes
+	public toLiveInlineCompletion(): LiveInlineCompletion | undefined {
+		return {
+			text: this.inlineCompletion.text,
+			range: this.synchronizedRange,
+			command: this.inlineCompletion.command,
+			sourceProvider: this.inlineCompletion.sourceProvider,
+			sourceInlineCompletions: this.inlineCompletion.sourceInlineCompletions,
+			sourceInlineCompletion: this.inlineCompletion.sourceInlineCompletion,
 		};
-		return changes;
 	}
-}
-
-/**
- * When matching `if ()` with `if (f() = 1) { g(); }`,
- * align it like this:        `if (       )`
- * Not like this:			  `if (  )`
- * Also not like this:		  `if (             )`.
- *
- * The parenthesis are preprocessed to ensure that they match correctly.
- */
-function smartDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
-	function getMaxCharCode(val: string): number {
-		let maxCharCode = 0;
-		for (let i = 0, len = val.length; i < len; i++) {
-			const charCode = val.charCodeAt(i);
-			if (charCode > maxCharCode) {
-				maxCharCode = charCode;
-			}
-		}
-		return maxCharCode;
-	}
-	const maxCharCode = Math.max(getMaxCharCode(originalValue), getMaxCharCode(newValue));
-	function getUniqueCharCode(id: number): number {
-		if (id < 0) {
-			throw new Error('unexpected');
-		}
-		return maxCharCode + id + 1;
-	}
-
-	function getElements(source: string): Int32Array {
-		let level = 0;
-		let group = 0;
-		const characters = new Int32Array(source.length);
-		for (let i = 0, len = source.length; i < len; i++) {
-			const id = group * 100 + level;
-
-			// TODO support more brackets
-			if (source[i] === '(') {
-				characters[i] = getUniqueCharCode(2 * id);
-				level++;
-			} else if (source[i] === ')') {
-				characters[i] = getUniqueCharCode(2 * id + 1);
-				if (level === 1) {
-					group++;
-				}
-				level = Math.max(level - 1, 0);
-			} else {
-				characters[i] = source.charCodeAt(i);
-			}
-		}
-		return characters;
-	}
-
-	const elements1 = getElements(originalValue);
-	const elements2 = getElements(newValue);
-
-	return new LcsDiff({ getElements: () => elements1 }, { getElements: () => elements2 }).ComputeDiff(false).changes;
 }
 
 export interface LiveInlineCompletion extends NormalizedInlineCompletion {
@@ -646,7 +505,7 @@ function getDefaultRange(position: Position, model: ITextModel): Range {
 		: Range.fromPositions(position, position.with(undefined, maxColumn));
 }
 
-async function provideInlineCompletions(
+export async function provideInlineCompletions(
 	position: Position,
 	model: ITextModel,
 	context: InlineCompletionContext,

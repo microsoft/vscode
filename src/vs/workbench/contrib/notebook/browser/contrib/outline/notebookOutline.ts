@@ -273,17 +273,15 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 	}
 }
 
-export class NotebookCellOutline implements IOutline<OutlineEntry> {
+export class NotebookCellOutline extends Disposable implements IOutline<OutlineEntry> {
 
-	private readonly _dispoables = new DisposableStore();
-
-	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
+	private readonly _onDidChange = this._register(new Emitter<OutlineChangeEvent>());
 
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
 	private _entries: OutlineEntry[] = [];
 	private _activeEntry?: OutlineEntry;
-	private readonly _entriesDisposables = new DisposableStore();
+	private readonly _entriesDisposables = this._register(new DisposableStore());
 
 	readonly config: IOutlineListConfig<OutlineEntry>;
 	readonly outlineKind = 'notebookCells';
@@ -301,8 +299,8 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		const selectionListener = new MutableDisposable();
-		this._dispoables.add(selectionListener);
+		super();
+		const selectionListener = this._register(new MutableDisposable());
 		const installSelectionListener = () => {
 			if (!_editor.viewModel) {
 				selectionListener.clear();
@@ -314,18 +312,18 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			}
 		};
 
-		this._dispoables.add(_editor.onDidChangeModel(() => {
+		this._register(_editor.onDidChangeModel(() => {
 			this._recomputeState();
 			installSelectionListener();
 		}));
 
-		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
+		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
 				this._recomputeState();
 			}
 		}));
 
-		this._dispoables.add(themeService.onDidFileIconThemeChange(() => {
+		this._register(themeService.onDidFileIconThemeChange(() => {
 			this._onDidChange.fire({});
 		}));
 
@@ -365,12 +363,6 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			comparator,
 			options
 		};
-	}
-
-	dispose(): void {
-		this._onDidChange.dispose();
-		this._dispoables.dispose();
-		this._entriesDisposables.dispose();
 	}
 
 	private _recomputeState(): void {

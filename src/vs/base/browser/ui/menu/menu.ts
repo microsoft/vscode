@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { $, addDisposableListener, append, clearNode, createStyleSheet, Dimension, EventHelper, EventLike, EventType, getActiveElement, IDomNodePagePosition, isAncestor, isInShadowDOM } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -100,6 +101,8 @@ export class Menu extends ActionBar {
 
 		this.initializeStyleSheet(container);
 
+		this._register(Gesture.addTarget(menuElement));
+
 		addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 
@@ -182,6 +185,29 @@ export class Menu extends ActionBar {
 			}
 		}));
 
+		// Support touch on actions list to focus items (needed for submenus)
+		this._register(Gesture.addTarget(this.actionsList));
+		this._register(addDisposableListener(this.actionsList, TouchEventType.Tap, e => {
+			let target = e.initialTarget as HTMLElement;
+			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+				return;
+			}
+
+			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
+				target = target.parentElement;
+			}
+
+			if (target.classList.contains('action-item')) {
+				const lastFocusedItem = this.focusedItem;
+				this.setFocusedItem(target);
+
+				if (lastFocusedItem !== this.focusedItem) {
+					this.updateFocus();
+				}
+			}
+		}));
+
+
 		let parentData: ISubMenuData = {
 			parent: this
 		};
@@ -200,6 +226,14 @@ export class Menu extends ActionBar {
 
 		const scrollElement = this.scrollableElement.getDomNode();
 		scrollElement.style.position = '';
+
+		// Support scroll on menu drag
+		this._register(addDisposableListener(menuElement, TouchEventType.Change, e => {
+			EventHelper.stop(e, true);
+
+			const scrollTop = this.scrollableElement.getScrollPosition().scrollTop;
+			this.scrollableElement.setScrollPosition({ scrollTop: scrollTop - e.translationY });
+		}));
 
 		this._register(addDisposableListener(scrollElement, EventType.MOUSE_UP, e => {
 			// Absorb clicks in menu dead space https://github.com/microsoft/vscode/issues/63575

@@ -377,6 +377,10 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .button-container:not(:last-of-type) {
+	margin-bottom: 6px;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer.animatable .gettingStartedSlideDetails .getting-started-step {
 	transition: height .1s linear;
 }

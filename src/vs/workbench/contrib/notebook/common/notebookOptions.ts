@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, NotebookCellInternalMetadata, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -100,13 +100,13 @@ const compactConfigConstants = {
 	focusIndicatorLeftMargin: 4
 };
 
-export class NotebookOptions {
+export class NotebookOptions extends Disposable {
 	private _layoutConfiguration: NotebookLayoutConfiguration;
-	protected readonly _onDidChangeOptions = new Emitter<NotebookOptionsChangeEvent>();
+	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
-	private _disposables: IDisposable[];
 
 	constructor(private readonly configurationService: IConfigurationService) {
+		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
 		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? true;
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
@@ -123,7 +123,6 @@ export class NotebookOptions {
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		const editorOptionsCustomizations = this.configurationService.getValue(NotebookCellEditorOptionsCustomizations);
 
-		this._disposables = [];
 		this._layoutConfiguration = {
 			...(compactView ? compactConfigConstants : defaultConfigConstants),
 			cellTopMargin: 6,
@@ -155,11 +154,11 @@ export class NotebookOptions {
 			editorOptionsCustomizations,
 		};
 
-		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			this._updateConfiguration(e);
 		}));
 
-		this._disposables.push(EditorTopPaddingChangeEvent(() => {
+		this._register(EditorTopPaddingChangeEvent(() => {
 			const configuration = Object.assign({}, this._layoutConfiguration);
 			configuration.editorTopPadding = getEditorTopPadding();
 			this._layoutConfiguration = configuration;
@@ -485,10 +484,5 @@ export class NotebookOptions {
 	setCellBreakpointMarginActive(active: boolean) {
 		this._layoutConfiguration = { ...this._layoutConfiguration, ...{ cellBreakpointMarginActive: active } };
 		this._onDidChangeOptions.fire({ cellBreakpointMargin: true });
-	}
-
-	dispose() {
-		this._disposables.forEach(d => d.dispose());
-		this._disposables = [];
 	}
 }

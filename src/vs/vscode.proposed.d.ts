@@ -896,8 +896,8 @@ declare module 'vscode' {
 		/**
 		 * Whether the {@link Terminal} has been interacted with. Interaction means that the
 		 * terminal has sent data to the process which depending on the terminal's _mode_. By
-		 * default input is sent when a key is pressed but based on the terminal's mode it can also
-		 * happen on:
+		 * default input is sent when a key is pressed or when a command or extension sends text,
+		 * but based on the terminal's mode it can also happen on:
 		 *
 		 * - a pointer click event
 		 * - a pointer scroll event
@@ -917,25 +917,51 @@ declare module 'vscode' {
 		readonly state: TerminalState;
 	}
 
-	/**
-	 * An event representing a change in a {@link Terminal.state terminal's state}.
-	 */
-	export interface TerminalStateChangeEvent {
-		/**
-		 * The {@link Terminal} this event occurred on.
-		 */
-		readonly terminal: Terminal;
-		/**
-		 * The {@link Terminal.state current state} of the {@link Terminal}.
-		 */
-		readonly state: TerminalState;
-	}
-
 	export namespace window {
 		/**
 		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
 		 */
-		export const onDidChangeTerminalState: Event<TerminalStateChangeEvent>;
+		export const onDidChangeTerminalState: Event<Terminal>;
+	}
+
+	//#endregion
+
+	//#region Terminal location https://github.com/microsoft/vscode/issues/45407
+
+	export interface TerminalOptions {
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
+	}
+
+	export interface ExtensionTerminalOptions {
+		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
+	}
+
+	export enum TerminalLocation {
+		Panel = 1,
+		Editor = 2,
+	}
+
+	export interface TerminalEditorLocationOptions {
+		/**
+		 * A view column in which the {@link Terminal terminal} should be shown in the editor area.
+		 * Use {@link ViewColumn.Active active} to open in the active editor group, other values are
+		 * adjusted to be `Min(column, columnCount + 1)`, the
+		 * {@link ViewColumn.Active active}-column is not adjusted. Use
+		 * {@linkcode ViewColumn.Beside} to open the editor to the side of the currently active one.
+		 */
+		viewColumn: ViewColumn;
+		/**
+		 * An optional flag that when `true` will stop the {@link Terminal} from taking focus.
+		 */
+		preserveFocus?: boolean;
+	}
+
+	export interface TerminalSplitLocationOptions {
+		/**
+		 * The parent terminal to split this terminal beside. This works whether the parent terminal
+		 * is in the panel or the editor area.
+		 */
+		parentTerminal: Terminal;
 	}
 
 	//#endregion
@@ -2379,6 +2405,18 @@ declare module 'vscode' {
 		 * How the completion was triggered.
 		 */
 		readonly triggerKind: InlineCompletionTriggerKind;
+
+		/**
+		 * Provides information about the currently selected item in the suggest widget.
+		 * If set, provided inline completions must extend the text of the selected item
+		 * and use the same range, otherwise they are not shown as preview.
+		*/
+		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	}
+
+	export interface SelectedSuggestionInfo {
+		range: Range;
+		text: string;
 	}
 
 	/**
@@ -2837,17 +2875,6 @@ declare module 'vscode' {
 
 	namespace languages {
 		export function createLanguageStatusItem(selector: DocumentSelector): LanguageStatusItem;
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/129053
-
-	export namespace env {
-		/**
-		 * The environment in which the app is embedded in. i.e. 'desktop', 'codespaces', 'web'.
-		 */
-		export const embedderIdentifier: string;
 	}
 
 	//#endregion

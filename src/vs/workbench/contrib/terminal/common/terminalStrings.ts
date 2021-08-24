@@ -53,8 +53,7 @@ export const terminalStrings = {
 		value: localize('unsplitTerminal', "Unsplit Terminal"),
 		original: 'Unsplit Terminal'
 	},
-	rename:
-	{
+	rename: {
 		value: localize('workbench.action.terminal.rename', "Rename..."),
 		original: 'Rename...'
 	}

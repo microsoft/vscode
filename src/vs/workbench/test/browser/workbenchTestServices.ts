@@ -664,10 +664,12 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 	onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
+	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
+	isReady = true;
 	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasRestorableState = false;
@@ -713,6 +715,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	disposed!: boolean;
 	editors: readonly IEditorInput[] = [];
 	label!: string;
+	isLocked!: boolean;
 	ariaLabel!: string;
 	index!: number;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
@@ -756,6 +759,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	pinEditor(_editor?: IEditorInput): void { }
 	stickEditor(editor?: IEditorInput | undefined): void { }
 	unstickEditor(editor?: IEditorInput | undefined): void { }
+	lock(locked: boolean): void { }
 	focus(): void { }
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
 	setActive(_isActive: boolean): void { }
@@ -794,6 +798,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
+	onDidEditorsChange: Event<void> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;

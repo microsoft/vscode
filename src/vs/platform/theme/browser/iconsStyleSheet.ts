@@ -53,7 +53,7 @@ export function getIconsStyleSheet(): IIconsStyleSheet {
 			for (let id in usedFontIds) {
 				const fontContribution = usedFontIds[id];
 				const src = fontContribution.definition.src.map(l => `${asCSSUrl(l.location)} format('${l.format}')`).join(', ');
-				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)}; }`);
+				rules.push(`@font-face { src: ${src}; font-family: ${asCSSPropertyValue(id)}; font-display: block; }`);
 			}
 			return rules.join('\n');
 		}

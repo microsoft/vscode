@@ -113,7 +113,22 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
 											}
 										}
-									}, {
+									},
+									{
+										required: ['svg', 'altText'],
+										additionalProperties: false,
+										properties: {
+											svg: {
+												description: localize('walkthroughs.steps.media.image.path.svg', "Path to an svg, color tokens are supported in variables to support theming to match the workbench."),
+												type: 'string',
+											},
+											altText: {
+												type: 'string',
+												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+											},
+										}
+									},
+									{
 										required: ['markdown'],
 										additionalProperties: false,
 										properties: {

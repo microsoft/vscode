@@ -624,7 +624,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	private selectEntry(keybindingItemEntry: IKeybindingItemEntry | number, focus: boolean = true): void {
 		const index = typeof keybindingItemEntry === 'number' ? keybindingItemEntry : this.getIndexOf(keybindingItemEntry);
-		if (index !== -1) {
+		if (index !== -1 && index < this.keybindingsTable.length) {
 			if (focus) {
 				this.keybindingsTable.domFocus();
 				this.keybindingsTable.setFocus([index]);
