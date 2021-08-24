@@ -8,42 +8,42 @@ import { settingKeyToDisplayFormat, parseQuery, IParsedQuery } from 'vs/workbenc
 
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat', () => {
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.bar'),
 			{
 				category: 'Foo',
 				label: 'Bar'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.bar.etc'),
 			{
 				category: 'Foo › Bar',
 				label: 'Etc'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('fooBar.etcSomething'),
 			{
 				category: 'Foo Bar',
 				label: 'Etc Something'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo'),
 			{
 				category: '',
 				label: 'Foo'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.1leading.number'),
 			{
 				category: 'Foo › 1leading',
 				label: 'Number'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.1Leading.number'),
 			{
 				category: 'Foo › 1 Leading',
@@ -52,56 +52,56 @@ suite('SettingsTree', () => {
 	});
 
 	test('settingKeyToDisplayFormat - with category', () => {
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.bar', 'foo'),
 			{
 				category: '',
 				label: 'Bar'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('disableligatures.ligatures', 'disableligatures'),
 			{
 				category: '',
 				label: 'Ligatures'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.bar.etc', 'foo'),
 			{
 				category: 'Bar',
 				label: 'Etc'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('fooBar.etcSomething', 'foo'),
 			{
 				category: 'Foo Bar',
 				label: 'Etc Something'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.bar.etc', 'foo/bar'),
 			{
 				category: '',
 				label: 'Etc'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.bar.etc', 'something/foo'),
 			{
 				category: 'Bar',
 				label: 'Etc'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('bar.etc', 'something.bar'),
 			{
 				category: '',
 				label: 'Etc'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('fooBar.etc', 'fooBar'),
 			{
 				category: '',
@@ -109,7 +109,7 @@ suite('SettingsTree', () => {
 			});
 
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('fooBar.somethingElse.etc', 'fooBar'),
 			{
 				category: 'Something Else',
@@ -118,14 +118,14 @@ suite('SettingsTree', () => {
 	});
 
 	test('settingKeyToDisplayFormat - known acronym/term', () => {
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('css.someCssSetting'),
 			{
 				category: 'CSS',
 				label: 'Some CSS Setting'
 			});
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('powershell.somePowerShellSetting'),
 			{
 				category: 'PowerShell',
@@ -135,7 +135,7 @@ suite('SettingsTree', () => {
 
 	test('parseQuery', () => {
 		function testParseQuery(input: string, expected: IParsedQuery) {
-			assert.deepEqual(
+			assert.deepStrictEqual(
 				parseQuery(input),
 				expected,
 				input
@@ -147,7 +147,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: [],
-				query: ''
+				query: '',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -155,7 +157,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
-				query: ''
+				query: '',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -163,7 +167,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo'],
 				extensionFilters: [],
-				query: ''
+				query: '',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -171,7 +177,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
-				query: 'foo'
+				query: 'foo',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -179,7 +187,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
 				extensionFilters: [],
-				query: ''
+				query: '',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -187,7 +197,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
 				extensionFilters: [],
-				query: 'my query'
+				query: 'my query',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -195,7 +207,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
-				query: 'test  query'
+				query: 'test  query',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -203,7 +217,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
-				query: 'test'
+				query: 'test',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -211,7 +227,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: [],
-				query: 'query has @ for some reason'
+				query: 'query has @ for some reason',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -219,7 +237,9 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: ['github.vscode-pull-request-github'],
-				query: ''
+				query: '',
+				featureFilters: [],
+				idFilters: []
 			});
 
 		testParseQuery(
@@ -227,7 +247,47 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
-				query: ''
+				query: '',
+				featureFilters: [],
+				idFilters: []
+			});
+		testParseQuery(
+			'@feature:scm',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: ['scm'],
+				query: '',
+				idFilters: []
+			});
+
+		testParseQuery(
+			'@feature:scm,terminal',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: ['scm', 'terminal'],
+				query: '',
+				idFilters: []
+			});
+		testParseQuery(
+			'@id:files.autoSave',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: [],
+				query: '',
+				idFilters: ['files.autoSave']
+			});
+
+		testParseQuery(
+			'@id:files.autoSave,terminal.integrated.commandsToSkipShell',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: [],
+				query: '',
+				idFilters: ['files.autoSave', 'terminal.integrated.commandsToSkipShell']
 			});
 	});
 });

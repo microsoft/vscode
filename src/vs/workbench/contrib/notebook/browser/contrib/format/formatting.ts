@@ -6,23 +6,23 @@
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getActiveNotebookEditor, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getDocumentFormattingEditsUntilResult, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Progress } from 'vs/platform/progress/common/progress';
+import { flatten } from 'vs/base/common/arrays';
 
 // format notebook
 registerAction2(class extends Action2 {
@@ -54,21 +54,17 @@ registerAction2(class extends Action2 {
 		const editorWorkerService = accessor.get(IEditorWorkerService);
 		const bulkEditService = accessor.get(IBulkEditService);
 
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.viewModel) {
 			return;
 		}
 
 		const notebook = editor.viewModel.notebookDocument;
-		const dispoables = new DisposableStore();
+		const disposable = new DisposableStore();
 		try {
-
-			const edits: WorkspaceTextEdit[] = [];
-
-			for (const cell of notebook.cells) {
-
+			const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
 				const ref = await textModelService.createModelReference(cell.uri);
-				dispoables.add(ref);
+				disposable.add(ref);
 
 				const model = ref.object.textEditorModel;
 
@@ -77,22 +73,23 @@ registerAction2(class extends Action2 {
 					model.getOptions(), CancellationToken.None
 				);
 
-				if (formatEdits) {
-					formatEdits.forEach(edit => edits.push({
-						edit,
-						resource: model.uri,
-						modelVersionId: model.getVersionId()
-					}));
-				}
-			}
+				const edits: ResourceTextEdit[] = [];
 
-			await bulkEditService.apply(
-				{ edits },
-				{ label: localize('label', "Format Notebook") }
-			);
+				if (formatEdits) {
+					for (let edit of formatEdits) {
+						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
+					}
+
+					return edits;
+				}
+
+				return [];
+			}));
+
+			await bulkEditService.apply(/* edit */flatten(allCellEdits), { label: localize('label', "Format Notebook") });
 
 		} finally {
-			dispoables.dispose();
+			disposable.dispose();
 		}
 	}
 });

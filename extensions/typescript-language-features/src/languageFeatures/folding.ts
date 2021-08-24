@@ -54,12 +54,22 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		}
 
 		const start = range.start.line;
-		// workaround for #47240
-		const end = (range.end.character > 0 && ['}', ']'].includes(document.getText(new vscode.Range(range.end.translate(0, -1), range.end))))
-			? Math.max(range.end.line - 1, range.start.line)
-			: range.end.line;
-
+		const end = this.adjustFoldingEnd(range, document);
 		return new vscode.FoldingRange(start, end, kind);
+	}
+
+	private static readonly foldEndPairCharacters = ['}', ']', ')', '`'];
+
+	private adjustFoldingEnd(range: vscode.Range, document: vscode.TextDocument) {
+		// workaround for #47240
+		if (range.end.character > 0) {
+			const foldEndCharacter = document.getText(new vscode.Range(range.end.translate(0, -1), range.end));
+			if (TypeScriptFoldingProvider.foldEndPairCharacters.includes(foldEndCharacter)) {
+				return Math.max(range.end.line - 1, range.start.line);
+			}
+		}
+
+		return range.end.line;
 	}
 
 	private static getFoldingRangeKind(span: Proto.OutliningSpan): vscode.FoldingRangeKind | undefined {

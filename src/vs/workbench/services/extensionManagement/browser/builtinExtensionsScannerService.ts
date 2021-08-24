@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionManifest, IExtension } from 'vs/platform/extensions/common/extensions';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { FileAccess } from 'vs/base/common/network';
+import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 
-interface IScannedBuiltinExtension {
+interface IBundledExtension {
 	extensionPath: string;
 	packageJSON: IExtensionManifest;
 	packageNLS?: any;
@@ -23,7 +25,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly builtinExtensions: IScannedExtension[] = [];
+	private readonly builtinExtensions: IExtension[] = [];
 
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -32,28 +34,28 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 		if (isWeb) {
 			const builtinExtensionsServiceUrl = this._getBuiltinExtensionsUrl(environmentService);
 			if (builtinExtensionsServiceUrl) {
-				let scannedBuiltinExtensions: IScannedBuiltinExtension[] = [];
+				let bundledExtensions: IBundledExtension[] = [];
 
 				if (environmentService.isBuilt) {
 					// Built time configuration (do NOT modify)
-					scannedBuiltinExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
+					bundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
 				} else {
 					// Find builtin extensions by checking for DOM
 					const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');
 					const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
 					if (builtinExtensionsElementAttribute) {
 						try {
-							scannedBuiltinExtensions = JSON.parse(builtinExtensionsElementAttribute);
+							bundledExtensions = JSON.parse(builtinExtensionsElementAttribute);
 						} catch (error) { /* ignore error*/ }
 					}
 				}
 
-				this.builtinExtensions = scannedBuiltinExtensions.map(e => ({
+				this.builtinExtensions = bundledExtensions.map(e => ({
 					identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
 					location: uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.extensionPath),
 					type: ExtensionType.System,
-					packageJSON: e.packageJSON,
-					packageNLS: e.packageNLS,
+					isBuiltin: true,
+					manifest: e.packageNLS ? localizeManifest(e.packageJSON, e.packageNLS) : e.packageJSON,
 					readmeUrl: e.readmePath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.readmePath) : undefined,
 					changelogUrl: e.changelogPath ? uriIdentityService.extUri.joinPath(builtinExtensionsServiceUrl!, e.changelogPath) : undefined,
 				}));
@@ -62,22 +64,19 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 	}
 
 	private _getBuiltinExtensionsUrl(environmentService: IWorkbenchEnvironmentService): URI | undefined {
-		if (environmentService.options?.builtinExtensionsServiceUrl) {
-			return URI.parse(environmentService.options?.builtinExtensionsServiceUrl);
-		}
 		let enableBuiltinExtensions: boolean;
 		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
 			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;
 		} else {
-			enableBuiltinExtensions = environmentService.configuration.remoteAuthority ? false : true;
+			enableBuiltinExtensions = true;
 		}
 		if (enableBuiltinExtensions) {
-			return URI.parse(require.toUrl('../../../../../../extensions'));
+			return FileAccess.asBrowserUri('../../../../../../extensions', require);
 		}
 		return undefined;
 	}
 
-	async scanBuiltinExtensions(): Promise<IScannedExtension[]> {
+	async scanBuiltinExtensions(): Promise<IExtension[]> {
 		if (isWeb) {
 			return this.builtinExtensions;
 		}

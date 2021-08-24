@@ -27,7 +27,7 @@ suite('CommandService', function () {
 		let lastEvent: string;
 
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			activateByEvent(activationEvent: string): Promise<void> {
+			override activateByEvent(activationEvent: string): Promise<void> {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
@@ -46,7 +46,7 @@ suite('CommandService', function () {
 	test('fwd activation error', async function () {
 
 		const extensionService = new class extends NullExtensionService {
-			activateByEvent(activationEvent: string): Promise<void> {
+			override activateByEvent(activationEvent: string): Promise<void> {
 				return Promise.reject(new Error('bad_activate'));
 			}
 		};
@@ -56,7 +56,7 @@ suite('CommandService', function () {
 		await extensionService.whenInstalledExtensionsRegistered();
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
-			assert.equal(err.message, 'bad_activate');
+			assert.strictEqual(err.message, 'bad_activate');
 		});
 	});
 
@@ -66,13 +66,13 @@ suite('CommandService', function () {
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			whenInstalledExtensionsRegistered() {
+			override whenInstalledExtensionsRegistered() {
 				return new Promise<boolean>(_resolve => { /*ignore*/ });
 			}
 		}, new NullLogService());
 
 		service.executeCommand('bar');
-		assert.equal(callCounter, 1);
+		assert.strictEqual(callCounter, 1);
 		reg.dispose();
 	});
 
@@ -83,31 +83,31 @@ suite('CommandService', function () {
 		const whenInstalledExtensionsRegistered = new Promise<boolean>(_resolve => { resolveFunc = _resolve; });
 
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
-			whenInstalledExtensionsRegistered() {
+			override whenInstalledExtensionsRegistered() {
 				return whenInstalledExtensionsRegistered;
 			}
 		}, new NullLogService());
 
 		let r = service.executeCommand('bar');
-		assert.equal(callCounter, 0);
+		assert.strictEqual(callCounter, 0);
 
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 		resolveFunc!(true);
 
 		return r.then(() => {
 			reg.dispose();
-			assert.equal(callCounter, 1);
+			assert.strictEqual(callCounter, 1);
 		});
 	});
 
 	test('Stop waiting for * extensions to activate when trigger is satisfied #62457', function () {
 
 		let callCounter = 0;
-		const dispoables = new DisposableStore();
+		const disposable = new DisposableStore();
 		let events: string[] = [];
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
-			activateByEvent(event: string): Promise<void> {
+			override activateByEvent(event: string): Promise<void> {
 				events.push(event);
 				if (event === '*') {
 					return new Promise(() => { }); //forever promise...
@@ -118,7 +118,7 @@ suite('CommandService', function () {
 							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
 								callCounter += 1;
 							});
-							dispoables.add(reg);
+							disposable.add(reg);
 							resolve();
 						}, 0);
 					});
@@ -129,10 +129,10 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		return service.executeCommand('farboo').then(() => {
-			assert.equal(callCounter, 1);
-			assert.deepEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
+			assert.strictEqual(callCounter, 1);
+			assert.deepStrictEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
 		}).finally(() => {
-			dispoables.dispose();
+			disposable.dispose();
 		});
 	});
 
@@ -142,7 +142,7 @@ suite('CommandService', function () {
 		const disposables = new DisposableStore();
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
-			activateByEvent(event: string): Promise<void> {
+			override activateByEvent(event: string): Promise<void> {
 				if (event === '*') {
 					return new Promise(() => { }); //forever promise...
 				}
@@ -170,7 +170,7 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		return service.executeCommand('farboo2').then(() => {
-			assert.deepEqual(actualOrder, expectedOrder);
+			assert.deepStrictEqual(actualOrder, expectedOrder);
 		}).finally(() => {
 			disposables.dispose();
 		});

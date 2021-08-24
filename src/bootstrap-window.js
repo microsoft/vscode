@@ -21,64 +21,74 @@
 		globalThis.MonacoBootstrapWindow = factory();
 	}
 }(this, function () {
-	const preloadGlobals = globals();
-	const sandbox = preloadGlobals.context.sandbox;
-	const webFrame = preloadGlobals.webFrame;
-	const safeProcess = sandbox ? preloadGlobals.process : process;
+	const bootstrapLib = bootstrap();
+	const preloadGlobals = sandboxGlobals();
+	const safeProcess = preloadGlobals.process;
 
 	/**
+	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
 	 * @param {string[]} modulePaths
-	 * @param {(result, configuration: object) => any} resultCallback
-	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
+	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
+	 * @param {{
+	 *  configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 		forceDisableShowDevtoolsOnError?: boolean,
+	 * 		forceEnableDeveloperKeybindings?: boolean,
+	 * 		disallowReloadKeybinding?: boolean,
+	 * 		removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 	},
+	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
+	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *  beforeRequire?: () => void
+	 * }} [options]
 	 */
-	function load(modulePaths, resultCallback, options) {
-		const args = parseURLQueryArgs();
-		/**
-		 * // configuration: INativeWindowConfiguration
-		 * @type {{
-		 * zoomLevel?: number,
-		 * extensionDevelopmentPath?: string[],
-		 * extensionTestsPath?: string,
-		 * userEnv?: { [key: string]: string | undefined },
-		 * appRoot?: string,
-		 * nodeCachedDataDir?: string
-		 * }} */
-		const configuration = JSON.parse(args['config'] || '{}') || {};
+	async function load(modulePaths, resultCallback, options) {
 
-		// Apply zoom level early to avoid glitches
-		const zoomLevel = configuration.zoomLevel;
-		if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-			webFrame.setZoomLevel(zoomLevel);
-		}
-
-		// Error handler
-		safeProcess.on('uncaughtException', function (error) {
-			onUnexpectedError(error, enableDeveloperTools);
+		// Error handler (TODO@sandbox non-sandboxed only)
+		let showDevtoolsOnError = !!safeProcess.env['VSCODE_DEV'];
+		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
+			onUnexpectedError(error, showDevtoolsOnError);
 		});
 
-		// Developer tools
-		const enableDeveloperTools = (safeProcess.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
-		let developerToolsUnbind;
-		if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
-		}
+		// Await window configuration from preload
+		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
+		performance.mark('code/willWaitForWindowConfig');
+		/** @type {ISandboxConfiguration} */
+		const configuration = await preloadGlobals.context.resolveConfiguration();
+		performance.mark('code/didWaitForWindowConfig');
+		clearTimeout(timeout);
 
-		// Correctly inherit the parent's environment (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			Object.assign(safeProcess.env, configuration.userEnv);
-		}
-
-		// Enable ASAR support (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
-		}
-
-		if (options && typeof options.canModifyDOM === 'function') {
+		// Signal DOM modifications are now OK
+		if (typeof options?.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
 
-		// Get the nls configuration into the process.env as early as possible  (TODO@sandbox non-sandboxed only)
-		const nlsConfig = sandbox ? { availableLanguages: {} } : globalThis.MonacoBootstrap.setupNLS();
+		// Developer settings
+		const {
+			forceDisableShowDevtoolsOnError,
+			forceEnableDeveloperKeybindings,
+			disallowReloadKeybinding,
+			removeDeveloperKeybindingsAfterLoad
+		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
+			forceDisableShowDevtoolsOnError: false,
+			forceEnableDeveloperKeybindings: false,
+			disallowReloadKeybinding: false,
+			removeDeveloperKeybindingsAfterLoad: false
+		};
+		showDevtoolsOnError = safeProcess.env['VSCODE_DEV'] && !forceDisableShowDevtoolsOnError;
+		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || forceEnableDeveloperKeybindings;
+		let developerDeveloperKeybindingsDisposable;
+		if (enableDeveloperKeybindings) {
+			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
+		}
+
+		// Enable ASAR support (TODO@sandbox non-sandboxed only)
+		if (!safeProcess.sandboxed) {
+			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
+		}
+
+		// Get the nls configuration into the process.env as early as possible
+		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
 
 		let locale = nlsConfig.availableLanguages['*'] || 'en';
 		if (locale === 'zh-tw') {
@@ -89,101 +99,116 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			window['define'] = undefined;
-		}
-
-		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
-			require.define('fs', ['original-fs'], function (originalFS) { return originalFS; });
+		// Replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
+		if (!safeProcess.sandboxed) {
+			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 		}
 
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: `${uriFromPath(configuration.appRoot)}/out`,
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			'vs/nls': nlsConfig,
-			amdModulesPattern: /^vs\//,
+			preferScriptTags: true
 		};
 
-		// cached data config
-		if (configuration.nodeCachedDataDir) {
-			loaderConfig.nodeCachedData = {
-				path: configuration.nodeCachedDataDir,
-				seed: modulePaths.join('')
+		// use a trusted types policy when loading via script tags
+		if (loaderConfig.preferScriptTags) {
+			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					throw new Error(`Invalid script url: ${value}`);
+				}
+			});
+		}
+
+		// Enable loading of node modules:
+		// - sandbox: we list paths of webpacked modules to help the loader
+		// - non-sandbox: we signal that any module that does not begin with
+		//                `vs/` should be loaded using node.js require()
+		if (safeProcess.sandboxed) {
+			loaderConfig.paths = {
+				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
+				'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
+				'xterm': `../node_modules/xterm/lib/xterm.js`,
+				'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+				'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
+				'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+				'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
+				'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
 			};
+		} else {
+			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		if (options && typeof options.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(configuration, loaderConfig);
+		// Signal before require.config()
+		if (typeof options?.beforeLoaderConfig === 'function') {
+			options.beforeLoaderConfig(loaderConfig);
 		}
 
+		// Configure loader
 		require.config(loaderConfig);
 
+		// Handle pseudo NLS
 		if (nlsConfig.pseudo) {
 			require(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 			});
 		}
 
-		if (options && typeof options.beforeRequire === 'function') {
+		// Signal before require()
+		if (typeof options?.beforeRequire === 'function') {
 			options.beforeRequire();
 		}
 
-		require(modulePaths, result => {
+		// Actually require the main module as specified
+		require(modulePaths, async result => {
 			try {
+
+				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);
-				if (callbackResult && typeof callbackResult.then === 'function') {
-					callbackResult.then(() => {
-						if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
-							developerToolsUnbind();
-						}
-					}, error => {
-						onUnexpectedError(error, enableDeveloperTools);
-					});
+				if (callbackResult instanceof Promise) {
+					await callbackResult;
+
+					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
+						developerDeveloperKeybindingsDisposable();
+					}
 				}
 			} catch (error) {
-				onUnexpectedError(error, enableDeveloperTools);
+				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
 		}, onUnexpectedError);
 	}
 
 	/**
-	 * @returns {{[param: string]: string }}
-	 */
-	function parseURLQueryArgs() {
-		const search = window.location.search || '';
-
-		return search.split(/[?&]/)
-			.filter(function (param) { return !!param; })
-			.map(function (param) { return param.split('='); })
-			.filter(function (param) { return param.length === 2; })
-			.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-	}
-
-	/**
-	 * @param {boolean} disallowReloadKeybinding
+	 * @param {boolean | undefined} disallowReloadKeybinding
 	 * @returns {() => void}
 	 */
 	function registerDeveloperKeybindings(disallowReloadKeybinding) {
 		const ipcRenderer = preloadGlobals.ipcRenderer;
 
-		const extractKey = function (e) {
-			return [
-				e.ctrlKey ? 'ctrl-' : '',
-				e.metaKey ? 'meta-' : '',
-				e.altKey ? 'alt-' : '',
-				e.shiftKey ? 'shift-' : '',
-				e.keyCode
-			].join('');
-		};
+		const extractKey =
+			/**
+			 * @param {KeyboardEvent} e
+			 */
+			function (e) {
+				return [
+					e.ctrlKey ? 'ctrl-' : '',
+					e.metaKey ? 'meta-' : '',
+					e.altKey ? 'alt-' : '',
+					e.shiftKey ? 'shift-' : '',
+					e.keyCode
+				].join('');
+			};
 
 		// Devtools & reload support
 		const TOGGLE_DEV_TOOLS_KB = (safeProcess.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
 		const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
 		const RELOAD_KB = (safeProcess.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
+		/** @type {((e: KeyboardEvent) => void) | undefined} */
 		let listener = function (e) {
 			const key = extractKey(e);
 			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
@@ -205,10 +230,10 @@
 
 	/**
 	 * @param {string | Error} error
-	 * @param {boolean} [enableDeveloperTools]
+	 * @param {boolean} [showDevtoolsOnError]
 	 */
-	function onUnexpectedError(error, enableDeveloperTools) {
-		if (enableDeveloperTools) {
+	function onUnexpectedError(error, showDevtoolsOnError) {
+		if (showDevtoolsOnError) {
 			const ipcRenderer = preloadGlobals.ipcRenderer;
 			ipcRenderer.send('vscode:openDevTools');
 		}
@@ -221,40 +246,22 @@
 	}
 
 	/**
+	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
+	 */
+	function bootstrap() {
+		// @ts-ignore (defined in bootstrap.js)
+		return window.MonacoBootstrap;
+	}
+
+	/**
 	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
 	 */
-	function globals() {
+	function sandboxGlobals() {
 		// @ts-ignore (defined in globals.js)
 		return window.vscode;
 	}
 
-	/**
-	 * TODO@sandbox this should not use the file:// protocol at all
-	 * and be consolidated with the fileUriFromPath() method in
-	 * bootstrap.js.
-	 *
-	 * @param {string} path
-	 * @returns {string}
-	 */
-	function uriFromPath(path) {
-		let pathName = path.replace(/\\/g, '/');
-		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-			pathName = `/${pathName}`;
-		}
-
-		/** @type {string} */
-		let uri;
-		if (safeProcess.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
-			uri = encodeURI(`file:${pathName}`);
-		} else {
-			uri = encodeURI(`file://${pathName}`);
-		}
-
-		return uri.replace(/#/g, '%23');
-	}
-
 	return {
-		load,
-		globals
+		load
 	};
 }));

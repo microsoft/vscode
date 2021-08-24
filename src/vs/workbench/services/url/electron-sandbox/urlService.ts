@@ -5,13 +5,13 @@
 
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 
 export interface IRelayOpenURLOptions extends IOpenURLOptions {
@@ -26,31 +26,31 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
-		@IElectronService private readonly electronService: IElectronService,
-		@IProductService private readonly productService: IProductService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IProductService productService: IProductService
 	) {
-		super();
+		super(productService);
 
-		this.urlService = createChannelSender(mainProcessService.getChannel('url'));
+		this.urlService = ProxyChannel.toService<IURLService>(mainProcessService.getChannel('url'));
 
 		mainProcessService.registerChannel('urlHandler', new URLHandlerChannel(this));
 		openerService.registerOpener(this);
 	}
 
-	create(options?: Partial<UriComponents>): URI {
+	override create(options?: Partial<UriComponents>): URI {
 		const uri = super.create(options);
 
 		let query = uri.query;
 		if (!query) {
-			query = `windowId=${encodeURIComponent(this.electronService.windowId)}`;
+			query = `windowId=${encodeURIComponent(this.nativeHostService.windowId)}`;
 		} else {
-			query += `&windowId=${encodeURIComponent(this.electronService.windowId)}`;
+			query += `&windowId=${encodeURIComponent(this.nativeHostService.windowId)}`;
 		}
 
 		return uri.with({ query });
 	}
 
-	async open(resource: URI | string, options?: IRelayOpenURLOptions): Promise<boolean> {
+	override async open(resource: URI | string, options?: IRelayOpenURLOptions): Promise<boolean> {
 
 		if (!matchesScheme(resource, this.productService.urlProtocol)) {
 			return false;
@@ -66,7 +66,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		const result = await super.open(uri, options);
 
 		if (result) {
-			await this.electronService.focusWindow();
+			await this.nativeHostService.focusWindow({ force: true /* Application may not be active */ });
 		}
 
 		return result;
