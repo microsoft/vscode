@@ -19,11 +19,31 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { UnavailableEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IOpenEditorResult {
-	readonly editorPane: EditorPane;
-	readonly editorChanged: boolean;
+
+	/**
+	 * The editor pane used for opening. This can be a generic
+	 * placeholder in certain cases, e.g. when workspace trust
+	 * is required, or an editor fails to restore.
+	 *
+	 * Will be `undefined` if an error occured while trying to
+	 * open the editor and in cases where no placeholder is being
+	 * used.
+	 */
+	readonly editorPane?: EditorPane;
+
+	/**
+	 * Whether the editor changed as a result of opening.
+	 */
+	readonly editorChanged?: boolean;
+
+	/**
+	 * This property is set when an editor fails to restore and
+	 * is shown with a generic place holder. It allows callers
+	 * to still present the error to the user in that case.
+	 */
+	readonly error?: Error;
 }
 
 export class EditorControl extends Disposable {
@@ -55,8 +75,7 @@ export class EditorControl extends Disposable {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
-		@ILogService private readonly logService: ILogService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService
 	) {
 		super();
 
@@ -83,14 +102,11 @@ export class EditorControl extends Disposable {
 
 	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
-		// Editor descriptor
-		const descriptor = this.getEditorPaneDescriptor(editor);
 
 		try {
-			return await this.doOpenEditor(descriptor, editor, options, context);
+			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
 		} catch (error) {
 			if (!context.newInGroup) {
-				this.logService.error(error);
 
 				// The editor is restored (as opposed to being newly opened) and as
 				// such we want to preserve the fact that an editor was opened here
@@ -102,10 +118,13 @@ export class EditorControl extends Disposable {
 				// data is lost.
 				//
 				// Related: https://github.com/microsoft/vscode/issues/110062
-				return this.doOpenEditor(UnavailableEditor.DESCRIPTOR, editor, options, context);
+				return {
+					...(await this.doOpenEditor(UnavailableEditor.DESCRIPTOR, editor, options, context)),
+					error
+				};
 			}
 
-			throw error;
+			return { error };
 		}
 	}
 

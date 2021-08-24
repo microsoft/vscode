@@ -1053,22 +1053,26 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let openEditorPromise: Promise<IEditorPane | undefined>;
 		if (context.active) {
 			openEditorPromise = (async () => {
-				try {
-					const result = await this.editorControl.openEditor(editor, options, { newInGroup: context.isNew });
+				const result = await this.editorControl.openEditor(editor, options, { newInGroup: context.isNew });
 
-					// Editor change event
-					if (result.editorChanged) {
-						this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
-					}
-
-					return result.editorPane;
-				} catch (error) {
-
-					// Handle errors but do not bubble them up
-					this.doHandleOpenEditorError(error, editor, options);
-
-					return undefined; // error: return undefined as result to signal this
+				// Editor change event
+				if (result.editorChanged) {
+					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
 				}
+
+				// Handle errors but do not bubble them up
+				if (result.error) {
+					await this.doHandleOpenEditorError(result.error, editor, options);
+				}
+
+				// Without an editor pane, recover by closing the active editor
+				// (if the input is still the active one)
+				if (!result.editorPane && this.activeEditor === editor) {
+					const focusNext = !options || !options.preserveFocus;
+					this.doCloseEditor(editor, focusNext, true /* from error */);
+				}
+
+				return result.editorPane;
 			})();
 		} else {
 			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
@@ -1159,12 +1163,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidOpenEditorFail.fire(editor);
-
-		// Recover by closing the active editor (if the input is still the active one)
-		if (this.activeEditor === editor) {
-			const focusNext = !options || !options.preserveFocus;
-			this.doCloseEditor(editor, focusNext, true /* from error */);
-		}
 	}
 
 	//#endregion
