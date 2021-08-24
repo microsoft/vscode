@@ -40,8 +40,8 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 			}
 		}
 
-		// Then compute indent from the contents (only use first 1K characters as a perf optimization)
-		const indentAmount = contents ? detectIndent(contents.substring(0, 1_000)).indent : ' ';
+		// Then compute indent from the contents
+		const indentAmount = contents ? detectIndent(contents).indent : ' ';
 
 		const preferredCellLanguage = getPreferredLanguage(json.metadata);
 		// Ensure we always have a blank cell.
