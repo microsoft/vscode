@@ -50,6 +50,7 @@ import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/peekView';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -406,6 +407,11 @@ registerAction2(class extends Action2 {
 			if (notebookDocument && textModel) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
+
+				if (isFalsyOrWhitespace(value)) {
+					return;
+				}
+
 				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
 
