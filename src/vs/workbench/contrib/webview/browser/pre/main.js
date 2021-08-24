@@ -234,7 +234,28 @@ const workerReady = new Promise(async (resolve, reject) => {
 				}
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
-			assertIsDefined(registration.active).postMessage({ channel: 'version' });
+
+			const postVersionMessage = () => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' })
+			};
+
+			// At this point, either the service worker is ready and
+			// became our controller, or we need to wait for it.
+			// Note that navigator.serviceWorker.controller could be a
+			// controller from a previously loaded service worker.
+			const currentController = navigator.serviceWorker.controller;
+			if (currentController && currentController.scriptURL.endsWith(swPath)) {
+				// service worker already loaded & ready to receive messages
+				postVersionMessage();
+			} else {
+				// either there's no controlling service worker, or it's an old one:
+				// wait for it to change before posting the message
+				const onControllerChange = () => {
+					navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+					postVersionMessage();
+				};
+				navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+			}
 		},
 		error => {
 			reject(new Error(`Could not register service workers: ${error}.`));
