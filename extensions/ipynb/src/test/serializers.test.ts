@@ -6,7 +6,7 @@
 import { nbformat } from '@jupyterlab/coreutils';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { jupyterNotebookModelToNotebookData } from '../deserializers';
+import { jupyterCellOutputToCellOutput, jupyterNotebookModelToNotebookData } from '../deserializers';
 
 function deepStripProperties(obj: any, props: string[]) {
 	for (let prop in obj) {
@@ -52,7 +52,6 @@ suite('ipynb serializer', () => {
 
 		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedMarkdownCell]);
 	});
-
 	suite('Outputs', () => {
 		function validateCellOutputTranslation(
 			outputs: nbformat.IOutput[],
@@ -102,6 +101,81 @@ suite('ipynb serializer', () => {
 						outputType: 'stream'
 					}),
 					new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.stdout('NoError')], {
+						outputType: 'stream'
+					})
+				]
+			);
+		});
+		test('Multi-line Stream output', () => {
+			validateCellOutputTranslation(
+				[
+					{
+						name: 'stdout',
+						output_type: 'stream',
+						text: [
+							'Epoch 1/5\n',
+							'...\n',
+							'Epoch 2/5\n',
+							'...\n',
+							'Epoch 3/5\n',
+							'...\n',
+							'Epoch 4/5\n',
+							'...\n',
+							'Epoch 5/5\n',
+							'...\n'
+						]
+					}
+				],
+				[
+					new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.stdout(['Epoch 1/5\n',
+						'...\n',
+						'Epoch 2/5\n',
+						'...\n',
+						'Epoch 3/5\n',
+						'...\n',
+						'Epoch 4/5\n',
+						'...\n',
+						'Epoch 5/5\n',
+						'...\n'].join(''))], {
+						outputType: 'stream'
+					})
+				]
+			);
+		});
+
+		test('Multi-line Stream output (last empty line should not be saved in ipynb)', () => {
+			validateCellOutputTranslation(
+				[
+					{
+						name: 'stderr',
+						output_type: 'stream',
+						text: [
+							'Epoch 1/5\n',
+							'...\n',
+							'Epoch 2/5\n',
+							'...\n',
+							'Epoch 3/5\n',
+							'...\n',
+							'Epoch 4/5\n',
+							'...\n',
+							'Epoch 5/5\n',
+							'...\n'
+						]
+					}
+				],
+				[
+					new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.stderr(['Epoch 1/5\n',
+						'...\n',
+						'Epoch 2/5\n',
+						'...\n',
+						'Epoch 3/5\n',
+						'...\n',
+						'Epoch 4/5\n',
+						'...\n',
+						'Epoch 5/5\n',
+						'...\n',
+						// This last empty line should not be saved in ipynb.
+						'\n'].join(''))], {
 						outputType: 'stream'
 					})
 				]
@@ -391,4 +465,131 @@ suite('ipynb serializer', () => {
 			});
 		});
 	});
+
+	suite('Output Order', () => {
+		test('Verify order of outputs', async () => {
+			const dataAndExpectedOrder: { output: nbformat.IDisplayData; expectedMimeTypesOrder: string[] }[] = [
+				{
+					output: {
+						data: {
+							'application/vnd.vegalite.v4+json': 'some json',
+							'text/html': '<a>Hello</a>'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: ['application/vnd.vegalite.v4+json', 'text/html']
+				},
+				{
+					output: {
+						data: {
+							'application/vnd.vegalite.v4+json': 'some json',
+							'application/javascript': 'some js',
+							'text/plain': 'some text',
+							'text/html': '<a>Hello</a>'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: [
+						'application/vnd.vegalite.v4+json',
+						'text/html',
+						'application/javascript',
+						'text/plain'
+					]
+				},
+				{
+					output: {
+						data: {
+							'application/vnd.vegalite.v4+json': '', // Empty, should give preference to other mimetypes.
+							'application/javascript': 'some js',
+							'text/plain': 'some text',
+							'text/html': '<a>Hello</a>'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: [
+						'text/html',
+						'application/javascript',
+						'text/plain',
+						'application/vnd.vegalite.v4+json'
+					]
+				},
+				{
+					output: {
+						data: {
+							'text/plain': 'some text',
+							'text/html': '<a>Hello</a>'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: ['text/html', 'text/plain']
+				},
+				{
+					output: {
+						data: {
+							'application/javascript': 'some js',
+							'text/plain': 'some text'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: ['application/javascript', 'text/plain']
+				},
+				{
+					output: {
+						data: {
+							'image/svg+xml': 'some svg',
+							'text/plain': 'some text'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: ['image/svg+xml', 'text/plain']
+				},
+				{
+					output: {
+						data: {
+							'text/latex': 'some latex',
+							'text/plain': 'some text'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: ['text/latex', 'text/plain']
+				},
+				{
+					output: {
+						data: {
+							'application/vnd.jupyter.widget-view+json': 'some widget',
+							'text/plain': 'some text'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: ['application/vnd.jupyter.widget-view+json', 'text/plain']
+				},
+				{
+					output: {
+						data: {
+							'text/plain': 'some text',
+							'image/svg+xml': 'some svg',
+							'image/png': 'some png'
+						},
+						metadata: {},
+						output_type: 'display_data'
+					},
+					expectedMimeTypesOrder: ['image/png', 'image/svg+xml', 'text/plain']
+				}
+			];
+
+			dataAndExpectedOrder.forEach(({ output, expectedMimeTypesOrder }) => {
+				const sortedOutputs = jupyterCellOutputToCellOutput(output);
+				const mimeTypes = sortedOutputs.items.map((item) => item.mime).join(',');
+				assert.equal(mimeTypes, expectedMimeTypesOrder.join(','));
+			});
+		});
+	})
 });
