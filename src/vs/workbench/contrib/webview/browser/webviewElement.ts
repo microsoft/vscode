@@ -291,8 +291,8 @@ export class IFrameWebview extends Disposable implements Webview {
 		}));
 
 		this._register(addDisposableListener(window, 'message', e => {
-			if (e.origin !== this.webviewContentEndpoint) {
-				console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentEndpoint}`);
+			if (e.origin !== this.webviewContentOrigin) {
+				console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
 				return;
 			}
 
@@ -419,6 +419,16 @@ export class IFrameWebview extends Disposable implements Webview {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
 		return endpoint;
+	}
+
+	private _webviewContentOrigin?: string;
+
+	private get webviewContentOrigin(): string {
+		if (!this._webviewContentOrigin) {
+			const uri = URI.parse(this.webviewContentEndpoint);
+			this._webviewContentOrigin = uri.scheme + '://' + uri.authority;
+		}
+		return this._webviewContentOrigin;
 	}
 
 	private doPostMessage(channel: string, data?: any): void {
