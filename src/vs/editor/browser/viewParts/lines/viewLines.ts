@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IViewLines, LineVisibleRanges, VisibleRanges, HorizontalPosition } from 'vs/editor/common/view/renderingContext';
+import { IViewLines, LineVisibleRanges, VisibleRanges, HorizontalPosition, HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -438,7 +438,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				}
 			}
 
-			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, visibleRangesForLine.ranges);
+			visibleRanges[visibleRangesLen++] = new LineVisibleRanges(visibleRangesForLine.outsideRenderedLine, lineNumber, HorizontalRange.from(visibleRangesForLine.ranges));
 		}
 
 		if (visibleRangesLen === 0) {
@@ -723,8 +723,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				return null;
 			}
 			for (const visibleRange of visibleRanges.ranges) {
-				boxStartX = Math.min(boxStartX, visibleRange.left);
-				boxEndX = Math.max(boxEndX, visibleRange.left + visibleRange.width);
+				boxStartX = Math.min(boxStartX, Math.round(visibleRange.left));
+				boxEndX = Math.max(boxEndX, Math.round(visibleRange.left + visibleRange.width));
 			}
 		} else {
 			for (const selection of horizontalRevealRequest.selections) {
@@ -736,8 +736,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 					return null;
 				}
 				for (const visibleRange of visibleRanges.ranges) {
-					boxStartX = Math.min(boxStartX, visibleRange.left);
-					boxEndX = Math.max(boxEndX, visibleRange.left + visibleRange.width);
+					boxStartX = Math.min(boxStartX, Math.round(visibleRange.left));
+					boxEndX = Math.max(boxEndX, Math.round(visibleRange.left + visibleRange.width));
 				}
 			}
 		}
