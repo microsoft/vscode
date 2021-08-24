@@ -60,11 +60,6 @@
 				return path.join(appDataPath, productName);
 			}
 
-			// 3. Support debugging mac OSS CLI
-			if (process.platform === 'darwin' && cliArgs['exec-path']) {
-				return cliArgs['exec-path'];
-			}
-
 			// With Electron>=13 --user-data-dir switch will be propagated to
 			// all processes https://github.com/electron/electron/blob/1897b14af36a02e9aa7e4d814159303441548251/shell/browser/electron_browser_client.cc#L546-L553
 			// Check VSCODE_PORTABLE and VSCODE_APPDATA before this case to get correct values.

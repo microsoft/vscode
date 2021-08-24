@@ -7,7 +7,7 @@ import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, closeSync, existsSync, openSync, readFileSync, readSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, platform, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
-import { isAbsolute, join } from 'vs/base/common/path';
+import { isAbsolute, join, resolve } from 'vs/base/common/path';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
@@ -367,9 +367,18 @@ export async function main(argv: string[]): Promise<any> {
 				argv.push('--wait');
 			}
 			const argsArr: string[] = [];
-			const execPathToUse = args['exec-path'] ?? process.execPath;
+			const isDev = env['NODE_ENV'] === 'development';
+			// When we're in development mode, call the OSS app rather than the OSS app's Electron
+			const execPathToUse = isDev ? resolve(join(process.execPath, '../../..')) : process.execPath;
 			argsArr.push('-a', execPathToUse);
 			argsArr.push(...envVars, ...openArgs, '--args', ...argv.slice(2));
+			if (isDev) {
+				// If we're in development mode, replace the . arg with the
+				// vscode source arg. Because the OSS app isn't bundled,
+				// it needs the vscode source arg to launch properly.
+				const launchDirIndex = argsArr.indexOf('.');
+				argsArr[launchDirIndex] = resolve(join(execPathToUse, '../../..'));
+			}
 			child = spawn('open', argsArr, options);
 
 			if (requiresWait) {
