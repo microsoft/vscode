@@ -872,7 +872,7 @@ suite.skip('Notebook API tests', function () {
 	});
 });
 
-suite('statusbar', () => {
+suite.skip('statusbar', () => {
 	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
 	const onDidCallProvide = emitter.event;
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -910,7 +910,7 @@ suite('statusbar', () => {
 	});
 });
 
-suite('Notebook API tests (metadata)', function () {
+suite.skip('Notebook API tests (metadata)', function () {
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
 
