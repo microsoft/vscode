@@ -292,6 +292,7 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this._register(addDisposableListener(window, 'message', e => {
 			if (e.origin !== this.webviewContentEndpoint) {
+				console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentEndpoint}`);
 				return;
 			}
 

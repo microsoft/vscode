@@ -248,6 +248,7 @@ const hostMessaging = new class HostMessaging {
 
 		window.addEventListener('message', (e) => {
 			if (e.origin !== parentOrigin) {
+				console.log(`skipping webview message due to mismatched origins: ${e.origin} ${parentOrigin}`);
 				return;
 			}
 
