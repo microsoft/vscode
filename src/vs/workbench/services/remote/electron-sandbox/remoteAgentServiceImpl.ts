@@ -12,12 +12,13 @@ import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 	constructor(
@@ -38,6 +39,7 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@INativeHostService nativeHostService: INativeHostService,
 	) {
 		// Let's cover the case where connecting to fetch the remote extension info fails
 		remoteAgentService.getRawEnvironment()
@@ -60,7 +62,14 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 				});
 
 				if (!RemoteAuthorityResolverError.isHandled(err)) {
-					notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : ''));
+					notificationService.prompt(
+						Severity.Error,
+						nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : ''),
+						[{
+							label: nls.localize('devTools', "Open Developer Tools"),
+							run: () => nativeHostService.openDevTools()
+						}]
+					);
 				}
 			});
 	}
