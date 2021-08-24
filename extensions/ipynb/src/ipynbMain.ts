@@ -31,7 +31,10 @@ export function activate(context: vscode.ExtensionContext) {
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookMetadata(resource, {
 				...document.metadata,
-				kernelspec: kernelspec
+				custom: {
+					...(document.metadata.custom ?? {}),
+					kernelspec: kernelspec
+				}
 			});
 			return vscode.workspace.applyEdit(edit);
 		},
