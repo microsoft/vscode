@@ -49,7 +49,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartLeft - issue #53899: whitespace', () => {
@@ -63,7 +63,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartLeft - issue #53899: underscores', () => {
@@ -77,7 +77,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartRight - basic', () => {
@@ -95,7 +95,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(3, 9))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartRight - issue #53899: whitespace', () => {
@@ -109,7 +109,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 52))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartRight - issue #53899: underscores', () => {
@@ -123,7 +123,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 52))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartRight - issue #53899: second case', () => {
@@ -142,7 +142,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(4, 7))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('issue #93239 - cursorWordPartRight', () => {
@@ -158,7 +158,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 8))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('issue #93239 - cursorWordPartLeft', () => {
@@ -174,7 +174,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordPartLeft - basic', () => {
@@ -188,7 +188,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordPartRight - basic', () => {
@@ -202,6 +202,6 @@ suite('WordPartOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 });

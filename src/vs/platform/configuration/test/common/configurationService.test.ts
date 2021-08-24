@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FileService } from 'vs/platform/files/common/fileService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
+
 
 suite('ConfigurationService', () => {
 
@@ -43,7 +43,7 @@ suite('ConfigurationService', () => {
 		}>();
 
 		assert.ok(config);
-		assert.equal(config.foo, 'bar');
+		assert.strictEqual(config.foo, 'bar');
 	});
 
 	test('config gets flattened', async () => {
@@ -62,7 +62,7 @@ suite('ConfigurationService', () => {
 		assert.ok(config);
 		assert.ok(config.testworkbench);
 		assert.ok(config.testworkbench.editor);
-		assert.equal(config.testworkbench.editor.tabs, true);
+		assert.strictEqual(config.testworkbench.editor.tabs, true);
 	});
 
 	test('error case does not explode', async () => {
@@ -89,9 +89,9 @@ suite('ConfigurationService', () => {
 	test('trigger configuration change event when file does not exist', async () => {
 		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
 		await testObject.initialize();
-		return new Promise(async (c, e) => {
+		return new Promise<void>(async (c) => {
 			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(() => {
-				assert.equal(testObject.getValue('foo'), 'bar');
+				assert.strictEqual(testObject.getValue('foo'), 'bar');
 				c();
 			}));
 			await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
@@ -104,9 +104,9 @@ suite('ConfigurationService', () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
 		await testObject.initialize();
 
-		return new Promise((c, e) => {
+		return new Promise<void>((c) => {
 			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(async (e) => {
-				assert.equal(testObject.getValue('foo'), 'barz');
+				assert.strictEqual(testObject.getValue('foo'), 'barz');
 				c();
 			}));
 			fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "barz" }'));
@@ -122,7 +122,7 @@ suite('ConfigurationService', () => {
 			foo: string;
 		}>();
 		assert.ok(config);
-		assert.equal(config.foo, 'bar');
+		assert.strictEqual(config.foo, 'bar');
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "changed" }'));
 
 		// force a reload to get latest
@@ -131,7 +131,7 @@ suite('ConfigurationService', () => {
 			foo: string;
 		}>();
 		assert.ok(config);
-		assert.equal(config.foo, 'changed');
+		assert.strictEqual(config.foo, 'changed');
 	});
 
 	test('model defaults', async () => {
@@ -160,7 +160,7 @@ suite('ConfigurationService', () => {
 		let setting = testObject.getValue<ITestSetting>();
 
 		assert.ok(setting);
-		assert.equal(setting.configuration.service.testSetting, 'isSet');
+		assert.strictEqual(setting.configuration.service.testSetting, 'isSet');
 
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 		testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
@@ -168,14 +168,14 @@ suite('ConfigurationService', () => {
 		setting = testObject.getValue<ITestSetting>();
 
 		assert.ok(setting);
-		assert.equal(setting.configuration.service.testSetting, 'isSet');
+		assert.strictEqual(setting.configuration.service.testSetting, 'isSet');
 
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "configuration.service.testSetting": "isChanged" }'));
 
 		await testObject.reloadConfiguration();
 		setting = testObject.getValue<ITestSetting>();
 		assert.ok(setting);
-		assert.equal(setting.configuration.service.testSetting, 'isChanged');
+		assert.strictEqual(setting.configuration.service.testSetting, 'isChanged');
 	});
 
 	test('lookup', async () => {
