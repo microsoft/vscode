@@ -9,8 +9,8 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
-import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionTriggerType } from 'vs/editor/common/modes';
+import { CodeActionItem, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeActionMenu, CodeActionShowOptions } from './codeActionMenu';
@@ -24,12 +24,14 @@ export class CodeActionUi extends Disposable {
 	private readonly _lightBulbWidget: Lazy<LightBulbWidget>;
 	private readonly _activeCodeActions = this._register(new MutableDisposable<CodeActionSet>());
 
+	#disposed = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		quickFixActionId: string,
 		preferredFixActionId: string,
 		private readonly delegate: {
-			applyCodeAction: (action: CodeAction, regtriggerAfterApply: boolean) => Promise<void>
+			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean) => Promise<void>
 		},
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -50,6 +52,11 @@ export class CodeActionUi extends Disposable {
 		});
 	}
 
+	override dispose() {
+		this.#disposed = true;
+		super.dispose();
+	}
+
 	public async update(newState: CodeActionsState.State): Promise<void> {
 		if (newState.type !== CodeActionsState.Type.Triggered) {
 			this._lightBulbWidget.rawValue?.hide();
@@ -64,9 +71,13 @@ export class CodeActionUi extends Disposable {
 			return;
 		}
 
+		if (this.#disposed) {
+			return;
+		}
+
 		this._lightBulbWidget.getValue().update(actions, newState.trigger, newState.position);
 
-		if (newState.trigger.type === CodeActionTriggerType.Manual) {
+		if (newState.trigger.type === CodeActionTriggerType.Invoke) {
 			if (newState.trigger.filter?.include) { // Triggered for specific scope
 				// Check to see if we want to auto apply.
 
@@ -83,8 +94,8 @@ export class CodeActionUi extends Disposable {
 				// Check to see if there is an action that we would have applied were it not invalid
 				if (newState.trigger.context) {
 					const invalidAction = this.getInvalidActionThatWouldHaveBeenApplied(newState.trigger, actions);
-					if (invalidAction && invalidAction.disabled) {
-						MessageController.get(this._editor).showMessage(invalidAction.disabled, newState.trigger.context.position);
+					if (invalidAction && invalidAction.action.disabled) {
+						MessageController.get(this._editor).showMessage(invalidAction.action.disabled, newState.trigger.context.position);
 						actions.dispose();
 						return;
 					}
@@ -114,7 +125,7 @@ export class CodeActionUi extends Disposable {
 		}
 	}
 
-	private getInvalidActionThatWouldHaveBeenApplied(trigger: CodeActionTrigger, actions: CodeActionSet): CodeAction | undefined {
+	private getInvalidActionThatWouldHaveBeenApplied(trigger: CodeActionTrigger, actions: CodeActionSet): CodeActionItem | undefined {
 		if (!actions.allActions.length) {
 			return undefined;
 		}
@@ -122,13 +133,13 @@ export class CodeActionUi extends Disposable {
 		if ((trigger.autoApply === CodeActionAutoApply.First && actions.validActions.length === 0)
 			|| (trigger.autoApply === CodeActionAutoApply.IfSingle && actions.allActions.length === 1)
 		) {
-			return actions.allActions.find(action => action.disabled);
+			return actions.allActions.find(({ action }) => action.disabled);
 		}
 
 		return undefined;
 	}
 
-	private tryGetValidActionToApply(trigger: CodeActionTrigger, actions: CodeActionSet): CodeAction | undefined {
+	private tryGetValidActionToApply(trigger: CodeActionTrigger, actions: CodeActionSet): CodeActionItem | undefined {
 		if (!actions.validActions.length) {
 			return undefined;
 		}
