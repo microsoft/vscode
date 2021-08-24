@@ -137,11 +137,16 @@ export class FloatHorizontalRange {
 
 export class HorizontalPosition {
 	public outsideRenderedLine: boolean;
+	/**
+	 * Math.round(this.originalLeft)
+	 */
 	public left: number;
+	public originalLeft: number;
 
 	constructor(outsideRenderedLine: boolean, left: number) {
 		this.outsideRenderedLine = outsideRenderedLine;
-		this.left = Math.round(left);
+		this.originalLeft = left;
+		this.left = Math.round(this.originalLeft);
 	}
 }
 
