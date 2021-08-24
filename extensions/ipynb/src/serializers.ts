@@ -94,7 +94,7 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 		case 'display_data': {
 			result = {
 				output_type: 'display_data',
-				data: output.items.reduce((prev: any, curr) => {
+				data: output.items.reduceRight((prev: any, curr) => {
 					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
 					return prev;
 				}, {}),
@@ -105,7 +105,7 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 		case 'execute_result': {
 			result = {
 				output_type: 'execute_result',
-				data: output.items.reduce((prev: any, curr) => {
+				data: output.items.reduceRight((prev: any, curr) => {
 					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
 					return prev;
 				}, {}),
@@ -118,7 +118,7 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 		case 'update_display_data': {
 			result = {
 				output_type: 'update_display_data',
-				data: output.items.reduce((prev: any, curr) => {
+				data: output.items.reduceRight((prev: any, curr) => {
 					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
 					return prev;
 				}, {}),
@@ -163,7 +163,7 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 				unknownOutput.metadata = customMetadata.metadata;
 			}
 			if (output.items.length > 0) {
-				unknownOutput.data = output.items.reduce((prev: any, curr) => {
+				unknownOutput.data = output.items.reduceRight((prev: any, curr) => {
 					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
 					return prev;
 				}, {});
@@ -224,33 +224,17 @@ type JupyterOutput =
 	| nbformat.IError;
 
 function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
-	const outputs: string[] = [];
-	output.items
+	const outputs = output.items
 		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
 		.map((opit) => convertOutputMimeToJupyterOutput(opit.mime, opit.data as Uint8Array) as string)
-		.forEach(value => {
-			// Ensure each line is a seprate entry in an array (ending with \n).
-			const lines = value.split('\n');
-			// If the last item in `outputs` is not empty and the first item in `lines` is not empty, then concate them.
-			// As they are part of the same line.
-			if (outputs.length && lines.length && lines[0].length > 0) {
-				outputs[outputs.length - 1] = `${outputs[outputs.length - 1]}${lines.shift()!}`;
-			}
-			for (const line of lines) {
-				outputs.push(line);
-			}
-		});
-	// Skip last one if empty (it's the only one that could be length 0)
-	if (outputs.length && outputs[outputs.length - 1].length === 0) {
-		outputs.pop();
-	}
+		.reduceRight<string[]>((prev, curr) => prev.concat(curr), []);
 
 	const streamType = getOutputStreamType(output) || 'stdout';
 
 	return {
 		output_type: 'stream',
 		name: streamType,
-		text: outputs
+		text: splitMultilineString(outputs.join(''))
 	};
 }
 
