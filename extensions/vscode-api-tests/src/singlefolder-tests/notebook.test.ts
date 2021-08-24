@@ -136,7 +136,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	}
 };
 
-suite('Notebook API tests', function () {
+suite.skip('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
