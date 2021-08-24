@@ -131,7 +131,7 @@
     "electron": "12.0.4",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
-    "event-stream": "3.3.4",
+    "event-stream": "4.0.1",
     "fancy-log": "^1.3.3",
     "fast-plist": "0.1.2",
     "file-loader": "^4.2.0",
