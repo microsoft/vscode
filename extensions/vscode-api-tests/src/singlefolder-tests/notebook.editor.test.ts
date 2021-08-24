@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-suite('Notebook Editor', function () {
+suite.skip('Notebook Editor', function () {
 
 	const contentSerializer = new class implements vscode.NotebookSerializer {
 		deserializeNotebook() {
