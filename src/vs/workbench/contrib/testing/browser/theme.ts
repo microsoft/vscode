@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { editorErrorForeground, editorForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorErrorForeground, editorForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -55,7 +55,13 @@ export const testingColorIconSkipped = registerColor('testing.iconSkipped', {
 export const testingPeekBorder = registerColor('testing.peekBorder', {
 	dark: editorErrorForeground,
 	light: editorErrorForeground,
-	hc: editorErrorForeground,
+	hc: contrastBorder,
+}, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
+
+export const testingPeekHeaderBackground = registerColor('testing.peekHeaderBackground', {
+	dark: transparent(editorErrorForeground, 0.1),
+	light: transparent(editorErrorForeground, 0.1),
+	hc: null,
 }, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
 
 export const testMessageSeverityColors: {
