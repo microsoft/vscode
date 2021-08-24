@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILinkProvider, ILink } from 'xterm';
+import type { ILinkProvider, ILink } from 'xterm';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 
 export abstract class TerminalBaseLinkProvider implements ILinkProvider {

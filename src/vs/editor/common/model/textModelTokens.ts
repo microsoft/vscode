@@ -9,7 +9,6 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -217,14 +216,11 @@ export class TextModelTokenization extends Disposable {
 			this._textModel.clearTokens();
 		}));
 
-		this._register(this._textModel.onDidChangeRawContentFast((e) => {
-			if (e.containsEvent(RawContentChangedType.Flush)) {
+		this._register(this._textModel.onDidChangeContentFast((e) => {
+			if (e.isFlush) {
 				this._resetTokenizationState();
 				return;
 			}
-		}));
-
-		this._register(this._textModel.onDidChangeContentFast((e) => {
 			for (let i = 0, len = e.changes.length; i < len; i++) {
 				const change = e.changes[i];
 				const [eolCount] = countEOL(change.text);
@@ -246,7 +242,7 @@ export class TextModelTokenization extends Disposable {
 		this._resetTokenizationState();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposed = true;
 		super.dispose();
 	}
@@ -270,10 +266,13 @@ export class TextModelTokenization extends Disposable {
 		}
 	}
 
-	private _revalidateTokensNow(toLineNumber: number = this._textModel.getLineCount()): void {
+	private _revalidateTokensNow(): void {
+		const textModelLastLineNumber = this._textModel.getLineCount();
+
 		const MAX_ALLOWED_TIME = 1;
 		const builder = new MultilineTokensBuilder();
 		const sw = StopWatch.create(false);
+		let tokenizedLineNumber = -1;
 
 		while (this._hasLinesToTokenize()) {
 			if (sw.elapsed() > MAX_ALLOWED_TIME) {
@@ -281,15 +280,15 @@ export class TextModelTokenization extends Disposable {
 				break;
 			}
 
-			const tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
+			tokenizedLineNumber = this._tokenizeOneInvalidLine(builder);
 
-			if (tokenizedLineNumber >= toLineNumber) {
+			if (tokenizedLineNumber >= textModelLastLineNumber) {
 				break;
 			}
 		}
 
 		this._beginBackgroundTokenization();
-		this._textModel.setTokens(builder.tokens);
+		this._textModel.setTokens(builder.tokens, tokenizedLineNumber >= textModelLastLineNumber);
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
@@ -359,7 +358,7 @@ export class TextModelTokenization extends Disposable {
 			const text = this._textModel.getLineContent(lineIndex + 1);
 			const lineStartState = this._tokenizationStateStore.getBeginState(lineIndex);
 
-			const r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, lineStartState!);
+			const r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, true, lineStartState!);
 			builder.add(lineIndex + 1, r.tokens);
 			this._tokenizationStateStore.setEndState(linesLength, lineIndex, r.endState);
 			lineIndex = this._tokenizationStateStore.invalidLineStartIndex - 1; // -1 because the outer loop increments it
@@ -410,13 +409,13 @@ export class TextModelTokenization extends Disposable {
 		const languageIdentifier = this._textModel.getLanguageIdentifier();
 		let state = initialState;
 		for (let i = fakeLines.length - 1; i >= 0; i--) {
-			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, fakeLines[i], state);
+			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, fakeLines[i], false, state);
 			state = r.endState;
 		}
 
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			let text = this._textModel.getLineContent(lineNumber);
-			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, state);
+			let r = safeTokenize(languageIdentifier, this._tokenizationSupport, text, true, state);
 			builder.add(lineNumber, r.tokens);
 			this._tokenizationStateStore.setFakeTokens(lineNumber - 1);
 			state = r.endState;
@@ -443,12 +442,12 @@ function initializeTokenization(textModel: TextModel): [ITokenizationSupport | n
 	return [tokenizationSupport, initialState];
 }
 
-function safeTokenize(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null, text: string, state: IState): TokenizationResult2 {
+function safeTokenize(languageIdentifier: LanguageIdentifier, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): TokenizationResult2 {
 	let r: TokenizationResult2 | null = null;
 
 	if (tokenizationSupport) {
 		try {
-			r = tokenizationSupport.tokenize2(text, state.clone(), 0);
+			r = tokenizationSupport.tokenize2(text, hasEOL, state.clone(), 0);
 		} catch (e) {
 			onUnexpectedError(e);
 		}

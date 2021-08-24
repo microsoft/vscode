@@ -1,0 +1,3 @@
+{
+	"editor.minimap.enabled": false // see https://github.com/microsoft/vscode/issues/115747
+}

@@ -27,7 +27,6 @@ export class TimelineService implements ITimelineService {
 	private readonly _onDidChangeUri = new Emitter<URI>();
 	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
 
-	private excludedSources: Set<string>;
 	private readonly hasProviderContext: IContextKey<boolean>;
 	private readonly providers = new Map<string, TimelineProvider>();
 	private readonly providerSubscriptions = new Map<string, IDisposable>();
@@ -39,16 +38,6 @@ export class TimelineService implements ITimelineService {
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 	) {
 		this.hasProviderContext = TimelineHasProviderContext.bindTo(this.contextKeyService);
-
-		this.excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
-		configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('timeline.excludeSources')) {
-				this.excludedSources = new Set(this.configurationService.getValue('timeline.excludeSources'));
-
-				this.updateHasProviderContext();
-			}
-		}, this);
-
 		this.updateHasProviderContext();
 
 		// let source = 'fast-source';
@@ -271,12 +260,6 @@ export class TimelineService implements ITimelineService {
 	}
 
 	private updateHasProviderContext() {
-		if (this.providers.size === 0) {
-			this.hasProviderContext.set(false);
-			return;
-		}
-
-		const hasProviders = [...this.providers.keys()].some(id => !this.excludedSources.has(id));
-		this.hasProviderContext.set(hasProviders);
+		this.hasProviderContext.set(this.providers.size !== 0);
 	}
 }
