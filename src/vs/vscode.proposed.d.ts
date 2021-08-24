@@ -917,6 +917,17 @@ declare module 'vscode' {
 		readonly state: TerminalState;
 	}
 
+	export namespace window {
+		/**
+		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
+		 */
+		export const onDidChangeTerminalState: Event<Terminal>;
+	}
+
+	//#endregion
+
+	//#region Terminal location https://github.com/microsoft/vscode/issues/45407
+
 	export interface TerminalOptions {
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
@@ -951,13 +962,6 @@ declare module 'vscode' {
 		 * is in the panel or the editor area.
 		 */
 		parentTerminal: Terminal;
-	}
-
-	export namespace window {
-		/**
-		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
-		 */
-		export const onDidChangeTerminalState: Event<Terminal>;
 	}
 
 	//#endregion
