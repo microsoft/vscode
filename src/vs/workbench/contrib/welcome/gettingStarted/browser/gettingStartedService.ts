@@ -352,6 +352,13 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						root: FileAccess.asFileUri(extension.extensionLocation),
 					};
 				}
+				else if (step.media.svg) {
+					media = {
+						type: 'svg',
+						path: convertExtensionPathToFileURI(step.media.svg),
+						altText: step.media.svg,
+					};
+				}
 
 				// Legacy media config
 				else {
