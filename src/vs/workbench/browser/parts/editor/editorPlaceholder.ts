@@ -25,7 +25,7 @@ import { EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
 
-abstract class EditorPanePlaceholder extends EditorPane {
+abstract class EditorPlaceholderPane extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -121,7 +121,7 @@ abstract class EditorPanePlaceholder extends EditorPane {
 	}
 }
 
-export class WorkspaceTrustRequiredEditor extends EditorPanePlaceholder {
+export class WorkspaceTrustRequiredEditor extends EditorPlaceholderPane {
 
 	static readonly ID = 'workbench.editors.workspaceTrustRequiredEditor';
 	static readonly LABEL = localize('trustRequiredEditor', "Workspace Trust Required");
@@ -144,7 +144,7 @@ export class WorkspaceTrustRequiredEditor extends EditorPanePlaceholder {
 			localize('requiresFolderTrustText', "The file is not displayed in the editor because trust has not been granted to the folder.") :
 			localize('requiresWorkspaceTrustText', "The file is not displayed in the editor because trust has not been granted to the workspace.");
 
-		const link = this._register(this.instantiationService.createInstance(Link, {
+		const link = disposables.add(this.instantiationService.createInstance(Link, {
 			label: localize('manageTrust', "Manage Workspace Trust"),
 			href: ''
 		}, {
@@ -155,30 +155,30 @@ export class WorkspaceTrustRequiredEditor extends EditorPanePlaceholder {
 	}
 }
 
-export class UnavailableEditor extends EditorPanePlaceholder {
-
-	static readonly ID = 'workbench.editors.unavailableEditor';
-	static readonly LABEL = localize('unavailableEditor', "Unavailable Editor");
-	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnavailableEditor, UnavailableEditor.ID, UnavailableEditor.LABEL);
+abstract class AbstractErrorEditor extends EditorPlaceholderPane {
 
 	constructor(
+		id: string,
+		label: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(UnavailableEditor.ID, UnavailableEditor.LABEL, telemetryService, themeService, storageService);
+		super(id, label, telemetryService, themeService, storageService);
 	}
+
+	protected abstract getErrorMessage(): string;
 
 	protected renderBody(container: HTMLElement, disposables: DisposableStore): void {
 		const label = container.appendChild(document.createElement('p'));
-		label.textContent = localize('unavailableEditorText', "The editor could not be opened due to an error or an unavailable resource.");
+		label.textContent = this.getErrorMessage();
 
 		// Offer to re-open
 		const group = this.group;
 		const input = this.input;
 		if (group && input) {
-			const link = this._register(this.instantiationService.createInstance(Link, {
+			const link = disposables.add(this.instantiationService.createInstance(Link, {
 				label: localize('retry', "Try Again"),
 				href: ''
 			}, {
@@ -187,5 +187,45 @@ export class UnavailableEditor extends EditorPanePlaceholder {
 
 			append(label, link.el);
 		}
+	}
+}
+
+export class UnknownErrorEditor extends AbstractErrorEditor {
+
+	static readonly ID = 'workbench.editors.unknownErrorEditor';
+	static readonly LABEL = localize('unknownErrorEditor', "Unknown Error Editor");
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnknownErrorEditor, UnknownErrorEditor.ID, UnknownErrorEditor.LABEL);
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(UnknownErrorEditor.ID, UnknownErrorEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+	}
+
+	protected override getErrorMessage(): string {
+		return localize('unknownErrorEditorText', "The editor could not be opened due to an unexpected error.");
+	}
+}
+
+export class UnavailableResourceErrorEditor extends AbstractErrorEditor {
+
+	static readonly ID = 'workbench.editors.unavailableResourceErrorEditor';
+	static readonly LABEL = localize('unavailableResourceErrorEditor', "Unavailable Resource Error Editor");
+	static readonly DESCRIPTOR = EditorPaneDescriptor.create(UnavailableResourceErrorEditor, UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL);
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(UnavailableResourceErrorEditor.ID, UnavailableResourceErrorEditor.LABEL, telemetryService, themeService, storageService, instantiationService);
+	}
+
+	protected override getErrorMessage(): string {
+		return localize('unavailableResourceErrorEditorText', "The editor could not be opened due to an unavailable resource.");
 	}
 }

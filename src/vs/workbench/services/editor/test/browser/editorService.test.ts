@@ -33,7 +33,7 @@ import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspac
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { UnavailableEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { UnknownErrorEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 
 suite('EditorService', () => {
 
@@ -1994,7 +1994,7 @@ suite('EditorService', () => {
 
 		failingInput.setFailToOpen();
 		let failingEditor = await service.openEditor(failingInput);
-		assert.ok(failingEditor instanceof UnavailableEditor);
+		assert.ok(failingEditor instanceof UnknownErrorEditor);
 	});
 
 	test('save, saveAll, revertAll', async function () {

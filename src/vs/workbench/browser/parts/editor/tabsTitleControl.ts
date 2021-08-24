@@ -421,7 +421,6 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	closeEditors(editors: IEditorInput[]): void {
-		// Cleanup closed editors
 		this.handleClosedEditors();
 	}
 

@@ -17,8 +17,9 @@ import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIM
 import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { UnavailableEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { UnavailableResourceErrorEditor, UnknownErrorEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 
 export interface IOpenEditorResult {
 
@@ -107,6 +108,8 @@ export class EditorControl extends Disposable {
 			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
 		} catch (error) {
 			if (!context.newInGroup) {
+				const isUnavailableResource = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+				const editorPlaceholder = isUnavailableResource ? UnavailableResourceErrorEditor.DESCRIPTOR : UnknownErrorEditor.DESCRIPTOR;
 
 				// The editor is restored (as opposed to being newly opened) and as
 				// such we want to preserve the fact that an editor was opened here
@@ -119,7 +122,7 @@ export class EditorControl extends Disposable {
 				//
 				// Related: https://github.com/microsoft/vscode/issues/110062
 				return {
-					...(await this.doOpenEditor(UnavailableEditor.DESCRIPTOR, editor, options, context)),
+					...(await this.doOpenEditor(editorPlaceholder, editor, options, context)),
 					error
 				};
 			}
