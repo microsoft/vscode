@@ -190,7 +190,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.experimentalAutoLockGroups': {
 				'type': 'array',
-				'description': localize('workbench.editor.experimentalAutoLockGroups', "Experimental: lock a group automatically when an editor is the first in the group and more than one group is open. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default. Consequently the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
+				'description': localize('workbench.editor.experimentalAutoLockGroups', "Experimental: If an editor matching one of the listed types is opened as the first in an editor group and more than one group is open, the group is automatically locked. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default. Consequently the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
 				'items': {
 					'type': 'string'
 				},
