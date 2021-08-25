@@ -285,7 +285,19 @@ class QuickInput extends Disposable implements IQuickInput {
 			}),
 		);
 		this.ui.show(this);
+
+		// update properties in the controller that get reset in the ui.show() call
 		this.visible = true;
+		// This ensures the message/prompt gets rendered
+		this._lastValidationMessage = undefined;
+		// This ensures the input box has the right severity applied
+		this._lastSeverity = undefined;
+		if (this.buttons.length) {
+			// if there are buttons, the ui.show() clears them out of the UI so we should
+			// rerender them.
+			this.buttonsUpdated = true;
+		}
+
 		this.update();
 	}
 
