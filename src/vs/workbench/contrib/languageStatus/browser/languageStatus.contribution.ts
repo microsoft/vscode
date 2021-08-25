@@ -70,12 +70,15 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		const [first] = this._status;
 		let backgroundColor: ThemeColor | undefined;
 		let color: ThemeColor | undefined;
+		let text: string = '$(info)';
 		if (first.severity === Severity.Error) {
 			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
 			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
+			text = '$(error)';
 		} else if (first.severity === Severity.Warning) {
 			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
 			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
+			text = '$(warning)';
 		}
 
 		const element = document.createElement('div');
@@ -85,10 +88,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.status', "Language Status"),
-			text: '$(circle-large-outline)',
 			ariaLabel: localize('status.editor.status', "Language Status"),
-			backgroundColor,
-			color,
+			text,
+			// backgroundColor,
+			// color,
 			tooltip: element
 		};
 
