@@ -615,6 +615,9 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						this.stepCompletionContextKeyExpressions.add(expression);
 						expression.keys().forEach(key => this.stepCompletionContextKeys.add(key));
 						event = eventType + ':' + expression.serialize();
+						if (this.contextService.contextMatchesRules(expression)) {
+							this.sessionEvents.add(event);
+						}
 					} else {
 						console.error('Unable to parse context key expression:', expression, 'in walkthrough step', step.id);
 					}

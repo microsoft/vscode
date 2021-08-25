@@ -373,6 +373,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: {
 						type: 'svg', altText: 'Install Git.', path: 'git.svg',
 					},
+					completionEvents: [
+						'onContext:git.state == initialized'
+					]
 				},
 				{
 					id: 'tasks',
