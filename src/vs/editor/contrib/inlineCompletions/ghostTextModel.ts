@@ -107,7 +107,7 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 	}
 
 	public triggerInlineCompletion(): void {
-		this.activeInlineCompletionsModel?.trigger();
+		this.activeInlineCompletionsModel?.trigger(InlineCompletionTriggerKind.Explicit);
 	}
 
 	public commitInlineCompletion(): void {
