@@ -67,7 +67,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE is:issue is:closed label:feature-request label:verification-needed -label:verified"
+    "value": "$REPOS $MILESTONE is:issue is:closed label:verification-needed -label:verified"
   },
   {
     "kind": 1,
