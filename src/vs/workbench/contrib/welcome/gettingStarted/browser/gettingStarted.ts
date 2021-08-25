@@ -131,7 +131,6 @@ export class GettingStartedPage extends EditorPane {
 	private contextService: IContextKeyService;
 
 	private recentlyOpened: Promise<IRecentlyOpened>;
-	private selectedStepElement?: HTMLDivElement;
 	private hasScrolledToFirstCategory = false;
 	private recentlyOpenedList?: GettingStartedIndexList<RecentEntry>;
 	private startList?: GettingStartedIndexList<IWelcomePageStartEntry>;
@@ -664,17 +663,12 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
 				if (node.getAttribute('data-step-id') !== id) {
 					node.classList.remove('expanded');
-					node.style.height = ``;
 					node.setAttribute('aria-expanded', 'false');
 				}
 			});
 			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
 
-			stepElement.style.height = ``;
-			stepElement.style.height = `${stepElement.scrollHeight}px`;
-
 			this.editorInput.selectedStep = id;
-			this.selectedStepElement = stepElement;
 
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
@@ -683,11 +677,7 @@ export class GettingStartedPage extends EditorPane {
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
-		setTimeout(() => {
-			// rescan after animation finishes
-			this.detailsPageScrollbar?.scanDomNode();
-			this.detailsScrollbar?.scanDomNode();
-		}, 100);
+
 		this.detailsPageScrollbar?.scanDomNode();
 		this.detailsScrollbar?.scanDomNode();
 	}
@@ -1148,11 +1138,6 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList[size.height <= 600 ? 'add' : 'remove']('height-constrained');
 		this.container.classList[size.width <= 400 ? 'add' : 'remove']('width-constrained');
 		this.container.classList[size.width <= 800 ? 'add' : 'remove']('width-semi-constrained');
-
-		if (this.selectedStepElement) {
-			this.selectedStepElement.style.height = ``; // unset or the scrollHeight will just be the old height
-			this.selectedStepElement.style.height = `${this.selectedStepElement.scrollHeight}px`;
-		}
 	}
 
 	private updateCategoryProgress() {
