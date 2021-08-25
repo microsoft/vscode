@@ -120,14 +120,21 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			return;
 		}
 
-		this.trigger();
+		this.trigger(InlineCompletionTriggerKind.Automatic);
 	}
 
-	public trigger(): void {
+	public trigger(triggerKind: InlineCompletionTriggerKind): void {
 		if (this.completionSession.value) {
 			return;
 		}
-		this.completionSession.value = new InlineCompletionsSession(this.editor, this.editor.getPosition(), () => this.active, this.commandService, this.cache);
+		this.completionSession.value = new InlineCompletionsSession(
+			this.editor,
+			this.editor.getPosition(),
+			() => this.active,
+			this.commandService,
+			this.cache,
+			triggerKind
+		);
 		this.completionSession.value.takeOwnership(
 			this.completionSession.value.onDidChange(() => {
 				this.onDidChangeEmitter.fire();
@@ -164,7 +171,12 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 
-	private readonly updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
+	private readonly updateSoon = this._register(new RunOnceScheduler(() => {
+		let triggerKind = this.initialTriggerKind;
+		// All subsequent triggers are automatic.
+		this.initialTriggerKind = InlineCompletionTriggerKind.Automatic;
+		return this.update(triggerKind);
+	}, 50));
 
 	constructor(
 		editor: IActiveCodeEditor,
@@ -172,6 +184,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		private readonly shouldUpdate: () => boolean,
 		private readonly commandService: ICommandService,
 		private readonly cache: SharedInlineCompletionCache,
+		private initialTriggerKind: InlineCompletionTriggerKind
 	) {
 		super(editor);
 
