@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { firstOrDefault } from 'vs/base/common/arrays';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -26,8 +27,8 @@ export function columnToEditorGroup(editorGroupService: IEditorGroupsService, co
 		return candidateGroup.id; // found direct match
 	}
 
-	let firstGroup = groups[0];
-	if (groups.length === 1 && firstGroup.count === 0) {
+	let firstGroup = firstOrDefault(groups);
+	if (groups.length === 1 && firstGroup?.isEmpty) {
 		return firstGroup.id; // first editor should always open in first group independent from position provided
 	}
 
@@ -35,8 +36,7 @@ export function columnToEditorGroup(editorGroupService: IEditorGroupsService, co
 }
 
 export function editorGroupToColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorGroupColumn {
-	let group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
-	group = group ?? editorGroupService.activeGroup;
+	const group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
 
-	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
+	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group ?? editorGroupService.activeGroup);
 }
