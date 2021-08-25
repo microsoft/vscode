@@ -3943,7 +3943,7 @@ export const EDITOR_MODEL_DEFAULTS = {
 	detectIndentation: true,
 	trimAutoWhitespace: true,
 	largeFileOptimizations: true,
-	bracketPairColorizationOptions: { enabled: product.quality !== 'stable' }
+	bracketPairColorizationOptions: { enabled: false }
 };
 
 /**
