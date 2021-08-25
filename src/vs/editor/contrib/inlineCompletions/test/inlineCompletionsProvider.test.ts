@@ -15,7 +15,7 @@ import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contr
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 
 suite('Inline Completions', () => {
