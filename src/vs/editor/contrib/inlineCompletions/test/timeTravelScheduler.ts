@@ -232,14 +232,14 @@ export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean, 
 		result = await fn();
 	} finally {
 		globalInstallDisposable.dispose();
-	}
 
-	try {
-		// We process the remaining scheduled tasks.
-		// The global override is no longer active, so during this, no more tasks will be scheduled.
-		await schedulerProcessor.waitForEmptyQueue();
-	} finally {
-		schedulerProcessor.dispose();
+		try {
+			// We process the remaining scheduled tasks.
+			// The global override is no longer active, so during this, no more tasks will be scheduled.
+			await schedulerProcessor.waitForEmptyQueue();
+		} finally {
+			schedulerProcessor.dispose();
+		}
 	}
 
 	return result;

@@ -124,9 +124,12 @@ export function ensureNoDisposablesAreLeakedInTestSuite() {
 		setDisposableTracker(tracker);
 	});
 
-	teardown(() => {
+	teardown(function (this: import('mocha').Context) {
 		setDisposableTracker(null);
-		tracker!.ensureNoLeakingDisposables();
+
+		if (this.currentTest?.state !== 'failed') {
+			tracker!.ensureNoLeakingDisposables();
+		}
 	});
 }
 
