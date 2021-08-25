@@ -34,6 +34,8 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { UnknownErrorEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('EditorService', () => {
 
@@ -299,6 +301,155 @@ suite('EditorService', () => {
 		assert.strictEqual(part.count, 4);
 		assert.strictEqual(part.activeGroup, group3);
 		assert.strictEqual(group3.activeEditor?.resource?.toString(), input6.resource.toString());
+	});
+
+	test('locked groups - workbench.editor.revealIfOpen', async () => {
+		const instantiationService = workbenchInstantiationService();
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('workbench', { 'editor': { 'revealIfOpen': true } });
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		disposables.add(registerTestFileEditor());
+
+		const [part, service, accessor] = await createEditorService(instantiationService);
+
+		disposables.add(accessor.editorResolverService.registerEditor(
+			'*.editor-service-locked-group-tests',
+			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
+			{},
+			editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+		));
+
+		const rootGroup = part.activeGroup;
+		let rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		part.activateGroup(rootGroup);
+
+		let input1: IResourceEditorInput = { resource: URI.parse('file://resource-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input2: IResourceEditorInput = { resource: URI.parse('file://resource2-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input3: IResourceEditorInput = { resource: URI.parse('file://resource3-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input4: IResourceEditorInput = { resource: URI.parse('file://resource4-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+
+		await service.openEditor(input1, rootGroup.id);
+		await service.openEditor(input2, rootGroup.id);
+
+		assert.strictEqual(part.activeGroup.id, rootGroup.id);
+
+		await service.openEditor(input3, rightGroup.id);
+		await service.openEditor(input4, rightGroup.id);
+
+		assert.strictEqual(part.activeGroup.id, rightGroup.id);
+
+		rootGroup.lock(true);
+		rightGroup.lock(true);
+
+		await service.openEditor(input1);
+
+		assert.strictEqual(part.activeGroup.id, rootGroup.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), input1.resource.toString());
+
+		await service.openEditor(input3);
+
+		assert.strictEqual(part.activeGroup.id, rightGroup.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), input3.resource.toString());
+
+		assert.strictEqual(part.groups.length, 2);
+	});
+
+	test('locked groups - revealIfVisible', async () => {
+		disposables.add(registerTestFileEditor());
+
+		const [part, service, accessor] = await createEditorService();
+
+		disposables.add(accessor.editorResolverService.registerEditor(
+			'*.editor-service-locked-group-tests',
+			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
+			{},
+			editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+		));
+
+		const rootGroup = part.activeGroup;
+		let rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		part.activateGroup(rootGroup);
+
+		let input1: IResourceEditorInput = { resource: URI.parse('file://resource-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input2: IResourceEditorInput = { resource: URI.parse('file://resource2-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input3: IResourceEditorInput = { resource: URI.parse('file://resource3-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input4: IResourceEditorInput = { resource: URI.parse('file://resource4-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+
+		await service.openEditor(input1, rootGroup.id);
+		await service.openEditor(input2, rootGroup.id);
+
+		assert.strictEqual(part.activeGroup.id, rootGroup.id);
+
+		await service.openEditor(input3, rightGroup.id);
+		await service.openEditor(input4, rightGroup.id);
+
+		assert.strictEqual(part.activeGroup.id, rightGroup.id);
+
+		rootGroup.lock(true);
+		rightGroup.lock(true);
+
+		await service.openEditor({ ...input2, options: { ...input2.options, revealIfVisible: true } });
+
+		assert.strictEqual(part.activeGroup.id, rootGroup.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), input2.resource.toString());
+
+		await service.openEditor({ ...input4, options: { ...input4.options, revealIfVisible: true } });
+
+		assert.strictEqual(part.activeGroup.id, rightGroup.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), input4.resource.toString());
+
+		assert.strictEqual(part.groups.length, 2);
+	});
+
+	test('locked groups - revealIfOpened', async () => {
+		disposables.add(registerTestFileEditor());
+
+		const [part, service, accessor] = await createEditorService();
+
+		disposables.add(accessor.editorResolverService.registerEditor(
+			'*.editor-service-locked-group-tests',
+			{ id: TEST_EDITOR_INPUT_ID, label: 'Label', priority: RegisteredEditorPriority.exclusive },
+			{},
+			editor => ({ editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) })
+		));
+
+		const rootGroup = part.activeGroup;
+		let rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		part.activateGroup(rootGroup);
+
+		let input1: IResourceEditorInput = { resource: URI.parse('file://resource-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input2: IResourceEditorInput = { resource: URI.parse('file://resource2-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input3: IResourceEditorInput = { resource: URI.parse('file://resource3-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input4: IResourceEditorInput = { resource: URI.parse('file://resource4-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+
+		await service.openEditor(input1, rootGroup.id);
+		await service.openEditor(input2, rootGroup.id);
+
+		assert.strictEqual(part.activeGroup.id, rootGroup.id);
+
+		await service.openEditor(input3, rightGroup.id);
+		await service.openEditor(input4, rightGroup.id);
+
+		assert.strictEqual(part.activeGroup.id, rightGroup.id);
+
+		rootGroup.lock(true);
+		rightGroup.lock(true);
+
+		await service.openEditor({ ...input1, options: { ...input1.options, revealIfOpened: true } });
+
+		assert.strictEqual(part.activeGroup.id, rootGroup.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), input1.resource.toString());
+
+		await service.openEditor({ ...input3, options: { ...input3.options, revealIfOpened: true } });
+
+		assert.strictEqual(part.activeGroup.id, rightGroup.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), input3.resource.toString());
+
+		assert.strictEqual(part.groups.length, 2);
 	});
 
 	test('openEditor() - untyped, typed', () => {
