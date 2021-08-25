@@ -227,7 +227,7 @@ function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 	const outputs: string[] = [];
 	output.items
 		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
-		.map((opit) => convertOutputMimeToJupyterOutput(opit.mime, opit.data as Uint8Array) as string)
+		.map((opit) => textDecoder.decode(opit.data))
 		.forEach(value => {
 			// Ensure each line is a seprate entry in an array (ending with \n).
 			const lines = value.split('\n');
@@ -240,6 +240,11 @@ function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
 				outputs.push(line);
 			}
 		});
+
+	for (let index = 0; index < (outputs.length - 1); index++) {
+		outputs[index] = `${outputs[index]}\n`;
+	}
+
 	// Skip last one if empty (it's the only one that could be length 0)
 	if (outputs.length && outputs[outputs.length - 1].length === 0) {
 		outputs.pop();

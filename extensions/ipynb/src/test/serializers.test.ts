@@ -106,6 +106,48 @@ suite('ipynb serializer', () => {
 				]
 			);
 		});
+		test('Stream output and line endings', () => {
+			validateCellOutputTranslation(
+				[
+					{
+						output_type: 'stream',
+						name: 'stdout',
+						text: [
+							'Line1\n',
+							'\n',
+							'Line3\n',
+							'Line4'
+						]
+					}
+				],
+				[
+					new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.stdout('Line1\n\nLine3\nLine4')], {
+						outputType: 'stream'
+					})
+				]
+			);
+			validateCellOutputTranslation(
+				[
+					{
+						output_type: 'stream',
+						name: 'stdout',
+						text: [
+							'Hello\n',
+							'Hello\n',
+							'Hello\n',
+							'Hello\n',
+							'Hello\n',
+							'Hello\n'
+						]
+					}
+				],
+				[
+					new vscode.NotebookCellOutput([vscode.NotebookCellOutputItem.stdout('Hello\nHello\nHello\nHello\nHello\nHello\n')], {
+						outputType: 'stream'
+					})
+				]
+			);
+		});
 		test('Multi-line Stream output', () => {
 			validateCellOutputTranslation(
 				[
