@@ -72,7 +72,7 @@ import * as search from 'vs/workbench/services/search/common/search';
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
 	appName: string;
-	embedderIdentifier: string;
+	appHost: string;
 	appRoot?: URI;
 	appLanguage: string;
 	appUriScheme: string;

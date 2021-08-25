@@ -8192,6 +8192,11 @@ declare module 'vscode' {
 		export const appRoot: string;
 
 		/**
+			 * The environment in which the app is hosted in. i.e. 'desktop', 'codespaces', 'web'.
+			 */
+		export const appHost: string;
+
+		/**
 		 * The custom uri scheme the editor registers to in the operating system.
 		 */
 		export const uriScheme: string;

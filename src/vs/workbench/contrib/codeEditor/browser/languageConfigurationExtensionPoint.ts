@@ -49,6 +49,7 @@ interface ILanguageConfiguration {
 	brackets?: CharacterPair[];
 	autoClosingPairs?: Array<CharacterPair | IAutoClosingPairConditional>;
 	surroundingPairs?: Array<CharacterPair | IAutoClosingPair>;
+	colorizedBracketPairs?: Array<CharacterPair>;
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
@@ -268,6 +269,30 @@ export class LanguageConfigurationFileHandler {
 		return result;
 	}
 
+	private _extractValidColorizedBracketPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CharacterPair[] | null {
+		const source = configuration.colorizedBracketPairs;
+		if (typeof source === 'undefined') {
+			return null;
+		}
+		if (!Array.isArray(source)) {
+			console.warn(`[${languageIdentifier.language}]: language configuration: expected \`colorizedBracketPairs\` to be an array.`);
+			return null;
+		}
+
+		let result: CharacterPair[] | null = null;
+		for (let i = 0, len = source.length; i < len; i++) {
+			const pair = source[i];
+			if (!isCharacterPair(pair)) {
+				console.warn(`[${languageIdentifier.language}]: language configuration: expected \`colorizedBracketPairs[${i}]\` to be an array of two strings.`);
+				continue;
+			}
+			result = result || [];
+			result.push([pair[0], pair[1]]);
+
+		}
+		return result;
+	}
+
 	private _extractValidOnEnterRules(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): OnEnterRule[] | null {
 		const source = configuration.onEnterRules;
 		if (typeof source === 'undefined') {
@@ -363,6 +388,11 @@ export class LanguageConfigurationFileHandler {
 		const surroundingPairs = this._extractValidSurroundingPairs(languageIdentifier, configuration);
 		if (surroundingPairs) {
 			richEditConfig.surroundingPairs = surroundingPairs;
+		}
+
+		const colorizedBracketPairs = this._extractValidColorizedBracketPairs(languageIdentifier, configuration);
+		if (colorizedBracketPairs) {
+			richEditConfig.colorizedBracketPairs = colorizedBracketPairs;
 		}
 
 		const autoCloseBefore = configuration.autoCloseBefore;
@@ -516,6 +546,14 @@ const schema: IJSONSchema = {
 		brackets: {
 			default: [['(', ')'], ['[', ']'], ['{', '}']],
 			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
+			type: 'array',
+			items: {
+				$ref: '#definitions/bracketPair'
+			}
+		},
+		colorizedBracketPairs: {
+			default: [['(', ')'], ['[', ']'], ['{', '}']],
+			description: nls.localize('schema.colorizedBracketPairs', 'Defines the bracket pairs that are colorized by their nesting level if bracket pair colorization is enabled.'),
 			type: 'array',
 			items: {
 				$ref: '#definitions/bracketPair'

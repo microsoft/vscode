@@ -76,10 +76,10 @@ class NullAccessorClass implements IItemAccessor<URI> {
 	}
 }
 
-function _doScore(target: string, query: string, fuzzy: boolean): FuzzyScore {
+function _doScore(target: string, query: string, allowNonContiguousMatches?: boolean): FuzzyScore {
 	const preparedQuery = prepareQuery(query);
 
-	return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
+	return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, allowNonContiguousMatches ?? !preparedQuery.expectContiguousMatch);
 }
 
 function _doScore2(target: string, query: string, matchOffset: number = 0): FuzzyScore2 {
@@ -88,12 +88,12 @@ function _doScore2(target: string, query: string, matchOffset: number = 0): Fuzz
 	return scoreFuzzy2(target, preparedQuery, 0, matchOffset);
 }
 
-function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): IItemScore {
-	return scoreItemFuzzy(item, prepareQuery(query), fuzzy, accessor, Object.create(null));
+function scoreItem<T>(item: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>): IItemScore {
+	return scoreItemFuzzy(item, prepareQuery(query), allowNonContiguousMatches, accessor, Object.create(null));
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): number {
-	return compareItemsByFuzzyScore(itemA, itemB, prepareQuery(query), fuzzy, accessor, Object.create(null));
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>): number {
+	return compareItemsByFuzzyScore(itemA, itemB, prepareQuery(query), allowNonContiguousMatches, accessor, Object.create(null));
 }
 
 const NullAccessor = new NullAccessorClass();
@@ -1082,11 +1082,11 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
-		assert.strictEqual(prepareQuery('model Tester.ts').expectExactMatch, false); // doesn't have quotes in it
+		assert.strictEqual(prepareQuery('model Tester.ts').expectContiguousMatch, false); // doesn't have quotes in it
 		assert.strictEqual(prepareQuery('Model Tester.ts').normalizedLowercase, 'modeltester.ts');
 		assert.strictEqual(prepareQuery('ModelTester.ts').containsPathSeparator, false);
 		assert.strictEqual(prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
-		assert.strictEqual(prepareQuery('"hello"').expectExactMatch, true);
+		assert.strictEqual(prepareQuery('"hello"').expectContiguousMatch, true);
 		assert.strictEqual(prepareQuery('"hello"').normalized, 'hello');
 
 		// with spaces
@@ -1214,5 +1214,22 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(score);
 		assert.ok(typeof score[0] === 'number');
 		assert.ok(score[1].length > 0);
+	});
+
+	test('Using quotes should expect contiguous matches match', function () {
+		// missing the "i" in the query
+		assert.strictEqual(_doScore('contiguous', '"contguous"')[0], 0);
+
+		const score = _doScore('contiguous', '"contiguous"');
+		assert.strictEqual(score[0], 253);
+	});
+
+	test('Using quotes should highlight contiguous indexes', function () {
+		const score = _doScore('2021-7-26.md', '"26"');
+		assert.strictEqual(score[0], 13);
+
+		// The indexes of the 2 and 6 of "26"
+		assert.strictEqual(score[1][0], 7);
+		assert.strictEqual(score[1][1], 8);
 	});
 });

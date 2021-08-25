@@ -85,7 +85,7 @@ function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, prefe
 		// Respect option to reveal an editor if it is already visible in any group
 		if (options?.revealIfVisible) {
 			for (const lastActiveGroup of groupsByLastActive) {
-				if (lastActiveGroup.isActive(editor)) {
+				if (isActive(lastActiveGroup, editor)) {
 					group = lastActiveGroup;
 					break;
 				}
@@ -100,7 +100,7 @@ function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, prefe
 				let groupWithInputOpened: IEditorGroup | undefined = undefined;
 
 				for (const group of groupsByLastActive) {
-					if (group.contains(editor)) {
+					if (isOpened(group, editor)) {
 						if (!groupWithInputOpened) {
 							groupWithInputOpened = group;
 						}
@@ -163,21 +163,44 @@ function isGroupLockedForEditor(group: IEditorGroup, editor: IEditorInput | IUnt
 		return false;
 	}
 
-	if (group.activeEditor) {
-		const resource = EditorResourceAccessor.getCanonicalUri(editor);
-		if (group.activeEditor.matches(editor) || isEqual(group.activeEditor.resource, resource)) {
-			// special case: the active editor of the locked group
-			// matches the provided one, so in that case we do not
-			// want to open the editor in any different group.
-			//
-			// Note: intentionally doing a "weak" check on the resource
-			// because `IEditorInput.matches` will not work for untyped
-			// editors that have no `override` defined.
-			//
-			return false;
-		}
+	if (isActive(group, editor)) {
+		// special case: the active editor of the locked group
+		// matches the provided one, so in that case we do not
+		// want to open the editor in any different group.
+		return false;
 	}
 
 	// group is locked for this editor
 	return true;
+}
+
+function isActive(group: IEditorGroup, editor: IEditorInput | IUntypedEditorInput): boolean {
+	if (!group.activeEditor) {
+		return false;
+	}
+
+	return matchesEditor(group.activeEditor, editor);
+}
+
+function isOpened(group: IEditorGroup, editor: IEditorInput | IUntypedEditorInput): boolean {
+	for (const typedEditor of group.editors) {
+		if (matchesEditor(typedEditor, editor)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function matchesEditor(typedEditor: IEditorInput, editor: IEditorInput | IUntypedEditorInput): boolean {
+	if (typedEditor.matches(editor)) {
+		return true;
+	}
+
+	// Note: intentionally doing a "weak" check on the resource
+	// because `IEditorInput.matches` will not work for untyped
+	// editors that have no `override` defined.
+	//
+	// TODO@lramos15 https://github.com/microsoft/vscode/issues/131619
+	return isEqual(typedEditor.resource, EditorResourceAccessor.getCanonicalUri(editor));
 }

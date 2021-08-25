@@ -12,22 +12,15 @@ import { Token, TokenKind } from './tokenizer';
 
 export class BracketTokens {
 	static createFromLanguage(languageId: LanguageId, customBracketPairs: readonly [string, string][]): BracketTokens {
-		const brackets = [...(LanguageConfigurationRegistry.getBracketsSupport(languageId)?.brackets || [])];
+		const brackets = [...(LanguageConfigurationRegistry.getColorizedBracketPairs(languageId))];
 
 		const tokens = new BracketTokens();
 
 		let idxOffset = 0;
 		for (const pair of brackets) {
-			const brackets = [
-				...pair.open.map((value, idx) => ({ value, kind: TokenKind.OpeningBracket, idx: idx + idxOffset })),
-				...pair.close.map((value, idx) => ({ value, kind: TokenKind.ClosingBracket, idx: idx + idxOffset })),
-			];
-
-			idxOffset += Math.max(pair.open.length, pair.close.length);
-
-			for (const bracket of brackets) {
-				tokens.addBracket(languageId, bracket.value, bracket.kind, bracket.idx);
-			}
+			tokens.addBracket(languageId, pair[0], TokenKind.OpeningBracket, idxOffset);
+			tokens.addBracket(languageId, pair[1], TokenKind.ClosingBracket, idxOffset);
+			idxOffset++;
 		}
 
 		for (const pair of customBracketPairs) {

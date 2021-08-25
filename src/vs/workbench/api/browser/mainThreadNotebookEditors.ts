@@ -17,7 +17,7 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { equals } from 'vs/base/common/objects';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 
@@ -135,7 +135,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		};
 
 		const input = NotebookEditorInput.create(this._instantiationService, URI.revive(resource), viewType);
-		const editorPane = await this._editorService.openEditor(input, editorOptions, options.position);
+		const editorPane = await this._editorService.openEditor(input, editorOptions, columnToEditorGroup(this._editorGroupService, options.position));
 		const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
 
 		if (notebookEditor) {

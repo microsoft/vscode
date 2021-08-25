@@ -65,16 +65,6 @@
 	cursor: pointer;
 }
 
-/* Error editor */
-.debug-error-editor:focus {
-	outline: none !important;
-}
-
-.debug-error-editor {
-	padding: 5px 0 0 10px;
-	box-sizing: border-box;
-}
-
 .monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {
 	overflow: hidden;
 	text-overflow: ellipsis;

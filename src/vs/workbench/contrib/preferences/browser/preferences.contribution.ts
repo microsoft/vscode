@@ -198,8 +198,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					f1: true,
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openSettings({ jsonEditor: false });
+			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openSettings({ jsonEditor: false, ...args });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -211,8 +212,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					f1: true,
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true });
+			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true, ...args });
 			}
 		});
 		registerAction2(class extends Action2 {

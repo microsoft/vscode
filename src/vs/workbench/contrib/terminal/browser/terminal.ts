@@ -188,6 +188,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
 
 	getDefaultProfileName(): string;
+	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
 }
 
 /**

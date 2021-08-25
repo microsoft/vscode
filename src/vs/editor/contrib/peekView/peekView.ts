@@ -23,7 +23,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { registerColor, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, contrastBorder, activeContrastBorder, editorInfoForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
@@ -276,10 +276,10 @@ export abstract class PeekViewWidget extends ZoneWidget {
 }
 
 
-export const peekViewTitleBackground = registerColor('peekViewTitle.background', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('peekViewTitleBackground', 'Background color of the peek view title area.'));
-export const peekViewTitleForeground = registerColor('peekViewTitleLabel.foreground', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('peekViewTitleForeground', 'Color of the peek view title.'));
+export const peekViewTitleBackground = registerColor('peekViewTitle.background', { dark: transparent(editorInfoForeground, .1), light: transparent(editorInfoForeground, .1), hc: null }, nls.localize('peekViewTitleBackground', 'Background color of the peek view title area.'));
+export const peekViewTitleForeground = registerColor('peekViewTitleLabel.foreground', { dark: Color.white, light: Color.black, hc: Color.white }, nls.localize('peekViewTitleForeground', 'Color of the peek view title.'));
 export const peekViewTitleInfoForeground = registerColor('peekViewTitleDescription.foreground', { dark: '#ccccccb3', light: '#616161e6', hc: '#FFFFFF99' }, nls.localize('peekViewTitleInfoForeground', 'Color of the peek view title info.'));
-export const peekViewBorder = registerColor('peekView.border', { dark: '#007acc', light: '#007acc', hc: contrastBorder }, nls.localize('peekViewBorder', 'Color of the peek view borders and arrow.'));
+export const peekViewBorder = registerColor('peekView.border', { dark: editorInfoForeground, light: editorInfoForeground, hc: contrastBorder }, nls.localize('peekViewBorder', 'Color of the peek view borders and arrow.'));
 
 export const peekViewResultsBackground = registerColor('peekViewResult.background', { dark: '#252526', light: '#F3F3F3', hc: Color.black }, nls.localize('peekViewResultsBackground', 'Background color of the peek view result list.'));
 export const peekViewResultsMatchForeground = registerColor('peekViewResult.lineForeground', { dark: '#bbbbbb', light: '#646465', hc: Color.white }, nls.localize('peekViewResultsMatchForeground', 'Foreground color for line nodes in the peek view result list.'));

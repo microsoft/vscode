@@ -200,7 +200,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 			menuOpts: {
 				menuId: MarkerNavigationWidget.TitleMenu,
 				title: NextMarkerAction.LABEL,
-				icon: registerIcon('marker-navigation-next', Codicon.chevronDown, nls.localize('nextMarkerIcon', 'Icon for goto next marker.')),
+				icon: registerIcon('marker-navigation-next', Codicon.arrowDown, nls.localize('nextMarkerIcon', 'Icon for goto next marker.')),
 				group: 'navigation',
 				order: 1
 			}
@@ -225,7 +225,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			menuOpts: {
 				menuId: MarkerNavigationWidget.TitleMenu,
 				title: NextMarkerAction.LABEL,
-				icon: registerIcon('marker-navigation-previous', Codicon.chevronUp, nls.localize('previousMarkerIcon', 'Icon for goto previous marker.')),
+				icon: registerIcon('marker-navigation-previous', Codicon.arrowUp, nls.localize('previousMarkerIcon', 'Icon for goto previous marker.')),
 				group: 'navigation',
 				order: 2
 			}

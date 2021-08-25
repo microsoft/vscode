@@ -24,6 +24,10 @@
 		{ "open": "(", "close": ")" },
 		{ "open": "<", "close": ">" }
 	],
+	"colorizedBracketPairs": [
+		["{", "}"],
+		["(", ")"]
+	],
 	"folding": {
 		"markers": {
 			"start": "^\\s*<!--\\s*#region\\b.*-->",

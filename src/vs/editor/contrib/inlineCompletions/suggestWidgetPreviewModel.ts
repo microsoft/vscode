@@ -136,10 +136,11 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 			}
 			const valueToReplace = model.getValueInRange(inlineCompletion.range);
 			const commonPrefixLength = lengthOfLongestCommonPrefix(valueToReplace, inlineCompletion.text);
-			const start = model.getPositionAt(model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLength);
+			const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLength;
+			const start = model.getPositionAt(startOffset);
 
 			const commonSuffixLength = lengthOfLongestCommonSuffix(valueToReplace, inlineCompletion.text);
-			const end = model.getPositionAt(model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLength);
+			const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLength));
 
 			return {
 				range: Range.fromPositions(start, end),
@@ -159,7 +160,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 				&& augmentedCompletion.range.equalsRange(originalInlineCompletion.range)
 				? augmentedCompletion : (originalInlineCompletion || augmentedCompletion);
 
-		const inlineCompletionPreviewLength = (finalCompletion?.text.length || 0) - (originalInlineCompletion?.text.length || 0);
+		const inlineCompletionPreviewLength = originalInlineCompletion ? (finalCompletion?.text.length || 0) - (originalInlineCompletion.text.length) : 0;
 
 		const toGhostText = (completion: NormalizedInlineCompletion | undefined): GhostText | undefined => {
 			const mode = this.editor.getOptions().get(EditorOption.suggest).previewMode;

@@ -896,8 +896,8 @@ declare module 'vscode' {
 		/**
 		 * Whether the {@link Terminal} has been interacted with. Interaction means that the
 		 * terminal has sent data to the process which depending on the terminal's _mode_. By
-		 * default input is sent when a key is pressed but based on the terminal's mode it can also
-		 * happen on:
+		 * default input is sent when a key is pressed or when a command or extension sends text,
+		 * but based on the terminal's mode it can also happen on:
 		 *
 		 * - a pointer click event
 		 * - a pointer scroll event
@@ -917,6 +917,17 @@ declare module 'vscode' {
 		readonly state: TerminalState;
 	}
 
+	export namespace window {
+		/**
+		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
+		 */
+		export const onDidChangeTerminalState: Event<Terminal>;
+	}
+
+	//#endregion
+
+	//#region Terminal location https://github.com/microsoft/vscode/issues/45407
+
 	export interface TerminalOptions {
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 	}
@@ -926,8 +937,8 @@ declare module 'vscode' {
 	}
 
 	export enum TerminalLocation {
-		Panel = 0,
-		Editor = 1,
+		Panel = 1,
+		Editor = 2,
 	}
 
 	export interface TerminalEditorLocationOptions {
@@ -951,27 +962,6 @@ declare module 'vscode' {
 		 * is in the panel or the editor area.
 		 */
 		parentTerminal: Terminal;
-	}
-
-	/**
-	 * An event representing a change in a {@link Terminal.state terminal's state}.
-	 */
-	export interface TerminalStateChangeEvent {
-		/**
-		 * The {@link Terminal} this event occurred on.
-		 */
-		readonly terminal: Terminal;
-		/**
-		 * The {@link Terminal.state current state} of the {@link Terminal}.
-		 */
-		readonly state: TerminalState;
-	}
-
-	export namespace window {
-		/**
-		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
-		 */
-		export const onDidChangeTerminalState: Event<Terminal>;
 	}
 
 	//#endregion
@@ -2886,17 +2876,6 @@ declare module 'vscode' {
 
 	namespace languages {
 		export function createLanguageStatusItem(selector: DocumentSelector): LanguageStatusItem;
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/129053
-
-	export namespace env {
-		/**
-		 * The environment in which the app is embedded in. i.e. 'desktop', 'codespaces', 'web'.
-		 */
-		export const embedderIdentifier: string;
 	}
 
 	//#endregion

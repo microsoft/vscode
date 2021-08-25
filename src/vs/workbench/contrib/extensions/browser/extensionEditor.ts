@@ -631,7 +631,7 @@ export class ExtensionEditor extends EditorPane {
 				if (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId) {
 					this.openerService.open(link, { allowCommands: true }); // TODO@sandy081 use commands service
 				}
-			}, null, this.contentDisposables));
+			}));
 
 			return webview;
 		} catch (e) {

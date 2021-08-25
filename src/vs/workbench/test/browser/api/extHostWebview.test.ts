@@ -142,6 +142,29 @@ suite('ExtHostWebview', () => {
 			'Check decoded authority'
 		);
 	});
+
+	test('asWebviewUri for remote with port in name', () => {
+		const webview = createWebview(rpcProtocol, /* remoteAuthority */ 'remote');
+		const authority = 'localhost:8080';
+
+		const sourceUri = URI.from({
+			scheme: 'vscode-remote',
+			authority: authority,
+			path: '/Users/cody/x.png'
+		});
+
+		const webviewUri = webview.webview.asWebviewUri(sourceUri);
+		assert.strictEqual(
+			webviewUri.toString(),
+			`https://vscode-remote%2Blocalhost-003a8080.vscode-resource.vscode-webview.net/Users/cody/x.png`,
+			'Check transform');
+
+		assert.strictEqual(
+			decodeAuthority(webviewUri.authority),
+			`vscode-remote+${authority}.vscode-resource.vscode-webview.net`,
+			'Check decoded authority'
+		);
+	});
 });
 
 function createWebview(rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined, remoteAuthority: string | undefined) {

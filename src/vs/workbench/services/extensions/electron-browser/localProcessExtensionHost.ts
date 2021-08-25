@@ -471,7 +471,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				isExtensionDevelopmentDebug: this._isExtensionDevDebug,
 				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
 				appName: this._productService.nameLong,
-				embedderIdentifier: this._productService.embedderIdentifier || 'desktop',
+				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,

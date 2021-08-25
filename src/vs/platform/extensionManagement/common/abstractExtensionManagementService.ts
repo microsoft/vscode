@@ -323,7 +323,8 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const allDependenciesAndPacks: { gallery: IGalleryExtension, manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
-			const dependenciesAndPackExtensions: string[] = manifest.extensionDependencies || [];
+			const dependecies: string[] = manifest.extensionDependencies || [];
+			const dependenciesAndPackExtensions = [...dependecies];
 			if (manifest.extensionPack) {
 				const existing = getOnlyNewlyAddedFromExtensionPack ? installed.find(e => areSameExtensions(e.identifier, extensionIdentifier)) : undefined;
 				for (const extension of manifest.extensionPack) {
@@ -346,11 +347,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						if (identifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 							continue;
 						}
-						const compatibleExtension = await this.checkAndGetCompatibleVersion(galleryExtension, true);
-						if (!await this.canInstall(compatibleExtension)) {
-							this.logService.info('Skipping the extension as it cannot be installed', compatibleExtension.identifier.id);
+						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
+						if (!isDependency && !await this.canInstall(galleryExtension)) {
+							this.logService.info('Skipping the packed extension as it cannot be installed', galleryExtension.identifier.id);
 							continue;
 						}
+						const compatibleExtension = await this.checkAndGetCompatibleVersion(galleryExtension, true);
 						const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
 						if (manifest === null) {
 							throw new ExtensionManagementError(`Missing manifest for extension ${compatibleExtension.identifier.id}`, INSTALL_ERROR_VALIDATING);

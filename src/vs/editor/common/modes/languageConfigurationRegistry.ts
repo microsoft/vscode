@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -198,6 +198,7 @@ class LanguageConfigurationEntries {
 			result.surroundingPairs = conf.surroundingPairs || result.surroundingPairs;
 			result.autoCloseBefore = conf.autoCloseBefore || result.autoCloseBefore;
 			result.folding = conf.folding || result.folding;
+			result.colorizedBracketPairs = conf.colorizedBracketPairs || result.colorizedBracketPairs;
 			result.__electricCharacterSupport = conf.__electricCharacterSupport || result.__electricCharacterSupport;
 		}
 		return result;
@@ -826,6 +827,10 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 		return value.brackets || null;
+	}
+
+	public getColorizedBracketPairs(languageId: LanguageId): CharacterPair[] {
+		return this._getRichEditSupport(languageId)?.characterPair.getColorizedBrackets() || [];
 	}
 }
 

@@ -274,7 +274,7 @@
             "%inlayHints.parameterNames.literals%",
             "%inlayHints.parameterNames.all%"
           ],
-          "default": "literals",
+          "default": "none",
           "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
           "scope": "resource"
         },
