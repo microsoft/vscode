@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from 'vs/base/common/arrays';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -16,23 +15,24 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 export type EditorGroupColumn = number;
 
 export function columnToEditorGroup(editorGroupService: IEditorGroupsService, column?: EditorGroupColumn): GroupIdentifier {
-	if (typeof column !== 'number' || column === ACTIVE_GROUP) {
-		return ACTIVE_GROUP; // prefer active group when position is undefined or passed in as such
+	if (
+		typeof column !== 'number' ||
+		column === ACTIVE_GROUP ||
+		(editorGroupService.count === 1 && editorGroupService.activeGroup.isEmpty)
+	) {
+		return ACTIVE_GROUP; // prefer active group when position is undefined or passed in as such or when no editor is opened
 	}
 
-	const groups = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
-
-	let candidateGroup = groups[column];
-	if (candidateGroup) {
-		return candidateGroup.id; // found direct match
+	if (column === SIDE_GROUP) {
+		return SIDE_GROUP; // return early for when column is to the side
 	}
 
-	let firstGroup = firstOrDefault(groups);
-	if (groups.length === 1 && firstGroup?.isEmpty) {
-		return firstGroup.id; // first editor should always open in first group independent from position provided
+	const groupInColumn = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[column];
+	if (groupInColumn) {
+		return groupInColumn.id; // return group when a direct match is found in column
 	}
 
-	return SIDE_GROUP; // open to the side if group not found or we are instructed to
+	return SIDE_GROUP; // finally open to the side when group not found
 }
 
 export function editorGroupToColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorGroupColumn {
