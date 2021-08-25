@@ -21,7 +21,23 @@ export function activate(context: vscode.ExtensionContext) {
 	return {
 		exportNotebook: (notebook: vscode.NotebookData): string => {
 			return exportNotebook(notebook, serializer);
-		}
+		},
+		setKernelSpec: async (resource: vscode.Uri, kernelspec: unknown): Promise<boolean> => {
+			const document = vscode.workspace.notebookDocuments.find(doc => doc.uri.toString() === resource.toString());
+			if (!document) {
+				return false;
+			}
+
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookMetadata(resource, {
+				...document.metadata,
+				custom: {
+					...(document.metadata.custom ?? {}),
+					kernelspec: kernelspec
+				}
+			});
+			return vscode.workspace.applyEdit(edit);
+		},
 	};
 }
 
