@@ -156,7 +156,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 function suggestionToInlineCompletion(suggestController: SuggestController, position: Position, suggestion: ISelectedSuggestion, toggleMode: boolean): NormalizedInlineCompletion {
 	const item = suggestion.item;
 
-	if (Array.isArray(item.completion.additionalTextEdits)) {
+	if (Array.isArray(item.completion.additionalTextEdits) && item.completion.additionalTextEdits.length > 0) {
 		// cannot represent additional text edits
 		return {
 			text: '',
