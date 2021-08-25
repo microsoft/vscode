@@ -8,6 +8,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { IPath } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -207,10 +208,17 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private async resolveCanonicalUris(): Promise<void> {
 		// Open editors
-		const filesToOpenOrCreate = this.environmentService.configuration.filesToOpenOrCreate;
+		const filesToOpen: IPath[] = [];
+		if (this.environmentService.configuration.filesToOpenOrCreate) {
+			filesToOpen.push(...this.environmentService.configuration.filesToOpenOrCreate);
+		}
 
-		if (filesToOpenOrCreate) {
-			const filesToOpenOrCreateUris = filesToOpenOrCreate.filter(f => f.fileUri && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
+		if (this.environmentService.configuration.filesToDiff) {
+			filesToOpen.push(...this.environmentService.configuration.filesToDiff);
+		}
+
+		if (filesToOpen) {
+			const filesToOpenOrCreateUris = filesToOpen.filter(f => f.fileUri && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
 			const canonicalFilesToOpen = await Promise.all(filesToOpenOrCreateUris.map(uri => this.getCanonicalUri(uri)));
 
 			this._canonicalStartupFiles.push(...canonicalFilesToOpen.filter(uri => this._canonicalStartupFiles.every(u => !this.uriIdentityService.extUri.isEqual(uri, u))));
