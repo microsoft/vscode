@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILocalizedString, IMenu, IMenuActionOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { ILocalizedString, IMenu, IMenuActionOptions, IMenuCreateOptions, IMenuItem, IMenuService, isIMenuItem, ISubmenuItem, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
@@ -26,8 +26,8 @@ export class MenuService implements IMenuService {
 	 * sub menu entries. That is more expensive and must be explicitly enabled with the
 	 * `emitEventsForSubmenuChanges` flag.
 	 */
-	createMenu(id: MenuId, contextKeyService: IContextKeyService, emitEventsForSubmenuChanges: boolean = false): IMenu {
-		return new Menu(id, emitEventsForSubmenuChanges, this._commandService, contextKeyService, this);
+	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
+		return new Menu(id, { emitEventsForSubmenuChanges: false, eventDebounceDelay: 50, ...options }, this._commandService, contextKeyService, this);
 	}
 }
 
@@ -46,7 +46,7 @@ class Menu implements IMenu {
 
 	constructor(
 		private readonly _id: MenuId,
-		private readonly _fireEventsForSubmenuChanges: boolean,
+		private readonly _options: Required<IMenuCreateOptions>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService
@@ -59,7 +59,7 @@ class Menu implements IMenu {
 		const rebuildMenuSoon = new RunOnceScheduler(() => {
 			this._build();
 			this._onDidChange.fire(this);
-		}, 50);
+		}, _options.eventDebounceDelay);
 		this._disposables.add(rebuildMenuSoon);
 		this._disposables.add(MenuRegistry.onDidChangeMenu(e => {
 			if (e.has(_id)) {
@@ -72,7 +72,7 @@ class Menu implements IMenu {
 		// firing often and (2) menu are often leaked
 		const contextKeyListener = this._disposables.add(new DisposableStore());
 		const startContextKeyListener = () => {
-			const fireChangeSoon = new RunOnceScheduler(() => this._onDidChange.fire(this), 50);
+			const fireChangeSoon = new RunOnceScheduler(() => this._onDidChange.fire(this), _options.eventDebounceDelay);
 			contextKeyListener.add(fireChangeSoon);
 			contextKeyListener.add(_contextKeyService.onDidChangeContext(e => {
 				if (e.affectsSome(this._contextKeys)) {
@@ -135,7 +135,7 @@ class Menu implements IMenu {
 				Menu._fillInKbExprKeys(toggledExpression, this._contextKeys);
 			}
 
-		} else if (this._fireEventsForSubmenuChanges) {
+		} else if (this._options.emitEventsForSubmenuChanges) {
 			// recursively collect context keys from submenus so that this
 			// menu fires events when context key changes affect submenus
 			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeys, this);
