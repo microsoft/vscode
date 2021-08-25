@@ -6,7 +6,7 @@
 
 set -e
 
-SCRIPT_PATH="$(cd "$(dirname $0)" && pwd)"
+SCRIPT_PATH="$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)"
 CONTAINER_IMAGE_REPOSITORY="$1"
 BRANCH="${2:-"main"}"
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This file restores the results of the "prepare.sh" into their proper locations
 # once the container has been created. It runs as a postCreateCommand which

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This file contains the steps that should be run when creating the intermediary image that contains
 # contents for that should be in the image by default. It will be used to build up from the base image
