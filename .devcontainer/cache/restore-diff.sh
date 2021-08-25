@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
-# This file restores the results of the "prepare.sh" into their proper locations
-# once the container has been created. It runs as a postCreateCommand which
-# in GitHub Codespaces occurs parallel to other startup activities and does not
-# really add to the overal startup time given how quick the operation ends up being.
+# This file expands the cache.tar file in the image that contains the results of "prepare.sh"
+# on top of the source tree. It runs as a postCreateCommand which runs after the container/codespace
+# is already up where you would typically run a command like "yarn install".
 
 set -e
 

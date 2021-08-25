@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 
-# This file contains the steps that should be run when creating the intermediary image that contains
-# contents for that should be in the image by default. It will be used to build up from the base image
-# to create an image that speeds up first time use of the dev container by "caching" the results
-# of these commands. Developers can still run these commands without an issue once the container is
-# up, but only differences will be processed which also speeds up the first time these operations occur.
+# This file contains the steps that should be run when building a "cache" image with contents that should be
+# layered directly **on top of the source tree** once a dev container is created. This avoids having to run long
+# running commands like "yarn install" from the ground up. Developers (and should) still run these commands
+# after the actual dev container is created, but only differences will be processed.
 
 yarn install
 yarn electron

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# This file simply wraps the dockeer build command used to build the image with the
-# cached result of the commands from "prepare.sh" and pushes it to the specified
-# container image registry.
+# This file simply wraps the docker build command to build an image that includes
+# a cache.tar file with the result of "prepare.sh" inside of it. See cache.Dockerfile
+# for the steps that are actually taken to do this.
 
 set -e
 

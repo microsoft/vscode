@@ -1,7 +1,7 @@
-# This dockerfile is used to build up from a base image to create an image with cached results of running "prepare.sh".
+# This dockerfile is used to build up from a base image to create an image a cache.tar file containing the results of running "prepare.sh".
 # Other image contents: https://github.com/microsoft/vscode-dev-containers/blob/master/repository-containers/images/github.com/microsoft/vscode/.devcontainer/base.Dockerfile
 
-# First stage generates the cache tar
+# This first stage generates cache.tar
 FROM mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:dev as cache
 ARG USERNAME=node
 COPY --chown=${USERNAME}:${USERNAME} . /repo-source-tmp/
@@ -13,7 +13,8 @@ RUN mkdir /usr/local/etc/devcontainer-cache \
 		&& .devcontainer/prepare.sh \
 		&& .devcontainer/cache/cache-diff.sh"
 
-# Second stage is the acual output that includes only the tar - restore-diff.sh is then fired on postCreateCommand to expand it
+# This second stage starts fresh and just copies in cache.tar from the previous stage. The related
+# devcontainer.json file is then setup to have postCreateCommand fire restore-diff.sh to expand it.
 FROM mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:dev as dev-container
 ARG USERNAME=node
 ARG CACHE_FOLDER="/usr/local/etc/devcontainer-cache"
