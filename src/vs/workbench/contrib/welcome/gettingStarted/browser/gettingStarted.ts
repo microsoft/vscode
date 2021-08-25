@@ -65,6 +65,8 @@ import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { startEntries } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { GettingStartedIndexList } from './gettingStartedList';
 import product from 'vs/platform/product/common/product';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -1013,14 +1015,14 @@ export class GettingStartedPage extends EditorPane {
 
 	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
 		const renderStartEntry = (entry: IWelcomePageStartEntry): HTMLElement =>
-			$('li',
-				{}, $('button.button-link',
-					{
-						'x-dispatch': 'selectStartEntry:' + entry.id,
-						title: entry.description + ' ' + this.getKeybindingLabel(entry.command),
-					},
-					this.iconWidgetFor(entry),
-					$('span', {}, entry.title)));
+			$('button.button-link',
+				{
+					'x-dispatch': 'selectStartEntry:' + entry.id,
+					title: entry.description + ' ' + this.getKeybindingLabel(entry.command),
+					role: 'listitem',
+				},
+				this.iconWidgetFor(entry),
+				$('span', {}, entry.title));
 
 		if (this.startList) { this.startList.dispose(); }
 
@@ -1290,6 +1292,25 @@ export class GettingStartedPage extends EditorPane {
 					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, category.description)));
 
 		const stepListContainer = $('.step-list-container');
+
+		this.detailsPageDisposables.add(addDisposableListener(stepListContainer, 'keydown', (e) => {
+			const event = new StandardKeyboardEvent(e);
+			const currentStepIndex = () =>
+				category.steps.findIndex(e => e.id === this.editorInput.selectedStep);
+
+			if (event.keyCode === KeyCode.UpArrow) {
+				const toExpand = category.steps.filter((step, index) => index < currentStepIndex() && this.contextService.contextMatchesRules(step.when));
+				if (toExpand.length) {
+					this.selectStep(toExpand[toExpand.length - 1].id, false, false);
+				}
+			}
+			if (event.keyCode === KeyCode.DownArrow) {
+				const toExpand = category.steps.find((step, index) => index > currentStepIndex() && this.contextService.contextMatchesRules(step.when));
+				if (toExpand) {
+					this.selectStep(toExpand.id, false, false);
+				}
+			}
+		}));
 
 		let renderedSteps: IResolvedWalkthroughStep[] | undefined = undefined;
 
