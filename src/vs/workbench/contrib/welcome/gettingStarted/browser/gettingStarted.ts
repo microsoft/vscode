@@ -1015,14 +1015,14 @@ export class GettingStartedPage extends EditorPane {
 
 	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
 		const renderStartEntry = (entry: IWelcomePageStartEntry): HTMLElement =>
-			$('button.button-link',
-				{
-					'x-dispatch': 'selectStartEntry:' + entry.id,
-					title: entry.description + ' ' + this.getKeybindingLabel(entry.command),
-					role: 'listitem',
-				},
-				this.iconWidgetFor(entry),
-				$('span', {}, entry.title));
+			$('li',
+				{}, $('button.button-link',
+					{
+						'x-dispatch': 'selectStartEntry:' + entry.id,
+						title: entry.description + ' ' + this.getKeybindingLabel(entry.command),
+					},
+					this.iconWidgetFor(entry),
+					$('span', {}, entry.title)));
 
 		if (this.startList) { this.startList.dispose(); }
 
