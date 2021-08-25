@@ -12,7 +12,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IWalkthroughsService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
+import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -655,7 +655,12 @@ export class GettingStartedPage extends EditorPane {
 		if (id && this.editorInput.selectedStep === id && !forceRebuild) { return; }
 
 		if (id) {
-			const stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`));
+			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
+			if (!stepElement) {
+				// Selected an element that is not in-context, just fallback to whatever.
+				stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id]`));
+				id = assertIsDefined(stepElement.getAttribute('data-step-id'));
+			}
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
 				if (node.getAttribute('data-step-id') !== id) {
 					node.classList.remove('expanded');
@@ -703,7 +708,7 @@ export class GettingStartedPage extends EditorPane {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
@@ -1299,10 +1304,24 @@ export class GettingStartedPage extends EditorPane {
 					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title),
 					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, category.description)));
 
-		const categoryElements = category.steps
-			.filter(step => this.contextService.contextMatchesRules(step.when))
-			.map(
-				(step, i, arr) => {
+		const stepListContainer = $('.step-list-container');
+
+		let renderedSteps: IResolvedWalkthroughStep[] | undefined = undefined;
+
+		const contextKeysToWatch = new Set(category.steps.flatMap(step => step.when.keys()));
+
+		const buildStepList = () => {
+			const toRender = category.steps
+				.filter(step => this.contextService.contextMatchesRules(step.when));
+
+			if (equals(renderedSteps, toRender, (a, b) => a.id === b.id)) {
+				return;
+			}
+
+			renderedSteps = toRender;
+
+			reset(stepListContainer, ...renderedSteps
+				.map(step => {
 					const codicon = $('.codicon' + (step.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
 						{
 							'data-done-step-id': step.id,
@@ -1333,13 +1352,24 @@ export class GettingStartedPage extends EditorPane {
 						},
 						codicon,
 						stepDescription);
-				});
+				}));
+		};
+
+		buildStepList();
+
+		this.detailsPageDisposables.add(this.contextService.onDidChangeContext(e => {
+			if (e.affectsSome(contextKeysToWatch)) {
+				buildStepList();
+				this.registerDispatchListeners();
+				this.selectStep(this.editorInput.selectedStep, false, true);
+			}
+		}));
 
 		const showNextCategory = this.gettingStartedCategories.find(_category => _category.id === category.next);
 
 		const stepsContainer = $(
 			'.getting-started-detail-container', { 'role': 'list' },
-			...categoryElements,
+			stepListContainer,
 			$('.done-next-container', {},
 				$('button.button-link.all-done', { 'x-dispatch': 'allDone' }, $('span.codicon.codicon-check-all'), localize('allDone', "Mark Done")),
 				...(showNextCategory
