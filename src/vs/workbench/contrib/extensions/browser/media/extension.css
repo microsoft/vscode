@@ -187,6 +187,10 @@
 	padding: 1px 2px;
 }
 
+.hc-black .extension-list-item .monaco-action-bar .action-label.icon {
+	padding: 0px 2px;
+}
+
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
 .extension-list-item .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
 	margin-left: 6px;
