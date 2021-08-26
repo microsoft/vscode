@@ -1150,14 +1150,14 @@ export class TabsTitleControl extends TitleControl {
 			description = tabLabel.description || '';
 		}
 
-		const title = tabLabel.title || '';
-
 		if (tabLabel.ariaLabel) {
 			tabContainer.setAttribute('aria-label', tabLabel.ariaLabel);
 			// Set aria-description to empty string so that screen readers would not read the title as well
 			// More details https://github.com/microsoft/vscode/issues/95378
 			tabContainer.setAttribute('aria-description', '');
 		}
+
+		const title = tabLabel.title || '';
 		tabContainer.title = title;
 
 		// Label
@@ -1186,7 +1186,6 @@ export class TabsTitleControl extends TitleControl {
 
 	private redrawTabActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabActive = this.group.isActive(editor);
-
 		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
 
 		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabActionBar);

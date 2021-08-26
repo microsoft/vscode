@@ -102,7 +102,7 @@ export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
 
 export class ResourceLabels extends Disposable {
 
-	private _onDidChangeDecorations = this._register(new Emitter<void>());
+	private readonly _onDidChangeDecorations = this._register(new Emitter<void>());
 	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
 
 	private widgets: ResourceLabelWidget[] = [];
