@@ -671,7 +671,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		},
 		{
 			shouldForwardArgs: true,
-			arg: { location: primaryActionLocation } as ICreateTerminalOptions,
+			arg: { location } as ICreateTerminalOptions,
 		});
 
 	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
