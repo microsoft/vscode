@@ -42,6 +42,11 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 			this.updateCacheSoon.schedule();
 
+			const newGhostText = this.ghostText;
+			if (newGhostText) {
+				this.minReservedLineCount = Math.max(this.minReservedLineCount, sum(newGhostText.parts.map(p => p.lines.length - 1)));
+			}
+
 			if (this.minReservedLineCount >= 1 && this.isSuggestionPreviewEnabled()) {
 				this.suggestionInlineCompletionSource.forceRenderingAbove();
 			} else {
@@ -174,10 +179,6 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		};
 
 		const newGhostText = toGhostText(finalCompletion);
-
-		if (newGhostText) {
-			this.minReservedLineCount = Math.max(this.minReservedLineCount, sum(newGhostText.parts.map(p => p.lines.length - 1)));
-		}
 
 		return this.isSuggestionPreviewEnabled()
 			? newGhostText
