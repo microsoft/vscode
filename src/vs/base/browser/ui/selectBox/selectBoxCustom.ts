@@ -743,7 +743,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			.map(e => new StandardKeyboardEvent(e));
 
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(e => this.onEnter(e), this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Tab).on(e => this.onEnter(e), this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Tab).on(e => this.onEnter(e), this)); // Tab should behave the same as enter, #79339
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(e => this.onUpArrow(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(e => this.onDownArrow(e), this));
