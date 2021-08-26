@@ -19,9 +19,15 @@
           "Compose",
           "compose"
         ],
-        "filenamePatterns": [
+        "filenames": [
+          "docker-compose.yml",
+          "docker-compose.yaml",
+          "docker-compose.override.yml",
+          "docker-compose.override.yaml",
           "compose.yml",
-          "compose.yaml",
+          "compose.yaml"
+        ],
+        "filenamePatterns": [
           "compose.*.yml",
           "compose.*.yaml",
           "*docker*compose*.yml",
