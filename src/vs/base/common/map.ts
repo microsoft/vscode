@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { shuffle } from 'vs/base/common/arrays';
 import { CharCode } from 'vs/base/common/charCode';
 import { compare, compareIgnoreCase, compareSubstring, compareSubstringIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -348,6 +349,14 @@ export class TernarySearchTree<K, V> {
 		node.value = element;
 		node.key = key;
 		return oldElement;
+	}
+
+	fill(element: V, keys: readonly K[]): void {
+		const arr = keys.slice(0);
+		shuffle(arr);
+		for (let k of arr) {
+			this.set(k, element);
+		}
 	}
 
 	get(key: K): V | undefined {
