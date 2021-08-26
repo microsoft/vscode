@@ -188,15 +188,20 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const res = await this.dialogService.show(
 			Severity.Warning,
 			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
-			[localize('learnMore', "Learn More"), localize('cancel', "Cancel")],
+			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")],
 			{
 				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
 				cancelId: 1
 			}
 		);
 
-		if (res.choice === 0) {
-			this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
+		switch (res.choice) {
+			case 0:
+				this.commandService.executeCommand('workbench.action.remote.showMenu');
+				break;
+			case 1:
+				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
+				break;
 		}
 
 		return undefined;

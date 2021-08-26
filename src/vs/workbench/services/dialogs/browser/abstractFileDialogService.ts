@@ -26,6 +26,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
 import { PLAINTEXT_EXTENSION } from 'vs/editor/common/modes/modesRegistry';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -44,7 +45,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IModeService private readonly modeService: IModeService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@ICommandService protected readonly commandService: ICommandService
 	) { }
 
 	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
