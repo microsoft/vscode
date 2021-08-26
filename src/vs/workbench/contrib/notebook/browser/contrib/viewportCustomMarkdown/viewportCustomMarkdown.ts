@@ -80,6 +80,10 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 	}
 
 	private _renderCell(viewCell: CodeCellViewModel) {
+		if (viewCell.metadata.outputCollapsed) {
+			return;
+		}
+
 		const outputs = viewCell.outputsViewModels;
 		for (let output of outputs) {
 			const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!, undefined);
