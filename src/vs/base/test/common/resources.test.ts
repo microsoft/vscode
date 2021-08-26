@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { toSlashes } from 'vs/base/common/extpath';
 import { posix, win32 } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
-import { addTrailingPathSeparator, basename, dirname, distinctParents, extname, extUri, extUriIgnorePathCase, hasTrailingPathSeparator, isAbsolutePath, joinPath, normalizePath, relativePath, removeTrailingPathSeparator, resolvePath } from 'vs/base/common/resources';
+import { addTrailingPathSeparator, basename, dirname, distinctParents, extUri, extUriIgnorePathCase, hasTrailingPathSeparator, isAbsolutePath, joinPath, normalizePath, relativePath, removeTrailingPathSeparator, resolvePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
 
@@ -428,12 +428,5 @@ suite('Resources', () => {
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI6, fileURI6), true, '18');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI6), true, '19');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI5), false, '20');
-	});
-
-	test('query parameters stripped from extname', () => {
-		const uriWithQueryParam = URI.file('/test/project/test.txt?q=1');
-		const uriWithoutQueryParam = URI.file('/test/project/test.txt');
-		assert.strictEqual(extname(uriWithQueryParam), '.txt');
-		assert.strictEqual(extname(uriWithoutQueryParam), '.txt');
 	});
 });
