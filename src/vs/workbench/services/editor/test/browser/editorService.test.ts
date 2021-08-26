@@ -199,6 +199,7 @@ suite('EditorService', () => {
 		let input4: IResourceEditorInput = { resource: URI.parse('file://resource4-basics.editor-service-locked-group-tests'), options: { pinned: true } };
 		let input5: IResourceEditorInput = { resource: URI.parse('file://resource5-basics.editor-service-locked-group-tests'), options: { pinned: true } };
 		let input6: IResourceEditorInput = { resource: URI.parse('file://resource6-basics.editor-service-locked-group-tests'), options: { pinned: true } };
+		let input7: IResourceEditorInput = { resource: URI.parse('file://resource7-basics.editor-service-locked-group-tests'), options: { pinned: true } };
 
 		let editor1 = await service.openEditor(input1, { pinned: true });
 		let editor2 = await service.openEditor(input2, { pinned: true }, SIDE_GROUP);
@@ -296,6 +297,14 @@ suite('EditorService', () => {
 
 		part.activateGroup(group1.id);
 
+		await service.openEditor(input6, { pinned: true });
+
+		assert.strictEqual(part.count, 4);
+		assert.strictEqual(part.activeGroup, group3);
+		assert.strictEqual(group3.activeEditor?.resource?.toString(), input6.resource.toString());
+
+		// Will reveal an opened editor in the active locked group
+		await service.openEditor(input7, { pinned: true }, group3);
 		await service.openEditor(input6, { pinned: true });
 
 		assert.strictEqual(part.count, 4);

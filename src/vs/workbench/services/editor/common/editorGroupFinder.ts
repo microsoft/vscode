@@ -163,10 +163,10 @@ function isGroupLockedForEditor(group: IEditorGroup, editor: IEditorInput | IUnt
 		return false;
 	}
 
-	if (isActive(group, editor)) {
-		// special case: the active editor of the locked group
-		// matches the provided one, so in that case we do not
-		// want to open the editor in any different group.
+	if (isOpened(group, editor)) {
+		// special case: the locked group contains
+		// the provided editor. in that case we do not want
+		// to open the editor in any different group.
 		return false;
 	}
 
