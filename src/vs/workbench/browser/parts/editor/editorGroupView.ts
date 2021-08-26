@@ -1022,16 +1022,34 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Conditionally lock the group
 		if (
-			isNew &&							// only if this editor was new for the group
-			this.count === 1 &&					// only when this editor was the first editor in the group
-			this.accessor.groups.length > 1 &&	// only when there are more than one groups open
-			// only when settings are configured to lock a group for the given editor
-			(
-				this.accessor.partOptions.experimentalAutoLockGroups?.has(editor.typeId) ||
-				this.accessor.partOptions.experimentalAutoLockGroups?.has(`${editor.typeId}:${editor.editorId}`)
-			)
+			isNew &&						// only if this editor was new for the group
+			this.count === 1 &&				// only when this editor was the first editor in the group
+			this.accessor.groups.length > 1	// only when there are more than one groups open
 		) {
-			this.lock(true);
+			let lock = false;
+
+			// By `typeId`
+			if (this.accessor.partOptions.experimentalAutoLockGroups?.has(editor.typeId)) {
+				lock = true;
+			}
+
+			// By `editorId`
+			else if (editor.editorId && this.accessor.partOptions.experimentalAutoLockGroups?.has(editor.editorId)) {
+				lock = true;
+			}
+
+			// By `viewType` (TODO@bpasero remove this hack once editors have adopted `editorId`)
+			// See https://github.com/microsoft/vscode/issues/131692
+			else {
+				const editorViewType = (editor as { viewType?: string }).viewType;
+				if (editorViewType && this.accessor.partOptions.experimentalAutoLockGroups?.has(editorViewType)) {
+					lock = true;
+				}
+			}
+
+			if (lock) {
+				this.lock(true);
+			}
 		}
 
 		// Show editor

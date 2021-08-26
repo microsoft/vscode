@@ -148,16 +148,18 @@ export class AsyncSchedulerProcessor extends Disposable {
 	public get history(): readonly ScheduledTask[] { return this._history; }
 
 	private readonly maxTaskCount: number;
+	private readonly useSetImmediate: boolean;
 
 	private readonly queueEmptyEmitter = new Emitter<void>();
 	public readonly onTaskQueueEmpty = this.queueEmptyEmitter.event;
 
 	private lastError: Error | undefined;
 
-	constructor(private readonly scheduler: TimeTravelScheduler, options?: { maxTaskCount?: number }) {
+	constructor(private readonly scheduler: TimeTravelScheduler, options?: { useSetImmediate?: boolean; maxTaskCount?: number }) {
 		super();
 
 		this.maxTaskCount = options && options.maxTaskCount ? options.maxTaskCount : 100;
+		this.useSetImmediate = options && options.useSetImmediate ? options.useSetImmediate : false;
 
 		this._register(scheduler.onTaskScheduled(() => {
 			if (this.isProcessing) {
@@ -173,7 +175,11 @@ export class AsyncSchedulerProcessor extends Disposable {
 		// This allows promises created by a previous task to settle and schedule tasks before the next task is run.
 		// Tasks scheduled in those promises might have to run before the current next task.
 		Promise.resolve().then(() => {
-			originalGlobalValues.setTimeout(() => this.process());
+			if (this.useSetImmediate) {
+				originalGlobalValues.setImmediate(() => this.process());
+			} else {
+				originalGlobalValues.setTimeout(() => this.process());
+			}
 		});
 	}
 
@@ -182,9 +188,9 @@ export class AsyncSchedulerProcessor extends Disposable {
 		if (executedTask) {
 			this._history.push(executedTask);
 
-			if (history.length >= this.maxTaskCount && this.scheduler.hasScheduledTasks) {
-				const lastTasks = this._history.slice(Math.max(0, history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
-				let e = new Error(`Queue did not get empty after processing ${history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
+			if (this.history.length >= this.maxTaskCount && this.scheduler.hasScheduledTasks) {
+				const lastTasks = this._history.slice(Math.max(0, this.history.length - 10)).map(h => `${h.source.toString()}: ${h.source.stackTrace}`);
+				let e = new Error(`Queue did not get empty after processing ${this.history.length} items. These are the last ${lastTasks.length} scheduled tasks:\n${lastTasks.join('\n\n\n')}`);
 				this.lastError = e;
 				throw e;
 			}
@@ -217,14 +223,14 @@ export class AsyncSchedulerProcessor extends Disposable {
 }
 
 
-export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean, maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
+export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean, useSetImmediate?: boolean, maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
 	const useFakeTimers = options.useFakeTimers === undefined ? true : options.useFakeTimers;
 	if (!useFakeTimers) {
 		return fn();
 	}
 
 	const scheduler = new TimeTravelScheduler();
-	const schedulerProcessor = new AsyncSchedulerProcessor(scheduler, { maxTaskCount: options.maxTaskCount });
+	const schedulerProcessor = new AsyncSchedulerProcessor(scheduler, { useSetImmediate: options.useSetImmediate, maxTaskCount: options.maxTaskCount });
 	const globalInstallDisposable = scheduler.installGlobally();
 
 	let result: T;

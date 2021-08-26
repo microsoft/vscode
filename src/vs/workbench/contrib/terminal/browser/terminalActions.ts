@@ -2004,12 +2004,8 @@ export function validateTerminalName(name: string): { content: string, severity:
 }
 
 function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
-	if (typeof optionsOrProfile === 'object') {
-		if ('profileName' in optionsOrProfile) {
-			return { config: optionsOrProfile as ITerminalProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
-		} else if ('location' in optionsOrProfile) {
-			return { location: (optionsOrProfile as ICreateTerminalOptions).location };
-		}
+	if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
+		return { config: optionsOrProfile as ITerminalProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
 	}
 	return optionsOrProfile;
 }

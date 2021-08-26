@@ -8192,8 +8192,8 @@ declare module 'vscode' {
 		export const appRoot: string;
 
 		/**
-			 * The environment in which the app is hosted in. i.e. 'desktop', 'codespaces', 'web'.
-			 */
+		 * The environment in which the app is hosted in. i.e. 'desktop', 'codespaces', 'web'.
+		 */
 		export const appHost: string;
 
 		/**
@@ -10005,7 +10005,8 @@ declare module 'vscode' {
 		buttons: readonly QuickInputButton[];
 
 		/**
-		 * An event signaling when a button was triggered.
+		 * An event signaling when a button in the title bar was triggered.
+		 * This event does not fire for buttons on a {@link QuickPickItem}.
 		 */
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 

@@ -204,11 +204,16 @@ export interface IMenu extends IDisposable {
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
 
+export interface IMenuCreateOptions {
+	emitEventsForSubmenuChanges?: boolean;
+	eventDebounceDelay?: number;
+}
+
 export interface IMenuService {
 
 	readonly _serviceBrand: undefined;
 
-	createMenu(id: MenuId, contextKeyService: IContextKeyService, emitEventsForSubmenuChanges?: boolean): IMenu;
+	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;

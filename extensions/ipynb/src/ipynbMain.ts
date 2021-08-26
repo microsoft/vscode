@@ -33,7 +33,10 @@ export function activate(context: vscode.ExtensionContext) {
 				...document.metadata,
 				custom: {
 					...(document.metadata.custom ?? {}),
-					kernelspec: kernelspec
+					metadata: {
+						...(document.metadata.custom?.metadata ?? {}),
+						kernelspec: kernelspec
+					},
 				}
 			});
 			return vscode.workspace.applyEdit(edit);

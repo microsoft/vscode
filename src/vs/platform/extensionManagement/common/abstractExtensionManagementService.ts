@@ -96,7 +96,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		if (!await this.canInstall(extension)) {
 			const error = new ExtensionManagementError(`Not supported`, INSTALL_ERROR_VALIDATING);
-			this.logService.error(`Canno install extension as it is not supported.`, extension.identifier.id, error.message);
+			this.logService.error(`Cannot install extension as it is not supported.`, extension.identifier.id, error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
 		}
@@ -105,6 +105,13 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		if (manifest === null) {
 			const error = new ExtensionManagementError(`Missing manifest for extension ${extension.identifier.id}`, INSTALL_ERROR_VALIDATING);
 			this.logService.error(`Failed to install extension:`, extension.identifier.id, error.message);
+			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
+			throw error;
+		}
+
+		if (manifest.version !== extension.version) {
+			const error = new ExtensionManagementError(`Cannot install '${extension.identifier.id}' extension because of version mismatch in Marketplace`, INSTALL_ERROR_VALIDATING);
+			this.logService.error(error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
 		}

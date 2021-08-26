@@ -1445,7 +1445,7 @@ suite('EditorGroupsService', () => {
 	test('locked groups - auto locking via setting', async () => {
 		const instantiationService = workbenchInstantiationService();
 		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration('workbench', { 'editor': { 'experimentalAutoLockGroups': [TEST_EDITOR_INPUT_ID] } });
+		await configurationService.setUserConfiguration('workbench', { 'editor': { 'experimentalAutoLockGroups': { 'testEditorInputForEditorGroupService': true } } });
 		instantiationService.stub(IConfigurationService, configurationService);
 
 		const [part] = await createPart(instantiationService);
