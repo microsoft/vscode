@@ -8192,8 +8192,8 @@ declare module 'vscode' {
 		export const appRoot: string;
 
 		/**
-			 * The environment in which the app is hosted in. i.e. 'desktop', 'codespaces', 'web'.
-			 */
+		 * The environment in which the app is hosted in. i.e. 'desktop', 'codespaces', 'web'.
+		 */
 		export const appHost: string;
 
 		/**
