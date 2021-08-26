@@ -11,9 +11,9 @@ import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { NOTIFICATIONS_BORDER, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -68,16 +68,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		}
 
 		const [first] = this._status;
-		let backgroundColor: ThemeColor | undefined;
-		let color: ThemeColor | undefined;
 		let text: string = '$(info)';
 		if (first.severity === Severity.Error) {
-			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
-			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
 			text = '$(error)';
 		} else if (first.severity === Severity.Warning) {
-			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
-			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
 			text = '$(warning)';
 		}
 
@@ -96,7 +90,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		};
 
 		if (!this._entry.value) {
-			this._entry.value = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, 100.06);
+			this._entry.value = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, 100.11);
 		} else {
 			this._entry.value.update(props);
 		}
@@ -153,7 +147,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 }
 
 registerThemingParticipant((theme, collector) => {
-	collector.addRule(`:root { --code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)}}`);
+	collector.addRule(`:root {
+		--code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)};
+		--code-language-status-item-active-background: ${theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND)?.darken(.8)};
+	}`);
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);
