@@ -17,7 +17,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { SymbolKind } from 'vs/editor/common/modes';
@@ -255,6 +255,7 @@ registerAction2(class GotoSymbolAction extends Action2 {
 			id: 'workbench.action.gotoSymbol',
 			title: {
 				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
 				original: 'Go to Symbol in Editor...'
 			},
 			f1: true,
@@ -262,6 +263,11 @@ registerAction2(class GotoSymbolAction extends Action2 {
 				when: undefined,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+			},
+			menu: {
+				id: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 1
 			}
 		});
 	}
