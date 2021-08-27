@@ -14,19 +14,24 @@ import { Event, Emitter, DebounceEmitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { IExtUri } from 'vs/base/common/resources';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
+	private readonly _data: ResourceMap<vscode.Diagnostic[]>;
 	private _isDisposed = false;
-	private _data = new ResourceMap<vscode.Diagnostic[]>();
 
 	constructor(
 		private readonly _name: string,
 		private readonly _owner: string,
 		private readonly _maxDiagnosticsPerFile: number,
+		extUri: IExtUri,
 		private readonly _proxy: MainThreadDiagnosticsShape | undefined,
 		private readonly _onDidChangeDiagnostics: Emitter<vscode.Uri[]>
-	) { }
+	) {
+		this._data = new ResourceMap(uri => extUri.getComparisonKey(uri));
+	}
 
 	dispose(): void {
 		if (!this._isDisposed) {
@@ -34,7 +39,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			if (this._proxy) {
 				this._proxy.$clear(this._owner);
 			}
-			this._data = undefined!;
+			this._data.clear();
 			this._isDisposed = true;
 		}
 	}
@@ -227,13 +232,17 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._mapper);
 
-	constructor(mainContext: IMainContext, @ILogService private readonly _logService: ILogService) {
+	constructor(
+		mainContext: IMainContext,
+		@ILogService private readonly _logService: ILogService,
+		@IExtHostFileSystemInfo private readonly _fileSystemInfoService: IExtHostFileSystemInfo,
+	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
 	}
 
 	createDiagnosticCollection(extensionId: ExtensionIdentifier, name?: string): vscode.DiagnosticCollection {
 
-		const { _collections, _proxy, _onDidChangeDiagnostics, _logService } = this;
+		const { _collections, _proxy, _onDidChangeDiagnostics, _logService, _fileSystemInfoService } = this;
 
 		const loggingProxy = new class implements MainThreadDiagnosticsShape {
 			$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void {
@@ -265,7 +274,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 		const result = new class extends DiagnosticCollection {
 			constructor() {
-				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, loggingProxy, _onDidChangeDiagnostics);
+				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, _fileSystemInfoService.extUri, loggingProxy, _onDidChangeDiagnostics);
 				_collections.set(owner, this);
 			}
 			override dispose() {
@@ -317,7 +326,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 		if (!this._mirrorCollection) {
 			const name = '_generated_mirror';
-			const collection = new DiagnosticCollection(name, name, ExtHostDiagnostics._maxDiagnosticsPerFile, undefined, this._onDidChangeDiagnostics);
+			const collection = new DiagnosticCollection(name, name, ExtHostDiagnostics._maxDiagnosticsPerFile, this._fileSystemInfoService.extUri, undefined, this._onDidChangeDiagnostics);
 			this._collections.set(name, collection);
 			this._mirrorCollection = collection;
 		}
