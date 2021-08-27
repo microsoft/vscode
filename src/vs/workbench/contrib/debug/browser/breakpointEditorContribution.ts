@@ -397,9 +397,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			));
 		}
 
-		actions.push(new Separator());
-
 		if (this.debugService.state === State.Stopped) {
+			actions.push(new Separator());
 			actions.push(new Action(
 				'runToLine',
 				nls.localize('runToLine', "Run to Line"),

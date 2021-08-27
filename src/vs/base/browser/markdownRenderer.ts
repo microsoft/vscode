@@ -73,9 +73,6 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			return href; // no uri exists
 		}
 		let uri = URI.revive(data);
-		if (URI.parse(href).toString() === uri.toString()) {
-			return href; // no tranformation performed
-		}
 		if (isDomUri) {
 			if (href.startsWith(Schemas.data + ':')) {
 				return href;
@@ -85,6 +82,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			// so that the URI uses a protocol that's understood by
 			// browsers (like http or https)
 			return FileAccess.asBrowserUri(uri).toString(true);
+		}
+		if (URI.parse(href).toString() === uri.toString()) {
+			return href; // no transformation performed
 		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
@@ -278,6 +278,7 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 		Schemas.mailto,
 		Schemas.data,
 		Schemas.file,
+		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
 	];

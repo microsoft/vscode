@@ -1038,7 +1038,7 @@ class InlineCompletionAdapter {
 		const pos = typeConvert.Position.to(position);
 
 		const result = await this._provider.provideInlineCompletionItems(doc, pos, {
-			selectedSuggestionInfo:
+			selectedCompletionInfo:
 				context.selectedSuggestionInfo
 					? {
 						range: typeConvert.Range.to(context.selectedSuggestionInfo.range),

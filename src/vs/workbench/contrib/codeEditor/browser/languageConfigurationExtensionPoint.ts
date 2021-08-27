@@ -279,14 +279,13 @@ export class LanguageConfigurationFileHandler {
 			return null;
 		}
 
-		let result: CharacterPair[] | null = null;
+		const result: CharacterPair[] = [];
 		for (let i = 0, len = source.length; i < len; i++) {
 			const pair = source[i];
 			if (!isCharacterPair(pair)) {
 				console.warn(`[${languageIdentifier.language}]: language configuration: expected \`colorizedBracketPairs[${i}]\` to be an array of two strings.`);
 				continue;
 			}
-			result = result || [];
 			result.push([pair[0], pair[1]]);
 
 		}

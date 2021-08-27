@@ -125,6 +125,9 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 	public trigger(triggerKind: InlineCompletionTriggerKind): void {
 		if (this.completionSession.value) {
+			if (triggerKind === InlineCompletionTriggerKind.Explicit) {
+				void this.completionSession.value.ensureUpdateWithExplicitContext();
+			}
 			return;
 		}
 		this.completionSession.value = new InlineCompletionsSession(
@@ -274,7 +277,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		this.onDidChangeEmitter.fire();
 	}
 
-	private async ensureUpdateWithExplicitContext(): Promise<void> {
+	public async ensureUpdateWithExplicitContext(): Promise<void> {
 		if (this.updateOperation.value) {
 			// Restart or wait for current update operation
 			if (this.updateOperation.value.triggerKind === InlineCompletionTriggerKind.Explicit) {

@@ -191,7 +191,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")],
 			{
 				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
-				cancelId: 1
+				cancelId: 2
 			}
 		);
 
