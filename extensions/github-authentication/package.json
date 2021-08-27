@@ -62,7 +62,7 @@
   "dependencies": {
     "node-fetch": "2.6.1",
     "uuid": "8.1.0",
-    "vscode-extension-telemetry": "0.3.1",
+    "vscode-extension-telemetry": "0.3.2",
     "vscode-nls": "^5.0.0",
     "vscode-tas-client": "^0.1.22"
   },
