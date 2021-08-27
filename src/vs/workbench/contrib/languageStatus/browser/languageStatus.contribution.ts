@@ -34,9 +34,11 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	private readonly _disposables = new DisposableStore();
 
+	private readonly _dedicated = new Set<string>();
+
 	private _combinedEntry?: IStatusbarEntryAccessor;
 	private _dedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
-	private _dedicated = new Set<string>();
+	private _renderDisposables = new DisposableStore();
 
 	constructor(
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
@@ -61,6 +63,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._disposables.dispose();
 		this._combinedEntry?.dispose();
 		dispose(this._dedicatedEntries.values());
+		this._renderDisposables.dispose();
 	}
 
 	private _getLanguageStatus(): [combined: ILanguageStatus[], dedicated: ILanguageStatus[]] {
@@ -85,6 +88,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		const [combined, dedicated] = this._getLanguageStatus();
 
+		this._renderDisposables.clear();
+
 		// combined status bar item is a single item which hover shows
 		// each status item
 		if (combined.length === 0) {
@@ -102,7 +107,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			}
 			const element = document.createElement('div');
 			for (const status of combined) {
-				element.appendChild(this._renderStatus(status));
+				element.appendChild(this._renderStatus(status, this._renderDisposables));
 			}
 			const props: IStatusbarEntry = {
 				name: localize('status.editor.status', "Editor Language Status"),
@@ -118,7 +123,6 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		}
 
 		// dedicated status bar items are shows as-is in the status bar
-
 		const newDedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
 		for (const status of dedicated) {
 			const props = EditorStatusContribution._asStatusbarEntry(status);
@@ -135,7 +139,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
-	private _renderStatus(status: ILanguageStatus): HTMLElement {
+	private _renderStatus(status: ILanguageStatus, store: DisposableStore): HTMLElement {
 
 		const node = document.createElement('div');
 		node.classList.add('hover-language-status-element');
@@ -151,7 +155,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		const detail = document.createElement('span');
 		detail.classList.add('detail');
-		this._renderTextPlus(detail, status.detail);
+		this._renderTextPlus(detail, status.detail, store);
 		left.appendChild(detail);
 
 		const right = document.createElement('div');
@@ -169,6 +173,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 					this._commandService.executeCommand(command.id);
 				}
 			});
+			store.add(btn);
 		}
 
 		// -- pin
@@ -177,19 +182,23 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			this._statusBarService.updateEntryVisibility(status.id, true);
 			this._update();
 		});
-		const actions = new ActionBar(right, {});
-		actions.push(action, { icon: true, label: false });
+		const actionBar = new ActionBar(right, {});
+		actionBar.push(action, { icon: true, label: false });
+		store.add(action);
+		store.add(actionBar);
 
 		return node;
 	}
 
-	private _renderTextPlus(target: HTMLElement, text: string): void {
+	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
 		for (let node of parseLinkedText(text).nodes) {
 			if (typeof node === 'string') {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);
 			} else {
-				dom.append(target, new Link(node, undefined, this._openerService).el);
+				const link = new Link(node, undefined, this._openerService);
+				store.add(link);
+				dom.append(target, link.el);
 			}
 		}
 	}
