@@ -90,7 +90,7 @@ To start working with Code - OSS, follow these steps:
 
 Next, let's try debugging.
 
-1. Shut down Code - OSS by clicking the box in the upper right corner of the Code - OSS window through your browser or VNC viewer.
+1. Shut down Code - OSS by clicki				ng the box in the upper right corner of the Code - OSS window through your browser or VNC viewer.
 
 2. Go to your local VS Code client, and use the **Run / Debug** view to launch the **VS Code** configuration. (Typically the default, so you can likely just press <kbd>F5</kbd>).
 
