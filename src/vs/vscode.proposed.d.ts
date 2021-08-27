@@ -2407,14 +2407,21 @@ declare module 'vscode' {
 		readonly triggerKind: InlineCompletionTriggerKind;
 
 		/**
-		 * Provides information about the currently selected item in the suggest widget.
+		 * Provides information about the currently selected item in the autocomplete widget if it is visible.
+		 *
 		 * If set, provided inline completions must extend the text of the selected item
 		 * and use the same range, otherwise they are not shown as preview.
+		 * As an example, if the document text is `console.` and the selected item is `.log` replacing the `.` in the document,
+		 * the inline completion must also replace `.` and start with `.log`, for example `.log()`.
+		 *
+		 * Inline completion providers are requested again whenever the selected item changes.
+		 *
+		 * The user must configure `"editor.suggest.preview": true` for this feature.
 		*/
-		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
 	}
 
-	export interface SelectedSuggestionInfo {
+	export interface SelectedCompletionInfo {
 		range: Range;
 		text: string;
 	}
@@ -2444,9 +2451,9 @@ declare module 'vscode' {
 
 	export class InlineCompletionItem {
 		/**
-		 * The text to insert.
-		 * If the text contains a line break, the range must end at the end of a line.
-		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		 * The text to replace the range with.
+		 *
+		 * The text the range refers to should be a prefix of this value and must be a subword (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
 		*/
 		text: string;
 
@@ -2454,8 +2461,8 @@ declare module 'vscode' {
 		 * The range to replace.
 		 * Must begin and end on the same line.
 		 *
-		 * Prefer replacements over insertions to avoid cache invalidation.
-		 * Instead of reporting a completion that extends a word,
+		 * Prefer replacements over insertions to avoid cache invalidation:
+		 * Instead of reporting a completion that inserts an extension at the end of a word,
 		 * the whole word should be replaced with the extended word.
 		*/
 		range?: Range;

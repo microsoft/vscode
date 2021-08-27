@@ -67,15 +67,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '4_symbol_nav',
-	command: {
-		id: 'workbench.action.gotoSymbol',
-		title: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor...")
-	},
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 	group: '5_infile_nav',
 	command: {
 		id: 'workbench.action.gotoLine',

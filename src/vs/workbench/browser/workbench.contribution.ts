@@ -96,7 +96,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
 				default: true,
-				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can control which languages you want to trigger language detection on."),
+				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
 			'workbench.editor.tabCloseButton': {

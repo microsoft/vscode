@@ -24,6 +24,7 @@ export class NodeReader {
 
 	/**
 	 * Returns the longest node at `offset` that satisfies the predicate.
+	 * Has runtime O(log n) where n is the number of nodes in the tree.
 	 * @param offset must be greater than or equal to the last offset this method has been called with!
 	*/
 	readLongestNodeAt(offset: Length, predicate: (node: AstNode) => boolean): AstNode | undefined {

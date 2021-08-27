@@ -14,6 +14,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
 import { Dimension } from 'vs/base/browser/dom';
 import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -59,6 +60,7 @@ export class WalkThroughInput extends EditorInput {
 
 	constructor(
 		private readonly options: WalkThroughInputOptions,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
@@ -101,7 +103,7 @@ export class WalkThroughInput extends EditorInput {
 
 	override resolve(): Promise<WalkThroughModel> {
 		if (!this.promise) {
-			this.promise = requireToContent(this.options.resource)
+			this.promise = requireToContent(this.instantiationService, this.options.resource)
 				.then(content => {
 					if (this.resource.path.endsWith('.html')) {
 						return new WalkThroughModel(content, []);
