@@ -90,7 +90,13 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			return;
 		}
 
-		const modelResults = await modelOperations.runModel(content.getValue());
+		let modelResults: ModelResult[] | undefined;
+		try {
+			modelResults = await modelOperations.runModel(content.getValue());
+		} catch (e) {
+			console.warn(e);
+		}
+
 		if (!modelResults
 			|| modelResults.length === 0
 			|| modelResults[0].confidence < LanguageDetectionSimpleWorker.expectedRelativeConfidence) {
