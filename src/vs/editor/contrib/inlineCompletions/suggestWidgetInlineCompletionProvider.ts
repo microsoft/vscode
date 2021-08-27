@@ -14,7 +14,7 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
-import { NormalizedInlineCompletion } from './inlineCompletionToGhostText';
+import { NormalizedInlineCompletion, normalizedInlineCompletionsEquals } from './inlineCompletionToGhostText';
 
 export interface SuggestWidgetState {
 	/**
@@ -103,7 +103,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	private update(newActive: boolean): void {
 		const newInlineCompletion = this.getInlineCompletion();
 		let shouldFire = false;
-		if (this._currentInlineCompletion !== newInlineCompletion) {
+		if (!normalizedInlineCompletionsEquals(this._currentInlineCompletion, newInlineCompletion)) {
 			this._currentInlineCompletion = newInlineCompletion;
 			shouldFire = true;
 		}
