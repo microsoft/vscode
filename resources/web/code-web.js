@@ -62,7 +62,7 @@ const args = minimist(process.argv, {
 if (args.help) {
 	console.log(
 		'yarn web [options]\n' +
-		' --no-launch      Do not open VSCode web in the browser\n' +
+		' --no-launch      Do not open Code in the browser\n' +
 		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
 		' --enable-sync    Enable sync by default\n' +
 		' --scheme         Protocol (https or http)\n' +
@@ -239,8 +239,8 @@ const requestHandler = (req, res) => {
 			// manifest
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			return res.end(JSON.stringify({
-				'name': 'Code Web - OSS',
-				'short_name': 'Code Web - OSS',
+				'name': 'Code - OSS',
+				'short_name': 'Code - OSS',
 				'start_url': '/',
 				'lang': 'en-US',
 				'display': 'standalone'
