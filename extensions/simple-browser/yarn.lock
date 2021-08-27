@@ -12,10 +12,10 @@ vscode-codicons@^0.0.14:
   resolved "https://registry.yarnpkg.com/vscode-codicons/-/vscode-codicons-0.0.14.tgz#e0d05418e2e195564ff6f6a2199d70415911c18f"
   integrity sha512-6CEH5KT9ct5WMw7n5dlX7rB8ya4CUI2FSq1Wk36XaW+c5RglFtAanUV0T+gvZVVFhl/WxfjTvFHq06Hz9c1SLA==
 
-vscode-extension-telemetry@0.2.8:
-  version "0.2.8"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.8.tgz#670c625c44791237c040cee2cb9f567ca34784ac"
-  integrity sha512-Vf52im5qzORRD2K5Ryp8PXo31YXVcJAYRSDDZGegWlt0OATOd83DYabS1U/WIq9nR5g80UQKH3+BsenhpQHUaA==
+vscode-extension-telemetry@0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.3.1.tgz#eb6def6c27508c4a399d910bf883858b40785e93"
+  integrity sha512-LczQ+aLGRhVdmdx7eHvtuMfAW3JggL4EBsqhWPD0M4oOdHa/4Jrlk4ug60OZOTiUH4gIZ/+6XGEXWzENRsFRfA==
 
 vscode-nls@^5.0.0:
   version "5.0.0"

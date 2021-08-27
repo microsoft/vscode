@@ -61,10 +61,10 @@ jschardet@3.0.0:
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-3.0.0.tgz#898d2332e45ebabbdb6bf2feece9feea9a99e882"
   integrity sha512-lJH6tJ77V8Nzd5QWRkFYCLc13a3vADkh3r/Fi8HupZGWk2OVVDfnZP8V/VgQgZ+lzW0kG2UGb5hFgt3V3ndotQ==
 
-vscode-extension-telemetry@0.2.8:
-  version "0.2.8"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.8.tgz#670c625c44791237c040cee2cb9f567ca34784ac"
-  integrity sha512-Vf52im5qzORRD2K5Ryp8PXo31YXVcJAYRSDDZGegWlt0OATOd83DYabS1U/WIq9nR5g80UQKH3+BsenhpQHUaA==
+vscode-extension-telemetry@0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.3.1.tgz#eb6def6c27508c4a399d910bf883858b40785e93"
+  integrity sha512-LczQ+aLGRhVdmdx7eHvtuMfAW3JggL4EBsqhWPD0M4oOdHa/4Jrlk4ug60OZOTiUH4gIZ/+6XGEXWzENRsFRfA==
 
 vscode-nls@^4.0.0:
   version "4.0.0"

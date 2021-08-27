@@ -106,10 +106,10 @@ uc.micro@^1.0.5:
   resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.5.tgz#0c65f15f815aa08b560a61ce8b4db7ffc3f45376"
   integrity sha512-JoLI4g5zv5qNyT09f4YAvEZIIV1oOjqnewYg5D38dkQljIzpPT296dbIGvKro3digYI1bkb7W6EP1y4uDlmzLg==
 
-vscode-extension-telemetry@0.2.8:
-  version "0.2.8"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.2.8.tgz#670c625c44791237c040cee2cb9f567ca34784ac"
-  integrity sha512-Vf52im5qzORRD2K5Ryp8PXo31YXVcJAYRSDDZGegWlt0OATOd83DYabS1U/WIq9nR5g80UQKH3+BsenhpQHUaA==
+vscode-extension-telemetry@0.3.1:
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.3.1.tgz#eb6def6c27508c4a399d910bf883858b40785e93"
+  integrity sha512-LczQ+aLGRhVdmdx7eHvtuMfAW3JggL4EBsqhWPD0M4oOdHa/4Jrlk4ug60OZOTiUH4gIZ/+6XGEXWzENRsFRfA==
 
 vscode-nls@^5.0.0:
   version "5.0.0"
