@@ -19,55 +19,35 @@ export function concat23Trees(items: AstNode[]): AstNode | null {
 		return items[0];
 	}
 
-	if (allItemsHaveSameHeight(items)) {
-		return concatFast(items);
-	}
-	return concatSlow(items);
-}
+	let i = 0;
+	function readNode(): AstNode | null {
+		if (i >= items.length) {
+			return null;
+		}
+		const start = i;
+		const height = items[start].listHeight;
 
-/**
- * @param items must be non empty.
-*/
-function allItemsHaveSameHeight(items: AstNode[]): boolean {
-	const firstHeight = items[0].listHeight;
+		i++;
+		while (i < items.length && items[i].listHeight === height) {
+			i++;
+		}
 
-	for (const item of items) {
-		if (item.listHeight !== firstHeight) {
-			return false;
+		if (i - start >= 2) {
+			return concat23TreesOfSameHeight(start === 0 && i === items.length ? items : items.slice(start, i));
+		} else {
+			return items[start];
 		}
 	}
-	return true;
-}
 
-function concatFast(items: AstNode[]): AstNode | null {
-	let length = items.length;
-	// All trees have same height, just create parent nodes.
-	while (length > 1) {
-		const newLength = length >> 1;
-		// Ideally, due to the slice, not a lot of memory is wasted.
-		const newItems = new Array<AstNode>(newLength);
-		for (let i = 0; i < newLength; i++) {
-			const j = i << 1;
-			newItems[i] = ListAstNode.create(items.slice(j, (j + 3 === length) ? length : j + 2));
-		}
-		length = newLength;
-		items = newItems;
-	}
-	return items[0];
-}
-
-function heightDiff(node1: AstNode, node2: AstNode): number {
-	return Math.abs(node1.listHeight - node2.listHeight);
-}
-
-function concatSlow(items: AstNode[]): AstNode | null {
 	// The items might not have the same height.
 	// We merge all items by using a binary concat operator.
-	let first = items[0];
-	let second = items[1];
+	let first = readNode()!; // There must be a first item
+	let second = readNode();
+	if (!second) {
+		return first;
+	}
 
-	for (let i = 2; i < items.length; i++) {
-		const item = items[i];
+	for (let item = readNode(); item; item = readNode()) {
 		// Prefer concatenating smaller trees, as the runtime of concat depends on the tree height.
 		if (heightDiff(first, second) <= heightDiff(second, item)) {
 			first = concat(first, second);
@@ -79,6 +59,34 @@ function concatSlow(items: AstNode[]): AstNode | null {
 
 	const result = concat(first, second);
 	return result;
+}
+
+export function concat23TreesOfSameHeight(items: AstNode[]): AstNode | null {
+	if (items.length === 0) {
+		return null;
+	}
+	if (items.length === 1) {
+		return items[0];
+	}
+
+	let length = items.length;
+	// All trees have same height, just create parent nodes.
+	while (length > 3) {
+		const newLength = length >> 1;
+		// Ideally, due to the slice, not a lot of memory is wasted.
+		const newItems = new Array<AstNode>(newLength);
+		for (let i = 0; i < newLength; i++) {
+			const j = i << 1;
+			newItems[i] = ListAstNode.create(items.slice(j, (j + 3 === length) ? length : j + 2));
+		}
+		length = newLength;
+		items = newItems;
+	}
+	return ListAstNode.create(items);
+}
+
+function heightDiff(node1: AstNode, node2: AstNode): number {
+	return Math.abs(node1.listHeight - node2.listHeight);
 }
 
 function concat(node1: AstNode, node2: AstNode): AstNode {

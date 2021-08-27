@@ -163,7 +163,7 @@ function computeLength(openingBracket: BracketAstNode, child: AstNode | null, cl
 }
 
 export class ListAstNode extends BaseAstNode {
-	public static create(items: AstNode[]) {
+	public static create(items: AstNode[]): ListAstNode {
 		if (items.length === 0) {
 			return new ListAstNode(lengthZero, 0, items, SmallImmutableSet.getEmpty());
 		} else {

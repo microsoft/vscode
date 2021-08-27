@@ -7,7 +7,7 @@ import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNod
 import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
 import { SmallImmutableSet } from './smallImmutableSet';
 import { lengthGetLineCount, lengthIsZero, lengthLessThanEqual } from './length';
-import { concat23Trees } from './concat23Trees';
+import { concat23Trees, concat23TreesOfSameHeight } from './concat23Trees';
 import { NodeReader } from './nodeReader';
 import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer';
 
@@ -80,7 +80,8 @@ class Parser {
 			items.push(child);
 		}
 
-		const result = concat23Trees(items);
+		// When there is no oldNodeReader, all items are created from scratch and must have the same height.
+		const result = this.oldNodeReader ? concat23Trees(items) : concat23TreesOfSameHeight(items);
 		return result;
 	}
 
