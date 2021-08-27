@@ -6,7 +6,7 @@
 import 'vs/css!./media/languageStatus';
 import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
@@ -23,15 +23,20 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
 
 class EditorStatusContribution implements IWorkbenchContribution {
 
 	private static readonly _id = 'status.languageStatus';
 
-	private readonly _entry = new MutableDisposable<IStatusbarEntryAccessor>();
 	private readonly _disposables = new DisposableStore();
 
-	private _status: ILanguageStatus[] = [];
+	private _combinedEntry?: IStatusbarEntryAccessor;
+	private _dedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
+	private _dedicated = new Set<string>();
 
 	constructor(
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
@@ -43,57 +48,91 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		_languageStatusService.onDidChange(this._update, this, this._disposables);
 		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
 		this._update();
+
+		_statusBarService.onDidChangeEntryVisibility(e => {
+			if (!e.visible && this._dedicated.has(e.id)) {
+				this._dedicated.delete(e.id);
+				this._update();
+			}
+		}, this._disposables);
 	}
 
 	dispose(): void {
-		this._entry.dispose();
 		this._disposables.dispose();
+		this._combinedEntry?.dispose();
+		dispose(this._dedicatedEntries.values());
 	}
 
-	private _updateStatus(): void {
+	private _getLanguageStatus(): [combined: ILanguageStatus[], dedicated: ILanguageStatus[]] {
 		const editor = getCodeEditor(this._editorService.activeTextEditorControl);
-		if (editor?.hasModel()) {
-			this._status = this._languageStatusService.getLanguageStatus(editor.getModel());
-		} else {
-			this._status = [];
+		if (!editor?.hasModel()) {
+			return [[], []];
 		}
+		const all = this._languageStatusService.getLanguageStatus(editor.getModel());
+		const combined: ILanguageStatus[] = [];
+		const dedicated: ILanguageStatus[] = [];
+		for (let item of all) {
+			if (this._dedicated.has(item.id)) {
+				dedicated.push(item);
+			} else {
+				combined.push(item);
+			}
+		}
+		return [combined, dedicated];
 	}
 
 	private _update(): void {
 
-		this._updateStatus();
-		if (this._status.length === 0) {
-			this._entry.clear();
-			return;
-		}
+		const [combined, dedicated] = this._getLanguageStatus();
 
-		const [first] = this._status;
-		let text: string = '$(info)';
-		if (first.severity === Severity.Error) {
-			text = '$(error)';
-		} else if (first.severity === Severity.Warning) {
-			text = '$(warning)';
-		}
+		// combined status bar item is a single item which hover shows
+		// each status item
+		if (combined.length === 0) {
+			// nothing
+			this._combinedEntry?.dispose();
+			this._combinedEntry = undefined;
 
-		const element = document.createElement('div');
-		for (const status of this._status) {
-			element.appendChild(this._renderStatus(status));
-		}
-
-		const props: IStatusbarEntry = {
-			name: localize('status.editor.status', "Language Status"),
-			ariaLabel: localize('status.editor.status', "Language Status"),
-			text,
-			// backgroundColor,
-			// color,
-			tooltip: element
-		};
-
-		if (!this._entry.value) {
-			this._entry.value = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, 100.11);
 		} else {
-			this._entry.value.update(props);
+			const [first] = combined;
+			let text: string = '$(info)';
+			if (first.severity === Severity.Error) {
+				text = '$(error)';
+			} else if (first.severity === Severity.Warning) {
+				text = '$(warning)';
+			}
+			const element = document.createElement('div');
+			for (const status of combined) {
+				element.appendChild(this._renderStatus(status));
+			}
+			const props: IStatusbarEntry = {
+				name: localize('status.editor.status', "Editor Language Status"),
+				ariaLabel: localize('status.editor.status', "Editor Language Status"),
+				tooltip: element,
+				text,
+			};
+			if (!this._combinedEntry) {
+				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, 100.11);
+			} else {
+				this._combinedEntry.update(props);
+			}
 		}
+
+		// dedicated status bar items are shows as-is in the status bar
+
+		const newDedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
+		for (const status of dedicated) {
+			const props = EditorStatusContribution._asStatusbarEntry(status);
+			let entry = this._dedicatedEntries.get(status.id);
+			if (!entry) {
+				entry = this._statusBarService.addEntry(props, status.id, StatusbarAlignment.RIGHT, 100.09999);
+			} else {
+				entry.update(props);
+				this._dedicatedEntries.delete(status.id);
+			}
+			newDedicatedEntries.set(status.id, entry);
+		}
+		dispose(this._dedicatedEntries.values());
+		this._dedicatedEntries = newDedicatedEntries;
 	}
 
 	private _renderStatus(status: ILanguageStatus): HTMLElement {
@@ -131,6 +170,16 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				}
 			});
 		}
+
+		// -- pin
+		const action = new Action('pin', localize('pin', "Pin to Status Bar"), Codicon.pin.classNames, true, () => {
+			this._dedicated.add(status.id);
+			this._statusBarService.updateEntryVisibility(status.id, true);
+			this._update();
+		});
+		const actions = new ActionBar(right, {});
+		actions.push(action, { icon: true, label: false });
+
 		return node;
 	}
 
@@ -143,6 +192,18 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				dom.append(target, new Link(node, undefined, this._openerService).el);
 			}
 		}
+	}
+
+	// ---
+
+	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
+		return {
+			name: item.name,
+			text: item.label,
+			ariaLabel: item.label,
+			tooltip: new MarkdownString(item.detail, true),
+			command: item.command
+		};
 	}
 }
 

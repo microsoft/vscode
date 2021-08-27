@@ -16,12 +16,15 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 
 export interface ILanguageStatus {
-	selector: LanguageSelector,
-	severity: Severity;
-	label: string;
-	detail: string;
-	source: string;
-	command: Command | undefined;
+	readonly id: string;
+	readonly name: string;
+
+	readonly selector: LanguageSelector;
+	readonly severity: Severity;
+	readonly label: string;
+	readonly detail: string;
+	readonly source: string;
+	readonly command: Command | undefined;
 }
 
 export interface ILanguageStatusProvider {

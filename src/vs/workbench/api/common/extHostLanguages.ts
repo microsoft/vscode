@@ -68,13 +68,15 @@ export class ExtHostLanguages {
 
 	private _handlePool: number = 0;
 
-	createLanguageStatusItem(extension: IExtensionDescription, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
+	createLanguageStatusItem(extension: IExtensionDescription, id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
 
 		const handle = this._handlePool++;
 		const proxy = this._proxy;
 
 		const data: Omit<vscode.LanguageStatusItem, 'dispose'> = {
 			selector,
+			id,
+			name: extension.displayName ?? extension.name,
 			severity: LanguageStatusSeverity.Information,
 			command: undefined,
 			text: '',
@@ -90,6 +92,8 @@ export class ExtHostLanguages {
 				commandDisposables.clear();
 
 				this._proxy.$setLanguageStatus(handle, {
+					id: `${extension.identifier.value}/${id}`,
+					name: data.name ?? extension.displayName ?? extension.name,
 					source: extension.displayName ?? extension.name,
 					selector: data.selector,
 					label: data.text,
@@ -105,6 +109,16 @@ export class ExtHostLanguages {
 				commandDisposables.dispose();
 				soonHandle?.dispose();
 				proxy.$removeLanguageStatus(handle);
+			},
+			get id() {
+				return data.id;
+			},
+			get name() {
+				return data.name;
+			},
+			set name(value) {
+				data.name = value;
+				updateAsync();
 			},
 			get selector() {
 				return data.selector;
