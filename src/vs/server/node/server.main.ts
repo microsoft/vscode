@@ -169,6 +169,11 @@ function getMediaMime(forPath: string): string | undefined {
 	return mapExtToMediaMimes.get(ext.toLowerCase());
 }
 
+function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCode: number, errorMessage: string): void {
+	res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
+	res.end(errorMessage);
+}
+
 async function serveFile(logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, filePath: string, responseHeaders: http.OutgoingHttpHeaders = {}) {
 	try {
 
@@ -199,9 +204,29 @@ async function serveFile(logService: ILogService, req: http.IncomingMessage, res
 	}
 }
 
-function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCode: number, errorMessage: string): void {
-	res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
-	res.end(errorMessage);
+async function handleRoot(req: http.IncomingMessage, resp: http.ServerResponse, entryPointPath: string, environmentService: INativeEnvironmentService) {
+	if (!req.headers.host) {
+		return serveError(req, resp, 400, 'Bad request.');
+	}
+
+	const host = req.headers.host;
+
+	const workbenchConfig = {
+		remoteAuthority: host,
+		developmentOptions: {
+			enableSmokeTestDriver: environmentService.driverHandle === 'web' ? true : undefined
+		}
+	};
+
+	const escapeQuote = (str: string) => str.replace(/"/g, '&quot;');
+	const entryPointContent = (await fs.promises.readFile(entryPointPath))
+		.toString()
+		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeQuote(JSON.stringify(workbenchConfig)));
+
+	resp.writeHead(200, {
+		'Content-Type': 'text/html'
+	});
+	return resp.end(entryPointContent);
 }
 
 interface ServerParsedArgs extends NativeParsedArgs {
@@ -558,6 +583,8 @@ export async function main(options: IServerOptions): Promise<void> {
 		const requestService = accessor.get(IRequestService);
 		channelServer.registerChannel('request', new RequestChannel(requestService));
 
+		const environmentService = accessor.get(INativeEnvironmentService);
+
 		// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 		bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, bufferLogService.getLevel());
 
@@ -588,7 +615,7 @@ export async function main(options: IServerOptions): Promise<void> {
 
 				//#region static
 				if (pathname === '/') {
-					return serveFile(logService, req, res, devMode ? options.mainDev || WEB_MAIN_DEV : options.main || WEB_MAIN);
+					return handleRoot(req, res, devMode ? options.mainDev || WEB_MAIN_DEV : options.main || WEB_MAIN, environmentService);
 				}
 				if (pathname === '/manifest.json') {
 					res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -906,7 +933,7 @@ export async function main(options: IServerOptions): Promise<void> {
 		}
 		server.listen(port, '0.0.0.0', () => {
 			const { address, port } = server.address() as net.AddressInfo;
-			logService.info(`Web UI available at           https://${address}:${port}`);
+			logService.info(`Web UI available at http://${address}:${port}`);
 		});
 	});
 }

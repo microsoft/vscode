@@ -7,13 +7,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { request } from 'vs/base/parts/request/browser/request';
 import { localize } from 'vs/nls';
 import { parseLogLevel } from 'vs/platform/log/common/log';
 import { defaultWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { create, ICredentialsProvider, IHomeIndicator, IProductQualityChangeHandler, IWindowIndicator, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
+import { create, ICredentialsProvider, IHomeIndicator, IProductQualityChangeHandler, IWindowIndicator, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
 
 function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	let query: string | undefined = undefined;
@@ -296,6 +296,15 @@ class WindowIndicator implements IWindowIndicator {
 
 
 (function () {
+	// Find config by checking for DOM
+	const configElement = document.getElementById('vscode-workbench-web-configuration');
+	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
+	if (!configElement || !configElementAttribute) {
+		throw new Error('Missing web configuration element');
+	}
+
+	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
+
 	// Find workspace to open and payload
 	let workspace: IWorkspace;
 	let payload = Object.create(null);
@@ -399,7 +408,8 @@ class WindowIndicator implements IWindowIndicator {
 			});
 		},
 		developmentOptions: {
-			logLevel: logLevel ? parseLogLevel(logLevel) : undefined
+			logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
+			...config.developmentOptions
 		},
 		homeIndicator,
 		windowIndicator,

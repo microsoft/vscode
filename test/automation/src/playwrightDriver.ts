@@ -11,6 +11,7 @@ import { promisify } from 'util';
 import { IDriver, IDisposable } from './driver';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
+import * as url from 'url';
 
 const width = 1200;
 const height = 800;
@@ -40,7 +41,7 @@ function buildDriver(browser: playwright.Browser, context: playwright.BrowserCon
 		getWindowIds: () => {
 			return Promise.resolve([1]);
 		},
-		capturePage: () => Promise.resolve(''),
+		capturePage: () => page.screenshot().then(buffer => buffer.toString('base64')),
 		reloadWindow: (windowId) => Promise.resolve(),
 		exitApplication: async () => {
 			try {
@@ -205,7 +206,8 @@ export async function connect(options: Options = {}): Promise<{ client: IDisposa
 		}
 	});
 	const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
-	await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
+	const endpointUrl = new url.URL(endpoint!);
+	await page.goto(`${endpoint}/?folder=vscode-remote://${endpointUrl.host}${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 
 	return {
 		client: {
