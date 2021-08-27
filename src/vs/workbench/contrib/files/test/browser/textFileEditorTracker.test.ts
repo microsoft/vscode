@@ -33,6 +33,13 @@ suite('Files - TextFileEditorTracker', () => {
 
 	const disposables = new DisposableStore();
 
+	class TestTextFileEditorTracker extends TextFileEditorTracker {
+
+		protected override getDirtyTextFileTrackerDelay(): number {
+			return 5; // encapsulated in a method for tests to override
+		}
+	}
+
 	setup(() => {
 		disposables.add(registerTestFileEditor());
 		disposables.add(registerTestResourceEditor());
@@ -68,7 +75,7 @@ suite('Files - TextFileEditorTracker', () => {
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
 
-		disposables.add(instantiationService.createInstance(TextFileEditorTracker));
+		disposables.add(instantiationService.createInstance(TestTextFileEditorTracker));
 
 		return accessor;
 	}
@@ -132,7 +139,7 @@ suite('Files - TextFileEditorTracker', () => {
 
 		if (autoSave) {
 			await model.save();
-			await timeout(100);
+			await timeout(10);
 			if (error) {
 				assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
 			} else {
