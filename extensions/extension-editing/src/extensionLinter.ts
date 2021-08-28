@@ -45,7 +45,7 @@ interface TokenAndPosition {
 
 interface PackageJsonInfo {
 	isExtension: boolean;
-	repository: GitHost | undefined;
+	repository: string | undefined;
 }
 
 export class ExtensionLinter {
@@ -269,13 +269,14 @@ export class ExtensionLinter {
 				repoUrl = urlNode.value;
 			}
 		}
+		const gitHost = repoUrl && GitHost.fromUrl(repoUrl, { noGitPlus: true });
 		const info: PackageJsonInfo = {
 			isExtension: !!(engine && engine.type === 'string'),
-			repository: repoUrl && GitHost.fromUrl(repoUrl, { noGitPlus: true }) || undefined
+			repository: gitHost && gitHost.https() || repoUrl
 		};
 		const str = folder.toString();
 		const oldInfo = this.folderToPackageJsonInfo[str];
-		if (oldInfo && (oldInfo.isExtension !== info.isExtension || oldInfo.repository?.toString() !== info.repository?.toString())) {
+		if (oldInfo && (oldInfo.isExtension !== info.isExtension || oldInfo.repository !== info.repository)) {
 			this.packageJsonChanged(folder); // clears this.folderToPackageJsonInfo[str]
 		}
 		this.folderToPackageJsonInfo[str] = info;
@@ -308,7 +309,7 @@ export class ExtensionLinter {
 
 	private addDiagnostics(diagnostics: Diagnostic[], document: TextDocument, begin: number, end: number, src: string, context: Context, info: PackageJsonInfo) {
 		const hasScheme = /^\w[\w\d+.-]*:/.test(src);
-		const uri = parseUri(src, info.repository ? info.repository.browse() : document.uri.toString());
+		const uri = parseUri(src, info.repository || document.uri.toString());
 		if (!uri) {
 			return;
 		}
@@ -324,7 +325,7 @@ export class ExtensionLinter {
 			diagnostics.push(new Diagnostic(range, dataUrlsNotValid, DiagnosticSeverity.Warning));
 		}
 
-		if (!hasScheme && info.repository?.default !== 'https') {
+		if (!hasScheme && !info.repository?.startsWith('https')) {
 			const range = new Range(document.positionAt(begin), document.positionAt(end));
 			let message = (() => {
 				switch (context) {
