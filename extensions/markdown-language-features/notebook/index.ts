@@ -6,13 +6,13 @@
 const MarkdownIt = require('markdown-it');
 import * as DOMPurify from 'dompurify';
 import type * as markdownIt from 'markdown-it';
-import type { RendererContext } from 'vscode-notebook-renderer';
+import type { ActivationFunction } from 'vscode-notebook-renderer';
 
 const sanitizerOptions: DOMPurify.Config = {
 	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 };
 
-export function activate(ctx: RendererContext<void>) {
+export const activate: ActivationFunction<void> = (ctx) => {
 	let markdownIt = new MarkdownIt({
 		html: true
 	});
@@ -147,7 +147,7 @@ export function activate(ctx: RendererContext<void>) {
 	document.head.appendChild(template);
 
 	return {
-		renderOutputItem: (outputInfo: { text(): string }, element: HTMLElement) => {
+		renderOutputItem: (outputInfo, element) => {
 			let previewNode: HTMLElement;
 			if (!element.shadowRoot) {
 				const previewRoot = element.attachShadow({ mode: 'open' });
@@ -190,7 +190,7 @@ export function activate(ctx: RendererContext<void>) {
 			f(markdownIt);
 		}
 	};
-}
+};
 
 
 function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
