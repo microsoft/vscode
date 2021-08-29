@@ -10,6 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ProcessItem } from 'vs/base/common/processes';
 import { listProcesses } from 'vs/base/node/ps';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const enum Constants {
 	/**
@@ -59,7 +60,8 @@ export class ChildProcessMonitor extends Disposable {
 
 	constructor(
 		private readonly _pid: number,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService 
 	) {
 		super();
 	}
