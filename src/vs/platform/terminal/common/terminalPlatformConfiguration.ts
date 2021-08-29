@@ -387,7 +387,6 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			},
              		default : ['starship','oh-my-posh','bash','zsh'] 
  		}
-
 	}
 };
 
