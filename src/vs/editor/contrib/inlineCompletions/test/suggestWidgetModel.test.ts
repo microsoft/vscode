@@ -26,7 +26,7 @@ import { Event } from 'vs/base/common/event';
 import assert = require('assert');
 import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { Range } from 'vs/editor/common/core/range';
-import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 
 suite('Suggest Widget Model', () => {

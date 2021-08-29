@@ -26,6 +26,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
 import { PLAINTEXT_EXTENSION } from 'vs/editor/common/modes/modesRegistry';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -44,7 +45,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IModeService private readonly modeService: IModeService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@ICommandService protected readonly commandService: ICommandService
 	) { }
 
 	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
@@ -145,7 +147,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 	}
 
-	private addFileSchemaIfNeeded(schema: string): string[] {
+	protected addFileSchemaIfNeeded(schema: string, _isFolder?: boolean): string[] {
 		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 
@@ -197,7 +199,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
 		const title = nls.localize('openFolder.title', 'Open Folder');
-		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
+		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
 
 		const uri = await this.pickResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
@@ -208,7 +210,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	protected async pickWorkspaceAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
 		const title = nls.localize('openWorkspace.title', 'Open Workspace');
 		const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
-		const availableFileSystems = this.addFileSchemaIfNeeded(schema);
+		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
 		if (uri) {
@@ -235,7 +237,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	protected async showOpenDialogSimplified(schema: string, options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		if (!options.availableFileSystems) {
-			options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
+			options.availableFileSystems = this.addFileSchemaIfNeeded(schema, options.canSelectFolders);
 		}
 
 		const uri = await this.pickResource(options);

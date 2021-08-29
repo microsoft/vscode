@@ -613,7 +613,7 @@ class LoadEstimator {
 	/**
 	 * returns an estimative number, from 0 (low load) to 1 (high load)
 	 */
-	public load(): number {
+	private load(): number {
 		const now = Date.now();
 		const historyLimit = (1 + LoadEstimator._HISTORY_LENGTH) * 1000;
 		let score = 0;
@@ -628,6 +628,10 @@ class LoadEstimator {
 	public hasHighLoad(): boolean {
 		return this.load() >= 0.5;
 	}
+}
+
+export interface ILoadEstimator {
+	hasHighLoad(): boolean;
 }
 
 /**
@@ -658,7 +662,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socketReader: ProtocolReader;
 	private _socketDisposables: IDisposable[];
 
-	private readonly _loadEstimator = LoadEstimator.getInstance();
+	private readonly _loadEstimator: ILoadEstimator;
 
 	private readonly _onControlMessage = new BufferedEmitter<VSBuffer>();
 	readonly onControlMessage: Event<VSBuffer> = this._onControlMessage.event;
@@ -679,7 +683,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
 
-	constructor(socket: ISocket, initialChunk: VSBuffer | null = null) {
+	constructor(socket: ISocket, initialChunk: VSBuffer | null = null, loadEstimator: ILoadEstimator = LoadEstimator.getInstance()) {
+		this._loadEstimator = loadEstimator;
 		this._isReconnecting = false;
 		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
 		this._outgoingMsgId = 0;
@@ -942,6 +947,12 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 		if (this._outgoingAckTimeout) {
 			// there will be a check in the near future
+			return;
+		}
+
+		if (this._isReconnecting) {
+			// do not cause a timeout during reconnection,
+			// because messages will not be actually written until `endAcceptReconnection`
 			return;
 		}
 

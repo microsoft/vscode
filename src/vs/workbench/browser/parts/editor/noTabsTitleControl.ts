@@ -10,8 +10,7 @@ import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
-import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
@@ -333,16 +332,21 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	protected override prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
+	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
-		// Group active: show all actions
+		// Active: allow all actions
 		if (isGroupActive) {
-			return super.prepareEditorActions(editorActions);
+			return editorActions;
 		}
 
-		// Group inactive: only show close action
-		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
+		// Inactive: only show "Close, "Unlock" and secondary actions
+		else {
+			return {
+				primary: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
+				secondary: editorActions.secondary
+			};
+		}
 	}
 
 	getHeight(): IEditorGroupTitleHeight {

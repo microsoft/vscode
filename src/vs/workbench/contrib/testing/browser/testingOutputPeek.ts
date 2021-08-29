@@ -37,7 +37,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
+import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -59,7 +59,7 @@ import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
+import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -596,7 +596,7 @@ class TestingOutputPeek extends PeekViewWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
+		super(editor, { showFrame: true, frameWidth: 1, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
 
 		TestingContextKeys.isInPeek.bindTo(contextKeyService);
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
@@ -607,10 +607,11 @@ class TestingOutputPeek extends PeekViewWidget {
 
 	private applyTheme(theme: IColorTheme) {
 		const borderColor = theme.getColor(testingPeekBorder) || Color.transparent;
+		const headerBg = theme.getColor(testingPeekHeaderBackground) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
-			headerBackgroundColor: theme.getColor(peekViewTitleBackground) || Color.transparent,
+			headerBackgroundColor: headerBg,
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
@@ -1558,7 +1559,7 @@ export class GoToNextMessageAction extends EditorAction2 {
 			id: GoToNextMessageAction.ID,
 			f1: true,
 			title: localize('testing.goToNextMessage', "Go to Next Test Failure"),
-			icon: Codicon.chevronDown,
+			icon: Codicon.arrowDown,
 			category: CATEGORIES.Test,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F8,
@@ -1588,7 +1589,7 @@ export class GoToPreviousMessageAction extends EditorAction2 {
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
 			title: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"),
-			icon: Codicon.chevronUp,
+			icon: Codicon.arrowUp,
 			category: CATEGORIES.Test,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,

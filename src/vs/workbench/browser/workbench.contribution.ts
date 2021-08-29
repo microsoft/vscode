@@ -96,7 +96,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
 				default: true,
-				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can control which languages you want to trigger language detection on."),
+				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
 			'workbench.editor.tabCloseButton': {
@@ -189,12 +189,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true
 			},
 			'workbench.editor.experimentalAutoLockGroups': {
-				'type': 'array',
-				'description': localize('workbench.editor.experimentalAutoLockGroups', "Experimental: lock a group automatically when an editor is the first in the group and more than one group is open. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default. Consequently the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
-				'items': {
-					'type': 'string'
+				'type': 'object',
+				'description': localize('workbench.editor.experimentalAutoLockGroups', "Experimental: If an editor matching one of the listed types is opened as the first in an editor group and more than one group is open, the group is automatically locked. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default. Consequently the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
+				'default': {
+					'terminalEditor': true,
+					'mainThreadWebview-markdown.preview': false,
+					'default': false
 				},
-				'default': ['workbench.editors.terminal']
+				'additionalProperties': {
+					'type': 'boolean',
+					'enum': [true, false]
+				},
 			},
 			'workbench.editor.revealIfOpen': {
 				'type': 'boolean',

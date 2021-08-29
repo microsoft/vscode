@@ -37,6 +37,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
 	}
 
+	protected override addFileSchemaIfNeeded(schema: string, isFolder: boolean): string[] {
+		return (schema === Schemas.untitled) ? [Schemas.file]
+			: (((schema !== Schemas.file) && (!isFolder || (schema !== Schemas.vscodeRemote))) ? [schema, Schemas.file] : [schema]);
+	}
+
 	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
@@ -183,15 +188,20 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const res = await this.dialogService.show(
 			Severity.Warning,
 			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
-			[localize('learnMore', "Learn More"), localize('cancel', "Cancel")],
+			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")],
 			{
 				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
-				cancelId: 1
+				cancelId: 2
 			}
 		);
 
-		if (res.choice === 0) {
-			this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
+		switch (res.choice) {
+			case 0:
+				this.commandService.executeCommand('workbench.action.remote.showMenu');
+				break;
+			case 1:
+				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
+				break;
 		}
 
 		return undefined;

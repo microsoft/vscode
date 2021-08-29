@@ -631,6 +631,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
 		if (resource && path) {
 			let resourceExt = extname(resource);
+			// Remove query parameters from the resource extension
+			const queryStringLocation = resourceExt.indexOf('?');
+			resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
 			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
 
 			/* __GDPR__FRAGMENT__
@@ -1022,16 +1025,34 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Conditionally lock the group
 		if (
-			isNew &&							// only if this editor was new for the group
-			this.count === 1 &&					// only when this editor was the first editor in the group
-			this.accessor.groups.length > 1 &&	// only when there are more than one groups open
-			// only when settings are configured to lock a group for the given editor
-			(
-				this.accessor.partOptions.experimentalAutoLockGroups?.has(editor.typeId) ||
-				this.accessor.partOptions.experimentalAutoLockGroups?.has(`${editor.typeId}:${editor.editorId}`)
-			)
+			isNew &&						// only if this editor was new for the group
+			this.count === 1 &&				// only when this editor was the first editor in the group
+			this.accessor.groups.length > 1	// only when there are more than one groups open
 		) {
-			this.lock(true);
+			let lock = false;
+
+			// By `typeId`
+			if (this.accessor.partOptions.experimentalAutoLockGroups?.has(editor.typeId)) {
+				lock = true;
+			}
+
+			// By `editorId`
+			else if (editor.editorId && this.accessor.partOptions.experimentalAutoLockGroups?.has(editor.editorId)) {
+				lock = true;
+			}
+
+			// By `viewType` (TODO@bpasero remove this hack once editors have adopted `editorId`)
+			// See https://github.com/microsoft/vscode/issues/131692
+			else {
+				const editorViewType = (editor as { viewType?: string }).viewType;
+				if (editorViewType && this.accessor.partOptions.experimentalAutoLockGroups?.has(editorViewType)) {
+					lock = true;
+				}
+			}
+
+			if (lock) {
+				this.lock(true);
+			}
 		}
 
 		// Show editor
@@ -1053,22 +1074,26 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let openEditorPromise: Promise<IEditorPane | undefined>;
 		if (context.active) {
 			openEditorPromise = (async () => {
-				try {
-					const result = await this.editorControl.openEditor(editor, options, { newInGroup: context.isNew });
+				const result = await this.editorControl.openEditor(editor, options, { newInGroup: context.isNew });
 
-					// Editor change event
-					if (result.editorChanged) {
-						this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
-					}
-
-					return result.editorPane;
-				} catch (error) {
-
-					// Handle errors but do not bubble them up
-					this.doHandleOpenEditorError(error, editor, options);
-
-					return undefined; // error: return undefined as result to signal this
+				// Editor change event
+				if (result.editorChanged) {
+					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
 				}
+
+				// Handle errors but do not bubble them up
+				if (result.error) {
+					await this.doHandleOpenEditorError(result.error, editor, options);
+				}
+
+				// Without an editor pane, recover by closing the active editor
+				// (if the input is still the active one)
+				if (!result.editorPane && this.activeEditor === editor) {
+					const focusNext = !options || !options.preserveFocus;
+					this.doCloseEditor(editor, focusNext, true /* from error */);
+				}
+
+				return result.editorPane;
 			})();
 		} else {
 			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
@@ -1159,12 +1184,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidOpenEditorFail.fire(editor);
-
-		// Recover by closing the active editor (if the input is still the active one)
-		if (this.activeEditor === editor) {
-			const focusNext = !options || !options.preserveFocus;
-			this.doCloseEditor(editor, focusNext, true /* from error */);
-		}
 	}
 
 	//#endregion

@@ -31,10 +31,10 @@ export class DebugLifecycle implements IWorkbenchContribution {
 			return false;
 		}
 
-		return this._showWindowCloseConfirmation(rootSessions.length);
+		return this.showWindowCloseConfirmation(rootSessions.length);
 	}
 
-	protected async _showWindowCloseConfirmation(numSessions: number): Promise<boolean> {
+	private async showWindowCloseConfirmation(numSessions: number): Promise<boolean> {
 		let message: string;
 		if (numSessions === 1) {
 			message = nls.localize('debug.debugSessionCloseConfirmationSingular', "There is an active debug session, are you sure you want to stop it?");

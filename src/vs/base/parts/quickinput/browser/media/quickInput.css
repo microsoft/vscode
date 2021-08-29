@@ -130,9 +130,7 @@
 .quick-input-message {
 	margin-top: -1px;
 	padding: 5px 5px 2px 5px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: break-word;
 }
 
 .quick-input-message > .codicon {

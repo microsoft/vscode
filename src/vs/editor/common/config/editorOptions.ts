@@ -12,7 +12,6 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import product from 'vs/platform/product/common/product';
 
 //#region typed options
 
@@ -3943,7 +3942,7 @@ export const EDITOR_MODEL_DEFAULTS = {
 	detectIndentation: true,
 	trimAutoWhitespace: true,
 	largeFileOptimizations: true,
-	bracketPairColorizationOptions: { enabled: product.quality !== 'stable' }
+	bracketPairColorizationOptions: { enabled: false }
 };
 
 /**

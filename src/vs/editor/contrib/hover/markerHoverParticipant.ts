@@ -231,7 +231,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 						});
 					}
 				});
-			});
+			}, onUnexpectedError);
 		}
 	}
 

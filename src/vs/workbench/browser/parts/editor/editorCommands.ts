@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext } from 'vs/workbench/common/editor';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -992,7 +992,7 @@ function registerOtherEditorCommands(): void {
 				id: LOCK_GROUP_COMMAND_ID,
 				title: localize('lockEditorGroup', "Lock Editor Group"),
 				category: CATEGORIES.View,
-				precondition: ContextKeyExpr.has('multipleEditorGroups'),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.has('multipleEditorGroups'), ActiveEditorGroupLockedContext.toNegated()),
 				f1: true
 			});
 		}
@@ -1006,7 +1006,7 @@ function registerOtherEditorCommands(): void {
 			super({
 				id: UNLOCK_GROUP_COMMAND_ID,
 				title: localize('unlockEditorGroup', "Unlock Editor Group"),
-				precondition: ContextKeyExpr.has('multipleEditorGroups'),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.has('multipleEditorGroups'), ActiveEditorGroupLockedContext),
 				category: CATEGORIES.View,
 				f1: true
 			});

@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { EditorCommandsContextActionRunner, ITitleControlDimensions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorCommandsContextActionRunner, ITitleControlDimensions, IToolbarActions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -50,6 +50,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -421,7 +422,6 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	closeEditors(editors: IEditorInput[]): void {
-		// Cleanup closed editors
 		this.handleClosedEditors();
 	}
 
@@ -1150,14 +1150,14 @@ export class TabsTitleControl extends TitleControl {
 			description = tabLabel.description || '';
 		}
 
-		const title = tabLabel.title || '';
-
 		if (tabLabel.ariaLabel) {
 			tabContainer.setAttribute('aria-label', tabLabel.ariaLabel);
 			// Set aria-description to empty string so that screen readers would not read the title as well
 			// More details https://github.com/microsoft/vscode/issues/95378
 			tabContainer.setAttribute('aria-description', '');
 		}
+
+		const title = tabLabel.title || '';
 		tabContainer.title = title;
 
 		// Label
@@ -1186,7 +1186,6 @@ export class TabsTitleControl extends TitleControl {
 
 	private redrawTabActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabActive = this.group.isActive(editor);
-
 		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
 
 		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabActionBar);
@@ -1295,6 +1294,23 @@ export class TabsTitleControl extends TitleControl {
 		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
 		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
+	}
+
+	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
+		const isGroupActive = this.accessor.activeGroup === this.group;
+
+		// Active: allow all actions
+		if (isGroupActive) {
+			return editorActions;
+		}
+
+		// Inactive: only show "Unlock" and secondary actions
+		else {
+			return {
+				primary: editorActions.primary.filter(action => action.id === UNLOCK_GROUP_COMMAND_ID),
+				secondary: editorActions.secondary
+			};
+		}
 	}
 
 	getHeight(): IEditorGroupTitleHeight {

@@ -50,6 +50,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -531,7 +533,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.editor.restoreCentered = this.storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
 
 		// Editors to open
-		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(fileService);
+		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(fileService, this.contextService);
 
 		// Panel visibility
 		this.state.panel.hidden = this.storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
@@ -585,13 +587,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private resolveEditorsToOpen(fileService: IFileService): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
+	private resolveEditorsToOpen(fileService: IFileService, contextService: IWorkspaceContextService): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
 		const initialFilesToOpen = this.getInitialFilesToOpen();
 
-		// Only restore editors if we are not instructed to open files initially
-		// or when `window.restoreWindows` setting is explicitly set to `preserve`
-		const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
-		this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
+		// Restore editors based on a set of rules:
+		// - never when running in web on `tmp` scheme
+		// - not when we have files to open, unless:
+		// - always when `window.restoreWindows: preserve`
+		if (isWeb && getVirtualWorkspaceScheme(contextService.getWorkspace()) === Schemas.tmp) {
+			this.state.editor.restoreEditors = false;
+		} else {
+			const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
+			this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
+		}
 
 		// Files to open, diff or create
 		if (initialFilesToOpen) {

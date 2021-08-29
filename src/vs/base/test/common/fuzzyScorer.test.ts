@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from 'vs/base/common/fuzzyScorer';
+import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from 'vs/base/common/fuzzyScorer';
 import { Schemas } from 'vs/base/common/network';
 import { basename, dirname, posix, sep, win32 } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -88,8 +88,8 @@ function _doScore2(target: string, query: string, matchOffset: number = 0): Fuzz
 	return scoreFuzzy2(target, preparedQuery, 0, matchOffset);
 }
 
-function scoreItem<T>(item: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>): IItemScore {
-	return scoreItemFuzzy(item, prepareQuery(query), allowNonContiguousMatches, accessor, Object.create(null));
+function scoreItem<T>(item: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache = Object.create(null)): IItemScore {
+	return scoreItemFuzzy(item, prepareQuery(query), allowNonContiguousMatches, accessor, cache);
 }
 
 function compareItemsByScore<T>(itemA: T, itemB: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>): number {
@@ -266,6 +266,17 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(res4.descriptionMatch![0].end, 4);
 		assert.strictEqual(res4.descriptionMatch![1].start, 10);
 		assert.strictEqual(res4.descriptionMatch![1].end, 14);
+	});
+
+	test('scoreItem - multiple with cache yields different results', function () {
+		const resource = URI.file('/xyz/some/path/someFile123.txt');
+		const cache = {};
+		let res1 = scoreItem(resource, 'xyz sm', true, ResourceAccessor, cache);
+		assert.ok(res1.score);
+
+		// from the cache's perspective this should be a totally different query
+		let res2 = scoreItem(resource, 'xyz "sm"', true, ResourceAccessor, cache);
+		assert.ok(!res2.score);
 	});
 
 	test('scoreItem - invalid input', function () {

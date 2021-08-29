@@ -439,6 +439,13 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		return false;
 	}
 	public async activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		if (activationKind === ActivationKind.Immediate) {
+			// this is an immediate request, so we cannot wait for start to be called
+			if (this._actual) {
+				return this._actual.activateByEvent(activationEvent, activationKind);
+			}
+			return;
+		}
 		await this._startCalled.wait();
 		if (this._actual) {
 			return this._actual.activateByEvent(activationEvent, activationKind);

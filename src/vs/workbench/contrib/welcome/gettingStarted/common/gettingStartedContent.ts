@@ -91,7 +91,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openFile.title', "Open File..."),
 		description: localize('gettingStarted.openFile.description', "Open a file to start working"),
 		icon: Codicon.goToFile,
-		when: '!isWeb && !isMac',
+		when: 'isWeb || !isMac',
 		content: {
 			type: 'startEntry',
 			command: 'workbench.action.files.openFile',
@@ -106,6 +106,17 @@ export const startEntries: GettingStartedStartEntryContent = [
 		content: {
 			type: 'startEntry',
 			command: 'workbench.action.files.openFolder',
+		}
+	},
+	{
+		id: 'topLevelOpenFolderWeb',
+		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
+		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
+		icon: Codicon.folderOpened,
+		when: 'isWeb',
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.addRootFolder',
 		}
 	},
 	{
@@ -200,7 +211,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'pickAFolderTask-Web',
 					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-					description: localize('gettingStarted.setup.OpenFolderWeb.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}\n{1}", Button(localize('openLocalFolder', "Open Local Folder"), 'command:workbench.action.addRootFolder'), Button(localize('openRepository', "Open Repository"), 'command:remoteHub.openRepository')),
+					description: localize('gettingStarted.setup.OpenFolderWeb.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}\n{1}", Button(localize('openFolder', "Open Folder"), 'command:workbench.action.addRootFolder'), Button(localize('openRepository', "Open Repository"), 'command:remoteHub.openRepository')),
 					when: 'isWeb && workspaceFolderCount == 0',
 					media: {
 						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
@@ -362,6 +373,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: {
 						type: 'svg', altText: 'Install Git.', path: 'git.svg',
 					},
+					completionEvents: [
+						'onContext:git.state == initialized'
+					]
 				},
 				{
 					id: 'tasks',

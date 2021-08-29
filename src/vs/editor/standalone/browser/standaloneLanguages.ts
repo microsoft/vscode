@@ -459,8 +459,9 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
 /**
  * Register a code action provider (used by e.g. quick fix).
  */
-export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
+export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
+		providedCodeActionKinds: metadata?.providedCodeActionKinds,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
@@ -587,6 +588,23 @@ export interface CodeActionProvider {
 	 * Provide commands for the given document and range.
 	 */
 	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList>;
+}
+
+
+
+/**
+ * Metadata about the type of code actions that a {@link CodeActionProvider} provides.
+ */
+export interface CodeActionProviderMetadata {
+	/**
+	 * List of code action kinds that a {@link CodeActionProvider} may return.
+	 *
+	 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
+	 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
+	 * list of kinds may either be generic, such as `["quickfix", "refactor", "source"]`, or list out every kind provided,
+	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
+	 */
+	readonly providedCodeActionKinds?: readonly string[];
 }
 
 /**

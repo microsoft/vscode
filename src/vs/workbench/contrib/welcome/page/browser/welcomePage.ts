@@ -21,6 +21,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import product from 'vs/platform/product/common/product';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -47,7 +48,13 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	private async run() {
 
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
-		if (this.configurationService.getValue('telemetry.enableTelemetry') && !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)) {
+		if (
+			product.enableTelemetry
+			&& this.configurationService.getValue('telemetry.enableTelemetry')
+			&& !this.environmentService.skipWelcome
+			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)
+		) {
+
 			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
 			await this.openWelcome(true);
 			return;

@@ -198,28 +198,13 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const { primaryEditorActions, secondaryEditorActions } = this.prepareEditorActions(this.getEditorActions());
+		const { primary, secondary } = this.prepareEditorActions(this.getEditorActions());
 
 		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
-		editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions);
+		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 	}
 
-	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[]; secondaryEditorActions: IAction[]; } {
-		let primaryEditorActions: IAction[];
-		let secondaryEditorActions: IAction[];
-
-		// Primary actions only for the active group
-		if (this.accessor.activeGroup === this.group) {
-			primaryEditorActions = prepareActions(editorActions.primary);
-		} else {
-			primaryEditorActions = [];
-		}
-
-		// Secondary actions for all groups
-		secondaryEditorActions = prepareActions(editorActions.secondary);
-
-		return { primaryEditorActions, secondaryEditorActions };
-	}
+	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
 
 	private getEditorActions(): IToolbarActions {
 		const primary: IAction[] = [];
@@ -242,7 +227,7 @@ export abstract class TitleControl extends Themable {
 		const activeEditorPane = this.group.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
 			const scopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.contextKeyService;
-			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, true);
+			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
 			this.editorToolBarMenuDisposables.add(titleBarMenu);
 			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
 				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change

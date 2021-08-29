@@ -381,10 +381,6 @@
 	margin-bottom: 6px;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer.animatable .gettingStartedSlideDetails .getting-started-step {
-	transition: height .1s linear;
-}
-
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step.expanded {
 	cursor: default !important;
 }

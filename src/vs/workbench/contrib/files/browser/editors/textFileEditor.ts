@@ -28,7 +28,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { createErrorWithActions } from 'vs/base/common/errors';
+import { IErrorWithActions } from 'vs/base/common/errors';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
@@ -194,22 +194,23 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.preferredResource))) {
-			throw createErrorWithActions(toErrorMessage(error), {
-				actions: [
-					toAction({
-						id: 'workbench.files.action.createMissingFile', label: localize('createFile', "Create File"), run: async () => {
-							await this.textFileService.create([{ resource: input.preferredResource }]);
+			const fileNotFoundError: FileOperationError & IErrorWithActions = new FileOperationError(toErrorMessage(error), FileOperationResult.FILE_NOT_FOUND);
+			fileNotFoundError.actions = [
+				toAction({
+					id: 'workbench.files.action.createMissingFile', label: localize('createFile', "Create File"), run: async () => {
+						await this.textFileService.create([{ resource: input.preferredResource }]);
 
-							return this.editorService.openEditor({
-								resource: input.preferredResource,
-								options: {
-									pinned: true // new file gets pinned by default
-								}
-							});
-						}
-					})
-				]
-			});
+						return this.editorService.openEditor({
+							resource: input.preferredResource,
+							options: {
+								pinned: true // new file gets pinned by default
+							}
+						});
+					}
+				})
+			];
+
+			throw fileNotFoundError;
 		}
 
 		// Otherwise make sure the error bubbles up
