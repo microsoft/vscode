@@ -383,6 +383,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
              		type: 'array',
 			items: {
 				type: 'string'
+				uniqueItems: true
 			},
              		default : ['starship','oh-my-posh','bash','zsh'] 
  		}
