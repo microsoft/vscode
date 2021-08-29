@@ -463,7 +463,6 @@ const terminalConfiguration: IConfigurationNode = {
 				type: 'string',
 				uniqueItems: true
 			},
-			
             		default : ['starship','oh-my-posh','bash','zsh'] 
 		}
 	}
