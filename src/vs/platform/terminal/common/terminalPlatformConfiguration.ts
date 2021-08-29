@@ -378,6 +378,15 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		}
+		[TerminalSettingId.IgnoreProcessNames]: {
+			description: localize('terminal.integrated.confirmIgnoreProcesses', "Configurable to provide a custom setting to ignore processes"),
+             		type: 'array',
+			items: {
+				type: 'string'
+			},
+             		default : ['starship','oh-my-posh','bash','zsh'] 
+ 		}
+
 	}
 };
 
