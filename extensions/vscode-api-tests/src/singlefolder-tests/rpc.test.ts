@@ -19,6 +19,12 @@ suite('vscode', function () {
 		assertNoRpc();
 	});
 
+	test('no rpc, createDiagnosticCollection()', function () {
+		const item = vscode.languages.createDiagnosticCollection();
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'DiagnosticCollection']);
+	});
+
 	test('no rpc, createTextEditorDecorationType(...)', function () {
 		const item = vscode.window.createTextEditorDecorationType({});
 		dispo.push(item);
