@@ -27,6 +27,7 @@ import { IElevatedFileService } from 'vs/workbench/services/files/common/elevate
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { isWeb } from 'vs/base/common/platform';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -179,17 +180,30 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.fileWorkingCopyManager'));
 		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.fileWorkingCopyManager'));
 	}
 
+	private onBeforeShutdown(): boolean {
+		if (isWeb) {
+			if (this.workingCopies.some(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))) {
+				// stored file working copies are pending to be saved:
+				// veto because web does not support long running shutdown
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private async onWillShutdown(): Promise<void> {
-		let fileWorkingCopies: IStoredFileWorkingCopy<M>[];
+		let pendingSavedWorkingCopies: IStoredFileWorkingCopy<M>[];
 
 		// As long as stored file working copies are pending to be saved, we prolong the shutdown
 		// until that has happened to ensure we are not shutting down in the middle of
 		// writing to the working copy (https://github.com/microsoft/vscode/issues/116600).
-		while ((fileWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))).length > 0) {
-			await Promises.settled(fileWorkingCopies.map(workingCopy => workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE)));
+		while ((pendingSavedWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))).length > 0) {
+			await Promises.settled(pendingSavedWorkingCopies.map(workingCopy => workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE)));
 		}
 	}
 

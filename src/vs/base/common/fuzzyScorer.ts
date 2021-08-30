@@ -381,17 +381,29 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContig
 
 	const description = accessor.getItemDescription(item);
 
+	let piecesStr: string = '';
+	let contiguousStr: string = '';
+	if (Array.isArray(query.values)) {
+		piecesStr += query.values.length;
+		query.values.forEach(piece => {
+			contiguousStr += piece.expectContiguousMatch;
+		});
+	} else {
+		contiguousStr += query.expectContiguousMatch;
+	}
+
 	// in order to speed up scoring, we cache the score with a unique hash based on:
 	// - label
 	// - description (if provided)
 	// - query (normalized)
 	// - number of query pieces (i.e. 'hello world' and 'helloworld' are different)
-	// - whether fuzzy matching is enabled or not
+	// - whether non-contiguous matching is enabled or not
+	// - whether the query or pieces expect contiguous matches
 	let cacheHash: string;
 	if (description) {
-		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${allowNonContiguousMatches}${query.expectContiguousMatch}`;
+		cacheHash = `${label}${description}${query.normalized}${piecesStr}${allowNonContiguousMatches}${contiguousStr}`;
 	} else {
-		cacheHash = `${label}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${allowNonContiguousMatches}${query.expectContiguousMatch}`;
+		cacheHash = `${label}${query.normalized}${piecesStr}${allowNonContiguousMatches}${contiguousStr}`;
 	}
 
 	const cached = cache[cacheHash];
