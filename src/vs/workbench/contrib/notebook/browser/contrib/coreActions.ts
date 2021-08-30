@@ -114,7 +114,7 @@ export interface INotebookCellActionContext extends INotebookActionContext {
 	cell: ICellViewModel;
 }
 
-function getContextFromActiveEditor(editorService: IEditorService): INotebookActionContext | undefined {
+export function getContextFromActiveEditor(editorService: IEditorService): INotebookActionContext | undefined {
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 	if (!editor || !editor.hasModel()) {
 		return;
