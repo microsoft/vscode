@@ -1,0 +1,1 @@
+.\node\node.exe .\server-pkg\out\server.js
