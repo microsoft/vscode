@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/f98bd30417c203876969408440f656f56eba80d8",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/c6a9803fbda262ea68c427a2339bddafed41a9d5",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -332,8 +332,8 @@
 		"function-declarations": {
 			"patterns": [
 				{
-					"begin": "^\\s*([a-zA-Z._][\\w.:]*)\\s*(<<?-|=)\\s*(?=function\\s*\\()",
-					"beginCaptures": {
+					"match": "((?:`[^`\\\\]*(?:\\\\.[^`\\\\]*)*`)|(?:[[:alpha:].][[:alnum:]._]*))\\s*(<?<-|=(?!=))\\s*(function)",
+					"captures": {
 						"1": {
 							"name": "entity.name.function.r"
 						},
@@ -344,7 +344,6 @@
 							"name": "keyword.control.r"
 						}
 					},
-					"end": "(?<=\\))",
 					"name": "meta.function.r",
 					"patterns": [
 						{
