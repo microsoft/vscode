@@ -2275,16 +2275,18 @@ declare module 'vscode' {
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
 	// TODO@API must be a class
+	// TODO@API @lramos15 Call this XYZTabs
 	export interface OpenEditorInfo {
+		//viewColumn: ViewColumn; // todo @lramos15
 		name: string;
-		resource: Uri;
+		resource: Uri; // make optional @lramos15
 		isActive: boolean;
 	}
 
 	export namespace window {
 		export const openEditors: ReadonlyArray<OpenEditorInfo>;
 
-		// todo@API proper event type
+		// todo@API @lramos15 proper event type {}
 		export const onDidChangeOpenEditors: Event<void>;
 	}
 
