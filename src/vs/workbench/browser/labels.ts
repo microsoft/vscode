@@ -18,10 +18,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses, detectModeId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export interface IResourceLabelProps {
@@ -326,6 +325,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (isEqual(model.uri, resource)) {
 			if (this.lastKnownDetectedModeId !== model.getModeId()) {
+				this.lastKnownDetectedModeId = model.getModeId();
 				this.render({ updateIcon: true, updateDecoration: false }); // update if the language id of the model has changed from our last known state
 			}
 		}
@@ -500,15 +500,6 @@ class ResourceLabelWidget extends IconLabel {
 			return false;
 		}
 
-		if (this.label) {
-			const resource = toResource(this.label);
-			const detectedModeId = resource ? withNullAsUndefined(detectModeId(this.modelService, this.modeService, resource)) : undefined;
-			if (this.lastKnownDetectedModeId !== detectedModeId) {
-				options.updateIcon = true;
-				this.lastKnownDetectedModeId = detectedModeId;
-			}
-		}
-
 		if (options.updateIcon) {
 			this.computedIconClasses = undefined;
 		}
@@ -533,7 +524,7 @@ class ResourceLabelWidget extends IconLabel {
 		const resource = toResource(this.label);
 		const label = this.label.name;
 
-		if (this.options && (this.options.title !== undefined)) {
+		if (this.options?.title !== undefined) {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
@@ -545,7 +536,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options.fileKind);
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
