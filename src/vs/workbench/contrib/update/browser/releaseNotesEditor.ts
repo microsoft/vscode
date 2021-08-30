@@ -29,6 +29,7 @@ import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/brow
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class ReleaseNotesManager {
 
@@ -194,7 +195,7 @@ export class ReleaseNotesManager {
 	}
 
 	private async addGAParameters(uri: URI, origin: string, experiment = '1'): Promise<URI> {
-		if (this._environmentService.isBuilt && !this._environmentService.isExtensionDevelopment && !this._environmentService.disableTelemetry && !!this._productService.enableTelemetry) {
+		if (getTelemetryLevel(this._productService, this._environmentService)) {
 			if (uri.scheme === 'https' && uri.authority === 'code.visualstudio.com') {
 				const info = await this._telemetryService.getTelemetryInfo();
 
