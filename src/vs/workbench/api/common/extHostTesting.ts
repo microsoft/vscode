@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mapFind } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { hash } from 'vs/base/common/hash';
-import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { deepFreeze } from 'vs/base/common/objects';
@@ -161,14 +161,16 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * @inheritdoc
 	 */
 	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]> {
-		return Iterable.find(this.runTracker.trackers, t => t.id === runId)?.getCoverage(taskId)?.provideFileCoverage(token) ?? Promise.resolve([]);
+		const coverage = mapFind(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
+		return coverage?.provideFileCoverage(token) ?? Promise.resolve([]);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]> {
-		return Iterable.find(this.runTracker.trackers, t => t.id === runId)?.getCoverage(taskId)?.resolveFileCoverage(fileIndex, token) ?? Promise.resolve([]);
+		const coverage = mapFind(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
+		return coverage?.resolveFileCoverage(fileIndex, token) ?? Promise.resolve([]);
 	}
 
 	/** @inheritdoc */
@@ -263,7 +265,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				await Event.toPromise(tracker.onEnd);
 			}
 
-			this.runTracker.cancelRunById(req.runId);
+			tracker.dispose();
 		}
 	}
 
