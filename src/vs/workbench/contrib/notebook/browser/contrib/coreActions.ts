@@ -976,7 +976,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
 
-registerAction2(class ChangeCellToCodeAction extends NotebookCellAction {
+registerAction2(class ChangeCellToCodeAction extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
 			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
@@ -995,12 +995,22 @@ registerAction2(class ChangeCellToCodeAction extends NotebookCellAction {
 		});
 	}
 
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		const context = args[0];
+		const isNotebookActionContext = this.isNotebookActionContext(context);
+		if (isNotebookActionContext) {
+			return context;
+		} else {
+			return getContextFromActiveEditor(accessor.get(IEditorService));
+		}
+	}
+
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		await changeCellToKind(CellKind.Code, context);
 	}
 });
 
-registerAction2(class ChangeCellToMarkdownAction extends NotebookCellAction {
+registerAction2(class ChangeCellToMarkdownAction extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
 			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
@@ -1019,7 +1029,17 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookCellAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		const context = args[0];
+		const isNotebookActionContext = this.isNotebookActionContext(context);
+		if (isNotebookActionContext) {
+			return context;
+		} else {
+			return getContextFromActiveEditor(accessor.get(IEditorService));
+		}
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		await changeCellToKind(CellKind.Markup, context, 'markdown', Mimes.markdown);
 	}
 });
@@ -1055,53 +1075,109 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 	}
 }
 
-export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string, mime?: string): Promise<ICellViewModel | null> {
-	const { cell, notebookEditor } = context;
-
-	if (cell.cellKind === kind) {
-		return null;
-	}
-
+export async function changeCellToKind(kind: CellKind, context: INotebookActionContext, language?: string, mime?: string): Promise<void> {
+	const { notebookEditor } = context;
 	if (!notebookEditor.viewModel) {
-		return null;
+		return;
 	}
 
 	if (notebookEditor.viewModel.options.isReadOnly) {
-		return null;
+		return;
 	}
 
-	const text = cell.getText();
-	const idx = notebookEditor.viewModel.getCellIndex(cell);
+	if (context.ui && context.cell) {
+		// action from UI
+		const { cell } = context;
 
-	if (language === undefined) {
-		const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
-		language = availableLanguages[0] ?? 'plaintext';
-	}
-
-	notebookEditor.textModel.applyEdits([
-		{
-			editType: CellEditType.Replace,
-			index: idx,
-			count: 1,
-			cells: [{
-				cellKind: kind,
-				source: text,
-				language: language!,
-				mime: mime ?? cell.mime,
-				outputs: cell.model.outputs,
-				metadata: cell.metadata,
-			}]
+		if (cell.cellKind === kind) {
+			return;
 		}
-	], true, undefined, () => undefined, undefined, true);
-	const newCell = notebookEditor.viewModel.cellAt(idx);
 
-	if (!newCell) {
-		return null;
+		const text = cell.getText();
+		const idx = notebookEditor.viewModel.getCellIndex(cell);
+
+		if (language === undefined) {
+			const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
+			language = availableLanguages[0] ?? 'plaintext';
+		}
+
+		notebookEditor.textModel.applyEdits([
+			{
+				editType: CellEditType.Replace,
+				index: idx,
+				count: 1,
+				cells: [{
+					cellKind: kind,
+					source: text,
+					language: language!,
+					mime: mime ?? cell.mime,
+					outputs: cell.model.outputs,
+					metadata: cell.metadata,
+				}]
+			}
+		], true, {
+			kind: SelectionStateType.Index,
+			focus: notebookEditor.getFocus(),
+			selections: notebookEditor.getSelections()
+		}, () => {
+			return {
+				kind: SelectionStateType.Index,
+				focus: notebookEditor.getFocus(),
+				selections: notebookEditor.getSelections()
+			};
+		}, undefined, true);
+		const newCell = notebookEditor.viewModel.cellAt(idx);
+
+		if (!newCell) {
+			return;
+		}
+
+		notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
+	} else if (context.selectedCells) {
+		const selectedCells = context.selectedCells;
+		const rawEdits: ICellEditOperation[] = [];
+
+		selectedCells.forEach(cell => {
+			if (cell.cellKind === kind) {
+				return;
+			}
+			const text = cell.getText();
+			const idx = notebookEditor.viewModel.getCellIndex(cell);
+
+			if (language === undefined) {
+				const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
+				language = availableLanguages[0] ?? 'plaintext';
+			}
+
+			rawEdits.push(
+				{
+					editType: CellEditType.Replace,
+					index: idx,
+					count: 1,
+					cells: [{
+						cellKind: kind,
+						source: text,
+						language: language!,
+						mime: mime ?? cell.mime,
+						outputs: cell.model.outputs,
+						metadata: cell.metadata,
+					}]
+				}
+			);
+		});
+
+		notebookEditor.textModel.applyEdits(rawEdits, true, {
+			kind: SelectionStateType.Index,
+			focus: notebookEditor.getFocus(),
+			selections: notebookEditor.getSelections()
+		}, () => {
+			return {
+				kind: SelectionStateType.Index,
+				focus: notebookEditor.getFocus(),
+				selections: notebookEditor.getSelections()
+			};
+		}, undefined, true);
 	}
-
-	notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
-
-	return newCell;
 }
 
 abstract class InsertCellCommand extends NotebookAction {
@@ -1796,7 +1872,10 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 	private async setLanguage(context: IChangeCellContext, languageId: string) {
 		if (languageId === 'markdown' && context.cell?.language !== 'markdown') {
-			const newCell = await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown', Mimes.markdown);
+			const idx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+			await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown', Mimes.markdown);
+			const newCell = context.notebookEditor.viewModel.cellAt(idx);
+
 			if (newCell) {
 				context.notebookEditor.focusNotebookCell(newCell, 'editor');
 			}
