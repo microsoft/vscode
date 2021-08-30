@@ -190,8 +190,8 @@ export class OpenerService implements IOpenerService {
 	}
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
-		for (const resolver of this._resolvers) {
-			try {
+		try {
+			for (const resolver of this._resolvers) {
 				const result = await resolver.resolveExternalUri(resource, options);
 				if (result) {
 					if (!this._resolvedUriTargets.has(result.resolved)) {
@@ -199,9 +199,9 @@ export class OpenerService implements IOpenerService {
 					}
 					return result;
 				}
-			} catch {
-				// noop
 			}
+		} catch {
+			// noop
 		}
 
 		throw new Error('Could not resolve external URI: ' + resource.toString());
