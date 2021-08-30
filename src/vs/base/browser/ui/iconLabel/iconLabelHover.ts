@@ -25,7 +25,7 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIc
 	}
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | undefined): IDisposable | undefined {
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement | undefined): IDisposable | undefined {
 	if (!markdownTooltip) {
 		return undefined;
 	}
@@ -79,7 +79,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 				hoverWidget?.dispose();
 				hoverWidget = hoverDelegate.showHover(hoverOptions);
 
-				const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) ? markdownTooltip.markdownNotSupportedFallback : undefined);
+				const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) && !(markdownTooltip instanceof HTMLElement) ? markdownTooltip.markdownNotSupportedFallback : undefined);
 
 				hoverWidget?.dispose();
 				hoverWidget = undefined;
@@ -119,8 +119,8 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 }
 
 
-function getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString): (token: CancellationToken) => Promise<string | IMarkdownString | undefined> {
-	if (isString(markdownTooltip)) {
+function getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString | HTMLElement): (token: CancellationToken) => Promise<string | IMarkdownString | HTMLElement | undefined> {
+	if (isString(markdownTooltip) || markdownTooltip instanceof HTMLElement) {
 		return async () => markdownTooltip;
 	} else if (isFunction(markdownTooltip.markdown)) {
 		return markdownTooltip.markdown;

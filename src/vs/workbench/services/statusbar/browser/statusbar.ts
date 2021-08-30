@@ -49,7 +49,7 @@ export interface IStatusbarEntry {
 	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
-	readonly tooltip?: string | IMarkdownString;
+	readonly tooltip?: string | IMarkdownString | HTMLElement;
 
 	/**
 	 * An optional color to use for the entry
