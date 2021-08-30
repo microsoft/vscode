@@ -27,15 +27,32 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { equals } from 'vs/base/common/arrays';
+
+class LanguageStatusViewModel {
+
+	constructor(
+		readonly combined: readonly ILanguageStatus[],
+		readonly dedicated: readonly ILanguageStatus[]
+	) { }
+
+	isEqual(other: LanguageStatusViewModel) {
+		return equals(this.combined, other.combined) && equals(this.dedicated, other.dedicated);
+	}
+}
 
 class EditorStatusContribution implements IWorkbenchContribution {
 
 	private static readonly _id = 'status.languageStatus';
 
+	private static readonly _keyDedicatedItems = 'languageStatus.dedicated';
+
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _dedicated = new Set<string>();
+	private _dedicated = new Set<string>();
 
+	private _model?: LanguageStatusViewModel;
 	private _combinedEntry?: IStatusbarEntryAccessor;
 	private _dedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
 	private _renderDisposables = new DisposableStore();
@@ -46,7 +63,11 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
+		_storageService.onDidChangeValue(this._handleStorageChange, this, this._disposables);
+		this._restoreState();
+
 		_languageStatusService.onDidChange(this._update, this, this._disposables);
 		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
 		this._update();
@@ -55,8 +76,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			if (!e.visible && this._dedicated.has(e.id)) {
 				this._dedicated.delete(e.id);
 				this._update();
+				this._storeState();
 			}
 		}, this._disposables);
+
 	}
 
 	dispose(): void {
@@ -66,10 +89,41 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._renderDisposables.dispose();
 	}
 
-	private _getLanguageStatus(): [combined: ILanguageStatus[], dedicated: ILanguageStatus[]] {
+	// --- persisting dedicated items
+
+	private _handleStorageChange(e: IStorageValueChangeEvent) {
+		if (e.key !== EditorStatusContribution._keyDedicatedItems) {
+			return;
+		}
+		this._restoreState();
+		this._update();
+	}
+
+	private _restoreState(): void {
+		const raw = this._storageService.get(EditorStatusContribution._keyDedicatedItems, StorageScope.GLOBAL, '[]');
+		try {
+			const ids = <string[]>JSON.parse(raw);
+			this._dedicated = new Set(ids);
+		} catch {
+			this._dedicated.clear();
+		}
+	}
+
+	private _storeState(): void {
+		if (this._dedicated.size === 0) {
+			this._storageService.remove(EditorStatusContribution._keyDedicatedItems, StorageScope.GLOBAL);
+		} else {
+			const raw = JSON.stringify(Array.from(this._dedicated.keys()));
+			this._storageService.store(EditorStatusContribution._keyDedicatedItems, raw, StorageScope.GLOBAL, StorageTarget.USER);
+		}
+	}
+
+	// --- language status model and UI
+
+	private _createViewModel(): LanguageStatusViewModel {
 		const editor = getCodeEditor(this._editorService.activeTextEditorControl);
 		if (!editor?.hasModel()) {
-			return [[], []];
+			return new LanguageStatusViewModel([], []);
 		}
 		const all = this._languageStatusService.getLanguageStatus(editor.getModel());
 		const combined: ILanguageStatus[] = [];
@@ -81,24 +135,30 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				combined.push(item);
 			}
 		}
-		return [combined, dedicated];
+		return new LanguageStatusViewModel(combined, dedicated);
 	}
 
 	private _update(): void {
 
-		const [combined, dedicated] = this._getLanguageStatus();
+		const model = this._createViewModel();
+
+		if (this._model?.isEqual(model)) {
+			return;
+		}
+
+		this._model = model;
 
 		this._renderDisposables.clear();
 
 		// combined status bar item is a single item which hover shows
 		// each status item
-		if (combined.length === 0) {
+		if (model.combined.length === 0) {
 			// nothing
 			this._combinedEntry?.dispose();
 			this._combinedEntry = undefined;
 
 		} else {
-			const [first] = combined;
+			const [first] = model.combined;
 			let text: string = '$(info)';
 			if (first.severity === Severity.Error) {
 				text = '$(error)';
@@ -106,7 +166,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				text = '$(warning)';
 			}
 			const element = document.createElement('div');
-			for (const status of combined) {
+			for (const status of model.combined) {
 				element.appendChild(this._renderStatus(status, this._renderDisposables));
 			}
 			const props: IStatusbarEntry = {
@@ -124,7 +184,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		// dedicated status bar items are shows as-is in the status bar
 		const newDedicatedEntries = new Map<string, IStatusbarEntryAccessor>();
-		for (const status of dedicated) {
+		for (const status of model.dedicated) {
 			const props = EditorStatusContribution._asStatusbarEntry(status);
 			let entry = this._dedicatedEntries.get(status.id);
 			if (!entry) {
@@ -181,6 +241,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			this._dedicated.add(status.id);
 			this._statusBarService.updateEntryVisibility(status.id, true);
 			this._update();
+			this._storeState();
 		});
 		const actionBar = new ActionBar(right, {});
 		actionBar.push(action, { icon: true, label: false });
