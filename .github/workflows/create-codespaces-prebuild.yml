@@ -1,28 +1,17 @@
-name: Create Prebuild
-on: 
+name: Create Codespaces Prebuild
+on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
-  schedule:
-    - cron: '0 0 * * *'
 jobs:
   createPrebuild:
     runs-on: ubuntu-latest
     steps:
-      - id: create-prebuild-production
-        run: |
-          $splat = @{
-            ErrorAction = 'Stop'
-            Uri = 'https://api.github.com/vscs_internal/user/vscode-prebuilds-bot/codespaces/prebuild'
-            Method = 'POST'   
-            Headers = @{
-              'Content-Type' = 'application/json; charset=utf-8'
-              'Authorization' = 'token ${{ secrets.CODESPACES_PREBUILD_PAT }}'
-            }
-            Body = @{
-              ref = 'main'
-              repository_id = 41881900
-              location = 'WestUs2'
-            } | ConvertTo-Json
-          }
-
-          Invoke-RestMethod @splat
-        shell: pwsh
+      - uses: actions/checkout@v2
+      - uses: github/codespaces-precache@v1.0.1
+        with:
+          regions: WestUs2
+          sku_name: standardLinux32gb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
