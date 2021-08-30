@@ -85,23 +85,22 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			return;
 		}
 
-		const content = this._getModel(uri);
-		if (!content) {
+		const model = this._getModel(uri);
+		if (!model) {
 			return;
 		}
 
 		let modelResults: ModelResult[] | undefined;
+		// Grab the first 10000 characters
+		const end = model.positionAt(10000);
+		const content = model.getValueInRange({
+			startColumn: 1,
+			startLineNumber: 1,
+			endColumn: end.column,
+			endLineNumber: end.lineNumber
+		});
 		try {
-			// Grab the first 10000 characters
-			const end = content.positionAt(10000);
-			const range = content.getValueInRange({
-				startColumn: 1,
-				startLineNumber: 1,
-				endColumn: end.column,
-				endLineNumber: end.lineNumber
-			});
-			console.log(range);
-			modelResults = await modelOperations.runModel(range);
+			modelResults = await modelOperations.runModel(content);
 		} catch (e) {
 			console.warn(e);
 		}
