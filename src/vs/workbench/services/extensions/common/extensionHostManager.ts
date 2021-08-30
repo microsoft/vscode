@@ -26,6 +26,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -56,6 +57,22 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 	return instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents);
 }
 
+export type ExtensionHostStartupClassification = {
+	time: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	action: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	err?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	message?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	stackTrace?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+};
+
+export type ExtensionHostStartupEvent = {
+	time: number;
+	action: string;
+	err?: string;
+	message?: string;
+	stackTrace?: string;
+};
+
 class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 	public readonly kind: ExtensionHostKind;
@@ -83,9 +100,11 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 		this._cachedActivationEvents = new Map<string, Promise<void>>();
+		this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('ExtensionHostStartup', { time: Date.now(), action: 'starting' });
 		this._rpcProtocol = null;
 		this._customers = [];
 
@@ -95,11 +114,28 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		this._proxy = this._extensionHost.start()!.then(
 			(protocol) => {
 				this._hasStarted = true;
+
+				// Track health extension host startup
+				let success: ExtensionHostStartupEvent = { time: Date.now(), action: 'success' };
+				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('ExtensionHostStartup', success);
+				console.log(`EXTENSION HOST STARTUP: ${JSON.stringify(success)}`);
+
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
 			(err) => {
 				console.error(`Error received from starting extension host (kind: ${this.kind})`);
 				console.error(err);
+
+				// Track errors during extension host startup
+				let failure: ExtensionHostStartupEvent = { time: Date.now(), action: 'error', err };
+				if (err instanceof Error) {
+					failure.err = err.name;
+					failure.message = err.message;
+					failure.stackTrace = (<any>err).stacktrace || (<any>err).stack;
+				}
+				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('ExtensionHostStartup', failure);
+				console.log(`EXTENSION HOST STARTUP: ${JSON.stringify(failure)}`);
+
 				return null;
 			}
 		);

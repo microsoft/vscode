@@ -269,6 +269,23 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				return;
 			}
 
+			type ExtensionHostTerminatedClassification = {
+				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				activatedExtensions: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			};
+
+			this._telemetryService.publicLog2<{
+				code: number,
+				signal: string | null,
+				activatedExtensions: ExtensionIdentifier[],
+				kind: ExtensionHostKind,
+			}, ExtensionHostTerminatedClassification>('extension-host-terminated', {
+				code, signal, activatedExtensions, kind: extensionHost.kind
+			},
+				true);
+
 			const message = `Extension host terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`;
 			this._logService.error(message);
 
