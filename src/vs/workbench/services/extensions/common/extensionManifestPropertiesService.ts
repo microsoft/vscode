@@ -232,9 +232,9 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 		let result = [...ALL_EXTENSION_KINDS];
 
-		// Extension pack defaults to workspace extensionKind
+		// Extension pack defaults to workspace, web extensionKind
 		if (isNonEmptyArray(manifest.extensionPack) || isNonEmptyArray(manifest.extensionDependencies)) {
-			result = ['workspace'];
+			result = ['workspace', 'web'];
 		}
 
 		if (manifest.contributes) {
