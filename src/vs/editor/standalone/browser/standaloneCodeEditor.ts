@@ -193,6 +193,11 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	 * Defaults to "https://go.microsoft.com/fwlink/?linkid=852450"
 	 */
 	accessibilityHelpUrl?: string;
+	/**
+	 * Container element to use for ARIA messages.
+	 * Defaults to document.body.
+	 */
+	ariaContainerElement?: HTMLElement;
 }
 
 /**
@@ -233,12 +238,19 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 let LAST_GENERATED_COMMAND_ID = 0;
 
 let ariaDomNodeCreated = false;
-function createAriaDomNode() {
-	if (ariaDomNodeCreated) {
-		return;
+/**
+ * Create ARIA dom node inside parent,
+ * or only for the first editor instantiation inside document.body.
+ * @param parent container element for ARIA dom node
+ */
+function createAriaDomNode(parent: HTMLElement | undefined) {
+	if (!parent) {
+		if (ariaDomNodeCreated) {
+			return;
+		}
+		ariaDomNodeCreated = true;
 	}
-	ariaDomNodeCreated = true;
-	aria.setARIAContainer(document.body);
+	aria.setARIAContainer(parent || document.body);
 }
 
 /**
@@ -271,8 +283,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			this._standaloneKeybindingService = null;
 		}
 
-		// Create the ARIA dom node as soon as the first editor is instantiated
-		createAriaDomNode();
+		createAriaDomNode(options.ariaContainerElement);
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
