@@ -15,7 +15,7 @@ import MarkdownSmartSelect from './features/smartSelect';
 import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import { Logger } from './logger';
 import { MarkdownEngine } from './markdownEngine';
-import { getMarkdownExtensionContributions } from './markdownExtensions';
+import { getMarkdownExtensionContributions, MarkdownContributionProvider, MarkdownContributions } from './markdownExtensions';
 import { ContentSecurityPolicyArbiter, ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { githubSlugifier } from './slugify';
 import { loadDefaultTelemetryReporter, TelemetryReporter } from './telemetryReporter';
@@ -30,10 +30,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const engine = new MarkdownEngine(contributions, githubSlugifier);
+
+	// A simple engine without extension contributions is used by our DocumentSymbolProvider so include-type extensions don't affect Outline viewlet
+	const simpleEngine = new MarkdownEngine({ contributions: MarkdownContributions.Empty, extensionUri: context.extensionUri, onContributionsChanged: new vscode.EventEmitter<MarkdownContributionProvider>().event, dispose: () => { } }, githubSlugifier);
 	const logger = new Logger();
 
 	const contentProvider = new MarkdownContentProvider(engine, context, cspArbiter, contributions, logger);
-	const symbolProvider = new MDDocumentSymbolProvider(engine);
+	const symbolProvider = new MDDocumentSymbolProvider(simpleEngine);
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, engine);
 	context.subscriptions.push(previewManager);
 
