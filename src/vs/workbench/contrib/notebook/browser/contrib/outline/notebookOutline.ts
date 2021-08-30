@@ -393,7 +393,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 				continue;
 			}
 
-			// The cap the amount of characters that we look at and use the following logic
+			// cap the amount of characters that we look at and use the following logic
 			// - for MD prefer headings (each header is an entry)
 			// - otherwise use the first none-empty line of the cell (MD or code)
 			let content = cell.getText().substr(0, 10_000);
@@ -412,15 +412,10 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			}
 
 			if (!hasHeader) {
-				const lineMatch = content.match(/^.*\w+.*\w*$/m);
-				let preview: string;
-				if (!lineMatch) {
+				let preview = content.trim();
+				if (preview.length === 0) {
+					// empty or just whitespace
 					preview = localize('empty', "empty cell");
-				} else {
-					preview = lineMatch[0].trim();
-					if (preview.length >= 64) {
-						preview = preview.slice(0, 64) + '…';
-					}
 				}
 
 				entries.push(new OutlineEntry(entries.length, 7, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code));
