@@ -11,7 +11,7 @@ import { contrastBorder, editorBackground } from 'vs/platform/theme/common/color
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
@@ -163,9 +163,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const oldPartOptions = this._partOptions;
 		const newPartOptions = getEditorPartOptions(this.configurationService, this.themeService);
 
-		this.enforcedPartOptions.forEach(enforcedPartOptions => {
+		for (const enforcedPartOptions of this.enforcedPartOptions) {
 			Object.assign(newPartOptions, enforcedPartOptions); // check for overrides
-		});
+		}
 
 		this._partOptions = newPartOptions;
 
@@ -393,13 +393,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Determine how many groups we need overall
 		let layoutGroupsCount = 0;
 		function countGroups(groups: GroupLayoutArgument[]): void {
-			groups.forEach(group => {
+			for (const group of groups) {
 				if (Array.isArray(group.groups)) {
 					countGroups(group.groups);
 				} else {
 					layoutGroupsCount++;
 				}
-			});
+			}
 		}
 		countGroups(layout.groups);
 
@@ -439,11 +439,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.updateContainer();
 
 		// Events for groups that got added
-		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(groupView => {
+		for (const groupView of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
 			if (!currentGroupViews.includes(groupView)) {
 				this._onDidAddGroup.fire(groupView);
 			}
-		});
+		}
 
 		// Notify group index change given layout has changed
 		this.notifyGroupIndexChange();
@@ -745,21 +745,25 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
 
-		// Move/Copy editors over into target
+		// Collect editors to move/copy
+		const editors: IEditorInputWithOptions[] = [];
 		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
-		sourceView.editors.forEach(editor => {
+		for (const editor of sourceView.editors) {
 			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
 			const sticky = sourceView.isSticky(editor);
-			const editorOptions = { index: !sticky ? index : undefined /* do not set index to preserve sticky flag */, inactive, preserveFocus: inactive };
+			const options = { index: !sticky ? index : undefined /* do not set index to preserve sticky flag */, inactive, preserveFocus: inactive };
 
-			if (options?.mode === MergeGroupMode.COPY_EDITORS) {
-				sourceView.copyEditor(editor, targetView, editorOptions);
-			} else {
-				sourceView.moveEditor(editor, targetView, editorOptions);
-			}
+			editors.push({ editor, options });
 
 			index++;
-		});
+		}
+
+		// Move/Copy editors over into target
+		if (options?.mode === MergeGroupMode.COPY_EDITORS) {
+			sourceView.copyEditors(editors, targetView);
+		} else {
+			sourceView.moveEditors(editors, targetView);
+		}
 
 		// Remove source if the view is now empty and not already removed
 		if (sourceView.isEmpty && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {

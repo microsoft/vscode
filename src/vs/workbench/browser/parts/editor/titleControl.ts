@@ -155,6 +155,7 @@ export abstract class TitleControl extends Themable {
 	protected createEditorActionsToolBar(container: HTMLElement): void {
 		const context: IEditorCommandsContext = { groupId: this.group.id };
 
+		// Toolbar Widget
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
@@ -371,7 +372,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract openEditors(editors: IEditorInput[]): void;
 
-	abstract closeEditor(editor: IEditorInput): void;
+	abstract closeEditor(editor: IEditorInput, index: number | undefined): void;
 
 	abstract closeEditors(editors: IEditorInput[]): void;
 
@@ -388,8 +389,6 @@ export abstract class TitleControl extends Themable {
 	abstract updateEditorLabel(editor: IEditorInput): void;
 
 	abstract updateEditorCapabilities(editor: IEditorInput): void;
-
-	abstract updateEditorLabels(): void;
 
 	abstract updateEditorDirty(editor: IEditorInput): void;
 

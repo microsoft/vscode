@@ -179,13 +179,30 @@ export interface EditorServiceImpl extends IEditorService {
 	readonly onDidMostRecentlyActiveEditorsChange: Event<void>;
 }
 
-export interface IInternalEditorOpenOptions {
+export interface IInternalEditorTitleControlOptions {
 
 	/**
-	 * Optimization: when we know that many editors open at once,
-	 * setting `skipTitleUpdate` for the `openEditor` call will
-	 * not bother to update the title area control. The caller has
-	 * to manually ensure the title area control is updated.
+	 * A hint to defer updating the title control for perf reasons.
+	 * The caller must ensure to update the title control then.
 	 */
 	skipTitleUpdate?: boolean;
+}
+
+export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions { }
+
+export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
+
+	/**
+	 * A hint that the editor is closed due to an error opening. This can be
+	 * used to optimize how error toasts are appearing if any.
+	 */
+	fromError?: boolean;
+}
+
+export interface IInternalMoveCopyOptions extends IInternalEditorTitleControlOptions {
+
+	/**
+	 * Whether to close the editor at the source or keep it.
+	 */
+	keepCopy?: boolean;
 }

@@ -392,14 +392,14 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	openEditor(editor: IEditorInput): void {
-		this.doHandleOpenEditor();
+		this.handleOpenedEditors();
 	}
 
 	openEditors(editors: IEditorInput[]): void {
-		this.doHandleOpenEditor();
+		this.handleOpenedEditors();
 	}
 
-	private doHandleOpenEditor(): void {
+	private handleOpenedEditors(): void {
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
@@ -417,15 +417,15 @@ export class TabsTitleControl extends TitleControl {
 		this.breadcrumbsControl?.update();
 	}
 
-	closeEditor(editor: IEditorInput): void {
-		this.handleClosedEditors();
+	closeEditor(editor: IEditorInput, index: number | undefined): void {
+		this.handleClosedEditors(index);
 	}
 
 	closeEditors(editors: IEditorInput[]): void {
 		this.handleClosedEditors();
 	}
 
-	private handleClosedEditors(): void {
+	private handleClosedEditors(index?: number): void {
 
 		// There are tabs to show
 		if (this.group.activeEditor) {
@@ -435,7 +435,7 @@ export class TabsTitleControl extends TitleControl {
 			while (tabsContainer.children.length > this.group.count) {
 
 				// Remove one tab from container (must be the last to keep indexes in order!)
-				(tabsContainer.lastChild as HTMLElement).remove();
+				tabsContainer.lastChild?.remove();
 
 				// Remove associated tab label and widget
 				dispose(this.tabDisposables.pop());
@@ -467,15 +467,18 @@ export class TabsTitleControl extends TitleControl {
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
 
-		// Swap the editor label
+		// Move the editor label
 		const editorLabel = this.tabLabels[fromIndex];
 		this.tabLabels.splice(fromIndex, 1);
 		this.tabLabels.splice(targetIndex, 0, editorLabel);
 
-		// As such we need to redraw each tab
+		// Redraw tabs in the range of the move
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
-		});
+		},
+			Math.min(fromIndex, targetIndex), 	// from: smallest of fromIndex/targetIndex
+			Math.max(fromIndex, targetIndex)	//   to: largest of fromIndex/targetIndex
+		);
 
 		// Moving an editor requires a layout to keep the active editor visible
 		this.layout(this.dimensions);
@@ -524,7 +527,7 @@ export class TabsTitleControl extends TitleControl {
 		this.updateEditorLabel(editor);
 	}
 
-	private updateEditorLabelAggregator = this._register(new RunOnceScheduler(() => this.updateEditorLabels(), 0));
+	private updateEditorLabelScheduler = this._register(new RunOnceScheduler(() => this.doUpdateEditorLabels(), 0));
 
 	updateEditorLabel(editor: IEditorInput): void {
 
@@ -533,10 +536,10 @@ export class TabsTitleControl extends TitleControl {
 		// individual editors, we collect all those requests and
 		// then run the update once because we have to update
 		// all opened tabs in the group at once.
-		this.updateEditorLabelAggregator.schedule();
+		this.updateEditorLabelScheduler.schedule();
 	}
 
-	updateEditorLabels(): void {
+	private doUpdateEditorLabels(): void {
 
 		// A change to a label requires to recompute all labels
 		this.computeTabLabels();
@@ -586,8 +589,16 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void, fromIndex?: number, toIndex?: number): void {
 		this.group.editors.forEach((editor, index) => {
+			if (typeof fromIndex === 'number' && fromIndex > index) {
+				return; // do nothing if we are not yet at `fromIndex`
+			}
+
+			if (typeof toIndex === 'number' && toIndex < index) {
+				return; // do nothing if we are beyond `toIndex`
+			}
+
 			this.doWithTab(index, editor, fn);
 		});
 	}
@@ -1023,9 +1034,9 @@ export class TabsTitleControl extends TitleControl {
 
 			// Shorten descriptions
 			const shortenedDescriptions = shorten(descriptions, this.path.sep);
-			descriptions.forEach((description, i) => {
+			descriptions.forEach((description, index) => {
 				for (const label of mapDescriptionToDuplicates.get(description) || []) {
-					label.description = shortenedDescriptions[i];
+					label.description = shortenedDescriptions[index];
 				}
 			});
 		});
@@ -1083,6 +1094,7 @@ export class TabsTitleControl extends TitleControl {
 			if (!tabActionBar.isEmpty()) {
 				tabActionBar.clear();
 			}
+
 			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
 		}
 

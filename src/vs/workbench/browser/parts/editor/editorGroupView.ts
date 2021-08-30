@@ -33,7 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
@@ -500,7 +500,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		options.pinned = this.model.isPinned(activeEditor);	// preserve pinned state
 		options.sticky = this.model.isSticky(activeEditor);	// preserve sticky state
-		options.preserveFocus = true;							// handle focus after editor is opened
+		options.preserveFocus = true;						// handle focus after editor is opened
 
 		const activeElement = document.activeElement;
 
@@ -1090,7 +1090,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				// (if the input is still the active one)
 				if (!result.editorPane && this.activeEditor === editor) {
 					const focusNext = !options || !options.preserveFocus;
-					this.doCloseEditor(editor, focusNext, true /* from error */);
+					this.doCloseEditor(editor, focusNext, { fromError: true });
 				}
 
 				return result.editorPane;
@@ -1234,7 +1234,31 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region moveEditor()
 
-	moveEditor(editor: EditorInput, target: IEditorGroupView, options?: IEditorOptions): void {
+	moveEditors(editors: { editor: EditorInput, options?: IEditorOptions }[], target: EditorGroupView): void {
+
+		// Optimization: knowing that we move many editors, we
+		// delay the title update to a later point for this group
+		// through a method that allows for bulk updates but only
+		// when moving to a different group where many editors
+		// are more likely to occur.
+		const internalOptions: IInternalMoveCopyOptions = {
+			skipTitleUpdate: this !== target
+		};
+
+		for (const { editor, options } of editors) {
+			this.moveEditor(editor, target, options, internalOptions);
+		}
+
+		// Update the title control all at once with all editors
+		// in source and target if the title update was skipped
+		if (internalOptions.skipTitleUpdate) {
+			const movedEditors = editors.map(({ editor }) => editor);
+			target.titleAreaControl.openEditors(movedEditors);
+			this.titleAreaControl.closeEditors(movedEditors);
+		}
+	}
+
+	moveEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalEditorTitleControlOptions): void {
 
 		// Move within same group
 		if (this === target) {
@@ -1243,7 +1267,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Move across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, false);
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: false });
 		}
 	}
 
@@ -1278,7 +1302,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor });
 	}
 
-	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: IEditorGroupView, openOptions?: IEditorOpenOptions, keepCopy?: boolean): void {
+	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): void {
+		const keepCopy = internalOptions?.keepCopy;
 
 		// When moving/copying an editor, try to preserve as much view state as possible
 		// by checking for the editor to be a text editor and creating the options accordingly
@@ -1294,16 +1319,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this._onWillMoveEditor.fire({
 				groupId: this.id,
 				editor,
-				target: target.id,
+				target: target.id
 			});
 		}
 
 		// A move to another group is an open first...
-		target.openEditor(keepCopy ? editor.copy() : editor, options);
+		target.doOpenEditor(keepCopy ? (editor.copy() as EditorInput) : editor, options, internalOptions);
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
-			this.doCloseEditor(editor, false /* do not focus next one behind if any */);
+			this.doCloseEditor(editor, false /* do not focus next one behind if any */, internalOptions);
 		}
 	}
 
@@ -1311,7 +1336,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region copyEditor()
 
-	copyEditor(editor: EditorInput, target: IEditorGroupView, options?: IEditorOptions): void {
+	copyEditors(editors: { editor: EditorInput, options?: IEditorOptions }[], target: EditorGroupView): void {
+
+		// Optimization: knowing that we move many editors, we
+		// delay the title update to a later point for this group
+		// through a method that allows for bulk updates but only
+		// when moving to a different group where many editors
+		// are more likely to occur.
+		const internalOptions: IInternalMoveCopyOptions = {
+			skipTitleUpdate: this !== target
+		};
+
+		for (const { editor, options } of editors) {
+			this.copyEditor(editor, target, options, internalOptions);
+		}
+
+		// Update the title control all at once with all editors
+		// in target if the title update was skipped
+		if (internalOptions.skipTitleUpdate) {
+			const copiedEditors = editors.map(({ editor }) => editor);
+			target.titleAreaControl.openEditors(copiedEditors);
+		}
+	}
+
+	copyEditor(editor: EditorInput, target: EditorGroupView, options?: IEditorOptions, internalOptions?: IInternalEditorTitleControlOptions): void {
 
 		// Move within same group because we do not support to show the same editor
 		// multiple times in the same group
@@ -1321,7 +1369,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Copy across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, true);
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, { ...internalOptions, keepCopy: true });
 		}
 	}
 
@@ -1350,23 +1398,26 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return true;
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
+	private doCloseEditor(editor: EditorInput, focusNext = (this.accessor.activeGroup === this), internalOptions?: IInternalEditorCloseOptions): void {
+		let index: number | undefined;
 
 		// Closing the active editor of the group is a bit more work
 		if (this.model.isActive(editor)) {
-			this.doCloseActiveEditor(focusNext, fromError);
+			index = this.doCloseActiveEditor(focusNext, internalOptions);
 		}
 
 		// Closing inactive editor is just a model update
 		else {
-			this.doCloseInactiveEditor(editor);
+			index = this.doCloseInactiveEditor(editor);
 		}
 
-		// Forward to title control
-		this.titleAreaControl.closeEditor(editor);
+		// Forward to title control unless skipped via internal options
+		if (!internalOptions?.skipTitleUpdate) {
+			this.titleAreaControl.closeEditor(editor, index);
+		}
 	}
 
-	private doCloseActiveEditor(focusNext = (this.accessor.activeGroup === this), fromError?: boolean): void {
+	private doCloseActiveEditor(focusNext = (this.accessor.activeGroup === this), internalOptions?: IInternalEditorCloseOptions): number | undefined {
 		const editorToClose = this.activeEditor;
 		const restoreFocus = this.shouldRestoreFocus(this.element);
 
@@ -1391,8 +1442,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Update model
+		let index: number | undefined = undefined;
 		if (editorToClose) {
-			this.model.closeEditor(editorToClose);
+			index = this.model.closeEditor(editorToClose)?.index;
 		}
 
 		// Open next active if there are more to show
@@ -1417,7 +1469,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				// repeated errors in this case to the user. As such, if we open the next editor and we are
 				// in a scope of a previous editor failing, we silence the input errors until the editor is
 				// opened by setting ignoreError: true.
-				ignoreError: fromError
+				ignoreError: internalOptions?.fromError
 			};
 
 			this.openEditor(nextActiveEditor, options);
@@ -1444,6 +1496,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.accessor.removeGroup(this);
 			}
 		}
+
+		return index;
 	}
 
 	private shouldRestoreFocus(target: Element): boolean {
@@ -1457,10 +1511,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return isAncestor(activeElement, target);
 	}
 
-	private doCloseInactiveEditor(editor: EditorInput) {
+	private doCloseInactiveEditor(editor: EditorInput): number | undefined {
 
 		// Update model
-		this.model.closeEditor(editor);
+		return this.model.closeEditor(editor)?.index;
 	}
 
 	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {
