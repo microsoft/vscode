@@ -368,13 +368,13 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	closeEditor(candidate: EditorInput, openNext = true): EditorInput | undefined {
+	closeEditor(candidate: EditorInput, openNext = true): EditorCloseEvent | undefined {
 		const event = this.doCloseEditor(candidate, openNext, false);
 
 		if (event) {
 			this._onDidCloseEditor.fire(event);
 
-			return event.editor;
+			return event;
 		}
 
 		return undefined;
