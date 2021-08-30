@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
-import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { mock } from 'vs/base/test/common/mock';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { sep } from 'vs/base/common/path';
-import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import * as sinon from 'sinon';
+import { sep } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { mock } from 'vs/base/test/common/mock';
+import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
+import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Snippet Variables Resolver', function () {
 

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion } from 'vs/editor/common/modes';
-import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 

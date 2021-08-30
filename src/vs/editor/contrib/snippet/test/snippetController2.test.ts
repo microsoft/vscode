@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Handler } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('SnippetController2', function () {
 

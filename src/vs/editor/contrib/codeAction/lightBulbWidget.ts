@@ -5,21 +5,21 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import { Gesture } from 'vs/base/browser/touch';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { editorLightBulbForeground, editorLightBulbAutoFixForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Gesture } from 'vs/base/browser/touch';
-import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
-import { Codicon } from 'vs/base/common/codicons';
+import { editorBackground, editorLightBulbAutoFixForeground, editorLightBulbForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 namespace LightBulbState {
 

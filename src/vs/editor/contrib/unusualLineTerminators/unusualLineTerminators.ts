@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
+import * as nls from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { basename } from 'vs/base/common/resources';
 
 const ignoreUnusualLineTerminators = 'ignoreUnusualLineTerminators';
 
