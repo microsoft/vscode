@@ -444,30 +444,26 @@ class TestRunTracker extends Disposable {
 			throw new InvalidTestItemError(test.id);
 		}
 
-		if (this.sharedTestIds.has(test.id)) {
+		if (this.sharedTestIds.has(TestId.fromExtHostTestItem(test, this.dto.controllerId).toString())) {
 			return;
 		}
 
 		const chain: ITestItem[] = [];
-		while (true) {
-			chain.unshift(Convert.TestItem.from(test as TestItemImpl));
-
-			if (this.sharedTestIds.has(test.id)) {
-				break;
-			}
-
-			this.sharedTestIds.add(test.id);
-			if (!test.parent) {
-				break;
-			}
-
-			test = test.parent;
-		}
-
 		const root = this.dto.colllection.root;
-		if (!this.sharedTestIds.has(root.id)) {
-			this.sharedTestIds.add(root.id);
-			chain.unshift(Convert.TestItem.from(root));
+		while (true) {
+			const converted = Convert.TestItem.from(test as TestItemImpl);
+			chain.unshift(converted);
+
+			if (this.sharedTestIds.has(converted.extId)) {
+				break;
+			}
+
+			this.sharedTestIds.add(converted.extId);
+			if (test === root) {
+				break;
+			}
+
+			test = test.parent || root;
 		}
 
 		this.proxy.$addTestsToRun(this.dto.controllerId, this.dto.id, chain);

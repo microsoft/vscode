@@ -646,5 +646,32 @@ suite('ExtHost Testing', () => {
 				undefined,
 			]]);
 		});
+
+		test('sets state of test with identical local IDs (#131827)', () => {
+			const testA = single.root.children.get('id-a');
+			const testB = single.root.children.get('id-b');
+			const childA = new TestItemImpl('ctrlId', 'id-child', 'child', undefined);
+			testA!.children.replace([childA]);
+			const childB = new TestItemImpl('ctrlId', 'id-child', 'child', undefined);
+			testB!.children.replace([childB]);
+
+			const task1 = c.createTestRun('ctrl', single, {}, 'hello world', false);
+			const tracker = Iterable.first(c.trackers)!;
+
+			task1.passed(childA);
+			task1.passed(childB);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, [
+				[
+					'ctrl',
+					tracker.id,
+					[single.root, testA, childA].map(t => convert.TestItem.from(t as TestItemImpl)),
+				],
+				[
+					'ctrl',
+					tracker.id,
+					[single.root, testB, childB].map(t => convert.TestItem.from(t as TestItemImpl)),
+				],
+			]);
+		});
 	});
 });
