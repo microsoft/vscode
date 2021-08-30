@@ -26,6 +26,7 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	constructor(serviceMachineIdResource: URI) {
 		super();
 		this.serviceMachineIdResource = serviceMachineIdResource;
+		this.isBuilt = true;
 	}
 }
 
@@ -40,8 +41,9 @@ suite('Extension Gallery Service', () => {
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider);
 		storageService = new InMemoryStorageService();
-		configurationService = new TestConfigurationService();
-		productService = { _serviceBrand: undefined, ...product };
+		configurationService = new TestConfigurationService({ 'telemetry.enableTelemetry': true });
+		configurationService.updateValue('telemetry.enableTelemetry', true);
+		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
 	teardown(() => disposables.clear());
