@@ -6,6 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { compareAnything } from 'vs/base/common/comparers';
 import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
+import { hash } from 'vs/base/common/hash';
 import { sep } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { equalsIgnoreCase, stripWildcards } from 'vs/base/common/strings';
@@ -369,6 +370,19 @@ const PATH_IDENTITY_SCORE = 1 << 18;
 const LABEL_PREFIX_SCORE_THRESHOLD = 1 << 17;
 const LABEL_SCORE_THRESHOLD = 1 << 16;
 
+function getCacheHash(label: string, description: string | undefined, allowNonContiguousMatches: boolean, query: IPreparedQuery) {
+	const values = query.values ? query.values : [query];
+	const cacheHash = hash({
+		[query.normalized]: {
+			values: values.map(v => ({ value: v.normalized, expectContiguousMatch: v.expectContiguousMatch })),
+			label,
+			description,
+			allowNonContiguousMatches
+		}
+	});
+	return cacheHash;
+}
+
 export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
 	if (!item || !query.normalized) {
 		return NO_ITEM_SCORE; // we need an item and query to score on at least
@@ -381,31 +395,12 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContig
 
 	const description = accessor.getItemDescription(item);
 
-	let piecesStr: string = '';
-	let contiguousStr: string = '';
-	if (Array.isArray(query.values)) {
-		piecesStr += query.values.length;
-		query.values.forEach(piece => {
-			contiguousStr += piece.expectContiguousMatch;
-		});
-	} else {
-		contiguousStr += query.expectContiguousMatch;
-	}
-
 	// in order to speed up scoring, we cache the score with a unique hash based on:
 	// - label
 	// - description (if provided)
-	// - query (normalized)
-	// - number of query pieces (i.e. 'hello world' and 'helloworld' are different)
 	// - whether non-contiguous matching is enabled or not
-	// - whether the query or pieces expect contiguous matches
-	let cacheHash: string;
-	if (description) {
-		cacheHash = `${label}${description}${query.normalized}${piecesStr}${allowNonContiguousMatches}${contiguousStr}`;
-	} else {
-		cacheHash = `${label}${query.normalized}${piecesStr}${allowNonContiguousMatches}${contiguousStr}`;
-	}
-
+	// - hash of the query (normalized) values
+	const cacheHash = getCacheHash(label, description, allowNonContiguousMatches, query);
 	const cached = cache[cacheHash];
 	if (cached) {
 		return cached;
