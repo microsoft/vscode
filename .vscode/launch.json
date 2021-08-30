@@ -217,6 +217,10 @@
 			"runtimeArgs": [
 				"--inspect=5875",
 				"--no-cached-data",
+				// for breakpoint freeze: https://github.com/microsoft/vscode/issues/122225#issuecomment-885377304
+				"--js-flags=\"--regexp_interpret_all\"",
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
+				"--disable-features=CalculateNativeWinOcclusion",
 			],
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
