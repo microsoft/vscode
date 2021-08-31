@@ -51,8 +51,8 @@
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-					"**/.devcontainer/devcontainer.json"
-				]
+          "**/.devcontainer/devcontainer.json"
+        ]
       }
     ],
     "jsonValidation": [
@@ -139,7 +139,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "^12.20.19"
   },
   "repository": {
     "type": "git",
