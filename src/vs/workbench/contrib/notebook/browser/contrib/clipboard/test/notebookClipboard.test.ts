@@ -154,7 +154,7 @@ suite('Notebook Clipboard', () => {
 					override getToCopy() {
 						return {
 							items: [
-								editor.viewModel.cellAt(0)!.model
+								viewModel.cellAt(0)!.model
 							],
 							isCopy: true
 						};
@@ -196,11 +196,11 @@ suite('Notebook Clipboard', () => {
 
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 2 }] }, 'model');
 				assert.ok(runCopyCells(accessor, editor, viewModel.cellAt(0)));
-				assert.deepStrictEqual(_toCopy, [editor.viewModel.cellAt(0)!.model, editor.viewModel.cellAt(1)!.model]);
+				assert.deepStrictEqual(_toCopy, [viewModel.cellAt(0)!.model, viewModel.cellAt(1)!.model]);
 
 				assert.ok(runCopyCells(accessor, editor, viewModel.cellAt(2)));
 				assert.deepStrictEqual(_toCopy.length, 1);
-				assert.deepStrictEqual(_toCopy, [editor.viewModel.cellAt(2)!.model]);
+				assert.deepStrictEqual(_toCopy, [viewModel.cellAt(2)!.model]);
 			});
 	});
 

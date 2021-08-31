@@ -211,7 +211,7 @@ export class CellOutputElement extends Disposable {
 			return undefined;
 		}
 
-		const notebookTextModel = this.notebookEditor.viewModel.notebookDocument;
+		const notebookTextModel = this.notebookEditor.textModel;
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.preloadProvides);
 
