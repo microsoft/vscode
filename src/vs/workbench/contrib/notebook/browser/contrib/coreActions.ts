@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
@@ -18,8 +18,8 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_MISSING_KERNEL_EXTENSION, EXPAND_CELL_OUTPUT_COMMAND_ID, cellRangeToViewCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit, OpenGettingStarted, GlobalToolbarShowLabel, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_MISSING_KERNEL_EXTENSION, cellRangeToViewCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellExecutionState, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit, OpenGettingStarted, GlobalToolbarShowLabel, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -73,9 +73,6 @@ const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 const TOGGLE_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.toggleOutputs';
 const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
-
-const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
-const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
 
 export const NOTEBOOK_ACTIONS_CATEGORY = { value: localize('notebookActions.category', "Notebook"), original: 'Notebook' };
 
@@ -1945,124 +1942,6 @@ registerAction2(class CenterActiveCellAction extends NotebookCellAction {
 	}
 });
 
-abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const textModel = context.notebookEditor.viewModel.notebookDocument;
-		if (!textModel) {
-			return;
-		}
-
-		const metadataDelta = this.getMetadataDelta();
-		const edits: ICellEditOperation[] = [];
-		const targetCells = (context.cell ? [context.cell] : context.selectedCells) ?? [];
-		for (const cell of targetCells) {
-			const index = textModel.cells.indexOf(cell.model);
-			if (index >= 0) {
-				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...metadataDelta } });
-			}
-		}
-
-		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
-	}
-
-	abstract getMetadataDelta(): NotebookCellMetadata;
-}
-
-registerAction2(class CollapseCellInputAction extends ChangeNotebookCellMetadataAction {
-	constructor() {
-		super({
-			id: COLLAPSE_CELL_INPUT_COMMAND_ID,
-			title: localize('notebookActions.collapseCellInput', "Collapse Cell Input"),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated()),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 0
-			}
-		});
-	}
-
-	getMetadataDelta(): NotebookCellMetadata {
-		return { inputCollapsed: true };
-	}
-});
-
-registerAction2(class ExpandCellInputAction extends ChangeNotebookCellMetadataAction {
-	constructor() {
-		super({
-			id: EXPAND_CELL_INPUT_COMMAND_ID,
-			title: localize('notebookActions.expandCellInput', "Expand Cell Input"),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 1
-			}
-		});
-	}
-
-	getMetadataDelta(): NotebookCellMetadata {
-		return { inputCollapsed: false };
-	}
-});
-
-registerAction2(class CollapseCellOutputAction extends ChangeNotebookCellMetadataAction {
-	constructor() {
-		super({
-			id: COLLAPSE_CELL_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.collapseCellOutput', "Collapse Cell Output"),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 2
-			}
-		});
-	}
-
-	getMetadataDelta(): NotebookCellMetadata {
-		return { outputCollapsed: true };
-	}
-});
-
-registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAction {
-	constructor() {
-		super({
-			id: EXPAND_CELL_OUTPUT_COMMAND_ID,
-			title: localize('notebookActions.expandCellOutput', "Expand Cell Output"),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				group: CellOverflowToolbarGroups.Collapse,
-				order: 3
-			}
-		});
-	}
-
-	getMetadataDelta(): NotebookCellMetadata {
-		return { outputCollapsed: false };
-	}
-});
 
 registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {

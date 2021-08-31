@@ -12,23 +12,21 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Range } from 'vs/editor/common/core/range';
 import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, changeCellToKind, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangeContains, cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
+//#region Move/Copy cells
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
 const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
 const COPY_CELL_UP_COMMAND_ID = 'notebook.cell.copyUp';
 const COPY_CELL_DOWN_COMMAND_ID = 'notebook.cell.copyDown';
-const SPLIT_CELL_COMMAND_ID = 'notebook.cell.split';
-const JOIN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.joinAbove';
-const JOIN_CELL_BELOW_COMMAND_ID = 'notebook.cell.joinBelow';
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {
@@ -279,6 +277,14 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		context.notebookEditor.revealCellRangeInView(focusRange);
 	}
 }
+
+//#endregion
+
+//#region Join/Split
+
+const SPLIT_CELL_COMMAND_ID = 'notebook.cell.split';
+const JOIN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.joinAbove';
+const JOIN_CELL_BELOW_COMMAND_ID = 'notebook.cell.joinBelow';
 
 export async function splitCell(context: INotebookCellActionContext): Promise<void> {
 	const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
@@ -550,6 +556,10 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
+//#endregion
+
+//#region Change Cell Type
+
 const CHANGE_CELL_TO_CODE_COMMAND_ID = 'notebook.cell.changeToCode';
 const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
 
@@ -600,3 +610,131 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookMultiCellAction
 		await changeCellToKind(CellKind.Markup, context, 'markdown', Mimes.markdown);
 	}
 });
+
+//#endregion
+
+//#region Collapse Cell
+
+const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
+const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
+
+abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const textModel = context.notebookEditor.viewModel.notebookDocument;
+		if (!textModel) {
+			return;
+		}
+
+		const metadataDelta = this.getMetadataDelta();
+		const edits: ICellEditOperation[] = [];
+		const targetCells = (context.cell ? [context.cell] : context.selectedCells) ?? [];
+		for (const cell of targetCells) {
+			const index = textModel.cells.indexOf(cell.model);
+			if (index >= 0) {
+				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...metadataDelta } });
+			}
+		}
+
+		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
+	}
+
+	abstract getMetadataDelta(): NotebookCellMetadata;
+}
+
+registerAction2(class CollapseCellInputAction extends ChangeNotebookCellMetadataAction {
+	constructor() {
+		super({
+			id: COLLAPSE_CELL_INPUT_COMMAND_ID,
+			title: localize('notebookActions.collapseCellInput', "Collapse Cell Input"),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated()),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: {
+				id: MenuId.NotebookCellTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()),
+				group: CellOverflowToolbarGroups.Collapse,
+				order: 0
+			}
+		});
+	}
+
+	getMetadataDelta(): NotebookCellMetadata {
+		return { inputCollapsed: true };
+	}
+});
+
+registerAction2(class ExpandCellInputAction extends ChangeNotebookCellMetadataAction {
+	constructor() {
+		super({
+			id: EXPAND_CELL_INPUT_COMMAND_ID,
+			title: localize('notebookActions.expandCellInput', "Expand Cell Input"),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: {
+				id: MenuId.NotebookCellTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED),
+				group: CellOverflowToolbarGroups.Collapse,
+				order: 1
+			}
+		});
+	}
+
+	getMetadataDelta(): NotebookCellMetadata {
+		return { inputCollapsed: false };
+	}
+});
+
+registerAction2(class CollapseCellOutputAction extends ChangeNotebookCellMetadataAction {
+	constructor() {
+		super({
+			id: COLLAPSE_CELL_OUTPUT_COMMAND_ID,
+			title: localize('notebookActions.collapseCellOutput', "Collapse Cell Output"),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: {
+				id: MenuId.NotebookCellTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
+				group: CellOverflowToolbarGroups.Collapse,
+				order: 2
+			}
+		});
+	}
+
+	getMetadataDelta(): NotebookCellMetadata {
+		return { outputCollapsed: true };
+	}
+});
+
+registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAction {
+	constructor() {
+		super({
+			id: EXPAND_CELL_OUTPUT_COMMAND_ID,
+			title: localize('notebookActions.expandCellOutput', "Expand Cell Output"),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: {
+				id: MenuId.NotebookCellTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED),
+				group: CellOverflowToolbarGroups.Collapse,
+				order: 3
+			}
+		});
+	}
+
+	getMetadataDelta(): NotebookCellMetadata {
+		return { outputCollapsed: false };
+	}
+});
+
+//#endregion
