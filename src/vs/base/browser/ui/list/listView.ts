@@ -397,6 +397,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const originalSize = this.items[index].size;
 
 		if (typeof size === 'undefined') {
+			if (!this.supportDynamicHeights) {
+				console.warn('Dynamic heights not supported');
+				return;
+			}
+
 			this.items[index].lastDynamicHeightWidth = undefined;
 			size = originalSize + this.probeDynamicHeight(index);
 		}
