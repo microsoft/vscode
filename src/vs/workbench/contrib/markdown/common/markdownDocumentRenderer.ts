@@ -175,7 +175,7 @@ export async function renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
 	modeService: IModeService,
-	shouldRemoveEmbeddedSVGs: boolean = true,
+	shouldSanitize: boolean = true,
 ): Promise<string> {
 
 	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
@@ -197,13 +197,9 @@ export async function renderMarkdownDocument(
 	return new Promise<string>((resolve, reject) => {
 		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
 	}).then(raw => {
-		if (shouldRemoveEmbeddedSVGs) {
-			const x = sanitize(raw);
-			console.log(raw);
-			console.log(x);
-			return x;
-		}
-		else {
+		if (shouldSanitize) {
+			return sanitize(raw);
+		} else {
 			return raw;
 		}
 	});
