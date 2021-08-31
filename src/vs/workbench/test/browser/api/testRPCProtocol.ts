@@ -8,6 +8,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { isThenable } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
 	return {
@@ -20,7 +21,8 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRp
 			return value;
 		},
 		assertRegistered: undefined!,
-		drain: undefined!
+		drain: undefined!,
+		extensionHostKind: ExtensionHostKind.LocalProcess
 	};
 }
 
@@ -28,6 +30,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 
 	public _serviceBrand: undefined;
 	public remoteAuthority = null!;
+	public extensionHostKind = ExtensionHostKind.LocalProcess;
 
 	private _callCountValue: number = 0;
 	private _idle?: Promise<any>;

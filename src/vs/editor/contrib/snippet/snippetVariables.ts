@@ -10,13 +10,13 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, splitLines } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { URI } from 'vs/base/common/uri';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -42,6 +42,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
@@ -49,6 +50,7 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'WORKSPACE_FOLDER': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
+	'UUID': true
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -111,7 +113,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 						return false;
 					}
 					if (marker instanceof Text) {
-						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop()!);
+						varLeadingWhitespace = getLeadingWhitespace(splitLines(marker.value).pop()!);
 					}
 					return true;
 				});
@@ -177,6 +179,8 @@ export class ModelBasedVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_FILEPATH' && this._labelService) {
 			return this._labelService.getUriLabel(this._model.uri);
+		} else if (name === 'RELATIVE_FILEPATH' && this._labelService) {
+			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
 		}
 
 		return undefined;
@@ -251,33 +255,35 @@ export class TimeBasedVariableResolver implements VariableResolver {
 	private static readonly monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
 	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
 
+	private readonly _date = new Date();
+
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 
 		if (name === 'CURRENT_YEAR') {
-			return String(new Date().getFullYear());
+			return String(this._date.getFullYear());
 		} else if (name === 'CURRENT_YEAR_SHORT') {
-			return String(new Date().getFullYear()).slice(-2);
+			return String(this._date.getFullYear()).slice(-2);
 		} else if (name === 'CURRENT_MONTH') {
-			return String(new Date().getMonth().valueOf() + 1).padStart(2, '0');
+			return String(this._date.getMonth().valueOf() + 1).padStart(2, '0');
 		} else if (name === 'CURRENT_DATE') {
-			return String(new Date().getDate().valueOf()).padStart(2, '0');
+			return String(this._date.getDate().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_HOUR') {
-			return String(new Date().getHours().valueOf()).padStart(2, '0');
+			return String(this._date.getHours().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_MINUTE') {
-			return String(new Date().getMinutes().valueOf()).padStart(2, '0');
+			return String(this._date.getMinutes().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_SECOND') {
-			return String(new Date().getSeconds().valueOf()).padStart(2, '0');
+			return String(this._date.getSeconds().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_DAY_NAME') {
-			return TimeBasedVariableResolver.dayNames[new Date().getDay()];
+			return TimeBasedVariableResolver.dayNames[this._date.getDay()];
 		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
-			return TimeBasedVariableResolver.dayNamesShort[new Date().getDay()];
+			return TimeBasedVariableResolver.dayNamesShort[this._date.getDay()];
 		} else if (name === 'CURRENT_MONTH_NAME') {
-			return TimeBasedVariableResolver.monthNames[new Date().getMonth()];
+			return TimeBasedVariableResolver.monthNames[this._date.getMonth()];
 		} else if (name === 'CURRENT_MONTH_NAME_SHORT') {
-			return TimeBasedVariableResolver.monthNamesShort[new Date().getMonth()];
+			return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
 		} else if (name === 'CURRENT_SECONDS_UNIX') {
-			return String(Math.floor(Date.now() / 1000));
+			return String(Math.floor(this._date.getTime() / 1000));
 		}
 
 		return undefined;
@@ -309,9 +315,9 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 
 		return undefined;
 	}
-	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return path.basename(workspaceIdentifier.path);
+			return path.basename(workspaceIdentifier.uri.path);
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
@@ -320,9 +326,9 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 		return filename;
 	}
-	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
+	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return normalizeDriveLetter(workspaceIdentifier.fsPath);
+			return normalizeDriveLetter(workspaceIdentifier.uri.fsPath);
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
@@ -340,9 +346,10 @@ export class RandomBasedVariableResolver implements VariableResolver {
 
 		if (name === 'RANDOM') {
 			return Math.random().toString().slice(-6);
-		}
-		else if (name === 'RANDOM_HEX') {
+		} else if (name === 'RANDOM_HEX') {
 			return Math.random().toString(16).slice(-6);
+		} else if (name === 'UUID') {
+			return generateUuid();
 		}
 
 		return undefined;

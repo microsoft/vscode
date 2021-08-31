@@ -9,6 +9,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
 import { Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IOpenerService, IOpener, OpenExternalOptions, OpenInternalOptions, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface IURLCallbackProvider {
 
@@ -36,26 +38,48 @@ export interface IURLCallbackProvider {
 	create(options?: Partial<UriComponents>): URI;
 }
 
-export class BrowserURLService extends AbstractURLService {
+class BrowserURLOpener implements IOpener {
 
-	declare readonly _serviceBrand: undefined;
+	constructor(
+		private urlService: IURLService,
+		private productService: IProductService
+	) { }
+
+	async open(resource: string | URI, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+		if ((options as OpenExternalOptions | undefined)?.openExternal) {
+			return false;
+		}
+
+		if (!matchesScheme(resource, this.productService.urlProtocol)) {
+			return false;
+		}
+
+		if (typeof resource === 'string') {
+			resource = URI.parse(resource);
+		}
+
+		return this.urlService.open(resource, { trusted: true });
+	}
+}
+
+export class BrowserURLService extends AbstractURLService {
 
 	private provider: IURLCallbackProvider | undefined;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IOpenerService openerService: IOpenerService,
+		@IProductService productService: IProductService
 	) {
 		super();
 
 		this.provider = environmentService.options?.urlCallbackProvider;
 
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
 		if (this.provider) {
 			this._register(this.provider.onCallback(uri => this.open(uri, { trusted: true })));
 		}
+
+		this._register(openerService.registerOpener(new BrowserURLOpener(this, productService)));
 	}
 
 	create(options?: Partial<UriComponents>): URI {

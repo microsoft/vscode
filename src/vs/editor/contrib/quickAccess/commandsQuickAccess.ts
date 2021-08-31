@@ -8,9 +8,9 @@ import { IEditor } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { stripCodicons } from 'vs/base/common/codicons';
+import { stripIcons } from 'vs/base/common/iconLabels';
 
 export abstract class AbstractEditorCommandsQuickAccessProvider extends AbstractCommandsQuickAccessProvider {
 
@@ -20,9 +20,9 @@ export abstract class AbstractEditorCommandsQuickAccessProvider extends Abstract
 		keybindingService: IKeybindingService,
 		commandService: ICommandService,
 		telemetryService: ITelemetryService,
-		notificationService: INotificationService
+		dialogService: IDialogService
 	) {
-		super(options, instantiationService, keybindingService, commandService, telemetryService, notificationService);
+		super(options, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 	}
 
 	/**
@@ -41,7 +41,7 @@ export abstract class AbstractEditorCommandsQuickAccessProvider extends Abstract
 			editorCommandPicks.push({
 				commandId: editorAction.id,
 				commandAlias: editorAction.alias,
-				label: stripCodicons(editorAction.label) || editorAction.id,
+				label: stripIcons(editorAction.label) || editorAction.id,
 			});
 		}
 

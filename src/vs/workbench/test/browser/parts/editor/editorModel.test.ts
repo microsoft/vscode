@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -26,58 +25,21 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
+import { Mimes } from 'vs/base/common/mime';
 
-class MyEditorModel extends EditorModel { }
-class MyTextEditorModel extends BaseTextEditorModel {
-	createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
-		return super.createTextEditorModel(value, resource, preferredMode);
+suite('EditorModel', () => {
+
+	class MyEditorModel extends EditorModel { }
+	class MyTextEditorModel extends BaseTextEditorModel {
+		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
+			return super.createTextEditorModel(value, resource, preferredMode);
+		}
+
+		override isReadonly(): boolean {
+			return false;
+		}
 	}
-
-	isReadonly(): boolean {
-		return false;
-	}
-}
-
-suite('Workbench editor model', () => {
-
-	let instantiationService: TestInstantiationService;
-	let modeService: IModeService;
-
-	setup(() => {
-		instantiationService = new TestInstantiationService();
-		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
-	});
-
-	test('EditorModel', async () => {
-		let counter = 0;
-
-		let m = new MyEditorModel();
-
-		m.onDispose(() => {
-			assert(true);
-			counter++;
-		});
-
-		const model = await m.load();
-		assert(model === m);
-		assert.equal(model.isDisposed(), false);
-		assert.strictEqual(m.isResolved(), true);
-		m.dispose();
-		assert.equal(counter, 1);
-		assert.equal(model.isDisposed(), true);
-	});
-
-	test('BaseTextEditorModel', async () => {
-		let modelService = stubModelService(instantiationService);
-
-		let m = new MyTextEditorModel(modelService, modeService);
-		const model = await m.load() as MyTextEditorModel;
-
-		assert(model === m);
-		model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
-		assert.strictEqual(m.isResolved(), true);
-		m.dispose();
-	});
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		const dialogService = new TestDialogService();
@@ -89,6 +51,44 @@ suite('Workbench editor model', () => {
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(IUndoRedoService, undoRedoService);
 		instantiationService.stub(IThemeService, new TestThemeService());
+
 		return instantiationService.createInstance(ModelServiceImpl);
 	}
+
+	let instantiationService: TestInstantiationService;
+	let modeService: IModeService;
+
+	setup(() => {
+		instantiationService = new TestInstantiationService();
+		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
+	});
+
+	test('basics', async () => {
+		let counter = 0;
+
+		const model = new MyEditorModel();
+
+		model.onWillDispose(() => {
+			assert(true);
+			counter++;
+		});
+
+		await model.resolve();
+		assert.strictEqual(model.isDisposed(), false);
+		assert.strictEqual(model.isResolved(), true);
+		model.dispose();
+		assert.strictEqual(counter, 1);
+		assert.strictEqual(model.isDisposed(), true);
+	});
+
+	test('BaseTextEditorModel', async () => {
+		let modelService = stubModelService(instantiationService);
+
+		const model = new MyTextEditorModel(modelService, modeService);
+		await model.resolve();
+
+		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
+		assert.strictEqual(model.isResolved(), true);
+		model.dispose();
+	});
 });

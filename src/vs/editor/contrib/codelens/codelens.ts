@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mergeSort } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ITextModel } from 'vs/editor/common/model';
 import { CodeLensProvider, CodeLensProviderRegistry, CodeLens, CodeLensList } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { assertType } from 'vs/base/common/types';
 
 export interface CodeLensItem {
 	symbol: CodeLens;
@@ -58,7 +58,7 @@ export async function getCodeLensModel(model: ITextModel, token: CancellationTok
 
 	await Promise.all(promises);
 
-	result.lenses = mergeSort(result.lenses, (a, b) => {
+	result.lenses = result.lenses.sort((a, b) => {
 		// sort by lineNumber, provider-rank, and column
 		if (a.symbol.range.startLineNumber < b.symbol.range.startLineNumber) {
 			return -1;
@@ -79,14 +79,12 @@ export async function getCodeLensModel(model: ITextModel, token: CancellationTok
 	return result;
 }
 
-registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
+CommandsRegistry.registerCommand('_executeCodeLensProvider', function (accessor, ...args: [URI, number | undefined | null]) {
+	let [uri, itemResolveCount] = args;
+	assertType(URI.isUri(uri));
+	assertType(typeof itemResolveCount === 'number' || !itemResolveCount);
 
-	let { resource, itemResolveCount } = args;
-	if (!(resource instanceof URI)) {
-		throw illegalArgument();
-	}
-
-	const model = accessor.get(IModelService).getModel(resource);
+	const model = accessor.get(IModelService).getModel(uri);
 	if (!model) {
 		throw illegalArgument();
 	}
@@ -99,7 +97,7 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 		let resolve: Promise<any>[] = [];
 
 		for (const item of value.lenses) {
-			if (typeof itemResolveCount === 'undefined' || Boolean(item.symbol.command)) {
+			if (itemResolveCount === undefined || itemResolveCount === null || Boolean(item.symbol.command)) {
 				result.push(item.symbol);
 			} else if (itemResolveCount-- > 0 && item.provider.resolveCodeLens) {
 				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol || item.symbol)));

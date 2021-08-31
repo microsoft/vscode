@@ -297,6 +297,20 @@ export class CursorMoveCommands {
 					return this._moveDownByModelLines(viewModel, cursors, inSelectionMode, value);
 				}
 			}
+			case CursorMove.Direction.PrevBlankLine: {
+				if (unit === CursorMove.Unit.WrappedLine) {
+					return cursors.map(cursor => CursorState.fromViewState(MoveOperations.moveToPrevBlankLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)));
+				} else {
+					return cursors.map(cursor => CursorState.fromModelState(MoveOperations.moveToPrevBlankLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)));
+				}
+			}
+			case CursorMove.Direction.NextBlankLine: {
+				if (unit === CursorMove.Unit.WrappedLine) {
+					return cursors.map(cursor => CursorState.fromViewState(MoveOperations.moveToNextBlankLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)));
+				} else {
+					return cursors.map(cursor => CursorState.fromModelState(MoveOperations.moveToNextBlankLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)));
+				}
+			}
 			case CursorMove.Direction.WrappedLineStart: {
 				// Move to the beginning of the current view line
 				return this._moveToViewMinColumn(viewModel, cursors, inSelectionMode);
@@ -405,25 +419,11 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		const hasMultipleCursors = (cursors.length > 1);
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const skipWrappingPointStop = hasMultipleCursors || !cursor.viewState.hasSelection();
-			let newViewState = MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns);
-
-			if (skipWrappingPointStop && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
-				// moved over to the previous view line
-				const newViewModelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
-				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
-					// stayed on the same model line => pass wrapping point where 2 view positions map to a single model position
-					newViewState = MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, newViewState, inSelectionMode, 1);
-				}
-			}
-
-			result[i] = CursorState.fromViewState(newViewState);
-		}
-		return result;
+		return cursors.map(cursor =>
+			CursorState.fromViewState(
+				MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+			)
+		);
 	}
 
 	private static _moveHalfLineLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
@@ -438,25 +438,11 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		const hasMultipleCursors = (cursors.length > 1);
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const skipWrappingPointStop = hasMultipleCursors || !cursor.viewState.hasSelection();
-			let newViewState = MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns);
-
-			if (skipWrappingPointStop && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
-				// moved over to the next view line
-				const newViewModelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
-				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
-					// stayed on the same model line => pass wrapping point where 2 view positions map to a single model position
-					newViewState = MoveOperations.moveRight(viewModel.cursorConfig, viewModel, newViewState, inSelectionMode, 1);
-				}
-			}
-
-			result[i] = CursorState.fromViewState(newViewState);
-		}
-		return result;
+		return cursors.map(cursor =>
+			CursorState.fromViewState(
+				MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+			)
+		);
 	}
 
 	private static _moveHalfLineRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
@@ -606,7 +592,7 @@ export namespace CursorMove {
 				description: `Property-value pairs that can be passed through this argument:
 					* 'to': A mandatory logical position value providing where to move the cursor.
 						\`\`\`
-						'left', 'right', 'up', 'down'
+						'left', 'right', 'up', 'down', 'prevBlankLine', 'nextBlankLine',
 						'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'
 						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter'
 						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
@@ -625,7 +611,7 @@ export namespace CursorMove {
 					'properties': {
 						'to': {
 							'type': 'string',
-							'enum': ['left', 'right', 'up', 'down', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
+							'enum': ['left', 'right', 'up', 'down', 'prevBlankLine', 'nextBlankLine', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
 						},
 						'by': {
 							'type': 'string',
@@ -653,6 +639,9 @@ export namespace CursorMove {
 		Right: 'right',
 		Up: 'up',
 		Down: 'down',
+
+		PrevBlankLine: 'prevBlankLine',
+		NextBlankLine: 'nextBlankLine',
 
 		WrappedLineStart: 'wrappedLineStart',
 		WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
@@ -706,6 +695,12 @@ export namespace CursorMove {
 				break;
 			case RawDirection.Down:
 				direction = Direction.Down;
+				break;
+			case RawDirection.PrevBlankLine:
+				direction = Direction.PrevBlankLine;
+				break;
+			case RawDirection.NextBlankLine:
+				direction = Direction.NextBlankLine;
 				break;
 			case RawDirection.WrappedLineStart:
 				direction = Direction.WrappedLineStart;
@@ -782,6 +777,8 @@ export namespace CursorMove {
 		Right,
 		Up,
 		Down,
+		PrevBlankLine,
+		NextBlankLine,
 
 		WrappedLineStart,
 		WrappedLineFirstNonWhitespaceCharacter,
@@ -801,6 +798,8 @@ export namespace CursorMove {
 		| Direction.Right
 		| Direction.Up
 		| Direction.Down
+		| Direction.PrevBlankLine
+		| Direction.NextBlankLine
 		| Direction.WrappedLineStart
 		| Direction.WrappedLineFirstNonWhitespaceCharacter
 		| Direction.WrappedLineColumnCenter

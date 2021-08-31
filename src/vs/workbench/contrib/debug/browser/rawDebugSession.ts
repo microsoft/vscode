@@ -8,18 +8,17 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { env as processEnv } from 'vs/base/common/process';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -81,12 +80,14 @@ export class RawDebugSession implements IDisposable {
 
 	constructor(
 		debugAdapter: IDebugAdapter,
-		dbgr: IDebugger,
-		private readonly telemetryService: ITelemetryService,
-		public readonly customTelemetryService: ITelemetryService | undefined,
-		private readonly extensionHostDebugService: IExtensionHostDebugService,
-		private readonly openerService: IOpenerService,
-		private readonly notificationService: INotificationService
+		public readonly dbgr: IDebugger,
+		private readonly sessionId: string,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ICustomEndpointTelemetryService private readonly customTelemetryService: ICustomEndpointTelemetryService,
+		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogSerivce: IDialogService,
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
@@ -153,6 +154,10 @@ export class RawDebugSession implements IDisposable {
 					break;
 				case 'invalidated':
 					this._onDidInvalidated.fire(event as DebugProtocol.InvalidatedEvent);
+					break;
+				case 'process':
+					break;
+				case 'module':
 					break;
 				default:
 					this._onDidCustomEvent.fire(event);
@@ -271,8 +276,9 @@ export class RawDebugSession implements IDisposable {
 	/**
 	 * Terminate the debuggee and shutdown the adapter
 	 */
-	disconnect(restart = false): Promise<any> {
-		return this.shutdown(undefined, restart);
+	disconnect(args: DebugProtocol.DisconnectArguments): Promise<any> {
+		const terminateDebuggee = this.capabilities.supportTerminateDebuggee ? args.terminateDebuggee : undefined;
+		return this.shutdown(undefined, args.restart, terminateDebuggee);
 	}
 
 	//---- DAP requests
@@ -295,14 +301,14 @@ export class RawDebugSession implements IDisposable {
 				this.terminated = true;
 				return this.send('terminate', { restart }, undefined, 2000);
 			}
-			return this.disconnect(restart);
+			return this.disconnect({ terminateDebuggee: true, restart });
 		}
 		return Promise.reject(new Error('terminated not supported'));
 	}
 
-	restart(): Promise<DebugProtocol.RestartResponse | undefined> {
+	restart(args: DebugProtocol.RestartArguments): Promise<DebugProtocol.RestartResponse | undefined> {
 		if (this.capabilities.supportsRestartRequest) {
-			return this.send('restart', null);
+			return this.send('restart', args);
 		}
 		return Promise.reject(new Error('restart not supported'));
 	}
@@ -351,6 +357,13 @@ export class RawDebugSession implements IDisposable {
 			return this.send<DebugProtocol.SetVariableResponse>('setVariable', args);
 		}
 		return Promise.reject(new Error('setVariable not supported'));
+	}
+
+	setExpression(args: DebugProtocol.SetExpressionArguments): Promise<DebugProtocol.SetExpressionResponse | undefined> {
+		if (this.capabilities.supportsSetExpression) {
+			return this.send<DebugProtocol.SetExpressionResponse>('setExpression', args);
+		}
+		return Promise.reject(new Error('setExpression not supported'));
 	}
 
 	async restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): Promise<DebugProtocol.RestartFrameResponse | undefined> {
@@ -460,9 +473,7 @@ export class RawDebugSession implements IDisposable {
 	async stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
 			const response = await this.send('stepBack', args);
-			if (response && response.body === undefined) {	// TODO@AW why this check?
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		}
 		return Promise.reject(new Error('stepBack not supported'));
@@ -471,9 +482,7 @@ export class RawDebugSession implements IDisposable {
 	async reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
 			const response = await this.send('reverseContinue', args);
-			if (response && response.body === undefined) {	// TODO@AW why this check?
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		}
 		return Promise.reject(new Error('reverseContinue not supported'));
@@ -496,6 +505,22 @@ export class RawDebugSession implements IDisposable {
 		return Promise.reject(new Error('goto is not supported'));
 	}
 
+	async setInstructionBreakpoints(args: DebugProtocol.SetInstructionBreakpointsArguments): Promise<DebugProtocol.SetInstructionBreakpointsResponse | undefined> {
+		if (this.capabilities.supportsInstructionBreakpoints) {
+			return await this.send('setInstructionBreakpoints', args);
+		}
+
+		return Promise.reject(new Error('setInstructionBreakpoints is not supported'));
+	}
+
+	async disassemble(args: DebugProtocol.DisassembleArguments): Promise<DebugProtocol.DisassembleResponse | undefined> {
+		if (this.capabilities.supportsDisassembleRequest) {
+			return await this.send('disassemble', args);
+		}
+
+		return Promise.reject(new Error('disassemble is not supported'));
+	}
+
 	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse | undefined> {
 		return this.send('cancel', args);
 	}
@@ -506,12 +531,13 @@ export class RawDebugSession implements IDisposable {
 
 	//---- private
 
-	private async shutdown(error?: Error, restart = false): Promise<any> {
+	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined): Promise<any> {
 		if (!this.inShutdown) {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
 				try {
-					await this.send('disconnect', { restart }, undefined, 2000);
+					const args = typeof terminateDebuggee === 'boolean' ? { restart, terminateDebuggee } : { restart };
+					this.send('disconnect', args, undefined, 2000);
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {
@@ -565,21 +591,32 @@ export class RawDebugSession implements IDisposable {
 
 		switch (request.command) {
 			case 'launchVSCode':
-				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(result => {
+				try {
+					let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+					if (!result.success) {
+						const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
+							[nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
+						if (showResult.choice === 0) {
+							result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+						} else {
+							response.success = false;
+							safeSendResponse(response);
+							await this.shutdown();
+						}
+					}
 					response.body = {
 						rendererDebugPort: result.rendererDebugPort,
-						//processId: pid
 					};
 					safeSendResponse(response);
-				}, err => {
+				} catch (err) {
 					response.success = false;
 					response.message = err.message;
 					safeSendResponse(response);
-				});
+				}
 				break;
 			case 'runInTerminal':
 				try {
-					const shellProcessId = await dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments);
+					const shellProcessId = await dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
 					const resp = response as DebugProtocol.RunInTerminalResponse;
 					resp.body = {};
 					if (typeof shellProcessId === 'number') {
@@ -620,15 +657,7 @@ export class RawDebugSession implements IDisposable {
 			}
 		}
 
-		let env: IProcessEnvironment = {};
-		if (vscodeArgs.env) {
-			// merge environment variables into a copy of the process.env
-			env = objects.mixin(processEnv, vscodeArgs.env);
-			// and delete some if necessary
-			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
-		}
-
-		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, env, !!vscodeArgs.debugRenderer);
+		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, vscodeArgs.env, !!vscodeArgs.debugRenderer);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R | undefined> {
@@ -685,10 +714,12 @@ export class RawDebugSession implements IDisposable {
 		const url = error?.url;
 		if (error && url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-			return createErrorWithActions(userMessage, {
-				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
-					this.openerService.open(URI.parse(url));
-					return Promise.resolve(null);
+			const uri = URI.parse(url);
+			// Use a suffixed id if uri invokes a command, so default 'Open launch.json' command is suppressed on dialog
+			const actionId = uri.scheme === Schemas.command ? 'debug.moreInfo.command' : 'debug.moreInfo';
+			return errors.createErrorWithActions(userMessage, {
+				actions: [new Action(actionId, label, undefined, true, async () => {
+					this.openerService.open(uri, { allowCommands: true });
 				})]
 			});
 		}
@@ -724,12 +755,13 @@ export class RawDebugSession implements IDisposable {
 			}
 		*/
 		this.telemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
-		if (this.customTelemetryService) {
+		const telemetryEndpoint = this.dbgr.getCustomTelemetryEndpoint();
+		if (telemetryEndpoint) {
 			/* __GDPR__TODO__
 				The message is sent in the name of the adapter but the adapter doesn't know about it.
 				However, since adapters are an open-ended set, we can not declared the events statically either.
 			*/
-			this.customTelemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
+			this.customTelemetryService.publicLogError(telemetryEndpoint, 'debugProtocolErrorResponse', { error: telemetryMessage });
 		}
 	}
 

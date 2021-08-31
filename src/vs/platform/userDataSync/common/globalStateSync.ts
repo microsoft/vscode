@@ -3,31 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncResourceEnablementService,
-	IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, USER_DATA_SYNC_SCHEME, IRemoteUserData, Change
-} from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
+import { parse } from 'vs/base/common/json';
+import { applyEdits } from 'vs/base/common/jsonEdit';
+import { format } from 'vs/base/common/jsonFormatter';
+import { isWeb } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IHeaders } from 'vs/base/parts/request/common/request';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { ILogService } from 'vs/platform/log/common/log';
+import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
-import { parse } from 'vs/base/common/json';
-import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
-import { equals } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
+
+type StorageKeys = { machine: string[], user: string[], unregistered: string[] };
 
 interface IGlobalStateResourceMergeResult extends IAcceptResult {
 	readonly local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
@@ -35,19 +38,36 @@ interface IGlobalStateResourceMergeResult extends IAcceptResult {
 }
 
 export interface IGlobalStateResourcePreview extends IResourcePreview {
-	readonly skippedStorageKeys: string[];
 	readonly localUserData: IGlobalState;
 	readonly previewResult: IGlobalStateResourceMergeResult;
+	readonly storageKeys: StorageKeys;
 }
 
-interface ILastSyncUserData extends IRemoteUserData {
-	skippedStorageKeys: string[] | undefined;
+function formatAndStringify(globalState: IGlobalState): string {
+	const storageKeys = globalState.storage ? Object.keys(globalState.storage).sort() : [];
+	const storage: IStringDictionary<IStorageValue> = {};
+	storageKeys.forEach(key => storage[key] = globalState.storage[key]);
+	globalState.storage = storage;
+	const content = JSON.stringify(globalState);
+	const edits = format(content, undefined, {});
+	return applyEdits(content, edits);
 }
 
+const GLOBAL_STATE_DATA_VERSION = 1;
+
+/**
+ * Synchronises global state that includes
+ * 	- Global storage with user scope
+ * 	- Locale from argv properties
+ *
+ * Global storage is synced without checking version just like other resources (settings, keybindings).
+ * If there is a change in format of the value of a storage key which requires migration then
+ * 		Owner of that key should remove that key from user scope and replace that with new user scoped key.
+ */
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/globalState.json` });
-	protected readonly version: number = 1;
+	protected readonly version: number = GLOBAL_STATE_DATA_VERSION;
 	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'globalState.json');
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
@@ -58,29 +78,31 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
-		@IEnvironmentService readonly environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(SyncResource.GlobalState, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
-		this._register(this.fileService.watch(this.extUri.dirname(this.environmentService.argvResource)));
+		this._register(fileService.watch(this.extUri.dirname(this.environmentService.argvResource)));
 		this._register(
 			Event.any(
 				/* Locale change */
-				Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
-				/* Storage change */
-				Event.filter(this.storageService.onDidChangeStorage, e => storageKeysSyncRegistryService.storageKeys.some(({ key }) => e.key === key)),
-				/* Storage key registered */
-				this.storageKeysSyncRegistryService.onDidChangeStorageKeys
+				Event.filter(fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
+				/* Global storage with user target has changed */
+				Event.filter(storageService.onDidChangeValue, e => e.scope === StorageScope.GLOBAL && e.target !== undefined ? e.target === StorageTarget.USER : storageService.keys(StorageScope.GLOBAL, StorageTarget.USER).includes(e.key)),
+				/* Storage key target has changed */
+				this.storageService.onDidChangeTarget
 			)((() => this.triggerLocalChange()))
 		);
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, token: CancellationToken): Promise<IGlobalStateResourcePreview[]> {
+	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<IGlobalStateResourcePreview[]> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
+
+		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
+		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const lastSyncGlobalState: IGlobalState | null = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
 
 		const localGloablState = await this.getLocalGlobalState();
@@ -91,7 +113,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
 		}
 
-		const { local, remote, skipped } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
+		const storageKeys = this.getStorageKeys(lastSyncGlobalState);
+		const { local, remote } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, storageKeys, this.logService);
 		const previewResult: IGlobalStateResourceMergeResult = {
 			content: null,
 			local,
@@ -101,17 +124,17 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		};
 
 		return [{
-			skippedStorageKeys: skipped,
 			localResource: this.localResource,
-			localContent: this.format(localGloablState),
+			localContent: formatAndStringify(localGloablState),
 			localUserData: localGloablState,
 			remoteResource: this.remoteResource,
-			remoteContent: remoteGlobalState ? this.format(remoteGlobalState) : null,
+			remoteContent: remoteGlobalState ? formatAndStringify(remoteGlobalState) : null,
 			previewResource: this.previewResource,
 			previewResult,
 			localChange: previewResult.localChange,
 			remoteChange: previewResult.remoteChange,
 			acceptedResource: this.acceptedResource,
+			storageKeys
 		}];
 	}
 
@@ -152,7 +175,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	private async acceptRemote(resourcePreview: IGlobalStateResourcePreview): Promise<IGlobalStateResourceMergeResult> {
 		if (resourcePreview.remoteContent !== null) {
 			const remoteGlobalState: IGlobalState = JSON.parse(resourcePreview.remoteContent);
-			const { local, remote } = merge(resourcePreview.localUserData.storage, remoteGlobalState.storage, null, this.getSyncStorageKeys(), resourcePreview.skippedStorageKeys, this.logService);
+			const { local, remote } = merge(resourcePreview.localUserData.storage, remoteGlobalState.storage, null, resourcePreview.storageKeys, this.logService);
 			return {
 				content: resourcePreview.remoteContent,
 				local,
@@ -171,8 +194,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null, resourcePreviews: [IGlobalStateResourcePreview, IGlobalStateResourceMergeResult][], force: boolean): Promise<void> {
-		let { localUserData, skippedStorageKeys } = resourcePreviews[0][0];
+	protected async applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resourcePreviews: [IGlobalStateResourcePreview, IGlobalStateResourceMergeResult][], force: boolean): Promise<void> {
+		let { localUserData } = resourcePreviews[0][0];
 		let { local, remote, localChange, remoteChange } = resourcePreviews[0][1];
 
 		if (localChange === Change.None && remoteChange === Change.None) {
@@ -195,10 +218,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.info(`${this.syncResourceLogLabel}: Updated remote ui state`);
 		}
 
-		if (lastSyncUserData?.ref !== remoteUserData.ref || !equals(lastSyncUserData.skippedStorageKeys, skippedStorageKeys)) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized ui state...`);
-			await this.updateLastSyncUserData(remoteUserData, { skippedStorageKeys });
+			await this.updateLastSyncUserData(remoteUserData);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized ui state`);
 		}
 	}
@@ -207,10 +230,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return [{ resource: this.extUri.joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
 	}
 
-	async resolveContent(uri: URI): Promise<string | null> {
+	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
 			const localGlobalState = await this.getLocalGlobalState();
-			return this.format(localGlobalState);
+			return formatAndStringify(localGlobalState);
 		}
 
 		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
@@ -228,22 +251,12 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			if (syncData) {
 				switch (this.extUri.basename(uri)) {
 					case 'globalState.json':
-						return this.format(JSON.parse(syncData.content));
+						return formatAndStringify(JSON.parse(syncData.content));
 				}
 			}
 		}
 
 		return null;
-	}
-
-	private format(globalState: IGlobalState): string {
-		const storageKeys = globalState.storage ? Object.keys(globalState.storage).sort() : [];
-		const storage: IStringDictionary<IStorageValue> = {};
-		storageKeys.forEach(key => storage[key] = globalState.storage[key]);
-		globalState.storage = storage;
-		const content = JSON.stringify(globalState);
-		const edits = format(content, undefined, {});
-		return applyEdits(content, edits);
 	}
 
 	async hasLocalData(): Promise<boolean> {
@@ -267,10 +280,10 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				storage[`${argvStoragePrefx}${argvProperty}`] = { version: 1, value: argvValue[argvProperty] };
 			}
 		}
-		for (const { key, version } of this.storageKeysSyncRegistryService.storageKeys) {
+		for (const key of this.storageService.keys(StorageScope.GLOBAL, StorageTarget.USER)) {
 			const value = this.storageService.get(key, StorageScope.GLOBAL);
 			if (value) {
-				storage[key] = { version, value };
+				storage[key] = { version: 1, value };
 			}
 		}
 		return { storage };
@@ -317,7 +330,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		if (updatedStorageKeys.length) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating global state...`);
 			for (const key of Object.keys(updatedStorage)) {
-				this.storageService.store(key, updatedStorage[key], StorageScope.GLOBAL);
+				this.storageService.store(key, updatedStorage[key], StorageScope.GLOBAL, StorageTarget.USER);
 			}
 			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, Object.keys(updatedStorage));
 		}
@@ -336,8 +349,20 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	private getSyncStorageKeys(): IStorageKey[] {
-		return [...this.storageKeysSyncRegistryService.storageKeys, ...argvProperties.map(argvProprety => (<IStorageKey>{ key: `${argvStoragePrefx}${argvProprety}`, version: 1 }))];
+	private getStorageKeys(lastSyncGlobalState: IGlobalState | null): StorageKeys {
+		const user = this.storageService.keys(StorageScope.GLOBAL, StorageTarget.USER);
+		const machine = this.storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		const registered = [...user, ...machine];
+		const unregistered = lastSyncGlobalState?.storage ? Object.keys(lastSyncGlobalState.storage).filter(key => !key.startsWith(argvStoragePrefx) && !registered.includes(key) && this.storageService.get(key, StorageScope.GLOBAL) !== undefined) : [];
+
+		if (!isWeb) {
+			// Following keys are synced only in web. Do not sync these keys in other platforms
+			const keysSyncedOnlyInWeb = [...ALL_SYNC_RESOURCES.map(resource => getEnablementKey(resource)), SYNC_SERVICE_URL_TYPE];
+			unregistered.push(...keysSyncedOnlyInWeb);
+			machine.push(...keysSyncedOnlyInWeb);
+		}
+
+		return { user, machine, unregistered };
 	}
 }
 
@@ -385,9 +410,68 @@ export class GlobalStateInitializer extends AbstractInitializer {
 
 		if (Object.keys(storage).length) {
 			for (const key of Object.keys(storage)) {
-				this.storageService.store(key, storage[key], StorageScope.GLOBAL);
+				this.storageService.store(key, storage[key], StorageScope.GLOBAL, StorageTarget.USER);
 			}
 		}
+	}
+
+}
+
+export class UserDataSyncStoreTypeSynchronizer {
+
+	constructor(
+		private readonly userDataSyncStoreClient: UserDataSyncStoreClient,
+		@IStorageService private readonly storageService: IStorageService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+	) {
+	}
+
+	getSyncStoreType(userData: IUserData): UserDataSyncStoreType | undefined {
+		const remoteGlobalState = this.parseGlobalState(userData);
+		return remoteGlobalState?.storage[SYNC_SERVICE_URL_TYPE]?.value as UserDataSyncStoreType;
+	}
+
+	async sync(userDataSyncStoreType: UserDataSyncStoreType): Promise<void> {
+		const syncHeaders = createSyncHeaders(generateUuid());
+		try {
+			return await this.doSync(userDataSyncStoreType, syncHeaders);
+		} catch (e) {
+			if (e instanceof UserDataSyncError) {
+				switch (e.code) {
+					case UserDataSyncErrorCode.PreconditionFailed:
+						this.logService.info(`Failed to synchronize UserDataSyncStoreType as there is a new remote version available. Synchronizing again...`);
+						return this.doSync(userDataSyncStoreType, syncHeaders);
+				}
+			}
+			throw e;
+		}
+	}
+
+	private async doSync(userDataSyncStoreType: UserDataSyncStoreType, syncHeaders: IHeaders): Promise<void> {
+		// Read the global state from remote
+		const globalStateUserData = await this.userDataSyncStoreClient.read(SyncResource.GlobalState, null, syncHeaders);
+		const remoteGlobalState = this.parseGlobalState(globalStateUserData) || { storage: {} };
+
+		// Update the sync store type
+		remoteGlobalState.storage[SYNC_SERVICE_URL_TYPE] = { value: userDataSyncStoreType, version: GLOBAL_STATE_DATA_VERSION };
+
+		// Write the global state to remote
+		const machineId = await getServiceMachineId(this.environmentService, this.fileService, this.storageService);
+		const syncDataToUpdate: ISyncData = { version: GLOBAL_STATE_DATA_VERSION, machineId, content: formatAndStringify(remoteGlobalState) };
+		await this.userDataSyncStoreClient.write(SyncResource.GlobalState, JSON.stringify(syncDataToUpdate), globalStateUserData.ref, syncHeaders);
+	}
+
+	private parseGlobalState({ content }: IUserData): IGlobalState | null {
+		if (!content) {
+			return null;
+		}
+		const syncData = JSON.parse(content);
+		if (isSyncData(syncData)) {
+			return syncData ? JSON.parse(syncData.content) : null;
+		}
+		throw new Error('Invalid remote data');
 	}
 
 }

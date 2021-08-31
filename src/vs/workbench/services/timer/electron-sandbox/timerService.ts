@@ -8,14 +8,18 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IStartupMetrics, AbstractTimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
+import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { context, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class TimerService extends AbstractTimerService {
 
@@ -31,15 +35,19 @@ export class TimerService extends AbstractTimerService {
 		@IEditorService editorService: IEditorService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IProductService private readonly _productService: IProductService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
-		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService);
+		super(lifecycleService, contextService, extensionService, updateService, viewletService, panelService, editorService, accessibilityService, telemetryService, layoutService);
+		this.setPerformanceMarks('main', _environmentService.configuration.perfMarks);
 	}
 
 	protected _isInitialStartup(): boolean {
 		return Boolean(this._environmentService.configuration.isInitialStartup);
 	}
 	protected _didUseCachedData(): boolean {
-		return didUseCachedData();
+		return didUseCachedData(this._productService, this._storageService, this._environmentService);
 	}
 	protected _getWindowCount(): Promise<number> {
 		return this._nativeHostService.getWindowCount();
@@ -79,30 +87,28 @@ export class TimerService extends AbstractTimerService {
 	}
 }
 
+registerSingleton(ITimerService, TimerService);
+
 //#region cached data logic
 
-export function didUseCachedData(): boolean {
-	// TODO@Ben TODO@Jo need a different way to figure out if cached data was used
-	if (context.sandbox) {
-		return true;
-	}
-	// We surely don't use cached data when we don't tell the loader to do so
-	if (!Boolean((<any>window).require.getConfig().nodeCachedData)) {
-		return false;
-	}
-	// There are loader events that signal if cached data was missing, rejected,
-	// or used. The former two mean no cached data.
-	let cachedDataFound = 0;
-	for (const event of require.getStats()) {
-		switch (event.type) {
-			case LoaderEventType.CachedDataRejected:
-				return false;
-			case LoaderEventType.CachedDataFound:
-				cachedDataFound += 1;
-				break;
+const lastRunningCommitStorageKey = 'perf/lastRunningCommit';
+let _didUseCachedData: boolean | undefined = undefined;
+
+export function didUseCachedData(productService: IProductService, storageService: IStorageService, environmentService: INativeWorkbenchEnvironmentService): boolean {
+	// browser code loading: only a guess based on
+	// this being the first start with the commit
+	// or subsequent
+	if (typeof _didUseCachedData !== 'boolean') {
+		if (!environmentService.configuration.codeCachePath || !productService.commit) {
+			_didUseCachedData = false; // we only produce cached data whith commit and code cache path
+		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.GLOBAL) === productService.commit) {
+			_didUseCachedData = true; // subsequent start on same commit, assume cached data is there
+		} else {
+			storageService.store(lastRunningCommitStorageKey, productService.commit, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			_didUseCachedData = false; // first time start on commit, assume cached data is not yet there
 		}
 	}
-	return cachedDataFound > 0;
+	return _didUseCachedData;
 }
 
 //#endregion

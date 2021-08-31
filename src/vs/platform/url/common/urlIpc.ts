@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel, IClientRouter, IConnectionHub, Client } from 'vs/base/parts/ipc/common/ipc';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { Client, IChannel, IClientRouter, IConnectionHub, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IOpenURLOptions, IURLHandler } from 'vs/platform/url/common/url';
 
 export class URLHandlerChannel implements IServerChannel {
 
@@ -19,7 +19,7 @@ export class URLHandlerChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
-			case 'handleURL': return this.handler.handleURL(URI.revive(arg));
+			case 'handleURL': return this.handler.handleURL(URI.revive(arg[0]), arg[1]);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -31,7 +31,7 @@ export class URLHandlerChannelClient implements IURLHandler {
 	constructor(private channel: IChannel) { }
 
 	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		return this.channel.call('handleURL', uri.toJSON());
+		return this.channel.call('handleURL', [uri.toJSON(), options]);
 	}
 }
 

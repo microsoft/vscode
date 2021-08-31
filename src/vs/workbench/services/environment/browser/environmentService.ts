@@ -15,6 +15,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
+import { LogLevelToString } from 'vs/platform/log/common/log';
+import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { isUndefined } from 'vs/base/common/types';
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
@@ -42,8 +45,7 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 					return [{
 						fileUri: fileUri.with({ path: pathColumnAware.path }),
-						lineNumber: pathColumnAware.line,
-						columnNumber: pathColumnAware.column
+						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
 					}];
 				}
 
@@ -85,6 +87,7 @@ interface IExtensionHostDebugEnvironment {
 	debugRenderer: boolean;
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI?: URI[];
+	extensionDevelopmentKind?: ExtensionKind[];
 	extensionTestsLocationURI?: URI;
 	extensionEnabledProposedApi?: string[];
 }
@@ -106,15 +109,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
 
 	@memoize
-	get sessionId(): string { return this.configuration.sessionId; }
-
-	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize
 	get logsPath(): string { return this.options.logsPath.path; }
 
-	get logLevel(): string | undefined { return this.payload?.get('logLevel'); }
+	@memoize
+	get logLevel(): string | undefined { return this.payload?.get('logLevel') || (this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined); }
 
 	@memoize
 	get logFile(): URI { return joinPath(this.options.logsPath, 'window.log'); }
@@ -158,9 +159,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
-	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', this.options.workspaceId); }
-
-	@memoize
 	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
 
 	@memoize
@@ -194,6 +192,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.extensionDevelopmentLocationURI;
 	}
 
+	get extensionDevelopmentLocationKind(): ExtensionKind[] | undefined {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.extensionDevelopmentKind;
+	}
+
 	get extensionTestsLocationURI(): URI | undefined {
 		if (!this._extensionHostDebugEnvironment) {
 			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
@@ -220,25 +226,17 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
-	private get webviewEndpoint(): string {
-		// TODO@matt: get fallback from product service
-		return this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
-	}
+	get enableExtensions() { return this.options.enabledExtensions; }
 
 	@memoize
 	get webviewExternalEndpoint(): string {
-		return (this.webviewEndpoint).replace('{{commit}}', this.productService.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
-	}
+		const endpoint = this.options.webviewEndpoint
+			|| this.productService.webviewContentExternalBaseUrlTemplate
+			|| 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
 
-	@memoize
-	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
-	}
-
-	@memoize
-	get webviewCspSource(): string {
-		const uri = URI.parse(this.webviewEndpoint.replace('{{uuid}}', '*'));
-		return `${uri.scheme}://${uri.authority}`;
+		return endpoint
+			.replace('{{commit}}', this.payload?.get('webviewExternalEndpointCommit') ?? this.productService.commit ?? 'a81fff00c9dab105800118fcf8b044cd84620419')
+			.replace('{{quality}}', this.productService.quality || 'insider');
 	}
 
 	@memoize
@@ -249,6 +247,10 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
 	get skipReleaseNotes(): boolean { return false; }
+	get skipWelcome(): boolean { return this.payload?.get('skipWelcome') === 'true'; }
+
+	@memoize
+	get disableWorkspaceTrust(): boolean { return true; }
 
 	private payload: Map<string, string> | undefined;
 
@@ -273,7 +275,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			},
 			debugRenderer: false,
 			isExtensionDevelopment: false,
-			extensionDevelopmentLocationURI: undefined
+			extensionDevelopmentLocationURI: undefined,
+			extensionDevelopmentKind: undefined
 		};
 
 		// Fill in selected extra environmental properties
@@ -281,8 +284,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			for (const [key, value] of this.payload) {
 				switch (key) {
 					case 'extensionDevelopmentPath':
-						extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [URI.parse(value)];
+						if (!extensionHostDebugEnvironment.extensionDevelopmentLocationURI) {
+							extensionHostDebugEnvironment.extensionDevelopmentLocationURI = [];
+						}
+						extensionHostDebugEnvironment.extensionDevelopmentLocationURI.push(URI.parse(value));
 						extensionHostDebugEnvironment.isExtensionDevelopment = true;
+						break;
+					case 'extensionDevelopmentKind':
+						extensionHostDebugEnvironment.extensionDevelopmentKind = [<ExtensionKind>value];
 						break;
 					case 'extensionTestsPath':
 						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
@@ -304,6 +313,17 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
 						break;
 				}
+			}
+		}
+
+		const developmentOptions = this.options.developmentOptions;
+		if (developmentOptions && !extensionHostDebugEnvironment.isExtensionDevelopment) {
+			if (developmentOptions.extensions?.length) {
+				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
+				extensionHostDebugEnvironment.isExtensionDevelopment = true;
+			}
+			if (developmentOptions.extensionTestsPath) {
+				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
 			}
 		}
 

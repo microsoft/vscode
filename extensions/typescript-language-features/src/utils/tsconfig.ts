@@ -28,19 +28,27 @@ export function inferredProjectCompilerOptions(
 ): Proto.ExternalProjectCompilerOptions {
 	const projectConfig: Proto.ExternalProjectCompilerOptions = {
 		module: 'commonjs' as Proto.ModuleKind,
-		target: 'es2016' as Proto.ScriptTarget,
+		target: 'es2020' as Proto.ScriptTarget,
 		jsx: 'preserve' as Proto.JsxEmit,
 	};
 
-	if (serviceConfig.checkJs) {
+	if (serviceConfig.implicitProjectConfiguration.checkJs) {
 		projectConfig.checkJs = true;
 		if (projectType === ProjectType.TypeScript) {
 			projectConfig.allowJs = true;
 		}
 	}
 
-	if (serviceConfig.experimentalDecorators) {
+	if (serviceConfig.implicitProjectConfiguration.experimentalDecorators) {
 		projectConfig.experimentalDecorators = true;
+	}
+
+	if (serviceConfig.implicitProjectConfiguration.strictNullChecks) {
+		projectConfig.strictNullChecks = true;
+	}
+
+	if (serviceConfig.implicitProjectConfiguration.strictFunctionTypes) {
+		projectConfig.strictFunctionTypes = true;
 	}
 
 	if (projectType === ProjectType.TypeScript) {

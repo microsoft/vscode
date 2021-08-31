@@ -9,7 +9,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
+import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 
 interface Entry<T> {
@@ -25,7 +25,7 @@ function isExclusive(selector: LanguageSelector): boolean {
 	} else if (Array.isArray(selector)) {
 		return selector.every(isExclusive);
 	} else {
-		return !!selector.exclusive;
+		return !!(selector as LanguageFilter).exclusive; // TODO: microsoft/TypeScript#42768
 	}
 }
 

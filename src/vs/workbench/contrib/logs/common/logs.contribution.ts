@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { join } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { SetLogLevelAction, OpenWindowSessionLogFileAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -18,10 +18,11 @@ import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/se
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { dirname } from 'vs/base/common/resources';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);
@@ -54,6 +55,21 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		};
 		registerTelemetryChannel(this.logService.getLevel());
 		this.logService.onDidChangeLogLevel(registerTelemetryChannel);
+
+		registerAction2(class ShowWindowLogAction extends Action2 {
+			constructor() {
+				super({
+					id: Constants.showWindowLogActionId,
+					title: { value: nls.localize('show window log', "Show Window Log"), original: 'Show Window Log' },
+					category: CATEGORIES.Developer,
+					f1: true
+				});
+			}
+			async run(servicesAccessor: ServicesAccessor): Promise<void> {
+				const outputService = servicesAccessor.get(IOutputService);
+				outputService.showChannel(Constants.rendererLogChannelId);
+			}
+		});
 	}
 
 	private registerWebContributions(): void {

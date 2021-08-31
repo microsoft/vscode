@@ -12,12 +12,12 @@ import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeServ
 import { diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { BulkEditPreviewProvider, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,7 +26,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
-import { basename } from 'vs/base/common/resources';
+import { basename, dirname } from 'vs/base/common/resources';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -34,7 +34,7 @@ import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -100,12 +100,12 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._tree.dispose();
 		this._disposables.dispose();
 	}
 
-	protected renderBody(parent: HTMLElement): void {
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
 		const resourceLabels = this._instaService.createInstance(
@@ -128,7 +128,7 @@ export class BulkEditPane extends ViewPane {
 		this._tree = <WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>>this._instaService.createInstance(
 			WorkbenchAsyncDataTree, this.id, treeContainer,
 			new BulkEditDelegate(),
-			[new TextEditElementRenderer(), this._instaService.createInstance(FileElementRenderer, resourceLabels), new CategoryElementRenderer()],
+			[this._instaService.createInstance(TextEditElementRenderer), this._instaService.createInstance(FileElementRenderer, resourceLabels), this._instaService.createInstance(CategoryElementRenderer)],
 			this._treeDataSource,
 			{
 				accessibilityProvider: this._instaService.createInstance(BulkEditAccessibilityProvider),
@@ -137,7 +137,7 @@ export class BulkEditPane extends ViewPane {
 				multipleSelectionSupport: false,
 				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
 				sorter: new BulkEditSorter(),
-				openOnFocus: true
+				selectionNavigation: true
 			}
 		);
 
@@ -154,7 +154,7 @@ export class BulkEditPane extends ViewPane {
 		this._setState(State.Message);
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._tree.layout(height, width);
 	}
@@ -245,7 +245,7 @@ export class BulkEditPane extends ViewPane {
 			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
 		}
 
-		this._dialogService.show(Severity.Warning, message, []).finally(() => this._done(false));
+		this._dialogService.show(Severity.Warning, message).finally(() => this._done(false));
 	}
 
 	discard() {
@@ -293,12 +293,12 @@ export class BulkEditPane extends ViewPane {
 			this._setTreeInput(input);
 
 			// (3) remember preference
-			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL);
+			this._storageService.store(BulkEditPane._memGroupByFile, this._treeDataSource.groupByFile, StorageScope.GLOBAL, StorageTarget.USER);
 			this._ctxGroupByFile.set(this._treeDataSource.groupByFile);
 		}
 	}
 
-	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | null>): Promise<void> {
+	private async _openElementAsEditor(e: IOpenEvent<BulkEditElement | undefined>): Promise<void> {
 		type Mutable<T> = {
 			-readonly [P in keyof T]: T[P]
 		};
@@ -353,18 +353,19 @@ export class BulkEditPane extends ViewPane {
 			}
 
 			this._editorService.openEditor({
-				leftResource,
-				rightResource: previewUri,
+				original: { resource: leftResource },
+				modified: { resource: previewUri },
 				label,
+				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
 				options
-			});
+			}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 
 	private _onContextMenu(e: ITreeContextMenuEvent<any>): void {
 		const menu = this._menuService.createMenu(MenuId.BulkEditContext, this._contextKeyService);
 		const actions: IAction[] = [];
-		const disposable = createAndFillInContextMenuActions(menu, undefined, actions, this._contextMenuService);
+		const disposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getActions: () => actions,

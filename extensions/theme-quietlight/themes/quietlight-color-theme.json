@@ -46,6 +46,13 @@
 			}
 		},
 		{
+			"name": "Invalid",
+			"scope": "invalid",
+			"settings": {
+				"foreground": "#cd3131"
+			}
+		},
+		{
 			"name": "Invalid - Illegal",
 			"scope": "invalid.illegal",
 			"settings": {
@@ -409,16 +416,37 @@
 		},
 		{
 			"name": "Extra: Diff From",
-			"scope": "meta.diff.header.from-file",
+			"scope": ["meta.diff.header.from-file", "punctuation.definition.from-file.diff"],
 			"settings": {
-				"foreground": "#434343"
+				"foreground": "#4B69C6"
 			}
 		},
 		{
 			"name": "Extra: Diff To",
-			"scope": "meta.diff.header.to-file",
+			"scope": ["meta.diff.header.to-file", "punctuation.definition.to-file.diff"],
 			"settings": {
-				"foreground": "#434343"
+				"foreground": "#4B69C6"
+			}
+		},
+		{
+			"name": "diff: deleted",
+			"scope": "markup.deleted.diff",
+			"settings": {
+				"foreground": "#C73D20"
+			}
+		},
+		{
+			"name": "diff: changed",
+			"scope": "markup.changed.diff",
+			"settings": {
+				"foreground": "#9C5D27"
+			}
+		},
+		{
+			"name": "diff: inserted",
+			"scope": "markup.inserted.diff",
+			"settings": {
+				"foreground": "#448C27"
 			}
 		},
 		{
@@ -445,7 +473,7 @@
 		"pickerGroup.foreground": "#A6B39B",
 		"pickerGroup.border": "#749351",
 		"list.activeSelectionForeground": "#6c6c6c",
-		"list.focusBackground": "#CADEB9",
+		"quickInputList.focusBackground": "#CADEB9",
 		"list.hoverBackground": "#e0e0e0",
 		"list.activeSelectionBackground": "#c4d9b1",
 		"list.inactiveSelectionBackground": "#d3dbcd",
@@ -474,9 +502,11 @@
 		"peekViewResult.matchHighlightBackground": "#93C6D6",
 		"tab.lastPinnedBorder": "#c9d0d9",
 		"statusBar.background": "#705697",
+		"welcomePage.tileBackground": "#f0f0f7",
 		"statusBar.noFolderBackground": "#705697",
 		"statusBar.debuggingBackground": "#705697",
 		"statusBarItem.remoteBackground": "#4e3c69",
+		"ports.iconRunningProcessForeground": "#749351",
 		"activityBar.background": "#EDEDF5",
 		"activityBar.foreground": "#705697",
 		"activityBarBadge.background": "#705697",

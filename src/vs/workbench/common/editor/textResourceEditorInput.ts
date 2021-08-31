@@ -3,192 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, ISaveOptions, IRevertOptions, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IEditorInput, IRevertOptions, isTextEditorPane, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
-import { ITextFileService, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileSaveOptions, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Schemas } from 'vs/base/common/network';
-import { dirname, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
+import { IReference } from 'vs/base/common/lifecycle';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 /**
  * The base class for all editor inputs that open in text editors.
  */
-export abstract class AbstractTextResourceEditorInput extends EditorInput implements IEditorInputWithPreferredResource {
-
-	private _preferredResource: URI;
-	get preferredResource(): URI { return this._preferredResource; }
+export abstract class AbstractTextResourceEditorInput extends AbstractResourceEditorInput {
 
 	constructor(
-		public readonly resource: URI,
+		resource: URI,
 		preferredResource: URI | undefined,
 		@IEditorService protected readonly editorService: IEditorService,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
-		@ILabelService protected readonly labelService: ILabelService,
-		@IFileService protected readonly fileService: IFileService,
-		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
+		@ILabelService labelService: ILabelService,
+		@IFileService fileService: IFileService
 	) {
-		super();
-
-		this._preferredResource = preferredResource || resource;
-
-		this.registerListeners();
+		super(resource, preferredResource, labelService, fileService);
 	}
 
-	protected registerListeners(): void {
-
-		// Clear label memoizer on certain events that have impact
-		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
-	}
-
-	private onLabelEvent(scheme: string): void {
-		if (scheme === this._preferredResource.scheme) {
-			this.updateLabel();
-		}
-	}
-
-	private updateLabel(): void {
-
-		// Clear any cached labels from before
-		this._basename = undefined;
-		this._shortDescription = undefined;
-		this._mediumDescription = undefined;
-		this._longDescription = undefined;
-		this._shortTitle = undefined;
-		this._mediumTitle = undefined;
-		this._longTitle = undefined;
-
-		// Trigger recompute of label
-		this._onDidChangeLabel.fire();
-	}
-
-	setPreferredResource(preferredResource: URI): void {
-		if (!isEqual(preferredResource, this._preferredResource)) {
-			this._preferredResource = preferredResource;
-
-			this.updateLabel();
-		}
-	}
-
-	getName(): string {
-		return this.basename;
-	}
-
-	private _basename: string | undefined;
-	private get basename(): string {
-		if (!this._basename) {
-			this._basename = this.labelService.getUriBasenameLabel(this._preferredResource);
-		}
-
-		return this._basename;
-	}
-
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortDescription;
-			case Verbosity.LONG:
-				return this.longDescription;
-			case Verbosity.MEDIUM:
-			default:
-				return this.mediumDescription;
-		}
-	}
-
-	private _shortDescription: string | undefined = undefined;
-	private get shortDescription(): string {
-		if (!this._shortDescription) {
-			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this._preferredResource));
-		}
-		return this._shortDescription;
-	}
-
-	private _mediumDescription: string | undefined = undefined;
-	private get mediumDescription(): string {
-		if (!this._mediumDescription) {
-			this._mediumDescription = this.labelService.getUriLabel(dirname(this._preferredResource), { relative: true });
-		}
-		return this._mediumDescription;
-	}
-
-	private _longDescription: string | undefined = undefined;
-	private get longDescription(): string {
-		if (!this._longDescription) {
-			this._longDescription = this.labelService.getUriLabel(dirname(this._preferredResource));
-		}
-		return this._longDescription;
-	}
-
-	private _shortTitle: string | undefined = undefined;
-	private get shortTitle(): string {
-		if (!this._shortTitle) {
-			this._shortTitle = this.getName();
-		}
-		return this._shortTitle;
-	}
-
-	private _mediumTitle: string | undefined = undefined;
-	private get mediumTitle(): string {
-		if (!this._mediumTitle) {
-			this._mediumTitle = this.labelService.getUriLabel(this._preferredResource, { relative: true });
-		}
-		return this._mediumTitle;
-	}
-
-	private _longTitle: string | undefined = undefined;
-	private get longTitle(): string {
-		if (!this._longTitle) {
-			this._longTitle = this.labelService.getUriLabel(this._preferredResource);
-		}
-		return this._longTitle;
-	}
-
-	getTitle(verbosity: Verbosity): string {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortTitle;
-			case Verbosity.LONG:
-				return this.longTitle;
-			default:
-			case Verbosity.MEDIUM:
-				return this.mediumTitle;
-		}
-	}
-
-	isUntitled(): boolean {
-		//  anyFile: is never untitled as it can be saved
-		// untitled: is untitled by definition
-		// anyOther: is untitled because it cannot be saved, as such we expect a "Save As" dialog
-		return !this.fileService.canHandleResource(this.resource);
-	}
-
-	isReadonly(): boolean {
-		if (this.isUntitled()) {
-			return false; // untitled is never readonly
-		}
-
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
-	}
-
-	isSaving(): boolean {
-		if (this.isUntitled()) {
-			return false; // untitled is never saving automatically
-		}
-
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // a short auto save is configured, treat this as being saved
-		}
-
-		return false;
-	}
-
-	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+	override save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
 
 		// If this is neither an `untitled` resource, nor a resource
 		// we can handle with the file service, we can only "Save As..."
@@ -197,14 +43,14 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		}
 
 		// Normal save
-		return this.doSave(group, options, false);
+		return this.doSave(options, false);
 	}
 
-	saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
-		return this.doSave(group, options, true);
+	override saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+		return this.doSave(options, true);
 	}
 
-	private async doSave(group: GroupIdentifier, options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
+	private async doSave(options: ITextFileSaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
 
 		// Save / Save As
 		let target: URI | undefined;
@@ -218,15 +64,167 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 			return undefined; // save cancelled
 		}
 
-		// If the target is a different resource, return with a new editor input
-		if (!isEqual(target, this.preferredResource)) {
+		// If this save operation results in a new editor, either
+		// because it was saved to disk (e.g. from untitled) or
+		// through an explicit "Save As", make sure to replace it.
+		if (
+			target.scheme !== this.resource.scheme ||
+			(saveAs && !isEqual(target, this.preferredResource))
+		) {
 			return this.editorService.createEditorInput({ resource: target });
 		}
 
 		return this;
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		await this.textFileService.revert(this.resource, options);
+	}
+
+	protected getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
+		for (const editorPane of this.editorService.visibleEditorPanes) {
+			if (editorPane.group.id === group && this.matches(editorPane.input)) {
+				if (isTextEditorPane(editorPane)) {
+					return editorPane.getViewState();
+				}
+			}
+		}
+
+		return undefined;
+	}
+}
+
+/**
+ * A read-only text editor input whos contents are made of the provided resource that points to an existing
+ * code editor model.
+ */
+export class TextResourceEditorInput extends AbstractTextResourceEditorInput implements IModeSupport {
+
+	static readonly ID: string = 'workbench.editors.resourceEditorInput';
+
+	override get typeId(): string {
+		return TextResourceEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
+	private cachedModel: TextResourceEditorModel | undefined = undefined;
+	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
+
+	constructor(
+		resource: URI,
+		private name: string | undefined,
+		private description: string | undefined,
+		private preferredMode: string | undefined,
+		private preferredContents: string | undefined,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService
+	) {
+		super(resource, undefined, editorService, textFileService, labelService, fileService);
+	}
+
+	override getName(): string {
+		return this.name || super.getName();
+	}
+
+	setName(name: string): void {
+		if (this.name !== name) {
+			this.name = name;
+
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	override getDescription(): string | undefined {
+		return this.description;
+	}
+
+	setDescription(description: string): void {
+		if (this.description !== description) {
+			this.description = description;
+
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	setMode(mode: string): void {
+		this.setPreferredMode(mode);
+
+		if (this.cachedModel) {
+			this.cachedModel.setMode(mode);
+		}
+	}
+
+	setPreferredMode(mode: string): void {
+		this.preferredMode = mode;
+	}
+
+	setPreferredContents(contents: string): void {
+		this.preferredContents = contents;
+	}
+
+	override async resolve(): Promise<ITextEditorModel> {
+
+		// Unset preferred contents and mode after resolving
+		// once to prevent these properties to stick. We still
+		// want the user to change the language mode in the editor
+		// and want to show updated contents (if any) in future
+		// `resolve` calls.
+		const preferredContents = this.preferredContents;
+		const preferredMode = this.preferredMode;
+		this.preferredContents = undefined;
+		this.preferredMode = undefined;
+
+		if (!this.modelReference) {
+			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
+		}
+
+		const ref = await this.modelReference;
+
+		// Ensure the resolved model is of expected type
+		const model = ref.object;
+		if (!(model instanceof TextResourceEditorModel)) {
+			ref.dispose();
+			this.modelReference = undefined;
+
+			throw new Error(`Unexpected model for TextResourceEditorInput: ${this.resource}`);
+		}
+
+		this.cachedModel = model;
+
+		// Set contents and mode if preferred
+		if (typeof preferredContents === 'string' || typeof preferredMode === 'string') {
+			model.updateTextEditorModel(typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined, preferredMode);
+		}
+
+		return model;
+	}
+
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
+			return true;
+		}
+
+		if (otherInput instanceof TextResourceEditorInput) {
+			return isEqual(otherInput.resource, this.resource);
+		}
+
+		return false;
+	}
+
+	override dispose(): void {
+		if (this.modelReference) {
+			this.modelReference.then(ref => ref.dispose());
+			this.modelReference = undefined;
+		}
+
+		this.cachedModel = undefined;
+
+		super.dispose();
 	}
 }

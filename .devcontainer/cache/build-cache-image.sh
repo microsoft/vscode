@@ -8,14 +8,14 @@ set -e
 
 SCRIPT_PATH="$(cd "$(dirname $0)" && pwd)"
 CONTAINER_IMAGE_REPOSITORY="$1"
-BRANCH="${2:-"master"}"
+BRANCH="${2:-"main"}"
 
 if [ "${CONTAINER_IMAGE_REPOSITORY}" = "" ]; then
 	echo "Container repository not specified!"
 	exit 1
 fi
 
-TAG="${BRANCH//\//-}"
+TAG="branch-${BRANCH//\//-}"
 echo "[$(date)] ${BRANCH} => ${TAG}"
 cd "${SCRIPT_PATH}/../.."
 

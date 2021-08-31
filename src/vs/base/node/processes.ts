@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import * as fs from 'fs';
-import { promisify } from 'util';
 import * as cp from 'child_process';
-import * as nls from 'vs/nls';
-import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
-import * as Objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
-import * as Platform from 'vs/base/common/platform';
-import { LineDecoder } from 'vs/base/node/decoder';
-import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
 import { FileAccess } from 'vs/base/common/network';
+import * as Objects from 'vs/base/common/objects';
+import * as path from 'vs/base/common/path';
+import * as Platform from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
+import { CommandOptions, Executable, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
+import * as Types from 'vs/base/common/types';
+import { LineDecoder } from 'vs/base/node/decoder';
+import * as pfs from 'vs/base/node/pfs';
+import * as nls from 'vs/nls';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
 export type ValueCallback<T> = (value: T | Promise<T>) => void;
@@ -50,7 +50,7 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 				options.cwd = cwd;
 			}
 			const killProcess = cp.execFile('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
-			return new Promise((resolve, reject) => {
+			return new Promise(resolve => {
 				killProcess.once('error', (err) => {
 					resolve({ success: false, error: err });
 				});
@@ -68,7 +68,7 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
 			const cmd = FileAccess.asFileUri('vs/base/node/terminateProcess.sh', require).fsPath;
-			return new Promise((resolve, reject) => {
+			return new Promise(resolve => {
 				cp.execFile(cmd, [process.pid.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
 					if (err) {
 						resolve({ success: false, error: err });
@@ -86,8 +86,8 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	return Promise.resolve({ success: true });
 }
 
-export function getWindowsShell(): string {
-	return process.env['comspec'] || 'cmd.exe';
+export function getWindowsShell(env = process.env as Platform.IProcessEnvironment): string {
+	return env['comspec'] || 'cmd.exe';
 }
 
 export abstract class AbstractProcess<TProgressData> {
@@ -378,7 +378,7 @@ export class LineProcess extends AbstractProcess<LineData> {
 		this.stderrLineDecoder = stderrLineDecoder;
 	}
 
-	protected handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
+	protected override handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
 		const stdoutLine = this.stdoutLineDecoder ? this.stdoutLineDecoder.end() : null;
 		if (stdoutLine) {
 			pp({ line: stdoutLine, source: Source.stdout });
@@ -447,8 +447,8 @@ export namespace win32 {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		if (paths === undefined && Types.isString(process.env.PATH)) {
-			paths = process.env.PATH.split(path.delimiter);
+		if (paths === undefined && Types.isString(process.env['PATH'])) {
+			paths = process.env['PATH'].split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
 		if (paths === undefined || paths.length === 0) {
@@ -456,8 +456,8 @@ export namespace win32 {
 		}
 
 		async function fileExists(path: string): Promise<boolean> {
-			if (await promisify(fs.exists)(path)) {
-				return !((await promisify(fs.stat)(path)).isDirectory());
+			if (await pfs.Promises.exists(path)) {
+				return !((await pfs.Promises.stat(path)).isDirectory());
 			}
 			return false;
 		}

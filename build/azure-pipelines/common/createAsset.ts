@@ -6,11 +6,13 @@
 'use strict';
 
 import * as fs from 'fs';
+import * as url from 'url';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
 import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
+import { retry } from './retry';
 
 interface Asset {
 	platform: string;
@@ -23,9 +25,96 @@ interface Asset {
 	supportsFastUpdate?: boolean;
 }
 
-if (process.argv.length !== 6) {
-	console.error('Usage: node createAsset.js PLATFORM TYPE NAME FILE');
+if (process.argv.length !== 8) {
+	console.error('Usage: node createAsset.js PRODUCT OS ARCH TYPE NAME FILE');
 	process.exit(-1);
+}
+
+// Contains all of the logic for mapping details to our actual product names in CosmosDB
+function getPlatform(product: string, os: string, arch: string, type: string): string {
+	switch (os) {
+		case 'win32':
+			switch (product) {
+				case 'client':
+					const asset = arch === 'ia32' ? 'win32' : `win32-${arch}`;
+					switch (type) {
+						case 'archive':
+							return `${asset}-archive`;
+						case 'setup':
+							return asset;
+						case 'user-setup':
+							return `${asset}-user`;
+						default:
+							throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					}
+				case 'server':
+					if (arch === 'arm64') {
+						throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					}
+					return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
+				case 'web':
+					if (arch === 'arm64') {
+						throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					}
+					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
+				default:
+					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+			}
+		case 'linux':
+			switch (type) {
+				case 'snap':
+					return `linux-snap-${arch}`;
+				case 'archive-unsigned':
+					switch (product) {
+						case 'client':
+							return `linux-${arch}`;
+						case 'server':
+							return `server-linux-${arch}`;
+						case 'web':
+							return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
+						default:
+							throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					}
+				case 'deb-package':
+					return `linux-deb-${arch}`;
+				case 'rpm-package':
+					return `linux-rpm-${arch}`;
+				default:
+					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+			}
+		case 'darwin':
+			switch (product) {
+				case 'client':
+					if (arch === 'x64') {
+						return 'darwin';
+					}
+					return `darwin-${arch}`;
+				case 'server':
+					return 'server-darwin';
+				case 'web':
+					if (arch !== 'x64') {
+						throw `What should the platform be?: ${product} ${os} ${arch} ${type}`;
+					}
+					return 'server-darwin-web';
+				default:
+					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+			}
+		default:
+			throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+	}
+}
+
+// Contains all of the logic for mapping types to our actual types in CosmosDB
+function getRealType(type: string) {
+	switch (type) {
+		case 'user-setup':
+			return 'setup';
+		case 'deb-package':
+		case 'rpm-package':
+			return 'package';
+		default:
+			return type;
+	}
 }
 
 function hashStream(hashName: string, stream: Readable): Promise<string> {
@@ -67,7 +156,10 @@ function getEnv(name: string): string {
 }
 
 async function main(): Promise<void> {
-	const [, , platform, type, fileName, filePath] = process.argv;
+	const [, , product, os, arch, unprocessedType, fileName, filePath] = process.argv;
+	// getPlatform needs the unprocessedType
+	const platform = getPlatform(product, os, arch, unprocessedType);
+	const type = getRealType(unprocessedType);
 	const quality = getEnv('VSCODE_QUALITY');
 	const commit = getEnv('BUILD_SOURCEVERSION');
 
@@ -97,17 +189,33 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	console.log('Uploading blobs to Azure storage...');
+	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY']!, `${storageAccount}.blob.core.chinacloudapi.cn`)
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
-	await uploadBlob(blobService, quality, blobName, filePath, fileName);
+	// mooncake is fussy and far away, this is needed!
+	blobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+
+	console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
+
+	await retry(() => Promise.all([
+		uploadBlob(blobService, quality, blobName, filePath, fileName),
+		uploadBlob(mooncakeBlobService, quality, blobName, filePath, fileName)
+	]));
 
 	console.log('Blobs successfully uploaded.');
+
+	// TODO: Understand if blobName and blobPath are the same and replace blobPath with blobName if so.
+	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
+	const blobPath = url.parse(assetUrl).path;
+	const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
 
 	const asset: Asset = {
 		platform,
 		type,
-		url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
+		url: assetUrl,
 		hash: sha1hash,
+		mooncakeUrl,
 		sha256hash,
 		size
 	};
@@ -121,7 +229,9 @@ async function main(): Promise<void> {
 
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const scripts = client.database('builds').container(quality).scripts;
-	await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
+	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
+
+	console.log(`  Done ✔️`);
 }
 
 main().then(() => {

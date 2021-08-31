@@ -127,7 +127,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
-					this.openerService.open(content).catch(onUnexpectedError);
+					this.openerService.open(content, { allowCommands: node.element.comment.body.isTrusted }).catch(onUnexpectedError);
 				},
 				disposeables: disposables
 			}
@@ -142,6 +142,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		}
 
 		templateData.commentText.appendChild(renderedComment);
+		templateData.commentText.title = renderedComment.textContent ?? '';
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {

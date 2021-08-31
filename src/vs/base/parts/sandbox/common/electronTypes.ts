@@ -7,12 +7,16 @@
 // #######################################################################
 // ###                                                                 ###
 // ###      electron.d.ts types we need in a common layer for reuse    ###
-// ###                    (copied from Electron 9.x)                   ###
+// ###                    (copied from Electron 11.x)                  ###
 // ###                                                                 ###
 // #######################################################################
 
 
 export interface MessageBoxOptions {
+	/**
+	 * Content of the message box.
+	 */
+	message: string;
 	/**
 	 * Can be `"none"`, `"info"`, `"error"`, `"question"` or `"warning"`. On Windows,
 	 * `"question"` displays the same icon as `"info"`, unless you set an icon using
@@ -34,10 +38,6 @@ export interface MessageBoxOptions {
 	 * Title of the message box, some platforms will not show it.
 	 */
 	title?: string;
-	/**
-	 * Content of the message box.
-	 */
-	message: string;
 	/**
 	 * Extra information of the message.
 	 */
@@ -212,7 +212,7 @@ export interface SaveDialogReturnValue {
 
 export interface FileFilter {
 
-	// Docs: http://electronjs.org/docs/api/structures/file-filter
+	// Docs: https://electronjs.org/docs/api/structures/file-filter
 
 	extensions: string[];
 	name: string;
@@ -220,7 +220,7 @@ export interface FileFilter {
 
 export interface InputEvent {
 
-	// Docs: http://electronjs.org/docs/api/structures/input-event
+	// Docs: https://electronjs.org/docs/api/structures/input-event
 
 	/**
 	 * An array of modifiers of the event, can be `shift`, `control`, `ctrl`, `alt`,
@@ -232,7 +232,7 @@ export interface InputEvent {
 
 export interface MouseInputEvent extends InputEvent {
 
-	// Docs: http://electronjs.org/docs/api/structures/mouse-input-event
+	// Docs: https://electronjs.org/docs/api/structures/mouse-input-event
 
 	/**
 	 * The button pressed, can be `left`, `middle`, `right`.

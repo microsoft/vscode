@@ -6,6 +6,8 @@
 import { globals } from 'vs/base/common/platform';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 
+const ttPolicy = window.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });
+
 function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 	// Option for hosts to overwrite the worker script (used in the standalone editor)
 	if (globals.MonacoEnvironment) {
@@ -13,7 +15,8 @@ function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 			return globals.MonacoEnvironment.getWorker(workerId, label);
 		}
 		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
-			return new Worker(globals.MonacoEnvironment.getWorkerUrl(workerId, label));
+			const wokerUrl = <string>globals.MonacoEnvironment.getWorkerUrl(workerId, label);
+			return new Worker(ttPolicy ? ttPolicy.createScriptURL(wokerUrl) as unknown as string : wokerUrl, { name: label });
 		}
 	}
 	// ESM-comment-begin
@@ -21,30 +24,22 @@ function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 		// check if the JS lives on a different origin
 		const workerMain = require.toUrl('./' + workerId); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
 		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
-		return new Worker(workerUrl, { name: label });
+		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 	}
 	// ESM-comment-end
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
 // ESM-comment-begin
-export function getWorkerBootstrapUrl(scriptPath: string, label: string, forceDataUri: boolean = false): string {
-	if (forceDataUri || /^((http:)|(https:)|(file:))/.test(scriptPath)) {
-		const currentUrl = String(window.location);
-		const currentOrigin = currentUrl.substr(0, currentUrl.length - window.location.hash.length - window.location.search.length - window.location.pathname.length);
-		if (forceDataUri || scriptPath.substring(0, currentOrigin.length) !== currentOrigin) {
-			// this is the cross-origin case
-			// i.e. the webpage is running at a different origin than where the scripts are loaded from
-			const myPath = 'vs/base/worker/defaultWorkerFactory.js';
-			const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-			const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};importScripts('${scriptPath}');/*${label}*/`;
-			if (forceDataUri) {
-				const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
-				return url;
-			}
-			const blob = new Blob([js], { type: 'application/javascript' });
-			return URL.createObjectURL(blob);
-		}
+export function getWorkerBootstrapUrl(scriptPath: string, label: string): string {
+	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, self.origin.length) !== self.origin) {
+		// this is the cross-origin case
+		// i.e. the webpage is running at a different origin than where the scripts are loaded from
+		const myPath = 'vs/base/worker/defaultWorkerFactory.js';
+		const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+		const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = self.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
+		const blob = new Blob([js], { type: 'application/javascript' });
+		return URL.createObjectURL(blob);
 	}
 	return scriptPath + '#' + label;
 }
@@ -76,10 +71,10 @@ class WebWorker implements IWorker {
 		}
 		this.postMessage(moduleId, []);
 		this.worker.then((w) => {
-			w.onmessage = function (ev: any) {
+			w.onmessage = function (ev) {
 				onMessageCallback(ev.data);
 			};
-			(<any>w).onmessageerror = onErrorCallback;
+			w.onmessageerror = onErrorCallback;
 			if (typeof w.addEventListener === 'function') {
 				w.addEventListener('error', onErrorCallback);
 			}

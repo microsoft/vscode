@@ -11,10 +11,19 @@ export const enum RecommendationSource {
 	EXE = 3
 }
 
+export function RecommendationSourceToString(source: RecommendationSource) {
+	switch (source) {
+		case RecommendationSource.FILE: return 'file';
+		case RecommendationSource.WORKSPACE: return 'workspace';
+		case RecommendationSource.EXE: return 'exe';
+	}
+}
+
 export const enum RecommendationsNotificationResult {
 	Ignored = 'ignored',
 	Cancelled = 'cancelled',
 	TooMany = 'toomany',
+	IncompatibleWindow = 'incompatibleWindow',
 	Accepted = 'reacted',
 }
 

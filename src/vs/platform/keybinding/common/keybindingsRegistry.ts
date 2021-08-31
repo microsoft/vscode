@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
+import { createKeybinding, Keybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,6 +17,7 @@ export interface IKeybindingItem {
 	weight1: number;
 	weight2: number;
 	extensionId: string | null;
+	isBuiltinExtension: boolean;
 }
 
 export interface IKeybindings {
@@ -53,6 +54,7 @@ export interface IKeybindingRule2 {
 	weight: number;
 	when: ContextKeyExpression | undefined;
 	extensionId?: string;
+	isBuiltinExtension?: boolean;
 }
 
 export const enum KeybindingWeight {
@@ -164,7 +166,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 					when: rule.when,
 					weight1: rule.weight,
 					weight2: 0,
-					extensionId: rule.extensionId || null
+					extensionId: rule.extensionId || null,
+					isBuiltinExtension: rule.isBuiltinExtension || false
 				};
 			}
 		}
@@ -223,7 +226,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			when: when,
 			weight1: weight1,
 			weight2: weight2,
-			extensionId: null
+			extensionId: null,
+			isBuiltinExtension: false
 		});
 		this._cachedMergedKeybindings = null;
 	}

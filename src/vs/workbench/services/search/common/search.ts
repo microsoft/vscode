@@ -15,14 +15,23 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Event } from 'vs/base/common/event';
-import { relative } from 'vs/base/common/path';
+import * as paths from 'vs/base/common/path';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+
+export { TextSearchCompleteMessageType };
 
 export const VIEWLET_ID = 'workbench.view.search';
 export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
+
+// Warning: this pattern is used in the search editor to detect offsets. If you
+// change this, also change the search-result built-in extension
+const SEARCH_ELIDED_PREFIX = '⟪ ';
+const SEARCH_ELIDED_SUFFIX = ' characters skipped ⟫';
+const SEARCH_ELIDED_MIN_LEN = (SEARCH_ELIDED_PREFIX.length + SEARCH_ELIDED_SUFFIX.length + 5) * 2;
 
 export const ISearchService = createDecorator<ISearchService>('searchService');
 
@@ -70,6 +79,8 @@ export interface ICommonQueryProps<U extends UriComponents> {
 	includePattern?: glob.IExpression;
 	excludePattern?: glob.IExpression;
 	extraFileResources?: U[];
+
+	onlyOpenEditors?: boolean;
 
 	maxResults?: number;
 	usingSearchPaths?: boolean;
@@ -195,8 +206,15 @@ export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProg
 	return !!(p as IProgressMessage).message;
 }
 
+export interface ITextSearchCompleteMessage {
+	text: string;
+	type: TextSearchCompleteMessageType;
+	trusted?: boolean;
+}
+
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
+	messages: ITextSearchCompleteMessage[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
@@ -260,24 +278,32 @@ export class TextSearchMatch implements ITextSearchMatch {
 		// Trim preview if this is one match and a single-line match with a preview requested.
 		// Otherwise send the full text, like for replace or for showing multiple previews.
 		// TODO this is fishy.
-		if (previewOptions && previewOptions.matchLines === 1 && (!Array.isArray(range) || range.length === 1) && isSingleLineRange(range)) {
-			const oneRange = Array.isArray(range) ? range[0] : range;
-
+		const ranges = Array.isArray(range) ? range : [range];
+		if (previewOptions && previewOptions.matchLines === 1 && isSingleLineRangeList(ranges)) {
 			// 1 line preview requested
 			text = getNLines(text, previewOptions.matchLines);
+
+			let result = '';
+			let shift = 0;
+			let lastEnd = 0;
 			const leadingChars = Math.floor(previewOptions.charsPerLine / 5);
-			const previewStart = Math.max(oneRange.startColumn - leadingChars, 0);
-			const previewText = text.substring(previewStart, previewOptions.charsPerLine + previewStart);
+			const matches: ISearchRange[] = [];
+			for (const range of ranges) {
+				const previewStart = Math.max(range.startColumn - leadingChars, 0);
+				const previewEnd = range.startColumn + previewOptions.charsPerLine;
+				if (previewStart > lastEnd + leadingChars + SEARCH_ELIDED_MIN_LEN) {
+					const elision = SEARCH_ELIDED_PREFIX + (previewStart - lastEnd) + SEARCH_ELIDED_SUFFIX;
+					result += elision + text.slice(previewStart, previewEnd);
+					shift += previewStart - (lastEnd + elision.length);
+				} else {
+					result += text.slice(lastEnd, previewEnd);
+				}
 
-			const endColInPreview = (oneRange.endLineNumber - oneRange.startLineNumber + 1) <= previewOptions.matchLines ?
-				Math.min(previewText.length, oneRange.endColumn - previewStart) :  // if number of match lines will not be trimmed by previewOptions
-				previewText.length; // if number of lines is trimmed
+				matches.push(new OneLineRange(0, range.startColumn - shift, range.endColumn - shift));
+				lastEnd = previewEnd;
+			}
 
-			const oneLineRange = new OneLineRange(0, oneRange.startColumn - previewStart, endColInPreview);
-			this.preview = {
-				text: previewText,
-				matches: Array.isArray(range) ? [oneLineRange] : oneLineRange
-			};
+			this.preview = { text: result, matches: Array.isArray(this.ranges) ? matches : matches[0] };
 		} else {
 			const firstMatchLine = Array.isArray(range) ? range[0].startLineNumber : range.startLineNumber;
 
@@ -289,10 +315,15 @@ export class TextSearchMatch implements ITextSearchMatch {
 	}
 }
 
-function isSingleLineRange(range: ISearchRange | ISearchRange[]): boolean {
-	return Array.isArray(range) ?
-		range[0].startLineNumber === range[0].endLineNumber :
-		range.startLineNumber === range.endLineNumber;
+function isSingleLineRangeList(ranges: ISearchRange[]): boolean {
+	const line = ranges[0].startLineNumber;
+	for (const r of ranges) {
+		if (r.startLineNumber !== line || r.endLineNumber !== line) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 export class SearchRange implements ISearchRange {
@@ -341,11 +372,13 @@ export interface ISearchConfigurationProperties {
 	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
 	maintainFileSearchCache: boolean;
+	maxResults: number | null;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	seedOnFocus: boolean;
 	seedWithNearestWord: boolean;
 	searchOnTypeDebouncePeriod: number;
+	mode: 'view' | 'reuseEditor' | 'newEditor';
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
 		reusePriorSearchConfiguration: boolean,
@@ -387,21 +420,25 @@ export function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: 
 		return false;
 	}
 
-	if (queryProps.includePattern && !glob.match(queryProps.includePattern, fsPath)) {
-		return false;
-	}
+	if (queryProps.includePattern || queryProps.usingSearchPaths) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
+			return true;
+		}
 
-	// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
-	if (queryProps.usingSearchPaths) {
-		return !!queryProps.folderQueries && queryProps.folderQueries.every(fq => {
-			const searchPath = fq.folder.fsPath;
-			if (extpath.isEqualOrParent(fsPath, searchPath)) {
-				const relPath = relative(searchPath, fsPath);
-				return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
-			} else {
-				return false;
-			}
-		});
+		// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
+		if (queryProps.usingSearchPaths) {
+			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
+				const searchPath = fq.folder.fsPath;
+				if (extpath.isEqualOrParent(fsPath, searchPath)) {
+					const relPath = paths.relative(searchPath, fsPath);
+					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
+				} else {
+					return false;
+				}
+			});
+		}
+
+		return false;
 	}
 
 	return true;
@@ -478,11 +515,13 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
+	messages: ITextSearchCompleteMessage[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchEngineSuccess {
 	limitHit: boolean;
+	messages: ITextSearchCompleteMessage[];
 	stats: ISearchEngineStats;
 }
 

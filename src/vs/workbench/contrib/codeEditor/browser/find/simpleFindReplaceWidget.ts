@@ -3,35 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./simpleFindReplaceWidget';
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
+import { IReplaceInputStyles, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
+import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import 'vs/css!./simpleFindReplaceWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
-import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton, findCloseIcon, findNextMatchIcon, findPreviousMatchIcon, findReplaceIcon, findReplaceAllIcon } from 'vs/editor/contrib/find/findWidget';
+import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/findWidget';
+import * as nls from 'vs/nls';
+import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { ReplaceInput, IReplaceInputStyles } from 'vs/base/browser/ui/findinput/replaceInput';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
-const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
+const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
 const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
+
 
 export abstract class SimpleFindReplaceWidget extends Widget {
 	protected readonly _findInput: FindInput;
@@ -40,6 +42,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
 	private readonly _updateHistoryDelayer: Delayer<void>;
+	protected readonly _matchesCount!: HTMLElement;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 
@@ -144,9 +147,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this.findFirst();
 		}));
 
+		this._matchesCount = document.createElement('div');
+		this._matchesCount.className = 'matchesCount';
+		this._updateMatchesCount();
+
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
-			className: findPreviousMatchIcon.classNames,
+			icon: findPreviousMatchIcon,
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -154,7 +161,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
-			className: findNextMatchIcon.classNames,
+			icon: findNextMatchIcon,
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -162,13 +169,14 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
-			className: findCloseIcon.classNames,
+			icon: widgetClose,
 			onTrigger: () => {
 				this.hide();
 			}
 		}));
 
 		this._innerFindDomNode.appendChild(this._findInput.domNode);
+		this._innerFindDomNode.appendChild(this._matchesCount);
 		this._innerFindDomNode.appendChild(this.prevBtn.domNode);
 		this._innerFindDomNode.appendChild(this.nextBtn.domNode);
 		this._innerFindDomNode.appendChild(closeBtn.domNode);
@@ -220,7 +228,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL,
-			className: findReplaceIcon.classNames,
+			icon: findReplaceIcon,
 			onTrigger: () => {
 				this.replaceOne();
 			}
@@ -229,7 +237,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_ALL_BTN_LABEL,
-			className: findReplaceAllIcon.classNames,
+			icon: findReplaceAllIcon,
 			onTrigger: () => {
 				this.replaceAll();
 			}
@@ -306,6 +314,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		this._updateButtons();
+		this._updateMatchesCount();
 	}
 
 	private _updateButtons(): void {
@@ -319,8 +328,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 	}
 
+	protected _updateMatchesCount(): void {
+	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		if (this._domNode && this._domNode.parentElement) {
@@ -452,6 +463,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
 	}
 });

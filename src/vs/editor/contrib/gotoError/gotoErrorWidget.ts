@@ -10,19 +10,18 @@ import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ScrollType } from 'vs/editor/common/editorCommon';
-import { getBaseLabel, getPathLabel } from 'vs/base/common/labels';
+import { getBaseLabel } from 'vs/base/common/labels';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
 import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -30,6 +29,8 @@ import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { splitLines } from 'vs/base/common/strings';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 class MessageWidget {
 
@@ -50,6 +51,7 @@ class MessageWidget {
 		editor: ICodeEditor,
 		onRelatedInformation: (related: IRelatedInformation) => void,
 		private readonly _openerService: IOpenerService,
+		private readonly _labelService: ILabelService
 	) {
 		this._editor = editor;
 
@@ -102,7 +104,7 @@ class MessageWidget {
 			}
 		}
 
-		const lines = message.split(/\r\n|\r|\n/g);
+		const lines = splitLines(message);
 		this._lines = lines.length;
 		this._longestLineLength = 0;
 		for (const line of lines) {
@@ -142,7 +144,7 @@ class MessageWidget {
 					this._codeLink.setAttribute('href', `${code.target.toString()}`);
 
 					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.target);
+						this._openerService.open(code.target, { allowCommands: true });
 						e.preventDefault();
 						e.stopPropagation();
 					};
@@ -168,7 +170,7 @@ class MessageWidget {
 				let relatedResource = document.createElement('a');
 				relatedResource.classList.add('filename');
 				relatedResource.innerText = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
-				relatedResource.title = getPathLabel(related.resource, undefined);
+				relatedResource.title = this._labelService.getUriLabel(related.resource);
 				this._relatedDiagnostics.set(relatedResource, related);
 
 				let relatedMessage = document.createElement('span');
@@ -247,7 +249,8 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true }, instantiationService);
 		this._severity = MarkerSeverity.Warning;
@@ -277,14 +280,14 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		}); // style() will trigger _applyStyles
 	}
 
-	protected _applyStyles(): void {
+	protected override _applyStyles(): void {
 		if (this._parentContainer) {
 			this._parentContainer.style.backgroundColor = this._backgroundColor ? this._backgroundColor.toString() : '';
 		}
 		super._applyStyles();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._callOnDispose.dispose();
 		super.dispose();
 	}
@@ -293,10 +296,10 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._parentContainer.focus();
 	}
 
-	protected _fillHead(container: HTMLElement): void {
+	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
-		this._disposables.add(this._actionbarWidget!.actionRunner.onDidBeforeRun(e => this.editor.focus()));
+		this._disposables.add(this._actionbarWidget!.actionRunner.onBeforeRun(e => this.editor.focus()));
 
 		const actions: IAction[] = [];
 		const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
@@ -305,15 +308,8 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		menu.dispose();
 	}
 
-	protected _fillTitleIcon(container: HTMLElement): void {
+	protected override _fillTitleIcon(container: HTMLElement): void {
 		this._icon = dom.append(container, dom.$(''));
-	}
-
-	protected _getActionBarOptions(): IActionBarOptions {
-		return {
-			...super._getActionBarOptions(),
-			orientation: ActionsOrientation.HORIZONTAL
-		};
 	}
 
 	protected _fillBody(container: HTMLElement): void {
@@ -325,11 +321,11 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._container = document.createElement('div');
 		container.appendChild(this._container);
 
-		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related), this._openerService);
+		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related), this._openerService, this._labelService);
 		this._disposables.add(this._message);
 	}
 
-	show(): void {
+	override show(): void {
 		throw new Error('call showAtMarker');
 	}
 
@@ -373,18 +369,18 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._relayout();
 	}
 
-	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		super._doLayoutBody(heightInPixel, widthInPixel);
 		this._heightInPixel = heightInPixel;
 		this._message.layout(heightInPixel, widthInPixel);
 		this._container.style.height = `${heightInPixel}px`;
 	}
 
-	public _onWidth(widthInPixel: number): void {
+	public override _onWidth(widthInPixel: number): void {
 		this._message.layout(this._heightInPixel, widthInPixel);
 	}
 
-	protected _relayout(): void {
+	protected override _relayout(): void {
 		super._relayout(this.computeRequiredHeight());
 	}
 
@@ -407,7 +403,10 @@ export const editorMarkerNavigationBackground = registerColor('editorMarkerNavig
 registerThemingParticipant((theme, collector) => {
 	const linkFg = theme.getColor(textLinkForeground);
 	if (linkFg) {
-		collector.addRule(`.monaco-editor .marker-widget a { color: ${linkFg}; }`);
-		collector.addRule(`.monaco-editor .marker-widget a.code-link span:hover { color: ${linkFg}; }`);
+		collector.addRule(`.monaco-editor .marker-widget a.code-link span { color: ${linkFg}; }`);
+	}
+	const activeLinkFg = theme.getColor(textLinkActiveForeground);
+	if (activeLinkFg) {
+		collector.addRule(`.monaco-editor .marker-widget a.code-link span:hover { color: ${activeLinkFg}; }`);
 	}
 });

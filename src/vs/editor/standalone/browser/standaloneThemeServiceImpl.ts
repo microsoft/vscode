@@ -16,7 +16,7 @@ import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/c
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -39,7 +39,11 @@ class StandaloneTheme implements IStandaloneTheme {
 		this.themeData = standaloneThemeData;
 		let base = standaloneThemeData.base;
 		if (name.length > 0) {
-			this.id = base + ' ' + name;
+			if (isBuiltinTheme(name)) {
+				this.id = name;
+			} else {
+				this.id = base + ' ' + name;
+			}
 			this.themeName = name;
 		} else {
 			this.id = base;
@@ -194,30 +198,43 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 
 	private readonly _environment: IEnvironmentService = Object.create(null);
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
+	private _autoDetectHighContrast: boolean;
 	private _codiconCSS: string;
 	private _themeCSS: string;
 	private _allCSS: string;
 	private _globalStyleElement: HTMLStyleElement | null;
 	private _styleElements: HTMLStyleElement[];
+	private _colorMapOverride: Color[] | null;
+	private _desiredTheme!: IStandaloneTheme;
 	private _theme!: IStandaloneTheme;
 
 	constructor() {
 		super();
 
+		this._autoDetectHighContrast = true;
+
 		this._knownThemes = new Map<string, StandaloneTheme>();
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
-		this._codiconCSS = CodiconStyles.getCSS();
+
+		const iconsStyleSheet = getIconsStyleSheet();
+
+		this._codiconCSS = iconsStyleSheet.getCSS();
 		this._themeCSS = '';
 		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
 		this._globalStyleElement = null;
 		this._styleElements = [];
+		this._colorMapOverride = null;
 		this.setTheme(VS_THEME_NAME);
 
-		CodiconStyles.onDidChange(() => {
-			this._codiconCSS = CodiconStyles.getCSS();
+		iconsStyleSheet.onDidChange(() => {
+			this._codiconCSS = iconsStyleSheet.getCSS();
 			this._updateCSS();
+		});
+
+		dom.addMatchMediaChangeListener('(forced-colors: active)', () => {
+			this._updateActualTheme();
 		});
 	}
 
@@ -272,7 +289,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 				}
 			});
 		}
-		if (this._theme && this._theme.themeName === themeName) {
+		if (this._theme.themeName === themeName) {
 			this.setTheme(themeName); // refresh theme
 		}
 	}
@@ -281,19 +298,42 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		return this._theme;
 	}
 
-	public setTheme(themeName: string): string {
+	public setColorMapOverride(colorMapOverride: Color[] | null): void {
+		this._colorMapOverride = colorMapOverride;
+		this._updateThemeOrColorMap();
+	}
+
+	public setTheme(themeName: string): void {
 		let theme: StandaloneTheme;
 		if (this._knownThemes.has(themeName)) {
 			theme = this._knownThemes.get(themeName)!;
 		} else {
 			theme = this._knownThemes.get(VS_THEME_NAME)!;
 		}
+		this._desiredTheme = theme;
+		this._updateActualTheme();
+	}
+
+	private _updateActualTheme(): void {
+		const theme = (
+			this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches
+				? this._knownThemes.get(HC_BLACK_THEME_NAME)!
+				: this._desiredTheme
+		);
 		if (this._theme === theme) {
 			// Nothing to do
-			return theme.id;
+			return;
 		}
 		this._theme = theme;
+		this._updateThemeOrColorMap();
+	}
 
+	public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
+		this._autoDetectHighContrast = autoDetectHighContrast;
+		this._updateActualTheme();
+	}
+
+	private _updateThemeOrColorMap(): void {
 		let cssRules: string[] = [];
 		let hasRule: { [rule: string]: boolean; } = {};
 		let ruleCollector: ICssStyleCollector = {
@@ -304,19 +344,16 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(theme, ruleCollector, this._environment));
+		themingRegistry.getThemingParticipants().forEach(p => p(this._theme, ruleCollector, this._environment));
 
-		let tokenTheme = theme.tokenTheme;
-		let colorMap = tokenTheme.getColorMap();
+		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
 		this._themeCSS = cssRules.join('\n');
 		this._updateCSS();
 
 		TokenizationRegistry.setColorMap(colorMap);
-		this._onColorThemeChange.fire(theme);
-
-		return theme.id;
+		this._onColorThemeChange.fire(this._theme);
 	}
 
 	private _updateCSS(): void {

@@ -14,7 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 interface AccessibilityMetrics {
@@ -25,8 +25,6 @@ type AccessibilityMetricsClassification = {
 };
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
-
-	declare readonly _serviceBrand: undefined;
 
 	private didSendTelemetry = false;
 	private shouldAlwaysUnderlineAccessKeys: boolean | undefined = undefined;
@@ -42,7 +40,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
-	async alwaysUnderlineAccessKeys(): Promise<boolean> {
+	override async alwaysUnderlineAccessKeys(): Promise<boolean> {
 		if (!isWindows) {
 			return false;
 		}
@@ -55,7 +53,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		return this.shouldAlwaysUnderlineAccessKeys;
 	}
 
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+	override setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
 		super.setAccessibilitySupport(accessibilitySupport);
 
 		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {

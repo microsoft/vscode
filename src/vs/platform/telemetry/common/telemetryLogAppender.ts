@@ -10,17 +10,23 @@ import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry
 
 export class TelemetryLogAppender extends Disposable implements ITelemetryAppender {
 
-	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
 	private readonly logger: ILogger;
 
 	constructor(
 		@ILoggerService loggerService: ILoggerService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		private readonly prefix: string = '',
 	) {
 		super();
-		this.logger = this._register(loggerService.getLogger(environmentService.telemetryLogResource));
-		this.logger.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
-		this.logger.info('===========================================================');
+
+		const logger = loggerService.getLogger(environmentService.telemetryLogResource);
+		if (logger) {
+			this.logger = this._register(logger);
+		} else {
+			this.logger = this._register(loggerService.createLogger(environmentService.telemetryLogResource));
+			this.logger.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
+			this.logger.info('===========================================================');
+		}
 	}
 
 	flush(): Promise<any> {
@@ -28,14 +34,7 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 	}
 
 	log(eventName: string, data: any): void {
-		let strippedData: { [key: string]: any } = {};
-		Object.keys(data).forEach(key => {
-			if (!this.commonPropertiesRegex.test(key)) {
-				strippedData[key] = data[key];
-			}
-		});
-		strippedData = validateTelemetryData(strippedData);
-		this.logger.trace(`telemetry/${eventName}`, strippedData);
+		this.logger.trace(`${this.prefix}telemetry/${eventName}`, validateTelemetryData(data));
 	}
 }
 

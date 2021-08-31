@@ -11,6 +11,7 @@ export enum ViewsWelcomeExtensionPointFields {
 	contents = 'contents',
 	when = 'when',
 	group = 'group',
+	enablement = 'enablement',
 }
 
 export interface ViewWelcome {
@@ -18,6 +19,7 @@ export interface ViewWelcome {
 	readonly [ViewsWelcomeExtensionPointFields.contents]: string;
 	readonly [ViewsWelcomeExtensionPointFields.when]: string;
 	readonly [ViewsWelcomeExtensionPointFields.group]: string;
+	readonly [ViewsWelcomeExtensionPointFields.enablement]: string;
 }
 
 export type ViewsWelcomeExtensionPoint = ViewWelcome[];
@@ -26,11 +28,12 @@ export const ViewIdentifierMap: { [key: string]: string } = {
 	'explorer': 'workbench.explorer.emptyView',
 	'debug': 'workbench.debug.welcome',
 	'scm': 'workbench.scm',
+	'testing': 'workbench.view.testing'
 };
 
 const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySchema>({
 	type: 'array',
-	description: nls.localize('contributes.viewsWelcome', "Contributed views welcome content. Welcome content will be rendered in views whenever they have no meaningful content to display, ie. the File Explorer when no folder is open. Such content is useful as in-product documentation to drive users to use certain features before they are available. A good example would be a `Clone Repository` button in the File Explorer welcome view."),
+	description: nls.localize('contributes.viewsWelcome', "Contributed views welcome content. Welcome content will be rendered in tree based views whenever they have no meaningful content to display, ie. the File Explorer when no folder is open. Such content is useful as in-product documentation to drive users to use certain features before they are available. A good example would be a `Clone Repository` button in the File Explorer welcome view."),
 	items: {
 		type: 'object',
 		description: nls.localize('contributes.viewsWelcome.view', "Contributed welcome content for a specific view."),
@@ -43,11 +46,11 @@ const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySch
 				anyOf: [
 					{
 						type: 'string',
-						description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content.")
+						description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content. Only tree based views are supported.")
 					},
 					{
 						type: 'string',
-						description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content."),
+						description: nls.localize('contributes.viewsWelcome.view.view', "Target view identifier for this welcome content. Only tree based views are supported."),
 						enum: Object.keys(ViewIdentifierMap)
 					}
 				]
@@ -63,6 +66,10 @@ const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySch
 			[ViewsWelcomeExtensionPointFields.group]: {
 				type: 'string',
 				description: nls.localize('contributes.viewsWelcome.view.group', "Group to which this welcome content belongs."),
+			},
+			[ViewsWelcomeExtensionPointFields.enablement]: {
+				type: 'string',
+				description: nls.localize('contributes.viewsWelcome.view.enablement', "Condition when the welcome content buttons and command links should be enabled."),
 			},
 		}
 	}

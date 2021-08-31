@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService, ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent } from 'vs/workbench/services/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Emitter } from 'vs/base/common/event';
@@ -13,7 +13,7 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 
 	declare readonly _serviceBrand: undefined;
 
-	private _onDidChangePassword = this._register(new Emitter<void>());
+	private _onDidChangePassword = this._register(new Emitter<ICredentialsChangeEvent>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	private credentialsProvider: ICredentialsProvider;
@@ -35,13 +35,13 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 	async setPassword(service: string, account: string, password: string): Promise<void> {
 		await this.credentialsProvider.setPassword(service, account, password);
 
-		this._onDidChangePassword.fire();
+		this._onDidChangePassword.fire({ service, account });
 	}
 
-	deletePassword(service: string, account: string): Promise<boolean> {
-		const didDelete = this.credentialsProvider.deletePassword(service, account);
+	async deletePassword(service: string, account: string): Promise<boolean> {
+		const didDelete = await this.credentialsProvider.deletePassword(service, account);
 		if (didDelete) {
-			this._onDidChangePassword.fire();
+			this._onDidChangePassword.fire({ service, account });
 		}
 
 		return didDelete;

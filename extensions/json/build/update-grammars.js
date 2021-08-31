@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-var updateGrammar = require('../../../build/npm/update-grammar');
+var updateGrammar = require('vscode-grammar-updater');
 
 function adaptJSON(grammar, replacementScope) {
 	grammar.name = 'JSON with comments';
 	grammar.scopeName = `source${replacementScope}`;
 
-	var fixScopeNames = function(rule) {
+	var fixScopeNames = function (rule) {
 		if (typeof rule.name === 'string') {
 			rule.name = rule.name.replace(/\.json/g, replacementScope);
 		}

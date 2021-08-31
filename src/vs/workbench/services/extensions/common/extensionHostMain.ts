@@ -5,6 +5,7 @@
 
 import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
+import * as performance from 'vs/base/common/performance';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -35,7 +36,9 @@ export class ExtensionHostMain {
 
 	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
+	private readonly _rpcProtocol: RPCProtocol;
 	private readonly _extensionService: IExtHostExtensionService;
+	private readonly _logService: ILogService;
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -46,32 +49,30 @@ export class ExtensionHostMain {
 	) {
 		this._isTerminating = false;
 		this._hostUtils = hostUtils;
-		const rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
+		this._rpcProtocol = new RPCProtocol(protocol, null, uriTransformer);
 
 		// ensure URIs are transformed and revived
-		initData = ExtensionHostMain._transform(initData, rpcProtocol);
+		initData = ExtensionHostMain._transform(initData, this._rpcProtocol);
 
 		// bootstrap services
 		const services = new ServiceCollection(...getSingletonServiceDescriptors());
 		services.set(IExtHostInitDataService, { _serviceBrand: undefined, ...initData });
-		services.set(IExtHostRpcService, new ExtHostRpcService(rpcProtocol));
+		services.set(IExtHostRpcService, new ExtHostRpcService(this._rpcProtocol));
 		services.set(IURITransformerService, new URITransformerService(uriTransformer));
 		services.set(IHostUtils, hostUtils);
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
-		// todo@joh
 		// ugly self - inject
 		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
 		this._disposables.add(terminalService);
 
-		const logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
-		this._disposables.add(logService);
+		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 
-		logService.info('extension host started');
-		logService.trace('initData', initData);
+		performance.mark(`code/extHost/didCreateServices`);
+		this._logService.info('extension host started');
+		this._logService.trace('initData', initData);
 
-		// todo@joh
 		// ugly self - inject
 		// must call initialize *after* creating the extension service
 		// because `initialize` itself creates instances that depend on it
@@ -99,8 +100,8 @@ export class ExtensionHostMain {
 			};
 		});
 
-		const mainThreadExtensions = rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
-		const mainThreadErrors = rpcProtocol.getProxy(MainContext.MainThreadErrors);
+		const mainThreadExtensions = this._rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
+		const mainThreadErrors = this._rpcProtocol.getProxy(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);
@@ -112,24 +113,34 @@ export class ExtensionHostMain {
 		});
 	}
 
-	terminate(): void {
+	terminate(reason: string): void {
 		if (this._isTerminating) {
 			// we are already shutting down...
 			return;
 		}
 		this._isTerminating = true;
+		this._logService.info(`extension host terminating: ${reason}`);
+		this._logService.flush();
 
 		this._disposables.dispose();
 
 		errors.setUnexpectedErrorHandler((err) => {
-			// TODO: write to log once we have one
+			this._logService.error(err);
 		});
+
+		// Invalidate all proxies
+		this._rpcProtocol.dispose();
 
 		const extensionsDeactivated = this._extensionService.deactivateAll();
 
 		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
-			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => this._hostUtils.exit());
+			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => {
+				this._logService.info(`exiting with code 0`);
+				this._logService.flush();
+				this._logService.dispose();
+				this._hostUtils.exit(0);
+			});
 		}, 1000);
 	}
 

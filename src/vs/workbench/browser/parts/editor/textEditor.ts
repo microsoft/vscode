@@ -7,10 +7,13 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone } from 'vs/base/common/objects';
 import { Event } from 'vs/base/common/event';
-import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
+import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput, computeEditorAriaLabel, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorMemento, ITextEditorPane, IEditorCloseEvent, IEditorInput, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -18,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -26,6 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtUri } from 'vs/base/common/resources';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -43,33 +47,28 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	private editorControl: IEditor | undefined;
 	private editorContainer: HTMLElement | undefined;
 	private hasPendingConfigurationChange: boolean | undefined;
-	private lastAppliedEditorOptions?: IEditorOptions;
+	private lastAppliedEditorOptions?: ICodeEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
 
 	private readonly groupListener = this._register(new MutableDisposable());
 
-	private _instantiationService: IInstantiationService;
-	protected get instantiationService(): IInstantiationService { return this._instantiationService; }
-	protected set instantiationService(value: IInstantiationService) { this._instantiationService = value; }
-
-	get scopedContextKeyService(): IContextKeyService | undefined {
+	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
 	}
 
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
 	) {
 		super(id, telemetryService, themeService, storageService);
-		this._instantiationService = instantiationService;
 
-		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
+		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, textResourceConfigurationService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
 			const resource = this.getActiveResource();
@@ -103,10 +102,10 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		}
 	}
 
-	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
+	protected computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
 
 		// Specific editor options always overwrite user configuration
-		const editorConfiguration: IEditorOptions = isObject(configuration.editor) ? deepClone(configuration.editor) : Object.create(null);
+		const editorConfiguration: ICodeEditorOptions = isObject(configuration.editor) ? deepClone(configuration.editor) : Object.create(null);
 		Object.assign(editorConfiguration, this.getConfigurationOverrides());
 
 		// ARIA label
@@ -119,12 +118,12 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		return this._input ? computeEditorAriaLabel(this._input, undefined, this.group, this.editorGroupService.count) : localize('editor', "Editor");
 	}
 
-	protected getConfigurationOverrides(): IEditorOptions {
+	protected getConfigurationOverrides(): ICodeEditorOptions {
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
-			readOnly: this.input?.isReadonly(),
+			readOnly: this.input?.hasCapability(EditorInputCapabilities.Readonly),
 			// render problems even in readonly editors
 			// https://github.com/microsoft/vscode/issues/89057
 			renderValidationDecorations: 'on'
@@ -151,13 +150,13 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	 *
 	 * The passed in configuration object should be passed to the editor control when creating it.
 	 */
-	protected createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
+	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
 
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
 		// Update editor options after having set the input. We do this because there can be
@@ -169,15 +168,13 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 
-	setOptions(options: EditorOptions | undefined): void {
-		const textOptions = options as TextEditorOptions;
-		if (textOptions && isFunction(textOptions.apply)) {
-			const textEditor = assertIsDefined(this.getControl());
-			textOptions.apply(textEditor, ScrollType.Smooth);
+	override setOptions(options: ITextEditorOptions | undefined): void {
+		if (options) {
+			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 
 		// Pass on to Editor
 		const editorControl = assertIsDefined(this.editorControl);
@@ -205,7 +202,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		// Subclasses can override
 	}
 
-	focus(): void {
+	override focus(): void {
 
 		// Pass on to Editor
 		const editorControl = assertIsDefined(this.editorControl);
@@ -219,17 +216,30 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		editorControl.layout(dimension);
 	}
 
-	getControl(): IEditor | undefined {
+	override getControl(): IEditor | undefined {
 		return this.editorControl;
 	}
 
-	protected saveTextEditorViewState(resource: URI): void {
+	getViewState(): IEditorViewState | undefined {
+		const resource = this.input?.resource;
+		if (resource) {
+			return withNullAsUndefined(this.retrieveTextEditorViewState(resource));
+		}
+
+		return undefined;
+	}
+
+	protected saveTextEditorViewState(resource: URI, cleanUpOnDispose?: IEditorInput): void {
 		const editorViewState = this.retrieveTextEditorViewState(resource);
 		if (!editorViewState || !this.group) {
 			return;
 		}
 
 		this.editorMemento.saveEditorState(this.group, resource, editorViewState);
+
+		if (cleanUpOnDispose) {
+			this.editorMemento.clearEditorStateOnDispose(resource, cleanUpOnDispose);
+		}
 	}
 
 	protected shouldRestoreTextEditorViewState(editor: IEditorInput, context?: IEditorOpenContext): boolean {
@@ -241,15 +251,6 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 
 		// existing editor: always restore viewstate
 		return true;
-	}
-
-	getViewState(): IEditorViewState | undefined {
-		const resource = this.input?.resource;
-		if (resource) {
-			return withNullAsUndefined(this.retrieveTextEditorViewState(resource));
-		}
-
-		return undefined;
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState | null {
@@ -283,10 +284,8 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		return this.editorMemento.moveEditorState(source, target, comparer);
 	}
 
-	protected clearTextEditorViewState(resources: URI[], group?: IEditorGroup): void {
-		resources.forEach(resource => {
-			this.editorMemento.clearEditorState(resource, group);
-		});
+	protected clearTextEditorViewState(resource: URI, group?: IEditorGroup): void {
+		this.editorMemento.clearEditorState(resource, group);
 	}
 
 	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {
@@ -333,7 +332,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		return undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.lastAppliedEditorOptions = undefined;
 
 		super.dispose();

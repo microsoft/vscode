@@ -13,10 +13,17 @@ import { isTypeScriptDocument } from '../utils/languageModeIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
-namespace Experimental {
-	// https://github.com/microsoft/TypeScript/pull/37871/
+namespace ExperimentalProto {
 	export interface UserPreferences extends Proto.UserPreferences {
-		readonly provideRefactorNotApplicableReason?: boolean;
+		displayPartsForJSDoc: true
+
+		includeInlayParameterNameHints?: 'none' | 'literals' | 'all';
+		includeInlayParameterNameHintsWhenArgumentMatchesName?: boolean;
+		includeInlayFunctionParameterTypeHints?: boolean;
+		includeInlayVariableTypeHints?: boolean;
+		includeInlayPropertyDeclarationTypeHints?: boolean;
+		includeInlayFunctionLikeReturnTypeHints?: boolean;
+		includeInlayEnumMemberValueHints?: boolean;
 	}
 }
 
@@ -157,6 +164,7 @@ export default class FileConfigurationManager extends Disposable {
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis'),
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets'),
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces'),
+			insertSpaceAfterOpeningAndBeforeClosingEmptyBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingEmptyBraces'),
 			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces'),
 			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces'),
 			insertSpaceAfterTypeAssertion: config.get<boolean>('insertSpaceAfterTypeAssertion'),
@@ -179,7 +187,7 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: Experimental.UserPreferences = {
+		const preferences: ExperimentalProto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
@@ -188,6 +196,12 @@ export default class FileConfigurationManager extends Disposable {
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
+			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
+			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
+			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			allowIncompleteCompletions: true,
+			displayPartsForJSDoc: true,
+			...getInlayHintsPreferences(config),
 		};
 
 		return preferences;
@@ -202,8 +216,39 @@ export default class FileConfigurationManager extends Disposable {
 	}
 }
 
+export class InlayHintSettingNames {
+	static readonly parameterNamesSuppressWhenArgumentMatchesName = 'inlayHints.parameterNames.suppressWhenArgumentMatchesName';
+	static readonly parameterNamesEnabled = 'inlayHints.parameterTypes.enabled';
+	static readonly variableTypesEnabled = 'inlayHints.variableTypes.enabled';
+	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
+	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
+	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
+}
+
+export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
+	return {
+		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
+		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true),
+		includeInlayFunctionParameterTypeHints: config.get<boolean>(InlayHintSettingNames.parameterNamesEnabled, false),
+		includeInlayVariableTypeHints: config.get<boolean>(InlayHintSettingNames.variableTypesEnabled, false),
+		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
+		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
+		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),
+	} as const;
+}
+
+function getInlayParameterNameHintsPreference(config: vscode.WorkspaceConfiguration) {
+	switch (config.get<string>('inlayHints.parameterNames.enabled')) {
+		case 'none': return 'none';
+		case 'literals': return 'literals';
+		case 'all': return 'all';
+		default: return undefined;
+	}
+}
+
 function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguration) {
 	switch (config.get<string>('importModuleSpecifier')) {
+		case 'project-relative': return 'project-relative';
 		case 'relative': return 'relative';
 		case 'non-relative': return 'non-relative';
 		default: return undefined;

@@ -5,7 +5,7 @@
 
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult, hasWorkspaceFileExtension, WORKSPACE_EXTENSION, isUntitledWorkspace, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
@@ -26,6 +26,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Schemas } from 'vs/base/common/network';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 const UNTITLED_WORKSPACE_FILENAME = `workspace.${WORKSPACE_EXTENSION}`;
 
@@ -46,16 +47,21 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService protected readonly dialogService: IDialogService,
 		@IHostService protected readonly hostService: IHostService,
-		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) { }
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
+		const availableFileSystems = [Schemas.file];
+		if (this.environmentService.remoteAuthority) {
+			availableFileSystems.unshift(Schemas.vscodeRemote);
+		}
 		let workspacePath = await this.fileDialogService.showSaveDialog({
-			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
-			title: nls.localize('saveWorkspace', "Save Workspace"),
+			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
+			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
-			availableFileSystems: this.environmentService.remoteAuthority ? [Schemas.vscodeRemote] : undefined
+			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
+			availableFileSystems
 		});
 
 		if (!workspacePath) {
@@ -137,7 +143,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			// https://github.com/microsoft/vscode/issues/94191
-			foldersToAdd = foldersToAdd.filter(f => f.uri.scheme !== Schemas.file && (f.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(f.uri.authority, remoteAuthority)));
+			foldersToAdd = foldersToAdd.filter(folder => folder.uri.scheme !== Schemas.file && (folder.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(folder.uri.authority, remoteAuthority)));
 		}
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -222,6 +228,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		// Allow to save the workspace of the current window
+		// if we have an identical match on the path
 		if (isEqual(workspaceIdentifier.configPath, path)) {
 			return this.saveWorkspace(workspaceIdentifier);
 		}
@@ -252,8 +259,11 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 		// Read the contents of the workspace file, update it to new location and save it.
 		const raw = await this.fileService.readFile(configPathURI);
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI);
-		await this.textFileService.create(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI, this.uriIdentityService.extUri);
+		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
+
+		// Set trust for the workspace file
+		await this.trustWorkspaceConfiguration(targetConfigPathURI);
 	}
 
 	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -274,8 +284,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 		// Finally, we need to re-create the file as it was deleted
 		const newWorkspace: IStoredWorkspace = { folders: [] };
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(JSON.stringify(newWorkspace, null, '\t'), configPathURI, false, configPathURI);
-		await this.textFileService.create(configPathURI, newRawWorkspaceContents);
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(JSON.stringify(newWorkspace, null, '\t'), configPathURI, false, configPathURI, this.uriIdentityService.extUri);
+		await this.textFileService.create([{ resource: configPathURI, value: newRawWorkspaceContents }]);
 	}
 
 	private handleWorkspaceConfigurationEditingError(error: JSONEditingError): void {
@@ -292,19 +302,19 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	}
 
 	private onInvalidWorkspaceConfigurationFileError(): void {
-		const message = nls.localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
+		const message = localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
 		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
 	private onWorkspaceConfigurationFileDirtyError(): void {
-		const message = nls.localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file is dirty. Please save it and try again.");
+		const message = localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file is dirty. Please save it and try again.");
 		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
 	private askToOpenWorkspaceConfigurationFile(message: string): void {
 		this.notificationService.prompt(Severity.Error, message,
 			[{
-				label: nls.localize('openWorkspaceConfigurationFile', "Open Workspace Configuration"),
+				label: localize('openWorkspaceConfigurationFile', "Open Workspace Configuration"),
 				run: () => this.commandService.executeCommand('workbench.action.openWorkspaceConfigFile')
 			}]
 		);
@@ -312,7 +322,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	abstract enterWorkspace(path: URI): Promise<void>;
 
-	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
+	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		if (!!this.environmentService.extensionTestsLocationURI) {
 			throw new Error('Entering a new workspace is not possible in tests.');
 		}
@@ -352,6 +362,12 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		}
 
 		return this.jsonEditingService.write(toWorkspace.configPath, [{ path: ['settings'], value: targetWorkspaceConfiguration }], true);
+	}
+
+	private async trustWorkspaceConfiguration(configPathURI: URI): Promise<void> {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			await this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
+		}
 	}
 
 	protected getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {

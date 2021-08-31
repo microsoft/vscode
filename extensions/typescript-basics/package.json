@@ -57,6 +57,7 @@
         "scopeName": "source.ts",
         "path": "./syntaxes/TypeScript.tmLanguage.json",
         "tokenTypes": {
+          "meta.template.expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -74,6 +75,7 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         },
         "tokenTypes": {
+          "meta.template.expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -167,5 +169,9 @@
         "path": "./snippets/typescript.code-snippets"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

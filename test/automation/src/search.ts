@@ -43,6 +43,11 @@ export class Search extends Viewlet {
 		await this.waitForInputFocus(INPUT);
 	}
 
+	async getSearchTooltip(): Promise<any> {
+		const icon = await this.code.waitForElement(`.activitybar .action-label.codicon.codicon-search-view-icon`, (el) => !!el?.attributes?.['title']);
+		return icon.attributes['title'];
+	}
+
 	async searchFor(text: string): Promise<void> {
 		await this.waitForInputFocus(INPUT);
 		await this.code.waitForSetValue(INPUT, text);
@@ -110,7 +115,7 @@ export class Search extends Viewlet {
 
 	async waitForResultText(text: string): Promise<void> {
 		// The label can end with " - " depending on whether the search editor is enabled
-		await this.code.waitForTextContent(`${VIEWLET} .messages .message>span`, undefined, result => result.startsWith(text));
+		await this.code.waitForTextContent(`${VIEWLET} .messages .message`, undefined, result => result.startsWith(text));
 	}
 
 	async waitForNoResultText(): Promise<void> {

@@ -10,6 +10,7 @@ declare namespace monaco {
 	export type Thenable<T> = PromiseLike<T>;
 
 	export interface Environment {
+		globalAPI?: boolean;
 		baseUrl?: string;
 		getWorker?(workerId: string, label: string): Worker;
 		getWorkerUrl?(workerId: string, label: string): string;
@@ -90,6 +91,7 @@ declare namespace monaco.languages {
 
 declare namespace monaco.worker {
 
+#include(vs/editor/common/model/mirrorTextModel): IMirrorTextModel
 #includeAll(vs/editor/common/services/editorSimpleWorker;):
 
 }

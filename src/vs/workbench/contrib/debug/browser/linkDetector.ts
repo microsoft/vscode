@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import * as osPath from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { localize } from 'vs/nls';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -39,6 +43,7 @@ export class LinkDetector {
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPathService private readonly pathService: IPathService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		// noop
@@ -97,8 +102,28 @@ export class LinkDetector {
 
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
+
 		const uri = URI.parse(url);
-		this.decorateLink(link, () => this.openerService.open(uri, { allowTunneling: !!this.environmentService.remoteAuthority }));
+		this.decorateLink(link, uri, async () => {
+
+			if (uri.scheme === Schemas.file) {
+				// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
+				const fsPath = uri.fsPath;
+				const path = await this.pathService.path;
+				const fileUrl = osPath.normalize(((path.sep === osPath.posix.sep) && platform.isWindows) ? fsPath.replace(/\\/g, osPath.posix.sep) : fsPath);
+
+				const resolvedLink = await this.fileService.resolve(URI.parse(fileUrl));
+				if (!resolvedLink) {
+					return;
+				}
+
+				await this.editorService.openEditor({ resource: resolvedLink.resource, options: { pinned: true } });
+				return;
+			}
+
+			this.openerService.open(url, { allowTunneling: !!this.environmentService.remoteAuthority });
+		});
+
 		return link;
 	}
 
@@ -108,14 +133,14 @@ export class LinkDetector {
 			return document.createTextNode(text);
 		}
 
+		const options = { selection: { startLineNumber: lineNumber, startColumn: columnNumber } };
 		if (path[0] === '.') {
 			if (!workspaceFolder) {
 				return document.createTextNode(text);
 			}
 			const uri = workspaceFolder.toResource(path);
-			const options = { selection: { startLineNumber: lineNumber, startColumn: columnNumber } };
 			const link = this.createLink(text);
-			this.decorateLink(link, () => this.editorService.openEditor({ resource: uri, options }));
+			this.decorateLink(link, uri, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
 			return link;
 		}
 
@@ -127,13 +152,13 @@ export class LinkDetector {
 		}
 
 		const link = this.createLink(text);
+		link.tabIndex = 0;
 		const uri = URI.file(osPath.normalize(path));
 		this.fileService.resolve(uri).then(stat => {
 			if (stat.isDirectory) {
 				return;
 			}
-			const options = { selection: { startLineNumber: lineNumber, startColumn: columnNumber } };
-			this.decorateLink(link, () => this.editorService.openEditor({ resource: uri, options }));
+			this.decorateLink(link, uri, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
 		}).catch(() => {
 			// If the uri can not be resolved we should not spam the console with error, remain quite #86587
 		});
@@ -146,9 +171,10 @@ export class LinkDetector {
 		return link;
 	}
 
-	private decorateLink(link: HTMLElement, onclick: () => void) {
+	private decorateLink(link: HTMLElement, uri: URI, onClick: (preserveFocus: boolean) => void) {
 		link.classList.add('link');
-		link.title = platform.isMacintosh ? nls.localize('fileLinkMac', "Cmd + click to follow link") : nls.localize('fileLink', "Ctrl + click to follow link");
+		const followLink = this.tunnelService.canTunnel(uri) ? localize('followForwardedLink', "follow link using forwarded port") : localize('followLink', "follow link");
+		link.title = platform.isMacintosh ? localize('fileLinkMac', "Cmd + click to {0}", followLink) : localize('fileLink', "Ctrl + click to {0}", followLink);
 		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
 		link.onmouseleave = () => link.classList.remove('pointer');
 		link.onclick = (event) => {
@@ -159,9 +185,18 @@ export class LinkDetector {
 			if (!(platform.isMacintosh ? event.metaKey : event.ctrlKey)) {
 				return;
 			}
+
 			event.preventDefault();
 			event.stopImmediatePropagation();
-			onclick();
+			onClick(false);
+		};
+		link.onkeydown = e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+				event.preventDefault();
+				event.stopPropagation();
+				onClick(event.keyCode === KeyCode.Space);
+			}
 		};
 	}
 

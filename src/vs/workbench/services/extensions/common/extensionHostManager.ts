@@ -23,6 +23,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { timeout } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -70,7 +72,7 @@ export class ExtensionHostManager extends Disposable {
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
 			(err) => {
-				console.error('Error received from starting extension host');
+				console.error(`Error received from starting extension host (kind: ${this.kind})`);
 				console.error(err);
 				return null;
 			}
@@ -84,7 +86,7 @@ export class ExtensionHostManager extends Disposable {
 		this._resolveAuthorityAttempt = 0;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._extensionHost) {
 			this._extensionHost.dispose();
 		}
@@ -129,6 +131,10 @@ export class ExtensionHostManager extends Disposable {
 			return null;
 		}
 		return p.value;
+	}
+
+	public async ready(): Promise<void> {
+		await this._getProxy();
 	}
 
 	private async _measureLatency(proxy: ExtHostExtensionServiceShape): Promise<number> {
@@ -182,6 +188,7 @@ export class ExtensionHostManager extends Disposable {
 		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		const extHostContext: IExtHostContext = {
 			remoteAuthority: this._extensionHost.remoteAuthority,
+			extensionHostKind: this.kind,
 			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._rpcProtocol!.getProxy(identifier),
 			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._rpcProtocol!.set(identifier, instance),
 			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._rpcProtocol!.assertRegistered(identifiers),
@@ -260,12 +267,13 @@ export class ExtensionHostManager extends Disposable {
 		const authorityPlusIndex = remoteAuthority.indexOf('+');
 		if (authorityPlusIndex === -1) {
 			// This authority does not need to be resolved, simply parse the port number
-			const pieces = remoteAuthority.split(':');
+			const lastColon = remoteAuthority.lastIndexOf(':');
 			return Promise.resolve({
 				authority: {
 					authority: remoteAuthority,
-					host: pieces[0],
-					port: parseInt(pieces[1], 10)
+					host: remoteAuthority.substring(0, lastColon),
+					port: parseInt(remoteAuthority.substring(lastColon + 1), 10),
+					connectionToken: undefined
 				}
 			});
 		}
@@ -282,12 +290,43 @@ export class ExtensionHostManager extends Disposable {
 		}
 	}
 
+	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+		const proxy = await this._getProxy();
+		if (!proxy) {
+			throw new Error(`Cannot resolve canonical URI`);
+		}
+		const result = await proxy.$getCanonicalURI(remoteAuthority, uri);
+		return URI.revive(result);
+	}
+
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
 		const proxy = await this._getProxy();
 		if (!proxy) {
 			return;
 		}
 		return proxy.$startExtensionHost(enabledExtensionIds);
+	}
+
+	public async extensionTestsExecute(): Promise<number> {
+		const proxy = await this._getProxy();
+		if (!proxy) {
+			throw new Error('Could not obtain Extension Host Proxy');
+		}
+		return proxy.$extensionTestsExecute();
+	}
+
+	public async extensionTestsSendExit(exitCode: number): Promise<void> {
+		const proxy = await this._getProxy();
+		if (!proxy) {
+			return;
+		}
+		// This method does not wait for the actual RPC to be confirmed
+		// It waits for the socket to drain (i.e. the message has been sent)
+		// It also times out after 5s in case drain takes too long
+		proxy.$extensionTestsExit(exitCode);
+		if (this._rpcProtocol) {
+			await Promise.race([this._rpcProtocol.drain(), timeout(5000)]);
+		}
 	}
 
 	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
@@ -413,7 +452,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		const measurements = await Promise.all(getLatencyTestProviders().map(provider => provider.measure()));
-		editorService.openEditor({ contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } });
+		editorService.openEditor({ resource: undefined, contents: measurements.map(MeasureExtHostLatencyAction._print).join('\n\n'), options: { pinned: true } });
 	}
 
 	private static _print(m: ExtHostLatencyResult | null): string {

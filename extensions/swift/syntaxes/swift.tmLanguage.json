@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/swift.tmbundle/commit/97d29d2073853c328e42239c5d38c96e2e2ade9c",
+	"version": "https://github.com/textmate/swift.tmbundle/commit/8c7672d74c1baa4e6944a05ac6c57a623532f18b",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -14,6 +14,20 @@
 		}
 	],
 	"repository": {
+		"async-throws": {
+			"captures": {
+				"1": {
+					"name": "invalid.illegal.await-must-precede-throws.swift"
+				},
+				"2": {
+					"name": "keyword.control.exception.swift"
+				},
+				"3": {
+					"name": "keyword.control.async.swift"
+				}
+			},
+			"match": "\\b(?:(throws\\s+async|rethrows\\s+async)|(throws|rethrows)|(async))\\b"
+		},
 		"attributes": {
 			"patterns": [
 				{
@@ -755,6 +769,9 @@
 					"include": "#function-initializer"
 				},
 				{
+					"include": "#typed-variable-declaration"
+				},
+				{
 					"include": "#import"
 				},
 				{
@@ -789,8 +806,16 @@
 							"include": "#attributes"
 						},
 						{
+							"match": "\\basync\\b",
+							"name": "keyword.control.async.swift"
+						},
+						{
 							"match": "\\b(?:throws|rethrows)\\b",
 							"name": "keyword.control.exception.swift"
+						},
+						{
+							"match": "\\bsome\\b",
+							"name": "keyword.operator.type.opaque.swift"
 						},
 						{
 							"match": "\\binout\\b",
@@ -992,8 +1017,7 @@
 							"include": "#function-result"
 						},
 						{
-							"match": "\\b(?:throws|rethrows)\\b",
-							"name": "keyword.control.exception.swift"
+							"include": "#async-throws"
 						},
 						{
 							"comment": "Swift 3: generic constraints after the parameters and return type",
@@ -1047,8 +1071,7 @@
 							"include": "#parameter-clause"
 						},
 						{
-							"match": "\\b(?:throws|rethrows)\\b",
-							"name": "keyword.control.exception.swift"
+							"include": "#async-throws"
 						},
 						{
 							"comment": "Swift 3: generic constraints after the parameters and return type",
@@ -1257,7 +1280,7 @@
 					"name": "meta.import.swift",
 					"patterns": [
 						{
-							"begin": "\\G(?!;|$|//|/\\*)(?:(typealias|struct|class|enum|protocol|var|func)\\s+)?",
+							"begin": "\\G(?!;|$|//|/\\*)(?:(typealias|struct|class|actor|enum|protocol|var|func)\\s+)?",
 							"beginCaptures": {
 								"1": {
 									"name": "storage.modifier.swift"
@@ -1501,10 +1524,13 @@
 							"name": "punctuation.definition.parameters.begin.swift"
 						}
 					},
-					"end": "(\\))",
+					"end": "(\\))(?:\\s*(async)\\b)?",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.parameters.end.swift"
+						},
+						"2": {
+							"name": "keyword.control.async.swift"
 						}
 					},
 					"name": "meta.parameter-clause.swift",
@@ -1789,8 +1815,7 @@
 									"include": "#parameter-clause"
 								},
 								{
-									"match": "\\b(?:throws|rethrows)\\b",
-									"name": "keyword.control.exception.swift"
+									"include": "#async-throws"
 								},
 								{
 									"comment": "Swift 3: generic constraints after the parameters and return type",
@@ -1850,8 +1875,7 @@
 									"include": "#function-result"
 								},
 								{
-									"match": "\\b(?:throws|rethrows)\\b",
-									"name": "keyword.control.exception.swift"
+									"include": "#async-throws"
 								},
 								{
 									"comment": "Swift 3: generic constraints after the parameters and return type",
@@ -1884,7 +1908,7 @@
 				"type": {
 					"patterns": [
 						{
-							"begin": "\\b(class(?!\\s+(?:func|var|let)\\b)|struct)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))",
+							"begin": "\\b(class(?!\\s+(?:func|var|let)\\b)|struct|actor)\\s+((?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>))",
 							"beginCaptures": {
 								"1": {
 									"name": "storage.type.$1.swift"
@@ -2228,6 +2252,20 @@
 						}
 					]
 				},
+				"typed-variable-declaration": {
+					"begin": "(?x)\n\t\t\t\t\t\t\\b(let|var)\\b\\s+\n\t\t\t\t\t\t(?<q>`?)[\\p{L}_][\\p{L}_\\p{N}\\p{M}]*(\\k<q>)\\s*\n\t\t\t\t\t\t:\n\t\t\t\t\t",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.declaration-specifier.swift"
+						}
+					},
+					"end": "(?=$|[={])",
+					"patterns": [
+						{
+							"include": "#available-types"
+						}
+					]
+				},
 				"types-precedencegroup": {
 					"patterns": [
 						{
@@ -2299,7 +2337,7 @@
 			],
 			"repository": {
 				"availability-condition": {
-					"begin": "\\B(#available)(\\()",
+					"begin": "\\B(#(?:un)?available)(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.availability-condition.swift"
@@ -2499,10 +2537,22 @@
 							"name": "punctuation.section.tuple.begin.swift"
 						}
 					},
-					"end": "\\)",
+					"comment": "correctly matching closure expressions is too hard (depends on trailing \"in\") so we just tack on some basics to the end of parenthesized-expression",
+					"end": "(\\))\\s*((?:\\b(?:async|throws|rethrows)\\s)*)",
 					"endCaptures": {
-						"0": {
+						"1": {
 							"name": "punctuation.section.tuple.end.swift"
+						},
+						"2": {
+							"patterns": [
+								{
+									"match": "\\brethrows\\b",
+									"name": "invalid.illegal.rethrows-only-allowed-on-function-declarations.swift"
+								},
+								{
+									"include": "#async-throws"
+								}
+							]
 						}
 					},
 					"patterns": [
@@ -2564,6 +2614,17 @@
 					"name": "keyword.control.defer.swift"
 				},
 				{
+					"captures": {
+						"1": {
+							"name": "invalid.illegal.try-must-precede-await.swift"
+						},
+						"2": {
+							"name": "keyword.control.await.swift"
+						}
+					},
+					"match": "(?<!\\.)\\b(?:(await\\s+try)|(await)\\b)"
+				},
+				{
 					"match": "(?<!\\.)\\b(?:catch|throws?|rethrows|try)\\b|\\btry[?!]\\B",
 					"name": "keyword.control.exception.swift"
 				},
@@ -2584,7 +2645,7 @@
 					"name": "keyword.other.declaration-specifier.swift"
 				},
 				{
-					"match": "(?<!\\.)\\b(class|enum|extension|precedencegroup|protocol|struct)\\b",
+					"match": "(?<!\\.)\\b(class|enum|extension|precedencegroup|protocol|struct|actor)\\b",
 					"name": "storage.type.$1.swift"
 				},
 				{
@@ -2601,7 +2662,7 @@
 				},
 				{
 					"comment": "matches weak, unowned, unowned(safe), unowned(unsafe)",
-					"match": "(?<!\\.)\\b(?:weak|unowned)\\b|\\bunowned\\((?:safe|unsafe)\\)",
+					"match": "(?<!\\.)\\bunowned\\((?:safe|unsafe)\\)|(?<!\\.)\\b(?:weak|unowned)\\b",
 					"name": "keyword.other.capture-specifier.swift"
 				},
 				{

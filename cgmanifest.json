@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "894fb9eb56c6cbda65e3c3ae9ada6d4cb5850cc9"
+					"commitHash": "8a33e05d162c4f39afa2dcb150e8c2548aa4ccea"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "83.0.4103.122"
+			"version": "91.0.4472.164"
 		},
 		{
 			"component": {
@@ -48,11 +48,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "9622fed3fb2cffcea9efff6c8cb4cc2def99d75d"
+					"commitHash": "bd60e93357a118204ea238d94e7a9e4209d93062"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "12.14.1"
+			"version": "14.16.0"
 		},
 		{
 			"component": {
@@ -60,12 +60,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "03c7a54dc534ce1867d4393b9b1a6989d4a7e005"
+					"commitHash": "0436a27d4f0fd7d1cb8246137a07fa0c8eb9337e"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "9.2.1"
+			"version": "13.1.8"
 		},
 		{
 			"component": {
@@ -132,11 +132,11 @@
 				"git": {
 					"name": "vscode-codicons",
 					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
-					"commitHash": "f0caa623812a8ed5059516277675b4158d4c4867"
+					"commitHash": "ccdcf91d57d3a5a1d6b620d95d518bab4d75984d"
 				}
 			},
 			"license": "MIT and Creative Commons Attribution 4.0",
-			"version": "0.0.1"
+			"version": "0.0.14"
 		},
 		{
 			"component": {

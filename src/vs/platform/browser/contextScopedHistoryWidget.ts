@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
+import { IReplaceInputOptions, ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
+import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ReplaceInput, IReplaceInputOptions } from 'vs/base/browser/ui/findinput/replaceInput';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IContextKeyServiceTarget, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
 export const HistoryNavigationEnablementContext = 'historyNavigationEnabled';

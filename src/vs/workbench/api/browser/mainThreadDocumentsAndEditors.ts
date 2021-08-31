@@ -19,9 +19,9 @@ import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocument
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { IEditorPane } from 'vs/workbench/common/editor';
+import { EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -31,41 +31,8 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { diffSets, diffMaps } from 'vs/base/common/collections';
 
-namespace delta {
-
-	export function ofSets<T>(before: Set<T>, after: Set<T>): { removed: T[], added: T[] } {
-		const removed: T[] = [];
-		const added: T[] = [];
-		for (let element of before) {
-			if (!after.has(element)) {
-				removed.push(element);
-			}
-		}
-		for (let element of after) {
-			if (!before.has(element)) {
-				added.push(element);
-			}
-		}
-		return { removed, added };
-	}
-
-	export function ofMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: V[], added: V[] } {
-		const removed: V[] = [];
-		const added: V[] = [];
-		for (let [index, value] of before) {
-			if (!after.has(index)) {
-				removed.push(value);
-			}
-		}
-		for (let [index, value] of after) {
-			if (!before.has(index)) {
-				added.push(value);
-			}
-		}
-		return { removed, added };
-	}
-}
 
 class TextEditorSnapshot {
 
@@ -118,8 +85,8 @@ class DocumentAndEditorState {
 				undefined, after.activeEditor
 			);
 		}
-		const documentDelta = delta.ofSets(before.documents, after.documents);
-		const editorDelta = delta.ofMaps(before.textEditors, after.textEditors);
+		const documentDelta = diffSets(before.documents, after.documents);
+		const editorDelta = diffMaps(before.textEditors, after.textEditors);
 		const oldActiveEditor = before.activeEditor !== after.activeEditor ? before.activeEditor : undefined;
 		const newActiveEditor = before.activeEditor !== after.activeEditor ? after.activeEditor : undefined;
 
@@ -443,10 +410,10 @@ export class MainThreadDocumentsAndEditors {
 		};
 	}
 
-	private _findEditorPosition(editor: MainThreadTextEditor): EditorViewColumn | undefined {
+	private _findEditorPosition(editor: MainThreadTextEditor): EditorGroupColumn | undefined {
 		for (const editorPane of this._editorService.visibleEditorPanes) {
 			if (editor.matches(editorPane)) {
-				return editorGroupToViewColumn(this._editorGroupService, editorPane.group);
+				return editorGroupToColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		return undefined;

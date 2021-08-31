@@ -281,7 +281,7 @@ export class RenameAction extends EditorAction {
 		});
 	}
 
-	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
+	override runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
 		const [uri, pos] = Array.isArray(args) && args || [undefined, undefined];
 
@@ -358,7 +358,7 @@ registerModelAndPositionCommand('_executeDocumentRenameProvider', function (mode
 });
 
 
-//todo@joh use editor options world
+//todo@jrieken use editor options world
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {

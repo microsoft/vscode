@@ -4,23 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError, IUserDataSyncStoreManagementService, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
-import { isWeb } from 'vs/base/common/platform';
-import { RequestsSession, UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import product from 'vs/platform/product/common/product';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
+import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { NullLogService } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { RequestsSession, UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 suite('UserDataSyncStoreManagementService', () => {
 	const disposableStore = new DisposableStore();
@@ -51,6 +52,7 @@ suite('UserDataSyncStoreManagementService', () => {
 
 		const expected: IUserDataSyncStore = {
 			url: URI.parse('http://configureHost:3000'),
+			type: 'stable',
 			defaultUrl: URI.parse('http://configureHost:3000'),
 			stableUrl: URI.parse('http://configureHost:3000'),
 			insidersUrl: URI.parse('http://configureHost:3000'),
@@ -58,11 +60,11 @@ suite('UserDataSyncStoreManagementService', () => {
 			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
 		};
 
-		const testObject: IUserDataSyncStoreManagementService = client.instantiationService.createInstance(UserDataSyncStoreManagementService);
+		const testObject: IUserDataSyncStoreManagementService = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreManagementService));
 
-		assert.equal(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
-		assert.equal(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
-		assert.deepEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
+		assert.strictEqual(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
+		assert.strictEqual(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
+		assert.deepStrictEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
 	});
 
 });
@@ -81,14 +83,14 @@ suite('UserDataSyncStoreService', () => {
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 		const productService = client.instantiationService.get(IProductService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Client-Name'], `${productService.applicationName}${isWeb ? '-web' : ''}`);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Client-Version'], productService.version);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Client-Name'], `${productService.applicationName}${isWeb ? '-web' : ''}`);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Client-Version'], productService.version);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test read manifest for the second time when session is not yet created', async () => {
@@ -98,15 +100,15 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test session id header is not set in the first manifest request after session is created', async () => {
@@ -116,16 +118,16 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		await testObject.write(SyncResource.Settings, 'some content', null);
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test session id header is set from the second manifest request after session is created', async () => {
@@ -135,17 +137,17 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test headers are send for write request', async () => {
@@ -155,18 +157,18 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.manifest(null);
 
 		target.reset();
 		await testObject.write(SyncResource.Settings, 'some content', null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test headers are send for read request', async () => {
@@ -176,18 +178,18 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.manifest(null);
 
 		target.reset();
 		await testObject.read(SyncResource.Settings, null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test headers are reset after session is cleared ', async () => {
@@ -197,20 +199,20 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.manifest(null);
 		await testObject.clear();
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test old headers are sent after session is changed on server ', async () => {
@@ -220,11 +222,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		const userSessionId = target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'];
 		await target.clear();
@@ -236,13 +238,13 @@ suite('UserDataSyncStoreService', () => {
 		await testObject2.write(SyncResource.Settings, 'some content', null);
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
 	});
 
 	test('test old headers are reset from second request after session is changed on server ', async () => {
@@ -252,11 +254,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		const userSessionId = target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'];
 		await target.clear();
@@ -267,15 +269,15 @@ suite('UserDataSyncStoreService', () => {
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
 		await testObject2.write(SyncResource.Settings, 'some content', null);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
 	});
 
 	test('test old headers are sent after session is cleared from another server ', async () => {
@@ -285,11 +287,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		const userSessionId = target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'];
 
@@ -300,13 +302,13 @@ suite('UserDataSyncStoreService', () => {
 		await testObject2.clear();
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
 	});
 
 	test('test headers are reset after session is cleared from another server ', async () => {
@@ -316,11 +318,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 
 		// client 2
@@ -329,14 +331,14 @@ suite('UserDataSyncStoreService', () => {
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
 		await testObject2.clear();
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test headers are reset after session is cleared from another server - started syncing again', async () => {
@@ -346,11 +348,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		const userSessionId = target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'];
 
@@ -360,17 +362,17 @@ suite('UserDataSyncStoreService', () => {
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
 		await testObject2.clear();
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
-		assert.equal(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test rate limit on server with retry after', async () => {
@@ -379,15 +381,15 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
 		try {
-			await testObject.manifest();
+			await testObject.manifest(null);
 			assert.fail('should fail');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncStoreError);
-			assert.deepEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
+			assert.deepStrictEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
 			await promise;
 			assert.ok(!!testObject.donotMakeRequestsUntil);
 		}
@@ -398,9 +400,9 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		try {
-			await testObject.manifest();
+			await testObject.manifest(null);
 		} catch (e) { }
 
 		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
@@ -414,13 +416,13 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		try {
-			await testObject.manifest();
+			await testObject.manifest(null);
 		} catch (e) { }
 
-		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
-		assert.equal(target.donotMakeRequestsUntil?.getTime(), testObject.donotMakeRequestsUntil?.getTime());
+		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
+		assert.strictEqual(target.donotMakeRequestsUntil?.getTime(), testObject.donotMakeRequestsUntil?.getTime());
 	});
 
 	test('test donotMakeRequestsUntil is checked and reset after retreived', async () => {
@@ -428,13 +430,13 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		try {
-			await testObject.manifest();
+			await testObject.manifest(null);
 		} catch (e) { }
 
 		await timeout(300);
-		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
 		assert.ok(!target.donotMakeRequestsUntil);
 	});
 
@@ -449,7 +451,7 @@ suite('UserDataSyncStoreService', () => {
 		const expected = await testObject.read(SyncResource.Settings, null);
 		const actual = await testObject.read(SyncResource.Settings, expected);
 
-		assert.equal(actual, expected);
+		assert.strictEqual(actual, expected);
 	});
 
 });
@@ -464,13 +466,13 @@ suite('UserDataSyncRequestsSession', () => {
 
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 
 		try {
-			await testObject.request({}, CancellationToken.None);
+			await testObject.request('url', {}, CancellationToken.None);
 		} catch (error) {
 			assert.ok(error instanceof UserDataSyncStoreError);
-			assert.equal((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);
+			assert.strictEqual((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);
 			return;
 		}
 		assert.fail('Should fail with limit exceeded');
@@ -478,22 +480,22 @@ suite('UserDataSyncRequestsSession', () => {
 
 	test('requests are handled after session is expired', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 		await timeout(600);
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 	});
 
 	test('too many requests are thrown after session is expired', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 		await timeout(600);
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 
 		try {
-			await testObject.request({}, CancellationToken.None);
+			await testObject.request('url', {}, CancellationToken.None);
 		} catch (error) {
 			assert.ok(error instanceof UserDataSyncStoreError);
-			assert.equal((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);
+			assert.strictEqual((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);
 			return;
 		}
 		assert.fail('Should fail with limit exceeded');

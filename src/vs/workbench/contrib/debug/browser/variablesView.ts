@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope, ErrorScope, StackFrame } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLE_IS_READONLY } from 'vs/workbench/contrib/debug/common/debug';
+import { Variable, Scope, ErrorScope, StackFrame, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction } from 'vs/base/common/actions';
-import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -26,16 +23,20 @@ import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, IMenu, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { localize } from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
+import { coalesce } from 'vs/base/common/arrays';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -58,7 +59,10 @@ export class VariablesView extends ViewPane {
 	private menu: IMenu;
 	private debugProtocolVariableMenuContext: IContextKey<string>;
 	private breakWhenValueChangesSupported: IContextKey<boolean>;
+	private breakWhenValueIsAccessedSupported: IContextKey<boolean>;
+	private breakWhenValueIsReadSupported: IContextKey<boolean>;
 	private variableEvaluateName: IContextKey<boolean>;
+	private variableReadonly: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -80,7 +84,10 @@ export class VariablesView extends ViewPane {
 		this._register(this.menu);
 		this.debugProtocolVariableMenuContext = CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.bindTo(contextKeyService);
 		this.breakWhenValueChangesSupported = CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED.bindTo(contextKeyService);
+		this.breakWhenValueIsAccessedSupported = CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED.bindTo(contextKeyService);
+		this.breakWhenValueIsReadSupported = CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED.bindTo(contextKeyService);
 		this.variableEvaluateName = CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.bindTo(contextKeyService);
+		this.variableReadonly = CONTEXT_VARIABLE_IS_READONLY.bindTo(contextKeyService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.updateTreeScheduler = new RunOnceScheduler(async () => {
@@ -109,19 +116,19 @@ export class VariablesView extends ViewPane {
 		}, 400);
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-variables');
 		const treeContainer = renderViewTree(container);
-
+		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
-			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer(), new ScopeErrorRenderer()],
+			[this.instantiationService.createInstance(VariablesRenderer, linkeDetector), new ScopesRenderer(), new ScopeErrorRenderer()],
 			new VariablesDataSource(), {
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			}
@@ -160,13 +167,14 @@ export class VariablesView extends ViewPane {
 		}));
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
-			if (e instanceof Variable) {
+			const variable = e?.expression;
+			if (variable instanceof Variable && !e?.settingWatch) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });
 				}
 
-				this.tree.rerender(e);
+				this.tree.rerender(variable);
 			} else if (!e && horizontalScrolling !== undefined) {
 				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
 				horizontalScrolling = undefined;
@@ -178,23 +186,23 @@ export class VariablesView extends ViewPane {
 		}));
 	}
 
-	getActions(): IAction[] {
-		return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
-	}
-
-	layoutBody(width: number, height: number): void {
+	override layoutBody(width: number, height: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
 
-	focus(): void {
+	override focus(): void {
 		this.tree.domFocus();
+	}
+
+	collapseAll(): void {
+		this.tree.collapseAll();
 	}
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
 		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable) {
-			this.debugService.getViewModel().setSelectedExpression(e.element);
+			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
 	}
 
@@ -205,11 +213,33 @@ export class VariablesView extends ViewPane {
 			variableInternalContext = variable;
 			const session = this.debugService.getViewModel().focusedSession;
 			this.variableEvaluateName.set(!!variable.evaluateName);
+			const attributes = variable.presentationHint?.attributes;
+			this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0);
 			this.breakWhenValueChangesSupported.reset();
+			this.breakWhenValueIsAccessedSupported.reset();
+			this.breakWhenValueIsReadSupported.reset();
 			if (session && session.capabilities.supportsDataBreakpoints) {
-				const response = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
-				const dataBreakpointId = response?.dataId;
-				this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
+				dataBreakpointInfoResponse = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
+				const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
+				const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
+				if (!dataBreakpointAccessTypes) {
+					// Assumes default behaviour: Supports breakWhenValueChanges
+					this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
+				} else {
+					dataBreakpointAccessTypes.forEach(accessType => {
+						switch (accessType) {
+							case 'read':
+								this.breakWhenValueIsReadSupported.set(!!dataBreakpointId);
+								break;
+							case 'write':
+								this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
+								break;
+							case 'readWrite':
+								this.breakWhenValueIsAccessedSupported.set(!!dataBreakpointId);
+								break;
+						}
+					});
+				}
 			}
 
 			const context: IVariablesContext = {
@@ -217,7 +247,7 @@ export class VariablesView extends ViewPane {
 				variable: variable.toDebugProtocolObject()
 			};
 			const actions: IAction[] = [];
-			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions, this.contextMenuService);
+			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions);
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
@@ -332,26 +362,36 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 
 	static readonly ID = 'variable';
 
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		@IDebugService debugService: IDebugService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IThemeService themeService: IThemeService,
+	) {
+		super(debugService, contextViewService, themeService);
+	}
+
 	get templateId(): string {
 		return VariablesRenderer.ID;
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(expression as Variable, data, true, highlights);
+		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {
 		const variable = <Variable>expression;
 		return {
 			initialValue: expression.value,
-			ariaLabel: nls.localize('variableValueAriaLabel', "Type new variable value"),
+			ariaLabel: localize('variableValueAriaLabel', "Type new variable value"),
 			validationOptions: {
 				validation: () => variable.errorMessage ? ({ content: variable.errorMessage }) : null
 			},
 			onFinish: (value: string, success: boolean) => {
 				variable.errorMessage = undefined;
-				if (success && variable.value !== value) {
-					variable.setVariable(value)
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (success && variable.value !== value && focusedStackFrame) {
+					variable.setVariable(value, focusedStackFrame)
 						// Need to force watch expressions and variables to update since a variable change can have an effect on both
 						.then(() => {
 							// Do not refresh scopes due to a node limitation #15520
@@ -367,15 +407,15 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpression | IScope> {
 
 	getWidgetAriaLabel(): string {
-		return nls.localize('variablesAriaTreeLabel', "Debug Variables");
+		return localize('variablesAriaTreeLabel', "Debug Variables");
 	}
 
 	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
-			return nls.localize('variableScopeAriaLabel', "Scope {0}", element.name);
+			return localize('variableScopeAriaLabel', "Scope {0}", element.name);
 		}
 		if (element instanceof Variable) {
-			return nls.localize({ key: 'variableAriaLabel', comment: ['Placeholders are variable name and variable value respectivly. They should not be translated.'] }, "{0}, value {1}", element.name, element.value);
+			return localize({ key: 'variableAriaLabel', comment: ['Placeholders are variable name and variable value respectivly. They should not be translated.'] }, "{0}, value {1}", element.name, element.value);
 		}
 
 		return null;
@@ -387,18 +427,44 @@ CommandsRegistry.registerCommand({
 	id: SET_VARIABLE_ID,
 	handler: (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
-		debugService.getViewModel().setSelectedExpression(variableInternalContext);
+		debugService.getViewModel().setSelectedExpression(variableInternalContext, false);
 	}
 });
 
-export const COPY_VALUE_ID = 'debug.copyValue';
+export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 CommandsRegistry.registerCommand({
 	id: COPY_VALUE_ID,
-	handler: async (accessor: ServicesAccessor) => {
-		const instantiationService = accessor.get(IInstantiationService);
-		if (variableInternalContext) {
-			const action = instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variableInternalContext, 'variables');
-			await action.run();
+	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | unknown, ctx?: (Variable | Expression)[]) => {
+		const debugService = accessor.get(IDebugService);
+		const clipboardService = accessor.get(IClipboardService);
+		let elementContext = '';
+		let elements: (Variable | Expression)[];
+		if (arg instanceof Variable || arg instanceof Expression) {
+			elementContext = 'watch';
+			elements = ctx ? ctx : [];
+		} else {
+			elementContext = 'variables';
+			elements = variableInternalContext ? [variableInternalContext] : [];
+		}
+
+		const stackFrame = debugService.getViewModel().focusedStackFrame;
+		const session = debugService.getViewModel().focusedSession;
+		if (!stackFrame || !session || elements.length === 0) {
+			return;
+		}
+
+		const evalContext = session.capabilities.supportsClipboardContext ? 'clipboard' : elementContext;
+		const toEvaluate = elements.map(element => element instanceof Variable ? (element.evaluateName || element.value) : element.name);
+
+		try {
+			const evaluations = await Promise.all(toEvaluate.map(expr => session.evaluate(expr, stackFrame.frameId, evalContext)));
+			const result = coalesce(evaluations).map(evaluation => evaluation.body.result);
+			if (result.length) {
+				clipboardService.writeText(result.join('\n'));
+			}
+		} catch (e) {
+			const result = elements.map(element => element.value);
+			clipboardService.writeText(result.join('\n'));
 		}
 	}
 });
@@ -409,7 +475,29 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes);
+			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'write');
+		}
+	}
+});
+
+export const BREAK_WHEN_VALUE_IS_ACCESSED_ID = 'debug.breakWhenValueIsAccessed';
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_IS_ACCESSED_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'readWrite');
+		}
+	}
+});
+
+export const BREAK_WHEN_VALUE_IS_READ_ID = 'debug.breakWhenValueIsRead';
+CommandsRegistry.registerCommand({
+	id: BREAK_WHEN_VALUE_IS_READ_ID,
+	handler: async (accessor: ServicesAccessor) => {
+		const debugService = accessor.get(IDebugService);
+		if (dataBreakpointInfoResponse) {
+			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'read');
 		}
 	}
 });
@@ -432,3 +520,23 @@ CommandsRegistry.registerCommand({
 	}
 });
 
+registerAction2(class extends ViewAction<VariablesView> {
+	constructor() {
+		super({
+			id: 'variables.collapse',
+			viewId: VARIABLES_VIEW_ID,
+			title: localize('collapse', "Collapse All"),
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', VARIABLES_VIEW_ID)
+			}
+		});
+	}
+
+	runInView(_accessor: ServicesAccessor, view: VariablesView) {
+		view.collapseAll();
+	}
+});

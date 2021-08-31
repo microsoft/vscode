@@ -32,7 +32,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -54,7 +54,6 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/quickInput/standaloneQuickInputServiceImpl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -153,7 +152,7 @@ export module StaticServices {
 
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
-	export const logService = define(ILogService, () => new ConsoleLogService());
+	export const logService = define(ILogService, () => new LogService(new ConsoleLogger()));
 
 	export const undoRedoService = define(IUndoRedoService, (o) => new UndoRedoService(dialogService.get(o), notificationService.get(o)));
 
@@ -161,13 +160,13 @@ export module StaticServices {
 
 	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
 
-	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(standaloneThemeService.get(o)));
+	export const contextKeyService = define(IContextKeyService, (o) => new ContextKeyService(configurationService.get(o)));
+
+	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(null, contextKeyService.get(o), standaloneThemeService.get(o)));
 
 	export const editorProgressService = define(IEditorProgressService, () => new SimpleEditorProgressService());
 
 	export const storageService = define(IStorageService, () => new InMemoryStorageService());
-
-	export const storageSyncService = define(IStorageKeysSyncRegistryService, () => new StorageKeysSyncRegistryService());
 
 	export const editorWorkerService = define(IEditorWorkerService, (o) => new EditorWorkerServiceImpl(modelService.get(o), resourceConfigurationService.get(o), logService.get(o)));
 }
@@ -189,6 +188,7 @@ export class DynamicStandaloneServices extends Disposable {
 		const telemetryService = this.get(ITelemetryService);
 		const themeService = this.get(IThemeService);
 		const logService = this.get(ILogService);
+		const contextKeyService = this.get(IContextKeyService);
 
 		let ensure = <T>(serviceId: ServiceIdentifier<T>, factory: () => T): T => {
 			let value: T | null = null;
@@ -201,8 +201,6 @@ export class DynamicStandaloneServices extends Disposable {
 			this._serviceCollection.set(serviceId, value);
 			return value;
 		};
-
-		let contextKeyService = ensure(IContextKeyService, () => this._register(new ContextKeyService(configurationService)));
 
 		ensure(IAccessibilityService, () => new AccessibilityService(contextKeyService, configurationService));
 

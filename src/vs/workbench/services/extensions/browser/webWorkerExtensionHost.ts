@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWorkerBootstrapUrl } from 'vs/base/worker/defaultWorkerFactory';
+import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import { Emitter, Event } from 'vs/base/common/event';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { createMessageOfType, MessageType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -16,7 +16,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as platform from 'vs/base/common/platform';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
@@ -28,9 +27,9 @@ import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output
 import { localize } from 'vs/nls';
 import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
-import { WEB_WORKER_IFRAME } from 'vs/workbench/services/extensions/common/webWorkerIframe';
 import { Barrier } from 'vs/base/common/async';
-import { FileAccess } from 'vs/base/common/network';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { NewWorkerMessage, TerminateWorkerMessage } from 'vs/workbench/services/extensions/common/polyfillNestedWorker.protocol';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -40,6 +39,15 @@ export interface IWebWorkerExtensionHostInitData {
 export interface IWebWorkerExtensionHostDataProvider {
 	getInitData(): Promise<IWebWorkerExtensionHostInitData>;
 }
+
+const ttPolicyNestedWorker = window.trustedTypes?.createPolicy('webNestedWorkerExtensionHost', {
+	createScriptURL(value) {
+		if (value.startsWith('blob:')) {
+			return value;
+		}
+		throw new Error(value + ' is NOT allowed');
+	}
+});
 
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
@@ -64,6 +72,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 	) {
 		super();
 		this._isTerminating = false;
@@ -73,18 +82,64 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
-	private _wrapInIframe(): boolean {
-		if (this._environmentService.options && typeof this._environmentService.options._wrapWebWorkerExtHostInIframe === 'boolean') {
-			return this._environmentService.options._wrapWebWorkerExtHostInIframe;
+	private _webWorkerExtensionHostIframeSrc(): string | null {
+		const suffix = this._environmentService.debugExtensionHost && this._environmentService.debugRenderer ? '?debugged=1' : '?';
+		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
+			return this._environmentService.options.webWorkerExtensionHostIframeSrc + suffix;
 		}
-		// wrap in <iframe> by default
-		return true;
+
+		const forceHTTPS = (location.protocol === 'https:');
+
+		if (this._environmentService.options && this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin) {
+			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
+			const commit = this._productService.commit;
+			const quality = this._productService.quality;
+			if (webEndpointUrlTemplate && commit && quality) {
+				const baseUrl = (
+					webEndpointUrlTemplate
+						.replace('{{uuid}}', generateUuid())
+						.replace('{{commit}}', commit)
+						.replace('{{quality}}', quality)
+				);
+				const base = (
+					forceHTTPS
+						? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
+						: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+				);
+
+				return base + suffix;
+			}
+		}
+
+		if (this._productService.webEndpointUrl) {
+			let baseUrl = this._productService.webEndpointUrl;
+			if (this._productService.quality) {
+				baseUrl += `/${this._productService.quality}`;
+			}
+			if (this._productService.commit) {
+				baseUrl += `/${this._productService.commit}`;
+			}
+			const base = (
+				forceHTTPS
+					? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
+					: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+			);
+
+			return base + suffix;
+		}
+		return null;
 	}
 
 	public async start(): Promise<IMessagePassingProtocol> {
 		if (!this._protocolPromise) {
-			if (platform.isWeb && !browser.isSafari && this._wrapInIframe()) {
-				this._protocolPromise = this._startInsideIframe();
+			if (platform.isWeb) {
+				const webWorkerExtensionHostIframeSrc = this._webWorkerExtensionHostIframeSrc();
+				if (webWorkerExtensionHostIframeSrc) {
+					this._protocolPromise = this._startInsideIframe(webWorkerExtensionHostIframeSrc);
+				} else {
+					console.warn(`The web worker extension host is started without an iframe sandbox!`);
+					this._protocolPromise = this._startOutsideIframe();
+				}
 			} else {
 				this._protocolPromise = this._startOutsideIframe();
 			}
@@ -93,37 +148,41 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return this._protocolPromise;
 	}
 
-	private async _startInsideIframe(): Promise<IMessagePassingProtocol> {
+	private async _startInsideIframe(webWorkerExtensionHostIframeSrc: string): Promise<IMessagePassingProtocol> {
 		const emitter = this._register(new Emitter<VSBuffer>());
 
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
-		iframe.setAttribute('sandbox', 'allow-scripts');
+		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
 		iframe.style.display = 'none';
 
 		const vscodeWebWorkerExtHostId = generateUuid();
-		const workerUrl = FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true);
-		const workerSrc = getWorkerBootstrapUrl(workerUrl, 'WorkerExtensionHost', true);
-		const escapeAttribute = (value: string): string => {
-			return value.replace(/"/g, '&quot;');
-		};
-		const forceHTTPS = (location.protocol === 'https:');
-		const html = `<!DOCTYPE html>
-<html>
-	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' '${WEB_WORKER_IFRAME.sha}' ${forceHTTPS ? 'https:' : 'http: https:'}; worker-src data:; connect-src ${forceHTTPS ? 'https:' : 'http: https:'}" />
-		<meta id="vscode-worker-src" data-value="${escapeAttribute(workerSrc)}" />
-		<meta id="vscode-web-worker-ext-host-id" data-value="${escapeAttribute(vscodeWebWorkerExtHostId)}" />
-	</head>
-	<body>
-	<script>${WEB_WORKER_IFRAME.js}</script>
-	</body>
-</html>`;
-		const iframeContent = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-		iframe.setAttribute('src', iframeContent);
+		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
+		let barrierError: Error | null = null;
+		let barrierHasError = false;
+		let startTimeout: any = null;
+
+		const rejectBarrier = (exitCode: number, error: Error) => {
+			barrierError = error;
+			barrierHasError = true;
+			onUnexpectedError(barrierError);
+			clearTimeout(startTimeout);
+			this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, barrierError.message]);
+			barrier.open();
+		};
+
+		const resolveBarrier = (messagePort: MessagePort) => {
+			port = messagePort;
+			clearTimeout(startTimeout);
+			barrier.open();
+		};
+
+		startTimeout = setTimeout(() => {
+			console.warn(`The Web Worker Extension Host did not start in 60s, that might be a problem.`);
+		}, 60000);
 
 		this._register(dom.addDisposableListener(window, 'message', (event) => {
 			if (event.source !== iframe.contentWindow) {
@@ -138,26 +197,27 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				err.message = message;
 				err.name = name;
 				err.stack = stack;
-				onUnexpectedError(err);
-				this._onDidExit.fire([18, err.message]);
-				return;
+				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
 			}
 			const { data } = event.data;
 			if (barrier.isOpen() || !(data instanceof MessagePort)) {
 				console.warn('UNEXPECTED message', event);
-				this._onDidExit.fire([81, 'UNEXPECTED message']);
-				return;
+				const err = new Error('UNEXPECTED message');
+				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
 			}
-			port = data;
-			barrier.open();
+			resolveBarrier(data);
 		}));
 
-		document.body.appendChild(iframe);
+		this._layoutService.container.appendChild(iframe);
 		this._register(toDisposable(() => iframe.remove()));
 
 		// await MessagePort and use it to directly communicate
 		// with the worker extension host
 		await barrier.wait();
+
+		if (barrierHasError) {
+			throw barrierError;
+		}
 
 		port.onmessage = (event) => {
 			const { data } = event;
@@ -182,23 +242,53 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	private async _startOutsideIframe(): Promise<IMessagePassingProtocol> {
 		const emitter = new Emitter<VSBuffer>();
-
-		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
-		const worker = new Worker(url, { name: 'WorkerExtensionHost' });
-
 		const barrier = new Barrier();
 		let port!: MessagePort;
 
-		worker.onmessage = (event) => {
-			const { data } = event;
-			if (barrier.isOpen() || !(data instanceof MessagePort)) {
-				console.warn('UNEXPECTED message', event);
-				this._onDidExit.fire([81, 'UNEXPECTED message']);
-				return;
+		const nestedWorker = new Map<string, Worker>();
+
+		const name = this._environmentService.debugRenderer && this._environmentService.debugExtensionHost ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
+		const worker = new DefaultWorkerFactory(name).create(
+			'vs/workbench/services/extensions/worker/extensionHostWorker',
+			(data: MessagePort | NewWorkerMessage | TerminateWorkerMessage | any) => {
+
+				if (data instanceof MessagePort) {
+					// receiving a message port which is used to communicate
+					// with the web worker extension host
+					if (barrier.isOpen()) {
+						console.warn('UNEXPECTED message', data);
+						this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'received a message port AFTER opening the barrier']);
+						return;
+					}
+					port = data;
+					barrier.open();
+
+
+				} else if (data?.type === '_newWorker') {
+					// receiving a message to create a new nested/child worker
+					const worker = new Worker((ttPolicyNestedWorker?.createScriptURL(data.url) ?? data.url) as string, data.options);
+					worker.postMessage(data.port, [data.port]);
+					worker.onerror = console.error.bind(console);
+					nestedWorker.set(data.id, worker);
+
+				} else if (data?.type === '_terminateWorker') {
+					// receiving a message to terminate nested/child worker
+					if (nestedWorker.has(data.id)) {
+						nestedWorker.get(data.id)!.terminate();
+						nestedWorker.delete(data.id);
+					}
+
+				} else {
+					// all other messages are an error
+					console.warn('UNEXPECTED message', data);
+					this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, 'UNEXPECTED message']);
+				}
+			},
+			(event: any) => {
+				console.error(event.message, event.error);
+				this._onDidExit.fire([ExtensionHostExitCode.UnexpectedError, event.message || event.error]);
 			}
-			port = data;
-			barrier.open();
-		};
+		);
 
 		// await MessagePort and use it to directly communicate
 		// with the worker extension host
@@ -215,14 +305,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
 		};
 
-		worker.onerror = (event) => {
-			console.error(event.message, event.error);
-			this._onDidExit.fire([81, event.message || event.error]);
-		};
 
 		// keep for cleanup
 		this._register(emitter);
-		this._register(toDisposable(() => worker.terminate()));
+		this._register(worker);
 
 		const protocol: IMessagePassingProtocol = {
 			onMessage: emitter.event,
@@ -260,7 +346,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return protocol;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._isTerminating) {
 			return;
 		}
@@ -289,14 +375,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
+				embedderIdentifier: this._productService.embedderIdentifier || 'web',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration || undefined,

@@ -11,10 +11,9 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES, ExtensionKind } from 'vs/platform/extensions/common/extensions';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
-export type ExtensionKind = 'workspace' | 'ui' | undefined;
 
 export class ExtensionMessageCollector {
 
@@ -63,9 +62,9 @@ export interface IExtensionPointUser<T> {
 export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
 
 export interface IExtensionPoint<T> {
-	name: string;
+	readonly name: string;
 	setHandler(handler: IExtensionPointHandler<T>): void;
-	defaultExtensionKind: ExtensionKind;
+	readonly defaultExtensionKind: ExtensionKind[] | undefined;
 }
 
 export class ExtensionPointUserDelta<T> {
@@ -104,13 +103,13 @@ export class ExtensionPointUserDelta<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	public readonly defaultExtensionKind: ExtensionKind;
+	public readonly defaultExtensionKind: ExtensionKind[] | undefined;
 
 	private _handler: IExtensionPointHandler<T> | null;
 	private _users: IExtensionPointUser<T>[] | null;
 	private _delta: ExtensionPointUserDelta<T> | null;
 
-	constructor(name: string, defaultExtensionKind: ExtensionKind) {
+	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined) {
 		this.name = name;
 		this.defaultExtensionKind = defaultExtensionKind;
 		this._handler = null;
@@ -301,9 +300,39 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
 					},
 					{
+						label: 'onOpenExternalUri',
+						body: 'onOpenExternalUri',
+						description: nls.localize('vscode.extension.activationEvents.onOpenExternalUri', 'An activation event emitted whenever a external uri (such as an http or https link) is being opened.'),
+					},
+					{
 						label: 'onCustomEditor',
 						body: 'onCustomEditor:${9:viewType}',
 						description: nls.localize('vscode.extension.activationEvents.onCustomEditor', 'An activation event emitted whenever the specified custom editor becomes visible.'),
+					},
+					{
+						label: 'onNotebook',
+						body: 'onNotebook:${1:type}',
+						description: nls.localize('vscode.extension.activationEvents.onNotebook', 'An activation event emitted whenever the specified notebook document is opened.'),
+					},
+					{
+						label: 'onAuthenticationRequest',
+						body: 'onAuthenticationRequest:${11:authenticationProviderId}',
+						description: nls.localize('vscode.extension.activationEvents.onAuthenticationRequest', 'An activation event emitted whenever sessions are requested from the specified authentication provider.')
+					},
+					{
+						label: 'onRenderer',
+						description: nls.localize('vscode.extension.activationEvents.onRenderer', 'An activation event emitted whenever a notebook output renderer is used.'),
+						body: 'onRenderer:${11:rendererId}'
+					},
+					{
+						label: 'onTerminalProfile',
+						body: 'onTerminalProfile:${1:terminalId}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+					},
+					{
+						label: 'onWalkthrough',
+						body: 'onWalkthrough:${1:walkthroughID}',
+						description: nls.localize('vscode.extension.activationEvents.onWalkthrough', 'An activation event emitted when a specified walkthrough is opened.'),
 					},
 					{
 						label: '*',
@@ -400,6 +429,68 @@ export const schema: IJSONSchema = {
 				}
 			]
 		},
+		capabilities: {
+			description: nls.localize('vscode.extension.capabilities', "Declare the set of supported capabilities by the extension."),
+			type: 'object',
+			properties: {
+				virtualWorkspaces: {
+					description: nls.localize('vscode.extension.capabilities.virtualWorkspaces', "Declares whether the extension should be enabled in virtual workspaces. A virtual workspace is a workspace which is not backed by any on-disk resources. When false, this extension will be automatically disabled in virtual workspaces. Default is true."),
+					type: ['boolean', 'object'],
+					defaultSnippets: [
+						{ label: 'limited', body: { supported: '${1:limited}', description: '${2}' } },
+						{ label: 'false', body: { supported: false, description: '${2}' } },
+					],
+					default: true.valueOf,
+					properties: {
+						supported: {
+							markdownDescription: nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported', "Declares the level of support for virtual workspaces by the extension."),
+							type: ['string', 'boolean'],
+							enum: ['limited', true, false],
+							enumDescriptions: [
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.limited', "The extension will be enabled in virtual workspaces with some functionality disabled."),
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.true', "The extension will be enabled in virtual workspaces with all functionality enabled."),
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.false', "The extension will not be enabled in virtual workspaces."),
+							]
+						},
+						description: {
+							type: 'string',
+							markdownDescription: nls.localize('vscode.extension.capabilities.virtualWorkspaces.description', "A description of how virtual workspaces affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
+						}
+					}
+				},
+				untrustedWorkspaces: {
+					description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces', 'Declares how the extension should be handled in untrusted workspaces.'),
+					type: 'object',
+					required: ['supported'],
+					defaultSnippets: [
+						{ body: { supported: '${1:limited}', description: '${2}' } },
+					],
+					properties: {
+						supported: {
+							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported', "Declares the level of support for untrusted workspaces by the extension."),
+							type: ['string', 'boolean'],
+							enum: ['limited', true, false],
+							enumDescriptions: [
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.limited', "The extension will be enabled in untrusted workspaces with some functionality disabled."),
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.true', "The extension will be enabled in untrusted workspaces with all functionality enabled."),
+								nls.localize('vscode.extension.capabilities.untrustedWorkspaces.supported.false', "The extension will not be enabled in untrusted workspaces."),
+							]
+						},
+						restrictedConfigurations: {
+							description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.restrictedConfigurations', "A list of configuration keys contributed by the extension that should not use workspace values in untrusted workspaces."),
+							type: 'array',
+							items: {
+								type: 'string'
+							}
+						},
+						description: {
+							type: 'string',
+							markdownDescription: nls.localize('vscode.extension.capabilities.untrustedWorkspaces.description', "A description of how workspace trust affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
+						}
+					}
+				}
+			}
+		},
 		scripts: {
 			type: 'object',
 			properties: {
@@ -424,7 +515,7 @@ export interface IExtensionPointDescriptor {
 	extensionPoint: string;
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
-	defaultExtensionKind?: ExtensionKind;
+	defaultExtensionKind?: ExtensionKind[];
 }
 
 export class ExtensionsRegistryImpl {

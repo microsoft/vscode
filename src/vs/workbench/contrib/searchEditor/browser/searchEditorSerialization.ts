@@ -108,13 +108,14 @@ function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x:
 const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: string, excludes: string, contextLines: number): SearchConfiguration => {
 	return {
 		query: pattern.contentPattern.pattern,
-		regexp: !!pattern.contentPattern.isRegExp,
-		caseSensitive: !!pattern.contentPattern.isCaseSensitive,
-		wholeWord: !!pattern.contentPattern.isWordMatch,
-		excludes, includes,
+		isRegexp: !!pattern.contentPattern.isRegExp,
+		isCaseSensitive: !!pattern.contentPattern.isCaseSensitive,
+		matchWholeWord: !!pattern.contentPattern.isWordMatch,
+		filesToExclude: excludes, filesToInclude: includes,
 		showIncludesExcludes: !!(includes || excludes || pattern?.userDisabledExcludesAndIgnoreFiles),
-		useIgnores: (pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? true : !pattern.userDisabledExcludesAndIgnoreFiles),
+		useExcludeSettingsAndIgnoreFiles: (pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? true : !pattern.userDisabledExcludesAndIgnoreFiles),
 		contextLines,
+		onlyOpenEditors: !!pattern.onlyOpenEditors,
 	};
 };
 
@@ -126,15 +127,16 @@ export const serializeSearchConfiguration = (config: Partial<SearchConfiguration
 	return removeNullFalseAndUndefined([
 		`# Query: ${escapeNewlines(config.query ?? '')}`,
 
-		(config.caseSensitive || config.wholeWord || config.regexp || config.useIgnores === false)
+		(config.isCaseSensitive || config.matchWholeWord || config.isRegexp || config.useExcludeSettingsAndIgnoreFiles === false)
 		&& `# Flags: ${coalesce([
-			config.caseSensitive && 'CaseSensitive',
-			config.wholeWord && 'WordMatch',
-			config.regexp && 'RegExp',
-			(config.useIgnores === false) && 'IgnoreExcludeSettings'
+			config.isCaseSensitive && 'CaseSensitive',
+			config.matchWholeWord && 'WordMatch',
+			config.isRegexp && 'RegExp',
+			config.onlyOpenEditors && 'OpenEditors',
+			(config.useExcludeSettingsAndIgnoreFiles === false) && 'IgnoreExcludeSettings'
 		]).join(' ')}`,
-		config.includes ? `# Including: ${config.includes}` : undefined,
-		config.excludes ? `# Excluding: ${config.excludes}` : undefined,
+		config.filesToInclude ? `# Including: ${config.filesToInclude}` : undefined,
+		config.filesToExclude ? `# Excluding: ${config.filesToExclude}` : undefined,
 		config.contextLines ? `# ContextLines: ${config.contextLines}` : undefined,
 		''
 	]).join(lineDelimiter);
@@ -145,14 +147,15 @@ export const extractSearchQueryFromModel = (model: ITextModel): SearchConfigurat
 
 export const defaultSearchConfig = (): SearchConfiguration => ({
 	query: '',
-	includes: '',
-	excludes: '',
-	regexp: false,
-	caseSensitive: false,
-	useIgnores: true,
-	wholeWord: false,
+	filesToInclude: '',
+	filesToExclude: '',
+	isRegexp: false,
+	isCaseSensitive: false,
+	useExcludeSettingsAndIgnoreFiles: true,
+	matchWholeWord: false,
 	contextLines: 0,
 	showIncludesExcludes: false,
+	onlyOpenEditors: false,
 });
 
 export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguration => {
@@ -189,19 +192,20 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 		const [, key, value] = parsed;
 		switch (key) {
 			case 'Query': query.query = unescapeNewlines(value); break;
-			case 'Including': query.includes = value; break;
-			case 'Excluding': query.excludes = value; break;
+			case 'Including': query.filesToInclude = value; break;
+			case 'Excluding': query.filesToExclude = value; break;
 			case 'ContextLines': query.contextLines = +value; break;
 			case 'Flags': {
-				query.regexp = value.indexOf('RegExp') !== -1;
-				query.caseSensitive = value.indexOf('CaseSensitive') !== -1;
-				query.useIgnores = value.indexOf('IgnoreExcludeSettings') === -1;
-				query.wholeWord = value.indexOf('WordMatch') !== -1;
+				query.isRegexp = value.indexOf('RegExp') !== -1;
+				query.isCaseSensitive = value.indexOf('CaseSensitive') !== -1;
+				query.useExcludeSettingsAndIgnoreFiles = value.indexOf('IgnoreExcludeSettings') === -1;
+				query.matchWholeWord = value.indexOf('WordMatch') !== -1;
+				query.onlyOpenEditors = value.indexOf('OpenEditors') !== -1;
 			}
 		}
 	}
 
-	query.showIncludesExcludes = !!(query.includes || query.excludes || !query.useIgnores);
+	query.showIncludesExcludes = !!(query.filesToInclude || query.filesToExclude || !query.useExcludeSettingsAndIgnoreFiles);
 
 	return query;
 };
@@ -220,7 +224,7 @@ export const serializeSearchResultForEditor =
 				: localize('noResults', "No Results"),
 		];
 		if (limitHit) {
-			info.push(localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Please be more specific in your search to narrow down the results."));
+			info.push(localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results."));
 		}
 		info.push('');
 
@@ -257,7 +261,10 @@ export const parseSavedSearchEditor = async (accessor: ServicesAccessor, resourc
 	const textFileService = accessor.get(ITextFileService);
 
 	const text = (await textFileService.read(resource)).value;
+	return parseSerializedSearchEditor(text);
+};
 
+export const parseSerializedSearchEditor = (text: string) => {
 	const headerlines = [];
 	const bodylines = [];
 

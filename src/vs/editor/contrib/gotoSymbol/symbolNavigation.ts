@@ -21,7 +21,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isEqual } from 'vs/base/common/resources';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 
-export const ctxHasSymbols = new RawContextKey('hasSymbols', false);
+export const ctxHasSymbols = new RawContextKey('hasSymbols', false, localize('hasSymbols', "Whether there are symbol locations that can be navigated via keyboard-only."));
 
 export const ISymbolNavigationService = createDecorator<ISymbolNavigationService>('ISymbolNavigationService');
 

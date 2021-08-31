@@ -16,6 +16,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRange } from 'vs/editor/common/core/range';
 import { isNumber } from 'vs/base/common/types';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -164,3 +165,11 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 
 	return undefined;
 }
+
+export enum SearchUIState {
+	Idle,
+	Searching,
+	SlowSearch
+}
+
+export const SearchStateKey = new RawContextKey<SearchUIState>('searchState', SearchUIState.Idle);

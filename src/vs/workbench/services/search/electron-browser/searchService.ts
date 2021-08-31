@@ -13,7 +13,7 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { parseSearchPort } from 'vs/platform/environment/node/environmentService';
+import { parseSearchPort } from 'vs/platform/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileMatch, IFileMatch, IFileQuery, IProgressMessage, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchProgressItem, ISearchResultProvider, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, ISearchService, isFileMatch } from 'vs/workbench/services/search/common/search';
@@ -26,6 +26,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FileAccess } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -36,9 +38,10 @@ export class LocalSearchService extends SearchService {
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IInstantiationService readonly instantiationService: IInstantiationService
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 
 		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
 	}
@@ -52,6 +55,7 @@ export class DiskSearch implements ISearchResultProvider {
 		searchDebug: IDebugParams | undefined,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configService: IConfigurationService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		const timeout = this.configService.getValue<ISearchConfiguration>().search.maintainFileSearchCache ?
 			100 * 60 * 60 * 1000 :
@@ -61,15 +65,12 @@ export class DiskSearch implements ISearchResultProvider {
 			serverName: 'Search',
 			timeout,
 			args: ['--type=searchService'],
-			// See https://github.com/microsoft/vscode/issues/27665
 			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
-			// e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
-			// results in the forked process inheriting `--inspect-brk=xxx`.
 			freshExecArgv: true,
 			env: {
-				AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
-				PIPE_LOGGING: 'true',
-				VERBOSE_LOGGING: verboseLogging
+				VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
+				VSCODE_PIPE_LOGGING: 'true',
+				VSCODE_VERBOSE_LOGGING: verboseLogging
 			},
 			useQueue: true
 		};
@@ -85,6 +86,8 @@ export class DiskSearch implements ISearchResultProvider {
 		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
 		const channel = getNextTickChannel(client.getChannel('search'));
 		this.raw = new SearchChannelClient(channel);
+
+		this.lifecycleService.onWillShutdown(_ => client.dispose());
 	}
 
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
@@ -139,7 +142,8 @@ export class DiskSearch implements ISearchResultProvider {
 						c({
 							limitHit: ev.limitHit,
 							results: result,
-							stats: ev.stats
+							stats: ev.stats,
+							messages: ev.messages,
 						});
 					} else {
 						e(ev.error);

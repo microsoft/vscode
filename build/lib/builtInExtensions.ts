@@ -17,10 +17,11 @@ import { Stream } from 'stream';
 
 const mkdirp = require('mkdirp');
 
-interface IExtensionDefinition {
+export interface IExtensionDefinition {
 	name: string;
 	version: string;
 	repo: string;
+	platforms?: string[];
 	metadata: {
 		id: string;
 		publisherId: {
@@ -35,8 +36,8 @@ interface IExtensionDefinition {
 
 const root = path.dirname(path.dirname(__dirname));
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions;
-const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions;
+const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
+const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 
@@ -82,6 +83,15 @@ function syncMarketplaceExtension(extension: IExtensionDefinition): Stream {
 }
 
 function syncExtension(extension: IExtensionDefinition, controlState: 'disabled' | 'marketplace'): Stream {
+	if (extension.platforms) {
+		const platforms = new Set(extension.platforms);
+
+		if (!platforms.has(process.platform)) {
+			log(ansiColors.gray('[skip]'), `${extension.name}@${extension.version}: Platform '${process.platform}' not supported: [${extension.platforms}]`, ansiColors.green('✔︎'));
+			return es.readArray([]);
+		}
+	}
+
 	switch (controlState) {
 		case 'disabled':
 			log(ansiColors.blue('[disabled]'), ansiColors.gray(extension.name));

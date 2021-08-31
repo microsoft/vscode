@@ -43,7 +43,7 @@ if [ $IN_WSL = true ]; then
 	# use the Remote WSL extension if installed
 	WSL_EXT_ID="ms-vscode-remote.remote-wsl"
 
-	ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --locate-extension $WSL_EXT_ID >/tmp/remote-wsl-loc.txt 2>/dev/null
+	ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --locate-extension $WSL_EXT_ID >/tmp/remote-wsl-loc.txt 2>/dev/null </dev/null
 	WSL_EXT_WLOC=$(cat /tmp/remote-wsl-loc.txt)
 
 	if [ -n "$WSL_EXT_WLOC" ]; then

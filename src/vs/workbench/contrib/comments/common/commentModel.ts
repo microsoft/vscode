@@ -134,7 +134,7 @@ export class CommentsModel {
 
 	public getMessage(): string {
 		if (!this.resourceCommentThreads.length) {
-			return localize('noComments', "There are no comments on this review.");
+			return localize('noComments', "There are no comments in this workspace yet.");
 		} else {
 			return '';
 		}

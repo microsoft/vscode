@@ -25,8 +25,6 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(
 		@IHostService hostService: IHostService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -64,11 +62,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		};
 	}
 
-	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFilePath(schema);
+			options.defaultUri = await this.defaultFilePath(schema);
 		}
 
 		const shouldUseSimplified = this.shouldUseSimplified(schema);
@@ -78,11 +76,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.nativeHostService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFilePath(schema);
+			options.defaultUri = await this.defaultFilePath(schema);
 		}
 
 		const shouldUseSimplified = this.shouldUseSimplified(schema);
@@ -92,11 +90,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.nativeHostService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFolderPath(schema);
+			options.defaultUri = await this.defaultFolderPath(schema);
 		}
 
 		if (this.shouldUseSimplified(schema).useSimplified) {
@@ -106,10 +104,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		options.availableFileSystems = this.getWorkspaceAvailableFileSystems(options);
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultWorkspacePath(schema);
+			options.defaultUri = await this.defaultWorkspacePath(schema);
 		}
 
 		if (this.shouldUseSimplified(schema).useSimplified) {
@@ -188,12 +187,6 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		const result = await this.nativeHostService.showOpenDialog(newOptions);
 		return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
-	}
-
-	protected addFileSchemaIfNeeded(schema: string): string[] {
-		// Include File schema unless the schema is web
-		// Don't allow untitled schema through.
-		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 }
 

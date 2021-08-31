@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./splitview';
-import { IDisposable, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
-import { clamp } from 'vs/base/common/numbers';
-import { range, pushToStart, pushToEnd } from 'vs/base/common/arrays';
-import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
+import { $, addDisposableListener, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
-import { domEvent } from 'vs/base/browser/event';
-import { $, append } from 'vs/base/browser/dom';
+import { Emitter, Event } from 'vs/base/common/event';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
+import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+import * as types from 'vs/base/common/types';
+import 'vs/css!./splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface ISplitViewStyles {
@@ -31,6 +32,8 @@ export interface ISplitViewOptions<TLayoutContext = undefined> {
 	readonly inverseAltBehavior?: boolean;
 	readonly proportionalLayout?: boolean; // default true,
 	readonly descriptor?: ISplitViewDescriptor<TLayoutContext>;
+	readonly scrollbarVisibility?: ScrollbarVisibility;
+	readonly getSashOrthogonalSize?: () => number;
 }
 
 /**
@@ -198,7 +201,7 @@ export namespace Sizing {
 	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
 
-export interface ISplitViewDescriptor<TLayoutContext> {
+export interface ISplitViewDescriptor<TLayoutContext = undefined> {
 	size: number;
 	views: {
 		visible?: boolean;
@@ -213,6 +216,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	readonly el: HTMLElement;
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
+	private scrollable: Scrollable;
+	private scrollableElement: SmoothScrollableElement;
 	private size = 0;
 	private layoutContext: TLayoutContext | undefined;
 	private contentSize = 0;
@@ -223,12 +228,15 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private state: State = State.Idle;
 	private inverseAltBehavior: boolean;
 	private proportionalLayout: boolean;
+	private readonly getSashOrthogonalSize: { (): number } | undefined;
 
 	private _onDidSashChange = this._register(new Emitter<number>());
 	readonly onDidSashChange = this._onDidSashChange.event;
 
 	private _onDidSashReset = this._register(new Emitter<number>());
 	readonly onDidSashReset = this._onDidSashReset.event;
+
+	readonly onDidScroll: Event<ScrollEvent>;
 
 	get length(): number {
 		return this.viewItems.length;
@@ -294,6 +302,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 		this.inverseAltBehavior = !!options.inverseAltBehavior;
 		this.proportionalLayout = types.isUndefined(options.proportionalLayout) ? true : !!options.proportionalLayout;
+		this.getSashOrthogonalSize = options.getSashOrthogonalSize;
 
 		this.el = document.createElement('div');
 		this.el.classList.add('monaco-split-view2');
@@ -301,7 +310,21 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		container.appendChild(this.el);
 
 		this.sashContainer = append(this.el, $('.sash-container'));
-		this.viewContainer = append(this.el, $('.split-view-container'));
+		this.viewContainer = $('.split-view-container');
+
+		this.scrollable = new Scrollable(125, scheduleAtNextAnimationFrame);
+		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
+			vertical: this.orientation === Orientation.VERTICAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden,
+			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
+		}, this.scrollable));
+
+		this.onDidScroll = this.scrollableElement.onScroll;
+		this._register(this.onDidScroll(e => {
+			this.viewContainer.scrollTop = e.scrollTop;
+			this.viewContainer.scrollLeft = e.scrollLeft;
+		}));
+
+		append(this.el, this.scrollableElement.getDomNode());
 
 		this.style(options.styles || defaultStyles);
 
@@ -464,8 +487,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// This way, we can press Alt while we resize a sash, macOS style!
 		const disposable = combinedDisposable(
-			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState!.current, e.altKey)),
-			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState!.current, false))
+			addDisposableListener(document.body, 'keydown', e => resetSashDragState(this.sashDragState!.current, e.altKey)),
+			addDisposableListener(document.body, 'keyup', () => resetSashDragState(this.sashDragState!.current, false))
 		);
 
 		const resetSashDragState = (start: number, alt: boolean) => {
@@ -689,17 +712,11 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// Add sash
 		if (this.viewItems.length > 1) {
+			let opts = { orthogonalStartSash: this.orthogonalStartSash, orthogonalEndSash: this.orthogonalEndSash };
+
 			const sash = this.orientation === Orientation.VERTICAL
-				? new Sash(this.sashContainer, { getHorizontalSashTop: (sash: Sash) => this.getSashPosition(sash) }, {
-					orientation: Orientation.HORIZONTAL,
-					orthogonalStartSash: this.orthogonalStartSash,
-					orthogonalEndSash: this.orthogonalEndSash
-				})
-				: new Sash(this.sashContainer, { getVerticalSashLeft: (sash: Sash) => this.getSashPosition(sash) }, {
-					orientation: Orientation.VERTICAL,
-					orthogonalStartSash: this.orthogonalStartSash,
-					orthogonalEndSash: this.orthogonalEndSash
-				});
+				? new Sash(this.sashContainer, { getHorizontalSashTop: s => this.getSashPosition(s), getHorizontalSashWidth: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.HORIZONTAL })
+				: new Sash(this.sashContainer, { getVerticalSashLeft: s => this.getSashPosition(s), getVerticalSashHeight: this.getSashOrthogonalSize }, { ...opts, orientation: Orientation.VERTICAL });
 
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
 				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey })
@@ -897,6 +914,21 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		// Layout sashes
 		this.sashItems.forEach(item => item.sash.layout());
 		this.updateSashEnablement();
+		this.updateScrollableElement();
+	}
+
+	private updateScrollableElement(): void {
+		if (this.orientation === Orientation.VERTICAL) {
+			this.scrollableElement.setScrollDimensions({
+				height: this.size,
+				scrollHeight: this.contentSize
+			});
+		} else {
+			this.scrollableElement.setScrollDimensions({
+				width: this.size,
+				scrollWidth: this.contentSize
+			});
+		}
 	}
 
 	private updateSashEnablement(): void {
@@ -992,7 +1024,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 		return undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.viewItems.forEach(i => i.dispose());

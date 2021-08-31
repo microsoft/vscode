@@ -8,21 +8,20 @@ import * as env from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import severity from 'vs/base/common/severity';
-import { IAction, Action, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, ITextModel, OverviewRulerLane, IModelDecorationOverviewRulerOptions } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { RemoveBreakpointAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, BreakpointWidgetContext, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { getBreakpointMessageAndClassName } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { generateUuid } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -32,9 +31,11 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { isSafari } from 'vs/base/browser/browser';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
+import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 const $ = dom.$;
 
@@ -46,7 +47,8 @@ interface IBreakpointDecoration {
 }
 
 const breakpointHelperDecoration: IModelDecorationOptions = {
-	glyphMarginClassName: 'codicon-debug-hint',
+	description: 'breakpoint-helper-decoration',
+	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -72,7 +74,7 @@ export function createBreakpointDecorations(model: ITextModel, breakpoints: Read
 }
 
 function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): IModelDecorationOptions {
-	const { className, message } = getBreakpointMessageAndClassName(state, breakpointsActivated, breakpoint, undefined);
+	const { icon, message } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, undefined);
 	let glyphMarginHoverMessage: MarkdownString | undefined;
 
 	if (message) {
@@ -94,7 +96,8 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 
 	const renderInline = breakpoint.column && (breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
 	return {
-		glyphMarginClassName: `${className}`,
+		description: 'breakpoint-decoration',
+		glyphMarginClassName: ThemeIcon.asClassName(icon),
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		beforeContentClassName: renderInline ? `debug-breakpoint-placeholder` : undefined,
@@ -128,6 +131,7 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 						result.push({
 							range,
 							options: {
+								description: 'breakpoint-placeholder-decoration',
 								stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 								beforeContentClassName: breakpointAtPosition ? undefined : `debug-breakpoint-placeholder`
 							},
@@ -172,9 +176,27 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		this.setDecorationsScheduler.schedule();
 	}
 
+	/**
+	 * Returns context menu actions at the line number if breakpoints can be
+	 * set. This is used by the {@link TestingDecorations} to allow breakpoint
+	 * setting on lines where breakpoint "run" actions are present.
+	 */
+	public getContextMenuActionsAtPosition(lineNumber: number, model: ITextModel) {
+		if (!this.debugService.getAdapterManager().hasDebuggers()) {
+			return [];
+		}
+
+		if (!this.debugService.canSetBreakpointsIn(model)) {
+			return [];
+		}
+
+		const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri: model.uri });
+		return this.getContextMenuActions(breakpoints, model.uri, lineNumber);
+	}
+
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!this.debugService.getConfigurationManager().hasDebuggers()) {
+			if (!this.debugService.getAdapterManager().hasDebuggers()) {
 				return;
 			}
 
@@ -183,7 +205,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				return;
 			}
-			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(model);
+			const canSetBreakpoints = this.debugService.canSetBreakpointsIn(model);
 			const lineNumber = e.target.position.lineNumber;
 			const uri = model.uri;
 
@@ -237,7 +259,12 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!disable, bp));
 						}
 					} else {
-						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+						const enabled = breakpoints.some(bp => bp.enabled);
+						if (!enabled) {
+							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
+						} else {
+							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
+						}
 					}
 				} else if (canSetBreakpoints) {
 					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
@@ -252,13 +279,13 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
 			 */
 			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
-				if (!this.debugService.getConfigurationManager().hasDebuggers()) {
+				if (!this.debugService.getAdapterManager().hasDebuggers()) {
 					return;
 				}
 
 				let showBreakpointHintAtLineNumber = -1;
 				const model = this.editor.getModel();
-				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&
+				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.canSetBreakpointsIn(model) &&
 					this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 					const data = e.target.detail as IMarginData;
 					if (!data.isAfterLines) {
@@ -298,9 +325,12 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	private getContextMenuActions(breakpoints: ReadonlyArray<IBreakpoint>, uri: URI, lineNumber: number, column?: number): IAction[] {
 		const actions: IAction[] = [];
+
 		if (breakpoints.length === 1) {
 			const breakpointType = breakpoints[0].logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
-			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, nls.localize('removeBreakpoint', "Remove {0}", breakpointType), this.debugService));
+			actions.push(new Action('debug.removeBreakpoint', nls.localize('removeBreakpoint', "Remove {0}", breakpointType), undefined, true, async () => {
+				await this.debugService.removeBreakpoints(breakpoints[0].getId());
+			}));
 			actions.push(new Action(
 				'workbench.debug.action.editBreakpointAction',
 				nls.localize('editBreakpoint', "Edit {0}...", breakpointType),
@@ -326,9 +356,9 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				() => this.debugService.removeBreakpoints(bp.getId())
 			))));
 
-			actions.push(new SubmenuAction('debug.editBReakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
+			actions.push(new SubmenuAction('debug.editBreakpoints', nls.localize('editBreakpoints', "Edit Breakpoints"), sorted.map(bp =>
 				new Action('editBreakpoint',
-					bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBrekapoint', "Edit Line Breakpoint"),
+					bp.column ? nls.localize('editInlineBreakpointOnColumn', "Edit Inline Breakpoint on Column {0}", bp.column) : nls.localize('editLineBreakpoint', "Edit Line Breakpoint"),
 					undefined,
 					true,
 					() => Promise.resolve(this.showBreakpointWidget(bp.lineNumber, bp.column))
@@ -367,6 +397,18 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			));
 		}
 
+		actions.push(new Separator());
+
+		if (this.debugService.state === State.Stopped) {
+			actions.push(new Action(
+				'runToLine',
+				nls.localize('runToLine', "Run to Line"),
+				undefined,
+				true,
+				() => this.debugService.runTo(uri, lineNumber).catch(onUnexpectedError)
+			));
+		}
+
 		return actions;
 	}
 
@@ -374,7 +416,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('codicon-') === -1) {
+				const clz = options.glyphMarginClassName;
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-'))) {
 					return false;
 				}
 			}
@@ -453,9 +496,9 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
 			// In practice this happens for the first breakpoint that was set on a line
 			// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
-			const cssClass = candidate.breakpoint ? getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).className : 'codicon-debug-breakpoint-disabled';
+			const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.breakpoint.disabled;
 			const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
-			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, cssClass, candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
+			const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, ThemeIcon.asClassName(icon), candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 
 			return {
 				decorationId,
@@ -575,9 +618,8 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 
 	private create(cssClass: string | null | undefined): void {
 		this.domNode = $('.inline-breakpoint-widget');
-		this.domNode.classList.add('codicon');
 		if (cssClass) {
-			this.domNode.classList.add(cssClass);
+			this.domNode.classList.add(...cssClass.split(' '));
 		}
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, async e => {
 			if (this.breakpoint) {
@@ -645,15 +687,11 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointColor = theme.getColor(debugIconBreakpointForeground);
 	if (debugIconBreakpointColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon-debug-breakpoint,
-		.monaco-workbench .codicon-debug-breakpoint-conditional,
-		.monaco-workbench .codicon-debug-breakpoint-log,
-		.monaco-workbench .codicon-debug-breakpoint-function,
-		.monaco-workbench .codicon-debug-breakpoint-data,
-		.monaco-workbench .codicon-debug-breakpoint-unsupported,
-		.monaco-workbench .codicon-debug-hint:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
-		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
-		.monaco-workbench .codicon-debug-breakpoint.codicon-debug-stackframe::after {
+		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.regular)}`).join(',\n		')},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointUnsupported)},
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugBreakpointHint)}:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']),
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)}::after,
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.regular)}${ThemeIcon.asCSSSelector(icons.debugStackframe)}::after {
 			color: ${debugIconBreakpointColor} !important;
 		}
 		`);
@@ -662,8 +700,8 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointDisabledColor = theme.getColor(debugIconBreakpointDisabledForeground);
 	if (debugIconBreakpointDisabledColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon[class*='-disabled'] {
-			color: ${debugIconBreakpointDisabledColor} !important;
+		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.disabled)}`).join(',\n		')} {
+			color: ${debugIconBreakpointDisabledColor};
 		}
 		`);
 	}
@@ -671,7 +709,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointUnverifiedColor = theme.getColor(debugIconBreakpointUnverifiedForeground);
 	if (debugIconBreakpointUnverifiedColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon[class*='-unverified'] {
+		${icons.allBreakpoints.map(b => `.monaco-workbench ${ThemeIcon.asCSSSelector(b.unverified)}`).join(',\n		')} {
 			color: ${debugIconBreakpointUnverifiedColor};
 		}
 		`);
@@ -680,7 +718,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointCurrentStackframeForegroundColor = theme.getColor(debugIconBreakpointCurrentStackframeForeground);
 	if (debugIconBreakpointCurrentStackframeForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon-debug-stackframe,
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframe)},
 		.monaco-editor .debug-top-stack-frame-column::before {
 			color: ${debugIconBreakpointCurrentStackframeForegroundColor} !important;
 		}
@@ -690,7 +728,7 @@ registerThemingParticipant((theme, collector) => {
 	const debugIconBreakpointStackframeFocusedColor = theme.getColor(debugIconBreakpointStackframeForeground);
 	if (debugIconBreakpointStackframeFocusedColor) {
 		collector.addRule(`
-		.monaco-workbench .codicon-debug-stackframe-focused {
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.debugStackframeFocused)} {
 			color: ${debugIconBreakpointStackframeFocusedColor} !important;
 		}
 		`);
@@ -700,5 +738,5 @@ registerThemingParticipant((theme, collector) => {
 const debugIconBreakpointForeground = registerColor('debugIcon.breakpointForeground', { dark: '#E51400', light: '#E51400', hc: '#E51400' }, nls.localize('debugIcon.breakpointForeground', 'Icon color for breakpoints.'));
 const debugIconBreakpointDisabledForeground = registerColor('debugIcon.breakpointDisabledForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, nls.localize('debugIcon.breakpointDisabledForeground', 'Icon color for disabled breakpoints.'));
 const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpointUnverifiedForeground', { dark: '#848484', light: '#848484', hc: '#848484' }, nls.localize('debugIcon.breakpointUnverifiedForeground', 'Icon color for unverified breakpoints.'));
-const debugIconBreakpointCurrentStackframeForeground = registerColor('debugIcon.breakpointCurrentStackframeForeground', { dark: '#FFCC00', light: '#FFCC00', hc: '#FFCC00' }, nls.localize('debugIcon.breakpointCurrentStackframeForeground', 'Icon color for the current breakpoint stack frame.'));
+const debugIconBreakpointCurrentStackframeForeground = registerColor('debugIcon.breakpointCurrentStackframeForeground', { dark: '#FFCC00', light: '#BE8700', hc: '#FFCC00' }, nls.localize('debugIcon.breakpointCurrentStackframeForeground', 'Icon color for the current breakpoint stack frame.'));
 const debugIconBreakpointStackframeForeground = registerColor('debugIcon.breakpointStackframeForeground', { dark: '#89D185', light: '#89D185', hc: '#89D185' }, nls.localize('debugIcon.breakpointStackframeForeground', 'Icon color for all breakpoint stack frames.'));

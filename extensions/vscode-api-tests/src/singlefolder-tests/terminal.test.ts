@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions } from 'vscode';
-import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
+import { deepEqual, deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
+import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalOptions, TerminalState, UIKind, window, workspace } from 'vscode';
+import { assertNoRpc } from '../utils';
 
 // Disable terminal tests:
 // - Web https://github.com/microsoft/vscode/issues/92826
-// - Remote https://github.com/microsoft/vscode/issues/96057
-((env.uiKind === UIKind.Web || typeof env.remoteName !== 'undefined') ? suite.skip : suite)('vscode API - terminal', () => {
+(env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - terminal', () => {
 	let extensionContext: ExtensionContext;
 
 	suiteSetup(async () => {
@@ -23,68 +23,65 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
-		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
+		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
+		// Disable env var relaunch for tests to prevent terminals relaunching themselves
+		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
 	});
 
 	suite('Terminal', () => {
 		let disposables: Disposable[] = [];
 
 		teardown(() => {
+			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
 		});
 
-		test('sendText immediately after createTerminal should not throw', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(terminal, term);
-				} catch (e) {
-					done(e);
-					return;
-				}
-				terminal.dispose();
-				disposables.push(window.onDidCloseTerminal(() => done()));
-			}));
+		test('sendText immediately after createTerminal should not throw', async () => {
 			const terminal = window.createTerminal();
+			const result = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
+			});
+			equal(result, terminal);
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
 		});
 
-		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(terminal, term);
-				} catch (e) {
-					done(e);
-					return;
-				}
-				let data = '';
-				const dataDisposable = window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
-						return;
+		test('echo works in the default shell', async () => {
+			const terminal = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(terminal);
 					}
-					data += e.data;
-					if (data.indexOf(expected) !== 0) {
-						dataDisposable.dispose();
-						terminal.dispose();
-						disposables.push(window.onDidCloseTerminal(() => {
-							done();
-						}));
-					}
+				}));
+				// Use a single character to avoid winpty/conpty issues with injected sequences
+				const terminal = window.createTerminal({
+					env: { TEST: '`' }
 				});
-				disposables.push(dataDisposable);
-			}));
-			// Use a single character to avoid winpty/conpty issues with injected sequences
-			const expected = '`';
-			const terminal = window.createTerminal({
-				env: {
-					TEST: '`'
-				}
+				terminal.show();
 			});
-			terminal.show();
-			doesNotThrow(() => {
+
+			let data = '';
+			await new Promise<void>(r => {
+				disposables.push(window.onDidWriteTerminalData(e => {
+					if (e.terminal === terminal) {
+						data += e.data;
+						if (data.indexOf('`') !== 0) {
+							r();
+						}
+					}
+				}));
 				// Print an environment variable value so the echo statement doesn't get matched
 				if (process.platform === 'win32') {
 					terminal.sendText(`$env:TEST`);
@@ -92,126 +89,166 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					terminal.sendText(`echo $TEST`);
 				}
 			});
-		});
 
-		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(terminal, term);
-				} catch (e) {
-					done(e);
-					return;
-				}
+			await new Promise<void>(r => {
 				terminal.dispose();
-				disposables.push(window.onDidCloseTerminal(() => done()));
-			}));
-			const terminal = window.createTerminal();
+				disposables.push(window.onDidCloseTerminal(t => {
+					strictEqual(terminal, t);
+					r();
+				}));
+			});
 		});
 
-		test('processId immediately after createTerminal should fetch the pid', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(terminal, term);
-				} catch (e) {
-					done(e);
-					return;
-				}
-				terminal.processId.then(id => {
-					try {
-						ok(id && id > 0);
-					} catch (e) {
-						done(e);
-						return;
+		test('onDidCloseTerminal event fires when terminal is disposed', async () => {
+			const terminal = window.createTerminal();
+			const result = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
 					}
-					terminal.dispose();
-					disposables.push(window.onDidCloseTerminal(() => done()));
-				});
-			}));
+				}));
+			});
+			equal(result, terminal);
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
+		});
+
+		test('processId immediately after createTerminal should fetch the pid', async () => {
 			const terminal = window.createTerminal();
+			const result = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
+			});
+			equal(result, terminal);
+			let pid = await result.processId;
+			equal(true, pid && pid > 0);
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
 		});
 
-		test('name in constructor should set terminal.name', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(terminal, term);
-				} catch (e) {
-					done(e);
-					return;
-				}
-				terminal.dispose();
-				disposables.push(window.onDidCloseTerminal(() => done()));
-			}));
+		test('name in constructor should set terminal.name', async () => {
 			const terminal = window.createTerminal('a');
-			try {
-				equal(terminal.name, 'a');
-			} catch (e) {
-				done(e);
-				return;
-			}
+			const result = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
+			});
+			equal(result, terminal);
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
 		});
 
-		test('creationOptions should be set and readonly for TerminalOptions terminals', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(terminal, term);
-				} catch (e) {
-					done(e);
-					return;
-				}
-				terminal.dispose();
-				disposables.push(window.onDidCloseTerminal(() => done()));
-			}));
+		test('creationOptions should be set and readonly for TerminalOptions terminals', async () => {
 			const options = {
 				name: 'foo',
 				hideFromUser: true
 			};
 			const terminal = window.createTerminal(options);
-			try {
-				equal(terminal.name, 'foo');
-				const terminalOptions = terminal.creationOptions as TerminalOptions;
-				equal(terminalOptions.name, 'foo');
-				equal(terminalOptions.hideFromUser, true);
-				throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
-			} catch (e) {
-				done(e);
-				return;
-			}
-		});
-
-		test('onDidOpenTerminal should fire when a terminal is created', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(term.name, 'b');
-				} catch (e) {
-					done(e);
-					return;
-				}
-				disposables.push(window.onDidCloseTerminal(() => done()));
-				terminal.dispose();
-			}));
-			const terminal = window.createTerminal('b');
-		});
-
-		test('exitStatus.code should be set to undefined after a terminal is disposed', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(term, terminal);
-				} catch (e) {
-					done(e);
-					return;
-				}
-				disposables.push(window.onDidCloseTerminal(t => {
-					try {
-						deepEqual(t.exitStatus, { code: undefined });
-					} catch (e) {
-						done(e);
-						return;
+			const terminalOptions = terminal.creationOptions as TerminalOptions;
+			const result = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
 					}
-					done();
+				}));
+			});
+			equal(result, terminal);
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
 				}));
 				terminal.dispose();
-			}));
+			});
+			throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
+		});
+
+		test('onDidOpenTerminal should fire when a terminal is created', async () => {
+			const terminal = window.createTerminal('b');
+			const result = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
+			});
+			equal(result, terminal);
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
+		});
+
+		test('exitStatus.code should be set to undefined after a terminal is disposed', async () => {
 			const terminal = window.createTerminal();
+			const result = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(t);
+					}
+				}));
+			});
+			equal(result, terminal);
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						deepEqual(t.exitStatus, { code: undefined });
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
+		});
+
+		test('onDidChangeTerminalState should fire after writing to a terminal', async () => {
+			const terminal = window.createTerminal();
+			deepStrictEqual(terminal.state, { interactedWith: false });
+			const eventState = await new Promise<TerminalState>(r => {
+				disposables.push(window.onDidChangeTerminalState(e => {
+					if (e.terminal === terminal) {
+						r(e.state);
+					}
+				}));
+				terminal.sendText('test');
+			});
+			deepStrictEqual(eventState, { interactedWith: true });
+			deepStrictEqual(terminal.state, { interactedWith: true });
+			await new Promise<void>(r => {
+				disposables.push(window.onDidCloseTerminal(t => {
+					if (t === terminal) {
+						r();
+					}
+				}));
+				terminal.dispose();
+			});
 		});
 
 		// test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
@@ -285,23 +322,25 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		// });
 
 		suite('hideFromUser', () => {
-			test('should be available to terminals API', done => {
+			test('should be available to terminals API', async () => {
 				const terminal = window.createTerminal({ name: 'bg', hideFromUser: true });
-				disposables.push(window.onDidOpenTerminal(t => {
-					try {
-						equal(t, terminal);
-						equal(t.name, 'bg');
-						ok(window.terminals.indexOf(terminal) !== -1);
-					} catch (e) {
-						done(e);
-						return;
-					}
-					disposables.push(window.onDidCloseTerminal(() => {
-						// reg3.dispose();
-						done();
+				const result = await new Promise<Terminal>(r => {
+					disposables.push(window.onDidOpenTerminal(t => {
+						if (t === terminal) {
+							r(t);
+						}
+					}));
+				});
+				equal(result, terminal);
+				equal(true, window.terminals.indexOf(terminal) !== -1);
+				await new Promise<void>(r => {
+					disposables.push(window.onDidCloseTerminal(t => {
+						if (t === terminal) {
+							r();
+						}
 					}));
 					terminal.dispose();
-				}));
+				});
 			});
 		});
 
@@ -488,6 +527,41 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 
+			test('should change terminal name', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.name, 'foo');
+					} catch (e) {
+						done(e);
+						return;
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							equal(terminal.name, 'bar');
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const changeNameEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: new EventEmitter<string>().event,
+					onDidChangeName: changeNameEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => {
+						changeNameEmitter.fire('bar');
+						closeEmitter.fire(undefined);
+					},
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
 			test('exitStatus.code should be set to the exit code (undefined)', (done) => {
 				disposables.push(window.onDidOpenTerminal(term => {
 					try {
@@ -625,15 +699,14 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					'b1~b2~',
 					'~c2~c1'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -671,15 +744,14 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					'~b2~',
 					'~c2~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -716,15 +788,14 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					'~a1~',
 					'~b1~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -758,15 +829,14 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					'~a1~',
 					'~b2~'
 				];
+				let data = '';
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
+					data += sanitizeData(e.data);
 					// Multiple expected could show up in the same data event
-					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+					while (expectedText.length > 0 && data.indexOf(expectedText[0]) >= 0) {
 						expectedText.shift();
 						// Check if all string are found, if so finish the test
 						if (expectedText.length === 0) {
@@ -818,3 +888,15 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		});
 	});
 });
+
+function sanitizeData(data: string): string {
+	// Strip NL/CR so terminal dimensions don't impact tests
+	data = data.replace(/[\r\n]/g, '');
+
+	// Strip escape sequences so winpty/conpty doesn't cause flakiness, do for all platforms for
+	// consistency
+	const terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
+	data = data.replace(terminalCodesRegex, '');
+
+	return data;
+}

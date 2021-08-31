@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .suggest-preview-additional-widget {
+	white-space: nowrap;
+}
+
+.monaco-editor .suggest-preview-additional-widget .content-spacer {
+	color: transparent;
+	white-space: pre;
+}
+
+.monaco-editor .suggest-preview-additional-widget .button {
+	display: inline-block;
+	cursor: pointer;
+	text-decoration: underline;
+	text-underline-position: under;
+}
+
+.monaco-editor .ghost-text-hidden {
+	opacity: 0;
+	font-size: 0;
+}

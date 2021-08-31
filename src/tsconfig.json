@@ -5,14 +5,21 @@
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"outDir": "../out/vs",
-		"target": "es2017",
+		"target": "es2020",
 		"types": [
 			"keytar",
 			"mocha",
 			"semver",
 			"sinon",
 			"winreg",
-			"trusted-types"
+			"trusted-types",
+			"wicg-file-system-access"
+		],
+		"plugins": [
+			{
+				"name": "tsec",
+				"exemptionConfig": "./tsec.exemptions.json"
+			}
 		]
 	},
 	"include": [

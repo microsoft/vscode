@@ -8,11 +8,10 @@ import { parse } from 'vs/base/common/json';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileService, IStat, IWatchOptions, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { readTrustedDomains, TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, TRUSTED_DOMAINS_STORAGE_KEY } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -50,7 +49,7 @@ const CONFIG_PLACEHOLDER_TEXT = `[
 	// "https://microsoft.com"
 ]`;
 
-function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDomains: string[], userTrustedDomains: string[], workspaceTrustedDomains: string[]) {
+function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDomains: string[], userTrustedDomains: string[], workspaceTrustedDomains: string[], configuring?: string) {
 	let content = CONFIG_HELP_TEXT_PRE;
 
 	if (defaultTrustedDomains.length > 0) {
@@ -63,7 +62,7 @@ function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDom
 	}
 
 	if (userTrustedDomains.length) {
-		content += `//\n// Additionally, the following domains are trusted based on your current GitHub login:\n`;
+		content += `//\n// Additionally, the following domains are trusted based on your logged-in Accounts:\n`;
 		userTrustedDomains.forEach(d => {
 			content += `// - "${d}"\n`;
 		});
@@ -77,6 +76,8 @@ function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDom
 	}
 
 	content += CONFIG_HELP_TEXT_AFTER;
+
+	content += configuring ? `\n// Currently configuring trust for ${configuring}\n` : '';
 
 	if (trustedDomains.length === 0) {
 		content += CONFIG_PLACEHOLDER_TEXT;
@@ -97,12 +98,8 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		this.fileService.registerProvider(TRUSTED_DOMAINS_SCHEMA, this);
-
-		this.storageKeysSyncRegistryService.registerStorageKey({ key: TRUSTED_DOMAINS_STORAGE_KEY, version: 1 });
-		this.storageKeysSyncRegistryService.registerStorageKey({ key: TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, version: 1 });
 	}
 
 	stat(resource: URI): Promise<IStat> {
@@ -115,14 +112,17 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 			StorageScope.GLOBAL
 		);
 
+		const configuring: string | undefined = resource.fragment;
+
 		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this.instantiationService.invokeFunction(readTrustedDomains);
 		if (
 			!trustedDomainsContent ||
 			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_PRE) === -1 ||
 			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_AFTER) === -1 ||
+			trustedDomainsContent.indexOf(configuring ?? '') === -1 ||
 			[...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains].some(d => !assertIsDefined(trustedDomainsContent).includes(d))
 		) {
-			trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains);
+			trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains, configuring);
 		}
 
 		const buffer = VSBuffer.fromString(trustedDomainsContent).buffer;
@@ -134,11 +134,12 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 			const trustedDomainsContent = VSBuffer.wrap(content).toString();
 			const trustedDomains = parse(trustedDomainsContent);
 
-			this.storageService.store(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, trustedDomainsContent, StorageScope.GLOBAL);
+			this.storageService.store(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, trustedDomainsContent, StorageScope.GLOBAL, StorageTarget.USER);
 			this.storageService.store(
 				TRUSTED_DOMAINS_STORAGE_KEY,
 				JSON.stringify(trustedDomains) || '',
-				StorageScope.GLOBAL
+				StorageScope.GLOBAL,
+				StorageTarget.USER
 			);
 		} catch (err) { }
 

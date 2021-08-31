@@ -28,12 +28,11 @@ export type Keytar = {
 	deletePassword: typeof keytarType['deletePassword'];
 };
 
-const SERVICE_ID = `github.auth`;
-
 export class Keychain {
+	constructor(private context: vscode.ExtensionContext, private serviceId: string) { }
 	async setToken(token: string): Promise<void> {
 		try {
-			return await vscode.authentication.setPassword(SERVICE_ID, token);
+			return await this.context.secrets.store(this.serviceId, token);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Setting token failed: ${e}`);
@@ -47,7 +46,11 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await vscode.authentication.getPassword(SERVICE_ID);
+			const secret = await this.context.secrets.get(this.serviceId);
+			if (secret && secret !== '[]') {
+				Logger.trace('Token acquired from secret storage.');
+			}
+			return secret;
 		} catch (e) {
 			// Ignore
 			Logger.error(`Getting token failed: ${e}`);
@@ -57,7 +60,7 @@ export class Keychain {
 
 	async deleteToken(): Promise<void> {
 		try {
-			return await vscode.authentication.deletePassword(SERVICE_ID);
+			return await this.context.secrets.delete(this.serviceId);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Deleting token failed: ${e}`);
@@ -74,6 +77,7 @@ export class Keychain {
 
 			const oldValue = await keytar.getPassword(`${vscode.env.uriScheme}-github.login`, 'account');
 			if (oldValue) {
+				Logger.trace('Attempting to migrate from keytar to secret store...');
 				await this.setToken(oldValue);
 				await keytar.deletePassword(`${vscode.env.uriScheme}-github.login`, 'account');
 			}
@@ -85,5 +89,3 @@ export class Keychain {
 		}
 	}
 }
-
-export const keychain = new Keychain();

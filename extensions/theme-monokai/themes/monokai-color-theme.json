@@ -9,7 +9,7 @@
 	"colors": {
 		"dropdown.background": "#414339",
 		"list.activeSelectionBackground": "#75715E",
-		"list.focusBackground": "#414339",
+		"quickInputList.focusBackground": "#414339",
 		"dropdown.listBackground": "#1e1f1c",
 		"list.inactiveSelectionBackground": "#414339",
 		"list.hoverBackground": "#3e3d32",
@@ -18,7 +18,7 @@
 		"button.background": "#75715E",
 		"editor.background": "#272822",
 		"editor.foreground": "#f8f8f2",
-		"selection.background": "#ccccc7",
+		"selection.background": "#878b9180",
 		"editor.selectionHighlightBackground": "#575b6180",
 		"editor.selectionBackground": "#878b9180",
 		"minimap.selectionHighlight": "#878b9180",
@@ -36,7 +36,7 @@
 		"tab.border": "#1e1f1c",
 		"tab.inactiveForeground": "#ccccc7", // needs to be bright so it's readable when another editor group is focused
 		"tab.lastPinnedBorder": "#414339",
-		"widget.shadow": "#000000",
+		"widget.shadow": "#00000098",
 		"progressBar.background": "#75715E",
 		"badge.background": "#75715E",
 		"badge.foreground": "#f8f8f2",
@@ -51,6 +51,7 @@
 		"statusBar.noFolderBackground": "#414339",
 		"statusBar.debuggingBackground": "#75715E",
 		"statusBarItem.remoteBackground": "#AC6218",
+		"ports.iconRunningProcessForeground": "#ccccc7",
 		"activityBar.background": "#272822",
 		"activityBar.foreground": "#f8f8f2",
 		"sideBar.background": "#1e1f1c",
@@ -284,14 +285,14 @@
 			"scope": "invalid",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#F8F8F0"
+				"foreground": "#F44747"
 			}
 		},
 		{
 			"name": "Invalid deprecated",
 			"scope": "invalid.deprecated",
 			"settings": {
-				"foreground": "#F8F8F0"
+				"foreground": "#F44747"
 			}
 		},
 		{

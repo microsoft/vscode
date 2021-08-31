@@ -10,8 +10,8 @@ jobs:
       - name: Checkout Actions
         uses: actions/checkout@v2
         with:
-          repository: 'microsoft/vscode-github-triage-actions'
-          ref: v37
+          repository: "microsoft/vscode-github-triage-actions"
+          ref: stable
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions

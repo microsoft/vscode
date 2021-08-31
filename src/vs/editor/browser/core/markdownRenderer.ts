@@ -38,8 +38,8 @@ export class MarkdownRenderer {
 		}
 	});
 
-	private readonly _onDidRenderCodeBlock = new Emitter<void>();
-	readonly onDidRenderCodeBlock = this._onDidRenderCodeBlock.event;
+	private readonly _onDidRenderAsync = new Emitter<void>();
+	readonly onDidRenderAsync = this._onDidRenderAsync.event;
 
 	constructor(
 		private readonly _options: IMarkdownRendererOptions,
@@ -48,26 +48,26 @@ export class MarkdownRenderer {
 	) { }
 
 	dispose(): void {
-		this._onDidRenderCodeBlock.dispose();
+		this._onDidRenderAsync.dispose();
 	}
 
 	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
-		const disposeables = new DisposableStore();
+		const disposables = new DisposableStore();
 
 		let element: HTMLElement;
 		if (!markdown) {
 			element = document.createElement('span');
 		} else {
-			element = renderMarkdown(markdown, { ...this._getRenderOptions(disposeables), ...options }, markedOptions);
+			element = renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, markedOptions);
 		}
 
 		return {
 			element,
-			dispose: () => disposeables.dispose()
+			dispose: () => disposables.dispose()
 		};
 	}
 
-	protected _getRenderOptions(disposeables: DisposableStore): MarkdownRenderOptions {
+	protected _getRenderOptions(markdown: IMarkdownString, disposeables: DisposableStore): MarkdownRenderOptions {
 		return {
 			baseUrl: this._options.baseUrl,
 			codeBlockRenderer: async (languageAlias, value) => {
@@ -88,9 +88,7 @@ export class MarkdownRenderer {
 
 				const element = document.createElement('span');
 
-				element.innerHTML = MarkdownRenderer._ttpTokenizer
-					? MarkdownRenderer._ttpTokenizer.createHTML(value, tokenization) as unknown as string
-					: tokenizeToString(value, tokenization);
+				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(value, tokenization) ?? tokenizeToString(value, tokenization)) as string;
 
 				// use "good" font
 				let fontFamily = this._options.codeBlockFontFamily;
@@ -103,9 +101,9 @@ export class MarkdownRenderer {
 
 				return element;
 			},
-			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
+			asyncRenderCallback: () => this._onDidRenderAsync.fire(),
 			actionHandler: {
-				callback: (content) => this._openerService.open(content, { fromUserGesture: true }).catch(onUnexpectedError),
+				callback: (content) => this._openerService.open(content, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: markdown.isTrusted }).catch(onUnexpectedError),
 				disposeables
 			}
 		};

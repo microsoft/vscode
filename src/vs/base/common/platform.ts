@@ -8,6 +8,7 @@ const LANGUAGE_DEFAULT = 'en';
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
+let _isLinuxSnap = false;
 let _isNative = false;
 let _isWeb = false;
 let _isIOS = false;
@@ -23,22 +24,45 @@ interface NLSConfig {
 }
 
 export interface IProcessEnvironment {
-	[key: string]: string;
+	[key: string]: string | undefined;
 }
 
+/**
+ * This interface is intentionally not identical to node.js
+ * process because it also works in sandboxed environments
+ * where the process object is implemented differently. We
+ * define the properties here that we need for `platform`
+ * to work and nothing else.
+ */
 export interface INodeProcess {
-	platform: 'win32' | 'linux' | 'darwin';
+	platform: string;
 	env: IProcessEnvironment;
-	nextTick: Function;
+	nextTick?: (callback: (...args: any[]) => void) => void;
 	versions?: {
 		electron?: string;
 	};
+	sandboxed?: boolean;
 	type?: string;
-	getuid(): number;
-	cwd(): string;
+	cwd: () => string;
 }
+
 declare const process: INodeProcess;
-declare const global: any;
+declare const global: unknown;
+declare const self: unknown;
+
+export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
+
+let nodeProcess: INodeProcess | undefined = undefined;
+if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
+	// Native environment (sandboxed)
+	nodeProcess = globals.vscode.process;
+} else if (typeof process !== 'undefined') {
+	// Native environment (non-sandboxed)
+	nodeProcess = process;
+}
+
+const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
+export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
 
 interface INavigator {
 	userAgent: string;
@@ -46,20 +70,6 @@ interface INavigator {
 	maxTouchPoints?: number;
 }
 declare const navigator: INavigator;
-declare const self: any;
-
-const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
-
-let nodeProcess: INodeProcess | undefined = undefined;
-if (typeof process !== 'undefined') {
-	// Native environment (non-sandboxed)
-	nodeProcess = process;
-} else if (typeof _globals.vscode !== 'undefined') {
-	// Native envionment (sandboxed)
-	nodeProcess = _globals.vscode.process;
-}
-
-const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
 
 // Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {
@@ -78,6 +88,7 @@ else if (typeof nodeProcess === 'object') {
 	_isWindows = (nodeProcess.platform === 'win32');
 	_isMacintosh = (nodeProcess.platform === 'darwin');
 	_isLinux = (nodeProcess.platform === 'linux');
+	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
@@ -127,15 +138,12 @@ if (_isMacintosh) {
 export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
+export const isLinuxSnap = _isLinuxSnap;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
 export const isIOS = _isIOS;
 export const platform = _platform;
 export const userAgent = _userAgent;
-
-export function isRootUser(): boolean {
-	return !!nodeProcess && !_isWindows && (nodeProcess.getuid() === 0);
-}
 
 /**
  * The language used for the user interface. The format of
@@ -173,14 +181,12 @@ export namespace Language {
 export const locale = _locale;
 
 /**
- * The translatios that are available through language packs.
+ * The translations that are available through language packs.
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-export const globals: any = _globals;
-
 interface ISetImmediate {
-	(callback: (...args: any[]) => void): void;
+	(callback: (...args: unknown[]) => void): void;
 }
 
 export const setImmediate: ISetImmediate = (function defineSetImmediate() {
@@ -215,11 +221,11 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
 		};
 	}
-	if (nodeProcess) {
+	if (typeof nodeProcess?.nextTick === 'function') {
 		return nodeProcess.nextTick.bind(nodeProcess);
 	}
 	const _promise = Promise.resolve();
-	return (callback: (...args: any[]) => void) => _promise.then(callback);
+	return (callback: (...args: unknown[]) => void) => _promise.then(callback);
 })();
 
 export const enum OperatingSystem {

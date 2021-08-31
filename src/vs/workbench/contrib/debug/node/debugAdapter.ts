@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
@@ -183,7 +183,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			// verify executables asynchronously
 			if (command) {
 				if (path.isAbsolute(command)) {
-					const commandExists = await exists(command);
+					const commandExists = await Promises.exists(command);
 					if (!commandExists) {
 						throw new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", command));
 					}
@@ -199,9 +199,9 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					"Cannot determine executable for debug adapter '{0}'.", this.debugType));
 			}
 
-			let env = objects.mixin({}, process.env);
-			if (options.env) {
-				env = objects.mixin(env, options.env);
+			let env = process.env;
+			if (options.env && Object.keys(options.env).length > 0) {
+				env = objects.mixin(objects.deepClone(process.env), options.env);
 			}
 
 			if (command === 'node') {
@@ -263,6 +263,8 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 						channel.append(sanitize(data));
 					}
 				});
+			} else {
+				this.serverProcess.stderr!.resume();
 			}
 
 			// finally connect to the DA

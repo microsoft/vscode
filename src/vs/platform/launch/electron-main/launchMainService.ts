@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { app, BrowserWindow, Event as IpcEvent, ipcMain } from 'electron';
+import { coalesce } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { assertIsDefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { whenDeleted } from 'vs/base/node/pfs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { OpenContext } from 'vs/platform/windows/node/window';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { whenDeleted } from 'vs/base/node/pfs';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
-import { coalesce } from 'vs/base/common/arrays';
-import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
+import { ICodeWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -31,23 +34,6 @@ export interface IStartArguments {
 export interface IRemoteDiagnosticOptions {
 	includeProcesses?: boolean;
 	includeWorkspaceMetadata?: boolean;
-}
-
-function parseOpenUrl(args: NativeParsedArgs): URI[] {
-	if (args['open-url'] && args._urls && args._urls.length > 0) {
-		// --open-url must contain -- followed by the url(s)
-		// process.argv is used over args._ as args._ are resolved to file paths at this point
-		return coalesce(args._urls
-			.map(url => {
-				try {
-					return URI.parse(url);
-				} catch (err) {
-					return null;
-				}
-			}));
-	}
-
-	return [];
 }
 
 export interface ILaunchMainService {
@@ -66,7 +52,7 @@ export class LaunchMainService implements ILaunchMainService {
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IURLService private readonly urlService: IURLService,
-		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
@@ -87,7 +73,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 
 		// Check early for open-url which is handled in URL service
-		const urlsToOpen = parseOpenUrl(args);
+		const urlsToOpen = this.parseOpenUrl(args);
 		if (urlsToOpen.length) {
 			let whenWindowReady: Promise<unknown> = Promise.resolve();
 
@@ -99,8 +85,8 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Make sure a window is open, ready to receive the url event
 			whenWindowReady.then(() => {
-				for (const url of urlsToOpen) {
-					this.urlService.open(url);
+				for (const { uri, url } of urlsToOpen) {
+					this.urlService.open(uri, { originalUrl: url });
 				}
 			});
 		}
@@ -111,15 +97,33 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 	}
 
-	private startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
-		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
+	private parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
+		if (args['open-url'] && args._urls && args._urls.length > 0) {
+			// --open-url must contain -- followed by the url(s)
+			// process.argv is used over args._ as args._ are resolved to file paths at this point
+			return coalesce(args._urls
+				.map(url => {
+					try {
+						return { uri: URI.parse(url), url };
+					} catch (err) {
+						return null;
+					}
+				}));
+		}
+
+		return [];
+	}
+
+	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+		const context = isLaunchedFromCli(userEnv) ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
+		const remoteAuthority = args.remote || undefined;
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI, remoteAuthority });
 		}
 
 		// Start without file/folder arguments
@@ -138,7 +142,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 			// Otherwise check for settings
 			else {
-				const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+				const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 				const openWithoutArgumentsInNewWindowConfig = windowConfig?.openWithoutArgumentsInNewWindow || 'default' /* default */;
 				switch (openWithoutArgumentsInNewWindowConfig) {
 					case 'on':
@@ -160,7 +164,8 @@ export class LaunchMainService implements ILaunchMainService {
 					userEnv,
 					forceNewWindow: true,
 					forceEmpty: true,
-					waitMarkerFileURI
+					waitMarkerFileURI,
+					remoteAuthority
 				});
 			}
 
@@ -172,7 +177,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 					usedWindows = [lastActive];
 				} else {
-					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true });
+					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true, remoteAuthority });
 				}
 			}
 		}
@@ -190,7 +195,8 @@ export class LaunchMainService implements ILaunchMainService {
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
 				waitMarkerFileURI,
-				gotoLineMode: args.goto
+				gotoLineMode: args.goto,
+				remoteAuthority
 			});
 		}
 
@@ -203,17 +209,15 @@ export class LaunchMainService implements ILaunchMainService {
 				whenDeleted(waitMarkerFileURI.fsPath)
 			]).then(() => undefined, () => undefined);
 		}
-
-		return Promise.resolve(undefined);
 	}
 
-	getMainProcessId(): Promise<number> {
+	async getMainProcessId(): Promise<number> {
 		this.logService.trace('Received request for process ID from other instance.');
 
-		return Promise.resolve(process.pid);
+		return process.pid;
 	}
 
-	getMainProcessInfo(): Promise<IMainProcessInfo> {
+	async getMainProcessInfo(): Promise<IMainProcessInfo> {
 		this.logService.trace('Received request for main process info from other instance.');
 
 		const windows: IWindowInfo[] = [];
@@ -226,18 +230,18 @@ export class LaunchMainService implements ILaunchMainService {
 			}
 		});
 
-		return Promise.resolve({
+		return {
 			mainPID: process.pid,
 			mainArguments: process.argv.slice(1),
 			windows,
 			screenReader: !!app.accessibilitySupportEnabled,
 			gpuFeatureStatus: app.getGPUFeatureStatus()
-		});
+		};
 	}
 
-	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
+	async getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
 		const windows = this.windowsMainService.getWindows();
-		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
+		const diagnostics: Array<IDiagnosticInfo | IRemoteDiagnosticError | undefined> = await Promise.all(windows.map(window => {
 			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>((resolve) => {
 				const remoteAuthority = window.remoteAuthority;
 				if (remoteAuthority) {
@@ -247,7 +251,7 @@ export class LaunchMainService implements ILaunchMainService {
 						folders: options.includeWorkspaceMetadata ? this.getFolderURIs(window) : undefined
 					};
 
-					window.sendWhenReady('vscode:getDiagnosticInfo', { replyChannel, args });
+					window.sendWhenReady('vscode:getDiagnosticInfo', CancellationToken.None, { replyChannel, args });
 
 					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
 						// No data is returned if getting the connection fails.
@@ -265,27 +269,26 @@ export class LaunchMainService implements ILaunchMainService {
 					resolve(undefined);
 				}
 			});
-		});
+		}));
 
-		return Promise.all(promises).then(diagnostics => diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x));
+		return diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x);
 	}
 
 	private getFolderURIs(window: ICodeWindow): URI[] {
 		const folderURIs: URI[] = [];
 
-		if (window.openedFolderUri) {
-			folderURIs.push(window.openedFolderUri);
-		} else if (window.openedWorkspace) {
-			// workspace folders can only be shown for local workspaces
-			const workspaceConfigPath = window.openedWorkspace.configPath;
-			const resolvedWorkspace = this.workspacesMainService.resolveLocalWorkspaceSync(workspaceConfigPath);
+		const workspace = window.openedWorkspace;
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			folderURIs.push(workspace.uri);
+		} else if (isWorkspaceIdentifier(workspace)) {
+			const resolvedWorkspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;
 				rootFolders.forEach(root => {
 					folderURIs.push(root.uri);
 				});
 			} else {
-				//TODO: can we add the workspace file here?
+				//TODO@RMacfarlane: can we add the workspace file here?
 			}
 		}
 
@@ -294,13 +297,15 @@ export class LaunchMainService implements ILaunchMainService {
 
 	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
 		const folderURIs = this.getFolderURIs(window);
-		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
+		const win = assertIsDefined(window.win);
+
+		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
 	}
 
-	private browserWindowToInfo(win: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
+	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
 		return {
-			pid: win.webContents.getOSProcessId(),
-			title: win.getTitle(),
+			pid: window.webContents.getOSProcessId(),
+			title: window.getTitle(),
 			folderURIs,
 			remoteAuthority
 		};

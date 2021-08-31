@@ -13,7 +13,7 @@ export interface IWatcherRequest {
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
-	usePolling?: boolean;
+	usePolling?: boolean | string[]; // boolean or a set of glob patterns matching folders that need polling
 	verboseLogging?: boolean;
 }
 

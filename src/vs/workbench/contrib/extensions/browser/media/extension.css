@@ -67,7 +67,7 @@
 
 .extension-list-item > .details > .header-container > .header {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
 	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;
@@ -76,29 +76,20 @@
 
 .extension-list-item > .details > .header-container > .header > .name {
 	font-weight: bold;
+	flex: 1;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.extension-list-item > .details > .header-container > .header > .version {
-	opacity: 0.85;
-	font-size: 80%;
-	padding-left: 6px;
-	min-width: fit-content;
-	min-width: -moz-fit-content;
-}
-
-.extension-list-item > .details > .header-container > .header > .version {
-	flex: 1;
-}
-
+.extension-list-item > .details > .header-container > .header > .activation-status,
 .extension-list-item > .details > .header-container > .header > .install-count,
 .extension-list-item > .details > .header-container > .header > .ratings {
 	display: flex;
 	align-items: center;
 }
 
+.extension-list-item > .details > .header-container > .header > .activation-status:not(:empty),
 .extension-list-item > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 80%;
 	margin: 0 6px;
@@ -139,6 +130,15 @@
 	color: currentColor;
 }
 
+.extension-list-item > .details > .header-container > .header .sync-ignored {
+	display: flex;
+	margin-left: 6px;
+}
+
+.extension-list-item > .details > .header-container > .header .sync-ignored > .codicon {
+	font-size: 100%;
+}
+
 .extension-list-item > .details > .description {
 	padding-right: 11px;
 }
@@ -167,6 +167,22 @@
 	flex-wrap: wrap-reverse;
 }
 
+.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label:not(.icon) {
+	border-radius: 0;
+}
+
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
+}
+
+.extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
+	margin-right: 4px;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
+	min-width: 0;
+}
+
+.extension-list-item .monaco-action-bar .action-label.icon {
+	padding: 1px 2px;
 }

@@ -71,7 +71,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		this._register(this._editor.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this.stop();
 		super.dispose();
 	}
@@ -214,7 +214,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		this._editor.addContentWidget(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposed = true;
 		this._editor.removeContentWidget(this);
 		this._currentRequestCancellationTokenSource.cancel();
@@ -416,10 +416,17 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		const fontStyleLabels = new Array<HTMLElement | string>();
 
 		function addStyle(key: 'bold' | 'italic' | 'underline') {
+			let label: HTMLElement | string | undefined;
 			if (semantic && semantic[key]) {
-				fontStyleLabels.push($('span.tiw-metadata-semantic', undefined, key));
+				label = $('span.tiw-metadata-semantic', undefined, key);
 			} else if (tm && tm[key]) {
-				fontStyleLabels.push(key);
+				label = key;
+			}
+			if (label) {
+				if (fontStyleLabels.length) {
+					fontStyleLabels.push(' ');
+				}
+				fontStyleLabels.push(label);
 			}
 		}
 		addStyle('bold');
@@ -428,7 +435,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		if (fontStyleLabels.length) {
 			elements.push($('tr', undefined,
 				$('td.tiw-metadata-key', undefined, 'font style' as string),
-				$('td.tiw-metadata-value', undefined, fontStyleLabels.join(' '))
+				$('td.tiw-metadata-value', undefined, ...fontStyleLabels)
 			));
 		}
 		return elements;
@@ -594,11 +601,17 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			theme.resolveScopes(definition, scopesDefinition);
 			const matchingRule = scopesDefinition[property];
 			if (matchingRule && scopesDefinition.scope) {
-				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope.join(', ') : String(matchingRule.scope);
+				const scopes = $('ul.tiw-metadata-values');
+				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope : [String(matchingRule.scope)];
+
+				for (let strScope of strScopes) {
+					scopes.appendChild($('li.tiw-metadata-value.tiw-metadata-scopes', undefined, strScope));
+				}
+
 				elements.push(
 					scopesDefinition.scope.join(' '),
-					$('br'),
-					$('code.tiw-theme-selector', undefined, strScopes, $('br'), JSON.stringify(matchingRule.settings, null, '\t')));
+					scopes,
+					$('code.tiw-theme-selector', undefined, JSON.stringify(matchingRule.settings, null, '\t')));
 				return elements;
 			}
 			return elements;

@@ -6,8 +6,7 @@
 import * as nls from 'vs/nls';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -20,13 +19,12 @@ import { ModesContentHoverWidget } from 'vs/editor/contrib/hover/modesContentHov
 import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -35,22 +33,8 @@ export class ModesHoverController implements IEditorContribution {
 	private readonly _toUnhook = new DisposableStore();
 	private readonly _didChangeConfigurationHandler: IDisposable;
 
-	private readonly _contentWidget = new MutableDisposable<ModesContentHoverWidget>();
-	private readonly _glyphWidget = new MutableDisposable<ModesGlyphHoverWidget>();
-
-	get contentWidget(): ModesContentHoverWidget {
-		if (!this._contentWidget.value) {
-			this._createHoverWidgets();
-		}
-		return this._contentWidget.value!;
-	}
-
-	get glyphWidget(): ModesGlyphHoverWidget {
-		if (!this._glyphWidget.value) {
-			this._createHoverWidgets();
-		}
-		return this._glyphWidget.value!;
-	}
+	private _contentWidget: ModesContentHoverWidget | null;
+	private _glyphWidget: ModesGlyphHoverWidget | null;
 
 	private _isMouseDown: boolean;
 	private _hoverClicked: boolean;
@@ -64,15 +48,15 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	constructor(private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IModeService private readonly _modeService: IModeService,
-		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		this._isMouseDown = false;
 		this._hoverClicked = false;
+		this._contentWidget = null;
+		this._glyphWidget = null;
 
 		this._hookEvents();
 
@@ -113,8 +97,8 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onModelDecorationsChanged(): void {
-		this.contentWidget.onModelDecorationsChanged();
-		this.glyphWidget.onModelDecorationsChanged();
+		this._contentWidget?.onModelDecorationsChanged();
+		this._glyphWidget?.onModelDecorationsChanged();
 	}
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
@@ -153,7 +137,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		let targetType = mouseEvent.target.type;
 
-		if (this._isMouseDown && this._hoverClicked && this.contentWidget.isColorPickerVisible()) {
+		if (this._isMouseDown && this._hoverClicked) {
 			return;
 		}
 
@@ -162,45 +146,45 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
+		if (this._isHoverSticky && !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed) {
+			// selected text within content hover widget
+			return;
+		}
+
+		if (
+			!this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID
+			&& this._contentWidget?.isColorPickerVisible()
+		) {
+			// though the hover is not sticky, the color picker needs to.
+			return;
+		}
+
 		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
 			// mouse moved on top of overlay hover widget
 			return;
 		}
 
-		if (targetType === MouseTargetType.CONTENT_EMPTY) {
-			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
-			const data = <IEmptyContentData>mouseEvent.target.detail;
-			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
-				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
-				targetType = MouseTargetType.CONTENT_TEXT;
-			}
-		}
-
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			this.glyphWidget.hide();
-
-			if (this._isHoverEnabled && mouseEvent.target.range) {
-				// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
-				// Check if mouse is hovering on color decorator
-				const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
-					&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
-				if (hoverOnColorDecorator) {
-					// shift the mouse focus by one as color decorator is a `before` decoration of next character.
-					this.contentWidget.startShowingAt(new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1), HoverStartMode.Delayed, false);
-				} else {
-					this.contentWidget.startShowingAt(mouseEvent.target.range, HoverStartMode.Delayed, false);
-				}
-
-			}
-		} else if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
-			this.contentWidget.hide();
-
-			if (this._isHoverEnabled && mouseEvent.target.position) {
-				this.glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
-			}
-		} else {
+		if (!this._isHoverEnabled) {
 			this._hideWidgets();
+			return;
 		}
+
+		const contentWidget = this._getOrCreateContentWidget();
+		if (contentWidget.maybeShowAt(mouseEvent)) {
+			this._glyphWidget?.hide();
+			return;
+		}
+
+		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN && mouseEvent.target.position) {
+			this._contentWidget?.hide();
+			if (!this._glyphWidget) {
+				this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
+			}
+			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
+			return;
+		}
+
+		this._hideWidgets();
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
@@ -211,29 +195,36 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		if (!this._glyphWidget.value || !this._contentWidget.value || (this._isMouseDown && this._hoverClicked && this._contentWidget.value.isColorPickerVisible())) {
+		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible())) {
 			return;
 		}
 
-		this._glyphWidget.value.hide();
-		this._contentWidget.value.hide();
+		this._hoverClicked = false;
+		this._glyphWidget?.hide();
+		this._contentWidget?.hide();
 	}
 
-	private _createHoverWidgets() {
-		this._contentWidget.value = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._markerDecorationsService, this._keybindingService, this._themeService, this._modeService, this._openerService);
-		this._glyphWidget.value = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
+	private _getOrCreateContentWidget(): ModesContentHoverWidget {
+		if (!this._contentWidget) {
+			this._contentWidget = this._instantiationService.createInstance(ModesContentHoverWidget, this._editor, this._hoverVisibleKey);
+		}
+		return this._contentWidget;
+	}
+
+	public isColorPickerVisible(): boolean {
+		return this._contentWidget?.isColorPickerVisible() || false;
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
-		this.contentWidget.startShowingAt(range, mode, focus);
+		this._getOrCreateContentWidget().startShowingAtRange(range, mode, focus);
 	}
 
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
 		this._didChangeConfigurationHandler.dispose();
-		this._glyphWidget.dispose();
-		this._contentWidget.dispose();
+		this._glyphWidget?.dispose();
+		this._contentWidget?.dispose();
 	}
 }
 
@@ -305,13 +296,9 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const goto = GotoDefinitionAtPositionEditorContribution.get(editor);
 		const promise = goto.startFindDefinitionFromCursor(position);
-		if (promise) {
-			promise.then(() => {
-				controller.showContentHover(range, HoverStartMode.Immediate, true);
-			});
-		} else {
+		promise.then(() => {
 			controller.showContentHover(range, HoverStartMode.Immediate, true);
-		}
+		});
 	}
 }
 
@@ -339,6 +326,10 @@ registerThemingParticipant((theme, collector) => {
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .monaco-hover a { color: ${link}; }`);
+	}
+	const linkHover = theme.getColor(textLinkActiveForeground);
+	if (linkHover) {
+		collector.addRule(`.monaco-editor .monaco-hover a:hover { color: ${linkHover}; }`);
 	}
 	const hoverForeground = theme.getColor(editorHoverForeground);
 	if (hoverForeground) {

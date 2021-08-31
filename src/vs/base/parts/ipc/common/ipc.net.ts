@@ -3,16 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IMessagePassingProtocol, IPCClient, IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
+import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+
+export const enum SocketCloseEventType {
+	NodeSocketCloseEvent = 0,
+	WebSocketCloseEvent = 1
+}
+
+export interface NodeSocketCloseEvent {
+	/**
+	 * The type of the event
+	 */
+	readonly type: SocketCloseEventType.NodeSocketCloseEvent;
+	/**
+	 * `true` if the socket had a transmission error.
+	 */
+	readonly hadError: boolean;
+	/**
+	 * Underlying error.
+	 */
+	readonly error: Error | undefined
+}
+
+export interface WebSocketCloseEvent {
+	/**
+	 * The type of the event
+	 */
+	readonly type: SocketCloseEventType.WebSocketCloseEvent;
+	/**
+	 * Returns the WebSocket connection close code provided by the server.
+	 */
+	readonly code: number;
+	/**
+	 * Returns the WebSocket connection close reason provided by the server.
+	 */
+	readonly reason: string;
+	/**
+	 * Returns true if the connection closed cleanly; false otherwise.
+	 */
+	readonly wasClean: boolean;
+	/**
+	 * Underlying event.
+	 */
+	readonly event: any | undefined;
+}
+
+export type SocketCloseEvent = NodeSocketCloseEvent | WebSocketCloseEvent | undefined;
 
 export interface ISocket extends IDisposable {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
-	onClose(listener: () => void): IDisposable;
+	onClose(listener: (e: SocketCloseEvent) => void): IDisposable;
 	onEnd(listener: () => void): IDisposable;
 	write(buffer: VSBuffer): void;
 	end(): void;
@@ -126,7 +171,8 @@ const enum ProtocolMessageType {
 	Control = 2,
 	Ack = 3,
 	KeepAlive = 4,
-	Disconnect = 5
+	Disconnect = 5,
+	ReplayRequest = 6
 }
 
 export const enum ProtocolConstants {
@@ -251,7 +297,7 @@ class ProtocolReader extends Disposable {
 		return this._incomingData.read(this._incomingData.byteLength);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposed = true;
 		super.dispose();
 	}
@@ -274,7 +320,11 @@ class ProtocolWriter {
 	}
 
 	public dispose(): void {
-		this.flush();
+		try {
+			this.flush();
+		} catch (err) {
+			// ignore error, since the socket could be already closed
+		}
 		this._isDisposed = true;
 	}
 
@@ -360,8 +410,8 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 	private readonly _onMessage = new Emitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private readonly _onClose = new Emitter<void>();
-	readonly onClose: Event<void> = this._onClose.event;
+	private readonly _onDidDispose = new Emitter<void>();
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(socket: ISocket) {
 		super();
@@ -375,7 +425,7 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 			}
 		}));
 
-		this._register(this._socket.onClose(() => this._onClose.fire()));
+		this._register(this._socket.onClose(() => this._onDidDispose.fire()));
 	}
 
 	drain(): Promise<void> {
@@ -401,13 +451,13 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 		return new Client(new Protocol(socket), id);
 	}
 
-	get onClose(): Event<void> { return this.protocol.onClose; }
+	get onDidDispose(): Event<void> { return this.protocol.onDidDispose; }
 
 	constructor(private protocol: Protocol | PersistentProtocol, id: TContext, ipcLogger: IIPCLogger | null = null) {
 		super(protocol, id, ipcLogger);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		const socket = this.protocol.getSocket();
 		this.protocol.sendDisconnect();
@@ -601,6 +651,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _outgoingKeepAliveTimeout: any | null;
 	private _incomingKeepAliveTimeout: any | null;
 
+	private _lastReplayRequestTime: number;
+
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
@@ -614,11 +666,11 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onMessage = new BufferedEmitter<VSBuffer>();
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private readonly _onClose = new BufferedEmitter<void>();
-	readonly onClose: Event<void> = this._onClose.event;
+	private readonly _onDidDispose = new BufferedEmitter<void>();
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private readonly _onSocketClose = new BufferedEmitter<void>();
-	readonly onSocketClose: Event<void> = this._onSocketClose.event;
+	private readonly _onSocketClose = new BufferedEmitter<SocketCloseEvent>();
+	readonly onSocketClose: Event<SocketCloseEvent> = this._onSocketClose.event;
 
 	private readonly _onSocketTimeout = new BufferedEmitter<void>();
 	readonly onSocketTimeout: Event<void> = this._onSocketTimeout.event;
@@ -642,6 +694,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._outgoingKeepAliveTimeout = null;
 		this._incomingKeepAliveTimeout = null;
 
+		this._lastReplayRequestTime = 0;
+
 		this._socketDisposables = [];
 		this._socket = socket;
 		this._socketWriter = new ProtocolWriter(this._socket);
@@ -649,7 +703,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketReader = new ProtocolReader(this._socket);
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
+		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
 		}
@@ -738,6 +792,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		return this._socket;
 	}
 
+	public getMillisSinceLastIncomingData(): number {
+		return Date.now() - this._socketReader.lastReadTime;
+	}
+
 	public beginAcceptReconnection(socket: ISocket, initialDataChunk: VSBuffer | null): void {
 		this._isReconnecting = true;
 
@@ -747,13 +805,15 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._onSocketTimeout.flushBuffer();
 		this._socket.dispose();
 
+		this._lastReplayRequestTime = 0;
+
 		this._socket = socket;
 		this._socketWriter = new ProtocolWriter(this._socket);
 		this._socketDisposables.push(this._socketWriter);
 		this._socketReader = new ProtocolReader(this._socket);
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
+		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
 
@@ -772,7 +832,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	public acceptDisconnect(): void {
-		this._onClose.fire();
+		this._onDidDispose.fire();
 	}
 
 	private _receiveMessage(msg: ProtocolMessage): void {
@@ -792,17 +852,31 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		if (msg.type === ProtocolMessageType.Regular) {
 			if (msg.id > this._incomingMsgId) {
 				if (msg.id !== this._incomingMsgId + 1) {
-					console.error(`PROTOCOL CORRUPTION, LAST SAW MSG ${this._incomingMsgId} AND HAVE NOW RECEIVED MSG ${msg.id}`);
+					// in case we missed some messages we ask the other party to resend them
+					const now = Date.now();
+					if (now - this._lastReplayRequestTime > 10000) {
+						// send a replay request at most once every 10s
+						this._lastReplayRequestTime = now;
+						this._socketWriter.write(new ProtocolMessage(ProtocolMessageType.ReplayRequest, 0, 0, getEmptyBuffer()));
+					}
+				} else {
+					this._incomingMsgId = msg.id;
+					this._incomingMsgLastTime = Date.now();
+					this._sendAckCheck();
+					this._onMessage.fire(msg.data);
 				}
-				this._incomingMsgId = msg.id;
-				this._incomingMsgLastTime = Date.now();
-				this._sendAckCheck();
-				this._onMessage.fire(msg.data);
 			}
 		} else if (msg.type === ProtocolMessageType.Control) {
 			this._onControlMessage.fire(msg.data);
 		} else if (msg.type === ProtocolMessageType.Disconnect) {
-			this._onClose.fire();
+			this._onDidDispose.fire();
+		} else if (msg.type === ProtocolMessageType.ReplayRequest) {
+			// Send again all unacknowledged messages
+			const toSend = this._outgoingUnackMsg.toArray();
+			for (let i = 0, len = toSend.length; i < len; i++) {
+				this._socketWriter.write(toSend[i]);
+			}
+			this._recvAckCheck();
 		}
 	}
 

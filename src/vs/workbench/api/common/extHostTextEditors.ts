@@ -11,6 +11,7 @@ import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/co
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
 
@@ -41,12 +42,17 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
 	}
 
-	getActiveTextEditor(): ExtHostTextEditor | undefined {
+	getActiveTextEditor(): vscode.TextEditor | undefined {
 		return this._extHostDocumentsAndEditors.activeEditor();
 	}
 
-	getVisibleTextEditors(): vscode.TextEditor[] {
-		return this._extHostDocumentsAndEditors.allEditors();
+	getVisibleTextEditors(): vscode.TextEditor[];
+	getVisibleTextEditors(internal: true): ExtHostTextEditor[];
+	getVisibleTextEditors(internal?: true): ExtHostTextEditor[] | vscode.TextEditor[] {
+		const editors = this._extHostDocumentsAndEditors.allEditors();
+		return internal
+			? editors
+			: editors.map(editor => editor.value);
 	}
 
 	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): Promise<vscode.TextEditor>;
@@ -75,7 +81,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		const editorId = await this._proxy.$tryShowTextDocument(document.uri, options);
 		const editor = editorId && this._extHostDocumentsAndEditors.getEditor(editorId);
 		if (editor) {
-			return editor;
+			return editor.value;
 		}
 		// we have no editor... having an id means that we had an editor
 		// on the main side and that it isn't the current editor anymore...
@@ -86,8 +92,8 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		}
 	}
 
-	createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
-		return new TextEditorDecorationType(this._proxy, options);
+	createTextEditorDecorationType(extension: IExtensionDescription, options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
+		return new TextEditorDecorationType(this._proxy, extension, options).value;
 	}
 
 	// --- called from main thread
@@ -114,7 +120,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		// (2) fire change events
 		if (data.options) {
 			this._onDidChangeTextEditorOptions.fire({
-				textEditor: textEditor,
+				textEditor: textEditor.value,
 				options: { ...data.options, lineNumbers: TypeConverters.TextEditorLineNumbersStyle.to(data.options.lineNumbers) }
 			});
 		}
@@ -122,7 +128,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			const kind = TextEditorSelectionChangeKind.fromValue(data.selections.source);
 			const selections = data.selections.selections.map(TypeConverters.Selection.to);
 			this._onDidChangeTextEditorSelection.fire({
-				textEditor,
+				textEditor: textEditor.value,
 				selections,
 				kind
 			});
@@ -130,7 +136,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		if (data.visibleRanges) {
 			const visibleRanges = arrays.coalesce(data.visibleRanges.map(TypeConverters.Range.to));
 			this._onDidChangeTextEditorVisibleRanges.fire({
-				textEditor,
+				textEditor: textEditor.value,
 				visibleRanges
 			});
 		}
@@ -143,9 +149,9 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 				throw new Error('Unknown text editor');
 			}
 			const viewColumn = TypeConverters.ViewColumn.to(data[id]);
-			if (textEditor.viewColumn !== viewColumn) {
+			if (textEditor.value.viewColumn !== viewColumn) {
 				textEditor._acceptViewColumn(viewColumn);
-				this._onDidChangeTextEditorViewColumn.fire({ textEditor, viewColumn });
+				this._onDidChangeTextEditorViewColumn.fire({ textEditor: textEditor.value, viewColumn });
 			}
 		}
 	}
