@@ -249,6 +249,14 @@
     "@types/minimatch" "*"
     "@types/node" "*"
 
+"@types/glob@^7.1.4":
+  version "7.1.4"
+  resolved "https://registry.yarnpkg.com/@types/glob/-/glob-7.1.4.tgz#ea59e21d2ee5c517914cb4bc8e4153b99e566672"
+  integrity sha512-w+LsMxKyYQm347Otw+IfBXOv9UWVjpHpCDdbBMt8Kz/xbvCYNjP+0qPh91Km3iKfSRLBB0P7fAMf0KHrPu+MyA==
+  dependencies:
+    "@types/minimatch" "*"
+    "@types/node" "*"
+
 "@types/gulp-concat@^0.0.32":
   version "0.0.32"
   resolved "https://registry.yarnpkg.com/@types/gulp-concat/-/gulp-concat-0.0.32.tgz#72486028b1cf5faa94c8c1cf34c626531cecacd6"
