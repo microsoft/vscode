@@ -114,7 +114,7 @@
     "@types/windows-foreground-love": "^0.3.0",
     "@types/windows-mutex": "^0.4.0",
     "@types/windows-process-tree": "^0.3.1",
-    "@types/winreg": "^1.2.30",
+    "@types/winreg": "^1.2.31",
     "@types/yauzl": "^2.9.1",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/eslint-plugin": "4.29.3",
