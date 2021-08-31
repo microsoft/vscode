@@ -60,7 +60,9 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/notebookRendererMessagingServiceImpl';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 
+// Editor Controller
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
