@@ -259,10 +259,10 @@ function sanitizeRenderedMarkdown(
 	options: { isTrusted?: boolean },
 	renderedMarkdown: string,
 ): TrustedHTML {
-	const sanitizeOptions = getSanitizerOptions(options);
+	const { config, allowedSchemes } = getSanitizerOptions(options);
 	dompurify.addHook('uponSanitizeAttribute', (element, e) => {
 		if (e.attrName === 'style' || e.attrName === 'class') {
-			if (element.tagName === 'SPAN' && options.isTrusted) {
+			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
 					e.keepAttr = /^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/.test(e.attrValue);
 					return;
@@ -276,14 +276,31 @@ function sanitizeRenderedMarkdown(
 		}
 	});
 
+	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		// build an anchor to map URLs to
+		const anchor = document.createElement('a');
+
+		// check all href/src attributes for validity
+		for (const attr in ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				anchor.href = node.getAttribute(attr) as string;
+				if (!allowedSchemes.includes(anchor.protocol)) {
+					node.removeAttribute(attr);
+				}
+			}
+		}
+	});
+
 	try {
-		return dompurify.sanitize(renderedMarkdown, { ...sanitizeOptions, RETURN_TRUSTED_TYPE: true });
+		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
 	} finally {
 		dompurify.removeHook('uponSanitizeAttribute');
+		dompurify.removeHook('afterSanitizeAttributes');
 	}
 }
 
-function getSanitizerOptions(options: { readonly isTrusted?: boolean }): dompurify.Config {
+function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config, allowedSchemes: string[] } {
 	const allowedSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -300,13 +317,15 @@ function getSanitizerOptions(options: { readonly isTrusted?: boolean }): dompuri
 	}
 
 	return {
-		// allowedTags should included everything that markdown renders to.
-		// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
-		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
-		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-		ALLOWED_TAGS: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
-		ALLOWED_ATTR: ['href', 'data-href', 'target', 'title', 'src', 'alt', 'class', 'style', 'data-code', 'width', 'height', 'align'],
-		ALLOWED_URI_REGEXP: new RegExp(`^(${allowedSchemes.join('|')}):`, 'i'),
+		config: {
+			// allowedTags should included everything that markdown renders to.
+			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
+			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
+			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
+			ALLOWED_TAGS: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
+			ALLOWED_ATTR: ['href', 'data-href', 'target', 'title', 'src', 'alt', 'class', 'style', 'data-code', 'width', 'height', 'align']
+		},
+		allowedSchemes
 	};
 }
 

@@ -10,10 +10,10 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Config as DomPurifyConfig, sanitize } from 'vs/base/browser/dompurify/dompurify';
+import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
+import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -1365,16 +1365,37 @@ export function detectFullscreen(): IDetectedFullscreen | null {
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
-	const options: DomPurifyConfig = {
+	const options: dompurify.Config = {
 		ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 		ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder'],
-		ALLOWED_URI_REGEXP: /^(http|https|command):/i,
 		RETURN_DOM: false,
 		RETURN_DOM_FRAGMENT: false,
 	};
 
-	const html = sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
-	node.innerHTML = html as any;
+	const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
+
+	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		// build an anchor to map URLs to
+		const anchor = document.createElement('a');
+
+		// check all href/src attributes for validity
+		for (const attr in ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				anchor.href = node.getAttribute(attr) as string;
+				if (!allowedProtocols.includes(anchor.protocol)) {
+					node.removeAttribute(attr);
+				}
+			}
+		}
+	});
+
+	try {
+		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
+		node.innerHTML = html as any;
+	} finally {
+		dompurify.removeHook('afterSanitizeAttributes');
+	}
 }
 
 /**

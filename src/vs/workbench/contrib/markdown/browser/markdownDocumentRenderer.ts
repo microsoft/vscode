@@ -5,6 +5,7 @@
 
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import * as marked from 'vs/base/common/marked/marked';
+import { Schemas } from 'vs/base/common/network';
 import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -149,21 +150,42 @@ code > div {
 
 `;
 
+const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
 function sanitize(documentContent: string): string {
-	return dompurify.sanitize(documentContent, {
-		ALLOWED_TAGS: [
-			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
-			'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
-			'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
-			'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
-		],
-		ALLOWED_ATTR: [
-			'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
-			'width', 'height', 'align', 'x-dispatch',
-			'required', 'checked', 'placeholder', 'on-checked', 'checked-on',
-		],
-		ALLOWED_URI_REGEXP: /^(http:|https:|command:|\.\/|#)/i,
+
+	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		// build an anchor to map URLs to
+		const anchor = document.createElement('a');
+
+		// check all href/src attributes for validity
+		for (const attr in ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				anchor.href = node.getAttribute(attr) as string;
+				if (!allowedProtocols.includes(anchor.protocol)) {
+					node.removeAttribute(attr);
+				}
+			}
+		}
 	});
+
+	try {
+		return dompurify.sanitize(documentContent, {
+			ALLOWED_TAGS: [
+				'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
+				'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
+				'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
+				'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
+			],
+			ALLOWED_ATTR: [
+				'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
+				'width', 'height', 'align', 'x-dispatch',
+				'required', 'checked', 'placeholder', 'on-checked', 'checked-on',
+			],
+		});
+	} finally {
+		dompurify.removeHook('afterSanitizeAttributes');
+	}
 }
 
 /**
