@@ -1044,6 +1044,9 @@ declare module 'vscode' {
 	export interface DragAndDropController<T> extends Disposable {
 		readonly supportedTypes: string[];
 
+		// todo@API maybe
+		// onWillDrop(target: T): Thenable<TreeDataTransfer>;
+
 		/**
 		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
 		 *
@@ -2275,16 +2278,18 @@ declare module 'vscode' {
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
 	// TODO@API must be a class
+	// TODO@API @lramos15 Call this XYZTabs
 	export interface OpenEditorInfo {
+		//viewColumn: ViewColumn; // todo @lramos15
 		name: string;
-		resource: Uri;
+		resource: Uri; // make optional @lramos15
 		isActive: boolean;
 	}
 
 	export namespace window {
 		export const openEditors: ReadonlyArray<OpenEditorInfo>;
 
-		// todo@API proper event type
+		// todo@API @lramos15 proper event type {}
 		export const onDidChangeOpenEditors: Event<void>;
 	}
 
@@ -2509,7 +2514,7 @@ declare module 'vscode' {
 		/**
 		 * The file is readonly.
 		 *
-		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered  with
+		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered with
 		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
 		 * is set. As a consequence, it is not possible to have a readonly file system provider
 		 * registered where some `FileStat` are not readonly.
@@ -2873,15 +2878,19 @@ declare module 'vscode' {
 	}
 
 	interface LanguageStatusItem {
+		readonly id: string;
 		selector: DocumentSelector;
-		text: string;
-		detail: string | MarkdownString
 		severity: LanguageStatusSeverity;
+		name: string | undefined;
+		text: string;
+		detail: string;
+		command: Command | undefined;
+		// accessibilityInformation?: AccessibilityInformation; TODO@API
 		dispose(): void;
 	}
 
 	namespace languages {
-		export function createLanguageStatusItem(selector: DocumentSelector): LanguageStatusItem;
+		export function createLanguageStatusItem(id: string, selector: DocumentSelector): LanguageStatusItem;
 	}
 
 	//#endregion

@@ -10,19 +10,20 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { StandardTokenType, Range, Position, LanguageStatusSeverity } from 'vs/workbench/api/common/extHostTypes';
 import Severity from 'vs/base/common/severity';
 import { disposableTimeout } from 'vs/base/common/async';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 
 export class ExtHostLanguages {
 
 	private readonly _proxy: MainThreadLanguagesShape;
-	private readonly _documents: ExtHostDocuments;
 
 	constructor(
 		mainContext: IMainContext,
-		documents: ExtHostDocuments
+		private readonly _documents: ExtHostDocuments,
+		private readonly _commands: CommandsConverter
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguages);
-		this._documents = documents;
 	}
 
 	getLanguages(): Promise<string[]> {
@@ -67,32 +68,58 @@ export class ExtHostLanguages {
 
 	private _handlePool: number = 0;
 
-	createLanguageStatusItem(selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
+	createLanguageStatusItem(extension: IExtensionDescription, id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
 
 		const handle = this._handlePool++;
 		const proxy = this._proxy;
 
-		const data: { selector: any, text: string, detail: string | vscode.MarkdownString, severity: vscode.LanguageStatusSeverity } = {
+		const data: Omit<vscode.LanguageStatusItem, 'dispose'> = {
 			selector,
+			id,
+			name: extension.displayName ?? extension.name,
+			severity: LanguageStatusSeverity.Information,
+			command: undefined,
 			text: '',
 			detail: '',
-			severity: LanguageStatusSeverity.Information,
 		};
 
 		let soonHandle: IDisposable | undefined;
+		let commandDisposables = new DisposableStore();
 		const updateAsync = () => {
 			soonHandle?.dispose();
 			soonHandle = disposableTimeout(() => {
+
+				commandDisposables.clear();
+
 				this._proxy.$setLanguageStatus(handle, {
+					id: `${extension.identifier.value}/${id}`,
+					name: data.name ?? extension.displayName ?? extension.name,
+					source: extension.displayName ?? extension.name,
 					selector: data.selector,
-					text: data.text,
-					message: typeof data.detail === 'string' ? data.detail : typeConvert.MarkdownString.from(data.detail),
-					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info
+					label: data.text,
+					detail: data.detail,
+					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info,
+					command: data.command && this._commands.toInternal(data.command, commandDisposables)
 				});
 			}, 0);
 		};
 
 		const result: vscode.LanguageStatusItem = {
+			dispose() {
+				commandDisposables.dispose();
+				soonHandle?.dispose();
+				proxy.$removeLanguageStatus(handle);
+			},
+			get id() {
+				return data.id;
+			},
+			get name() {
+				return data.name;
+			},
+			set name(value) {
+				data.name = value;
+				updateAsync();
+			},
 			get selector() {
 				return data.selector;
 			},
@@ -121,9 +148,12 @@ export class ExtHostLanguages {
 				data.severity = value;
 				updateAsync();
 			},
-			dispose() {
-				soonHandle?.dispose();
-				proxy.$removeLanguageStatus(handle);
+			get command() {
+				return data.command;
+			},
+			set command(value) {
+				data.command = value;
+				updateAsync();
 			}
 		};
 		updateAsync();

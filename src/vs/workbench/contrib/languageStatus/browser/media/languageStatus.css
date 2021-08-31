@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .hover-language-status-element {
+	display: flex;
+	justify-content: space-between;
+	padding: 4px 8px;
+	vertical-align: middle;
+}
+
+.monaco-workbench .hover-language-status-element:not(:last-child) {
+	border-bottom: 1px solid var(--code-notifications-border);
+}
+
+.monaco-workbench .hover-language-status-element > .left > .label::after {
+	content: '–';
+	padding: 0 4px;
+	opacity: 0.6;
+}
+
+.monaco-workbench .hover-language-status-element > .left > .label:empty {
+	display: none;
+}
+
+.monaco-workbench .hover-language-status-element .right {
+	margin: auto 0;
+	display: flex;
+}
+
+.monaco-workbench .hover-language-status-element .right:not(:empty) {
+	padding-left: 16px;
+}
+
+.monaco-workbench .hover-language-status-element .right .monaco-button.monaco-text-button {
+	font-size: smaller;
+	padding: 2px 6px
+}
+
+.monaco-workbench .hover-language-status-element .right .monaco-action-bar:not(:first-child) {
+	padding-left: 8px;
+}
+
+/* todo@jrieken - unsets the default padding, something like friend/parent status bar items is needed */
+.monaco-workbench .part.statusbar > .items-container > DIV#status\.languageStatus.statusbar-item a {
+	padding: 0 4px;
+	margin: 0;
+}
+
+.monaco-workbench .part.statusbar > .items-container > DIV#status\.languageStatus.statusbar-item a:hover {
+	background-color: var(--code-language-status-item-active-background);
+}
+
+.monaco-workbench .part.statusbar > .items-container > DIV#status\.editor\.mode.statusbar-item:hover + DIV#status\.languageStatus.statusbar-item {
+	background-color: var(--code-language-status-item-active-background);
+}
+
+.monaco-workbench .part.statusbar > .items-container > DIV#status\.editor\.mode.statusbar-item A {
+	margin-left: 0;
+}

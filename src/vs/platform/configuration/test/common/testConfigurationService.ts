@@ -34,7 +34,7 @@ export class TestConfigurationService implements IConfigurationService {
 		}
 		configuration = configuration ? configuration : this.configuration;
 		if (arg1 && typeof arg1 === 'string') {
-			return getConfigurationValue(configuration, arg1);
+			return configuration[arg1] ?? getConfigurationValue(configuration, arg1);
 		}
 		return configuration;
 	}

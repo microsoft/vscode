@@ -14,6 +14,8 @@ import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/service
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isWeb } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
 
@@ -27,6 +29,7 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		if (_productService.extensionsGallery) {
 			this._extensionGalleryResourceAuthority = this._getExtensionResourceAuthority(URI.parse(_productService.extensionsGallery.resourceUrlTemplate));
@@ -46,9 +49,11 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 			const machineId = await this._getServiceMachineId();
 			requestInit.headers = {
 				'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
-				'X-Client-Version': this._productService.version,
-				'X-Machine-Id': machineId
+				'X-Client-Version': this._productService.version
 			};
+			if (getTelemetryLevel(this._productService, this._environmentService) === TelemetryLevel.USER && this._configurationService.getValue('telemetry.enableTelemetry') === true) {
+				requestInit.headers['X-Machine-Id'] = machineId;
+			}
 			if (this._productService.commit) {
 				requestInit.headers['X-Client-Commit'] = this._productService.commit;
 			}

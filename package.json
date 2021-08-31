@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.60.0",
-  "distro": "bf1384140eefc48a164d0b19ed03563a5313bd2f",
+  "distro": "f57adffd0da17d245713d7c4dba6c8bc43854109",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -60,7 +60,7 @@
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
     "@vscode/sqlite3": "4.0.12",
-    "@vscode/vscode-languagedetection": "1.0.20",
+    "@vscode/vscode-languagedetection": "1.0.21",
     "applicationinsights": "1.0.8",
     "chokidar": "3.5.1",
     "graceful-fs": "4.2.6",
@@ -131,7 +131,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "13.1.8",
+    "electron": "13.2.3",
     "eslint": "6.8.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^19.1.0",
@@ -198,7 +198,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.3",
     "tsec": "0.1.4",
-    "typescript": "^4.5.0-dev.20210826",
+    "typescript": "4.5.0-dev.20210816",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

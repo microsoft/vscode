@@ -641,8 +641,10 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(events.opened[0], input1);
 		assert.strictEqual(events.activated[0], input1);
 
-		let editor = group.closeEditor(input1);
-		assert.strictEqual(editor, input1);
+		let index = group.indexOf(input1);
+		let event = group.closeEditor(input1);
+		assert.strictEqual(event?.editor, input1);
+		assert.strictEqual(event?.index, index);
 		assert.strictEqual(group.count, 0);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 		assert.strictEqual(group.activeEditor, null);
@@ -672,8 +674,8 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(events.closed[1].index, 0);
 		assert.strictEqual(events.closed[1].replaced, false);
 
-		editor = group.closeEditor(input2);
-		assert.ok(!editor);
+		event = group.closeEditor(input2);
+		assert.ok(!event);
 		assert.strictEqual(group.count, 0);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 		assert.strictEqual(group.activeEditor, null);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -88,11 +88,6 @@ interface ISerializedEditorHistoryEntry {
 	 * support untyped editor inputs with `resource`.
 	 */
 	editor: IResourceEditorInput;
-
-	/**
-	 * @deprecated TODO@bpasero remove me after a few releases
-	 */
-	resourceJSON?: UriComponents;
 }
 
 interface IStackEntry {
@@ -1082,29 +1077,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 		}
 
-		return coalesce(entries.map(entry => {
-			try {
-				return this.safeLoadHistoryEntry(entry);
-			} catch (error) {
-				return undefined; // https://github.com/microsoft/vscode/issues/60960
-			}
-		}));
-	}
-
-	private safeLoadHistoryEntry(entry: ISerializedEditorHistoryEntry): IResourceEditorInput | undefined {
-		const serializedEditorHistoryEntry = entry;
-
-		// Untyped editor: take as is
-		if (serializedEditorHistoryEntry.editor) {
-			return serializedEditorHistoryEntry.editor;
-		}
-
-		// Legacy: old `resourceJSON` format
-		if (serializedEditorHistoryEntry.resourceJSON) {
-			return { resource: URI.revive(serializedEditorHistoryEntry.resourceJSON) };
-		}
-
-		return undefined;
+		return coalesce(entries.map(entry => entry.editor));
 	}
 
 	private saveState(): void {

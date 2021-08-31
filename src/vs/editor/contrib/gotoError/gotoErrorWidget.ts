@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/gotoErrorWidget';
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder, textLinkActiveForeground, transparent, editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Event, Emitter } from 'vs/base/common/event';
-import { PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/peekView';
-import { basename } from 'vs/base/common/resources';
 import { IAction } from 'vs/base/common/actions';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { splitLines } from 'vs/base/common/strings';
+import 'vs/css!./media/gotoErrorWidget';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
+import * as nls from 'vs/nls';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IMarker, IRelatedInformation, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, textLinkActiveForeground, textLinkForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 class MessageWidget {
 

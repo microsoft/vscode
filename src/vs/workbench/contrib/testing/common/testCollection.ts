@@ -8,6 +8,7 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { ILocationDto } from 'vs/workbench/api/common/extHost.protocol';
 
 export const enum TestResultState {
 	Unset = 0,
@@ -109,12 +110,18 @@ export interface ITestErrorMessage {
 	location: IRichLocation | undefined;
 }
 
+export type SerializedTestErrorMessage = Omit<ITestErrorMessage, 'location'> & { location?: ILocationDto };
+
 export interface ITestOutputMessage {
 	message: string;
 	type: TestMessageType.Info;
 	offset: number;
 	location: IRichLocation | undefined;
 }
+
+export type SerializedTestOutputMessage = Omit<ITestOutputMessage, 'location'> & { location?: ILocationDto };
+
+export type SerializedTestMessage = SerializedTestErrorMessage | SerializedTestOutputMessage;
 
 export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
 

@@ -89,11 +89,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		primary: KeyCode.Escape,
 		handler: accessor => {
 			const telemetryService = accessor.get(ITelemetryService);
-			model.notifications.forEach(n => {
-				if (n.visible) {
-					telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(n.message.original, n.sourceId, n.silent));
+			for (const notification of model.notifications) {
+				if (notification.visible) {
+					telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.silent));
 				}
-			});
+			}
 
 			center.hide();
 		}
@@ -172,11 +172,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	// Hide Toasts
 	CommandsRegistry.registerCommand(HIDE_NOTIFICATION_TOAST, accessor => {
 		const telemetryService = accessor.get(ITelemetryService);
-		model.notifications.forEach(n => {
-			if (n.visible) {
-				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(n.message.original, n.sourceId, n.silent));
+		for (const notification of model.notifications) {
+			if (notification.visible) {
+				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.silent));
 			}
-		});
+		}
 		toasts.hide();
 	});
 

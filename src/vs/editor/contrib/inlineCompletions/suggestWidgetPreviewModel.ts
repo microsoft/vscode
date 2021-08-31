@@ -156,7 +156,7 @@ function sum(arr: number[]): number {
 	return arr.reduce((a, b) => a + b, 0);
 }
 
-function lengthOfLongestCommonPrefix(str1: string, str2: string): number {
+export function lengthOfLongestCommonPrefix(str1: string, str2: string): number {
 	let i = 0;
 	while (i < str1.length && i < str2.length && str1[i] === str2[i]) {
 		i++;
@@ -164,7 +164,7 @@ function lengthOfLongestCommonPrefix(str1: string, str2: string): number {
 	return i;
 }
 
-function lengthOfLongestCommonSuffix(str1: string, str2: string): number {
+export function lengthOfLongestCommonSuffix(str1: string, str2: string): number {
 	let i = 0;
 	while (i < str1.length && i < str2.length && str1[str1.length - i - 1] === str2[str2.length - i - 1]) {
 		i++;
@@ -172,7 +172,7 @@ function lengthOfLongestCommonSuffix(str1: string, str2: string): number {
 	return i;
 }
 
-function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {
+export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {
 	if (!inlineCompletion) {
 		return inlineCompletion;
 	}
@@ -181,7 +181,8 @@ function minimizeInlineCompletion(model: ITextModel, inlineCompletion: Normalize
 	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLength;
 	const start = model.getPositionAt(startOffset);
 
-	const commonSuffixLength = lengthOfLongestCommonSuffix(valueToReplace, inlineCompletion.text);
+	const remainingValueToReplace = valueToReplace.substr(commonPrefixLength);
+	const commonSuffixLength = lengthOfLongestCommonSuffix(remainingValueToReplace, inlineCompletion.text);
 	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLength));
 
 	return {

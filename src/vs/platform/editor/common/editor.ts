@@ -52,22 +52,26 @@ export interface IBaseResourceEditorInput {
 	readonly description?: string;
 
 	/**
-	 * Hint to indicate that this input should be treated as a file
-	 * that opens in an editor capable of showing file content.
-	 *
-	 * Without this hint, the editor service will make a guess by
-	 * looking at the scheme of the resource(s).
-	 */
-	readonly forceFile?: boolean;
-
-	/**
 	 * Hint to indicate that this input should be treated as a
 	 * untitled file.
 	 *
 	 * Without this hint, the editor service will make a guess by
 	 * looking at the scheme of the resource(s).
+	 *
+	 * Use `forceUntitled: true` when you pass in a `resource` that
+	 * does not use the `untitled` scheme. The `resource` will then
+	 * be used as associated path when saving the untitled file.
 	 */
 	readonly forceUntitled?: boolean;
+
+	/**
+	 * @deprecated internal hint that the editor should be resolved
+	 * into a `FileEditorInput` even if the resource cannot be handled
+	 * by any file system provider.
+	 *
+	 * See https://github.com/microsoft/vscode/issues/128209
+	 */
+	readonly forceFile?: boolean;
 }
 
 export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {

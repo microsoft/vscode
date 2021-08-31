@@ -883,6 +883,18 @@ suite('Map', () => {
 		);
 	});
 
+	test('TST, fill', function () {
+		const tst = TernarySearchTree.forStrings();
+
+		const keys = ['foo', 'bar', 'bang', 'bazz'];
+		Object.freeze(keys);
+		tst.fill(true, keys);
+
+		for (let key of keys) {
+			assert.ok(tst.get(key));
+		}
+	});
+
 	test('ResourceMap - basics', function () {
 		const map = new ResourceMap<any>();
 

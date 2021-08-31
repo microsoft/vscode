@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import * as dom from 'vs/base/browser/dom';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ITextContentData, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextContentData, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
-import * as dom from 'vs/base/browser/dom';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
+import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(

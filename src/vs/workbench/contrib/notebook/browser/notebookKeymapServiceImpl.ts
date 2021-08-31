@@ -17,6 +17,7 @@ import { IExtensionIdentifier, IExtensionManagementService, InstallOperation } f
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
+import { distinct } from 'vs/base/common/arrays';
 
 function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
@@ -92,7 +93,7 @@ export class NotebookKeymapService extends Disposable implements INotebookKeymap
 			}
 		};
 
-		this.notificationService.prompt(Severity.Info, localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', ')),
+		this.notificationService.prompt(Severity.Info, localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", distinct(oldKeymaps.map(k => k.local.manifest.displayName)).map(name => `'${name}'`).join(', ')),
 			[{
 				label: localize('yes', "Yes"),
 				run: () => onPrompt(true)

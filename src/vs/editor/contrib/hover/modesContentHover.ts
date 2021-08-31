@@ -4,32 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { HoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Constants } from 'vs/base/common/uint';
+import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { coalesce, flatten } from 'vs/base/common/arrays';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Constants } from 'vs/base/common/uint';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { HoverWidget, HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
-import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
-import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
-import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
+import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHover, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
+import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
+import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorHoverStatusBar, IHoverPart, HoverAnchor, IEditorHoverParticipant, HoverAnchorType, IEditorHover, HoverRangeAnchor, IEditorHoverAction } from 'vs/editor/contrib/hover/hoverTypes';
 
 const $ = dom.$;
 

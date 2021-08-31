@@ -161,6 +161,7 @@ export function refineServiceDecorator<T1, T extends T1>(serviceIdentifier: Serv
 
 /**
  * Mark a service dependency as optional.
+ * @deprecated Avoid, see https://github.com/microsoft/vscode/issues/119440
  */
 export function optional<T>(serviceIdentifier: ServiceIdentifier<T>) {
 

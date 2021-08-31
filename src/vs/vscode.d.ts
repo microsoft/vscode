@@ -13807,7 +13807,7 @@ declare module 'vscode' {
 		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The {@link GetSessionOptions} to use
+		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
@@ -13822,7 +13822,7 @@ declare module 'vscode' {
 		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The {@link GetSessionOptions} to use
+		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;

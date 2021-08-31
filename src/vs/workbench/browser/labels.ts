@@ -18,10 +18,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { getIconClasses, detectModeId } from 'vs/editor/common/services/getIconClasses';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 
 export interface IResourceLabelProps {
@@ -300,7 +299,11 @@ class ResourceLabelWidget extends IconLabel {
 			this.isHidden = !visible;
 
 			if (visible && this.needsRedraw) {
-				this.render(this.needsRedraw === Redraw.Basic ? false : true);
+				this.render({
+					updateIcon: this.needsRedraw === Redraw.Full,
+					updateDecoration: this.needsRedraw === Redraw.Full
+				});
+
 				this.needsRedraw = undefined;
 			}
 		}
@@ -322,7 +325,8 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (isEqual(model.uri, resource)) {
 			if (this.lastKnownDetectedModeId !== model.getModeId()) {
-				this.render(true); // update if the language id of the model has changed from our last known state
+				this.lastKnownDetectedModeId = model.getModeId();
+				this.render({ updateIcon: true, updateDecoration: false }); // update if the language id of the model has changed from our last known state
 			}
 		}
 	}
@@ -338,33 +342,33 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (this.options.fileDecorations && e.affectsResource(resource)) {
-			return this.render(false);
+			return this.render({ updateIcon: false, updateDecoration: true });
 		}
 
 		return false;
 	}
 
 	notifyExtensionsRegistered(): void {
-		this.render(true);
+		this.render({ updateIcon: true, updateDecoration: false });
 	}
 
 	notifyThemeChange(): void {
-		this.render(false);
+		this.render({ updateIcon: false, updateDecoration: false });
 	}
 
 	notifyFileAssociationsChange(): void {
-		this.render(true);
+		this.render({ updateIcon: true, updateDecoration: false });
 	}
 
 	notifyFormattersChange(scheme: string): void {
 		if (toResource(this.label)?.scheme === scheme) {
-			this.render(false);
+			this.render({ updateIcon: false, updateDecoration: false });
 		}
 	}
 
 	notifyUntitledLabelChange(resource: URI): void {
 		if (isEqual(resource, toResource(this.label))) {
-			this.render(false);
+			this.render({ updateIcon: false, updateDecoration: false });
 		}
 	}
 
@@ -432,8 +436,9 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		const hasPathLabelChanged = this.hasPathLabelChanged(label, options);
-		const clearIconCache = this.clearIconCache(label, options);
+		const hasResourceChanged = this.hasResourceChanged(label);
+		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
+		const hasFileKindChanged = this.hasFileKindChanged(options);
 
 		this.label = label;
 		this.options = options;
@@ -442,19 +447,22 @@ class ResourceLabelWidget extends IconLabel {
 			this.computedPathLabel = undefined; // reset path label due to resource change
 		}
 
-		this.render(clearIconCache);
+		this.render({
+			updateIcon: hasResourceChanged || hasFileKindChanged,
+			updateDecoration: hasResourceChanged || hasFileKindChanged
+		});
 	}
 
-	private clearIconCache(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
+	private hasFileKindChanged(newOptions?: IResourceLabelOptions): boolean {
+		const newFileKind = newOptions?.fileKind;
+		const oldFileKind = this.options?.fileKind;
+
+		return newFileKind !== oldFileKind; // same resource but different kind (file, folder)
+	}
+
+	private hasResourceChanged(newLabel: IResourceLabelProps): boolean {
 		const newResource = toResource(newLabel);
 		const oldResource = toResource(this.label);
-
-		const newFileKind = newOptions ? newOptions.fileKind : undefined;
-		const oldFileKind = this.options ? this.options.fileKind : undefined;
-
-		if (newFileKind !== oldFileKind) {
-			return true; // same resource but different kind (file, folder)
-		}
 
 		if (newResource && oldResource) {
 			return newResource.toString() !== oldResource.toString();
@@ -467,7 +475,7 @@ class ResourceLabelWidget extends IconLabel {
 		return true;
 	}
 
-	private hasPathLabelChanged(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
+	private hasPathLabelChanged(newLabel: IResourceLabelProps): boolean {
 		const newResource = toResource(newLabel);
 
 		return !!newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource);
@@ -483,29 +491,16 @@ class ResourceLabelWidget extends IconLabel {
 		this.setLabel('');
 	}
 
-	private render(clearIconCache: boolean): boolean {
+	private render(options: { updateIcon: boolean, updateDecoration: boolean }): boolean {
 		if (this.isHidden) {
-			if (!this.needsRedraw) {
-				this.needsRedraw = clearIconCache ? Redraw.Full : Redraw.Basic;
-			}
-
-			if (this.needsRedraw === Redraw.Basic && clearIconCache) {
-				this.needsRedraw = Redraw.Full;
+			if (this.needsRedraw !== Redraw.Full) {
+				this.needsRedraw = (options.updateIcon || options.updateDecoration) ? Redraw.Full : Redraw.Basic;
 			}
 
 			return false;
 		}
 
-		if (this.label) {
-			const resource = toResource(this.label);
-			const detectedModeId = resource ? withNullAsUndefined(detectModeId(this.modelService, this.modeService, resource)) : undefined;
-			if (this.lastKnownDetectedModeId !== detectedModeId) {
-				clearIconCache = true;
-				this.lastKnownDetectedModeId = detectedModeId;
-			}
-		}
-
-		if (clearIconCache) {
+		if (options.updateIcon) {
 			this.computedIconClasses = undefined;
 		}
 
@@ -529,7 +524,7 @@ class ResourceLabelWidget extends IconLabel {
 		const resource = toResource(this.label);
 		const label = this.label.name;
 
-		if (this.options && (this.options.title !== undefined)) {
+		if (this.options?.title !== undefined) {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
@@ -541,8 +536,9 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options && this.options.fileKind);
+				this.computedIconClasses = getIconClasses(this.modelService, this.modeService, resource, this.options.fileKind);
 			}
+
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
 		}
 
@@ -550,7 +546,7 @@ class ResourceLabelWidget extends IconLabel {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
-		if (this.options?.fileDecorations && resource) {
+		if (this.options?.fileDecorations && resource && options.updateDecoration) {
 			const deco = this.decorationsService.getDecoration(
 				resource,
 				this.options.fileKind !== FileKind.FILE
