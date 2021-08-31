@@ -22,7 +22,7 @@ const enum Constants {
 	 */
 	ActiveDebounceDuration = 1000,
 }
-/*
+
 const ignoreProcessNames = [
 	// Popular prompt programs, these should not count as child processes
 	'starship',
