@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFileQuery, IRawFileQuery, ISearchCompleteStats, isSerializedFileMatch, ISerializedSearchProgressItem, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ExtHostSearch, reviveQuery } from 'vs/workbench/api/common/extHostSearch';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { IFileQuery, IRawFileQuery, ISearchCompleteStats, ISerializedSearchProgressItem, isSerializedFileMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { SearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { RipgrepSearchProvider } from 'vs/workbench/services/search/node/ripgrepSearchProvider';
 import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import type * as vscode from 'vscode';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostSearch, reviveQuery } from 'vs/workbench/api/common/extHostSearch';
-import { Schemas } from 'vs/base/common/network';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+import type * as vscode from 'vscode';
 
 export class NativeExtHostSearch extends ExtHostSearch {
 
@@ -35,15 +35,21 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	) {
 		super(extHostRpc, _uriTransformer, _logService);
 
+		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
+		this.registerTextSearchProvider(Schemas.userData, new RipgrepSearchProvider(outputChannel));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
 		}
 	}
 
+	override $enableExtensionHostSearch(): void {
+		this._registerEHSearchProviders();
+	}
+
 	private _registerEHSearchProviders(): void {
-		const outputChannel = new OutputChannel(this._logService);
+		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
 		this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel));
-		this.registerInternalFileSearchProvider(Schemas.file, new SearchService());
+		this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider'));
 	}
 
 	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
@@ -57,7 +63,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		});
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
+	override $provideFileSearchResults(handle: number, session: number, rawQuery: IRawFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
 		const query = reviveQuery(rawQuery);
 		if (handle === this._internalFileSearchHandle) {
 			return this.doInternalFileSearch(handle, session, query, token);
@@ -89,7 +95,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
 	}
 
-	$clearCache(cacheKey: string): Promise<void> {
+	override $clearCache(cacheKey: string): Promise<void> {
 		if (this._internalFileSearchProvider) {
 			this._internalFileSearchProvider.clearCache(cacheKey);
 		}
@@ -97,8 +103,7 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		return super.$clearCache(cacheKey);
 	}
 
-	protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
-		return new NativeTextSearchManager(query, provider);
+	protected override createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
+		return new NativeTextSearchManager(query, provider, undefined, 'textSearchProvider');
 	}
 }
-

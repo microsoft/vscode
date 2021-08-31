@@ -45,6 +45,7 @@ function modelHasNoDecorations(model: TextModel) {
 function addDecoration(model: TextModel, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string): string {
 	return model.changeDecorations((changeAccessor) => {
 		return changeAccessor.addDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), {
+			description: 'test',
 			className: className
 		});
 	})!;
@@ -407,7 +408,7 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('removeAllDecorationsWithOwnerId works', () => {
-		thisModel.deltaDecorations([], [{ range: new Range(1, 2, 4, 1), options: { className: 'myType1' } }], 1);
+		thisModel.deltaDecorations([], [{ range: new Range(1, 2, 4, 1), options: { description: 'test', className: 'myType1' } }], 1);
 		thisModel.removeAllDecorationsWithOwnerId(1);
 		modelHasNoDecorations(thisModel);
 	});
@@ -422,7 +423,7 @@ suite('Decorations and editing', () => {
 			'Third Line'
 		].join('\n'));
 
-		const id = model.deltaDecorations([], [{ range: decRange, options: { stickiness: stickiness } }])[0];
+		const id = model.deltaDecorations([], [{ range: decRange, options: { description: 'test', stickiness: stickiness } }])[0];
 		model.applyEdits([{
 			range: editRange,
 			text: editText,
@@ -1123,6 +1124,7 @@ suite('deltaDecorations', () => {
 		return {
 			range: dec.range,
 			options: {
+				description: 'test',
 				className: dec.id
 			}
 		};
@@ -1276,6 +1278,7 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
+				description: 'test',
 				hoverMessage: { value: 'hello1' }
 			}
 		}]);
@@ -1288,6 +1291,7 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
+				description: 'test',
 				hoverMessage: { value: 'hello2' }
 			}
 		}]);
@@ -1312,9 +1316,11 @@ suite('deltaDecorations', () => {
 					startColumn: 1,
 					endLineNumber: 1,
 					endColumn: 1
-				}, {
-				stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-			}
+				},
+				{
+					description: 'test',
+					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+				}
 			);
 		});
 		model.changeDecorations((changeAccessor) => {
@@ -1349,16 +1355,16 @@ suite('deltaDecorations', () => {
 		].join('\n'));
 
 		model.deltaDecorations([], [
-			{ range: new Range(1, 1, 1, 1), options: { className: '1' } },
-			{ range: new Range(1, 13, 1, 13), options: { className: '2' } },
-			{ range: new Range(2, 1, 2, 1), options: { className: '3' } },
-			{ range: new Range(2, 1, 2, 4), options: { className: '4' } },
-			{ range: new Range(2, 8, 2, 13), options: { className: '5' } },
-			{ range: new Range(3, 1, 4, 6), options: { className: '6' } },
-			{ range: new Range(1, 1, 3, 6), options: { className: 'x1' } },
-			{ range: new Range(2, 5, 2, 8), options: { className: 'x2' } },
-			{ range: new Range(1, 1, 2, 8), options: { className: 'x3' } },
-			{ range: new Range(2, 5, 3, 1), options: { className: 'x4' } },
+			{ range: new Range(1, 1, 1, 1), options: { description: 'test', className: '1' } },
+			{ range: new Range(1, 13, 1, 13), options: { description: 'test', className: '2' } },
+			{ range: new Range(2, 1, 2, 1), options: { description: 'test', className: '3' } },
+			{ range: new Range(2, 1, 2, 4), options: { description: 'test', className: '4' } },
+			{ range: new Range(2, 8, 2, 13), options: { description: 'test', className: '5' } },
+			{ range: new Range(3, 1, 4, 6), options: { description: 'test', className: '6' } },
+			{ range: new Range(1, 1, 3, 6), options: { description: 'test', className: 'x1' } },
+			{ range: new Range(2, 5, 2, 8), options: { description: 'test', className: 'x2' } },
+			{ range: new Range(1, 1, 2, 8), options: { description: 'test', className: 'x3' } },
+			{ range: new Range(2, 5, 3, 1), options: { description: 'test', className: 'x4' } },
 		]);
 
 		let inRange = model.getDecorationsInRange(new Range(2, 6, 2, 6));
@@ -1376,7 +1382,7 @@ suite('deltaDecorations', () => {
 			'My First Line'
 		].join('\n'));
 
-		const id = model.deltaDecorations([], [{ range: new Range(1, 2, 1, 14), options: { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, collapseOnReplaceEdit: true } }])[0];
+		const id = model.deltaDecorations([], [{ range: new Range(1, 2, 1, 14), options: { description: 'test', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, collapseOnReplaceEdit: true } }])[0];
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 14),
 			text: 'Some new text that is longer than the previous one',

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
-import { CompletionItem } from './suggest';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
+import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CompletionItem } from './suggest';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -128,10 +128,12 @@ export class SuggestDetailsWidget {
 
 		if (explainMode) {
 			let md = '';
-			md += `score: ${item.score[0]}${item.word ? `, compared '${item.completion.filterText && (item.completion.filterText + ' (filterText)') || typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name}' with '${item.word}'` : ' (no prefix)'}\n`;
-			md += `distance: ${item.distance}, see localityBonus-setting\n`;
+			md += `score: ${item.score[0]}\n`;
+			md += `prefix: ${item.word ?? '(no prefix)'}\n`;
+			md += `word: ${item.completion.filterText ? item.completion.filterText + ' (filterText)' : item.textLabel}\n`;
+			md += `distance: ${item.distance} (localityBonus-setting)\n`;
 			md += `index: ${item.idx}, based on ${item.completion.sortText && `sortText: "${item.completion.sortText}"` || 'label'}\n`;
-			md += `commit characters: ${item.completion.commitCharacters}\n`;
+			md += `commit_chars: ${item.completion.commitCharacters?.join('')}\n`;
 			documentation = new MarkdownString().appendCodeblock('empty', md);
 			detail = `Provider: ${item.provider._debugDisplayName}`;
 		}
@@ -318,6 +320,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	dispose(): void {
+		this._resizable.dispose();
 		this._disposables.dispose();
 		this.hide();
 	}
@@ -343,6 +346,8 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	hide(sessionEnded: boolean = false): void {
+		this._resizable.clearSashHoverState();
+
 		if (this._added) {
 			this._editor.removeOverlayWidget(this);
 			this._added = false;

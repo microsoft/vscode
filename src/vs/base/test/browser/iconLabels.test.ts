@@ -3,45 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as assert from 'assert';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 suite('renderLabelWithIcons', () => {
 
 	test('no icons', () => {
 		const result = renderLabelWithIcons(' hello World .');
 
-		assert.equal(elementsToString(result), ' hello World .');
+		assert.strictEqual(elementsToString(result), ' hello World .');
 	});
 
 	test('icons only', () => {
 		const result = renderLabelWithIcons('$(alert)');
 
-		assert.equal(elementsToString(result), '<span class="codicon codicon-alert"></span>');
+		assert.strictEqual(elementsToString(result), '<span class="codicon codicon-alert"></span>');
 	});
 
 	test('icon and non-icon strings', () => {
 		const result = renderLabelWithIcons(` $(alert) Unresponsive`);
 
-		assert.equal(elementsToString(result), ' <span class="codicon codicon-alert"></span> Unresponsive');
+		assert.strictEqual(elementsToString(result), ' <span class="codicon codicon-alert"></span> Unresponsive');
 	});
 
 	test('multiple icons', () => {
 		const result = renderLabelWithIcons('$(check)$(error)');
 
-		assert.equal(elementsToString(result), '<span class="codicon codicon-check"></span><span class="codicon codicon-error"></span>');
+		assert.strictEqual(elementsToString(result), '<span class="codicon codicon-check"></span><span class="codicon codicon-error"></span>');
 	});
 
 	test('escaped icons', () => {
 		const result = renderLabelWithIcons('\\$(escaped)');
 
-		assert.equal(elementsToString(result), '$(escaped)');
+		assert.strictEqual(elementsToString(result), '$(escaped)');
 	});
 
 	test('icon with animation', () => {
 		const result = renderLabelWithIcons('$(zip~anim)');
 
-		assert.equal(elementsToString(result), '<span class="codicon codicon-zip codicon-modifier-anim"></span>');
+		assert.strictEqual(elementsToString(result), '<span class="codicon codicon-zip codicon-modifier-anim"></span>');
 	});
 
 	const elementsToString = (elements: Array<HTMLElement | string>): string => {

@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChildProcess, spawn, SpawnOptions } from 'child_process';
+import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir } from 'os';
-import { existsSync, statSync, unlinkSync, chmodSync, truncateSync, readFileSync } from 'fs';
-import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { parseCLIProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
-import product from 'vs/platform/product/common/product';
-import { isAbsolute, join } from 'vs/base/common/path';
-import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
-import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { isWindows, isLinux } from 'vs/base/common/platform';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { isAbsolute, join } from 'vs/base/common/path';
+import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
-import { hasStdinWithoutTty, stdinDataListener, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
+import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
+import { findFreePort } from 'vs/base/node/ports';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
+import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import product from 'vs/platform/product/common/product';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
-		|| !!argv['install-builtin-extension']
 		|| !!argv['uninstall-extension']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
@@ -56,7 +56,7 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
+		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));
 		await cli.main(args);
 
 		return;
@@ -84,8 +84,8 @@ export async function main(argv: string[]): Promise<any> {
 			let restoreMode = false;
 			if (!!args['file-chmod']) {
 				targetMode = statSync(target).mode;
-				if (!(targetMode & 128) /* readonly */) {
-					chmodSync(target, targetMode | 128);
+				if (!(targetMode & 0o200 /* File mode indicating writable by owner */)) {
+					chmodSync(target, targetMode | 0o200);
 					restoreMode = true;
 				}
 			}
@@ -117,9 +117,8 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Just Code
 	else {
-		const env: NodeJS.ProcessEnv = {
+		const env: IProcessEnvironment = {
 			...process.env,
-			'VSCODE_CLI': '1', // this will signal Code that it was spawned from this module
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		};
 
@@ -210,7 +209,7 @@ export async function main(argv: string[]): Promise<any> {
 			const portRenderer = await findFreePort(portMain + 1, 10, 3000);
 			const portExthost = await findFreePort(portRenderer + 1, 10, 3000);
 
-			// fail the operation when one of the ports couldn't be accquired.
+			// fail the operation when one of the ports couldn't be acquired.
 			if (portMain * portRenderer * portExthost === 0) {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
@@ -318,10 +317,6 @@ export async function main(argv: string[]): Promise<any> {
 
 		if (!verbose) {
 			options['stdio'] = 'ignore';
-		}
-
-		if (isLinux) {
-			addArg(argv, '--no-sandbox'); // Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox
 		}
 
 		const child = spawn(process.execPath, argv.slice(2), options);

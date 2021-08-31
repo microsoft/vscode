@@ -7,21 +7,19 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { IDisplayMainService } from 'vs/platform/display/common/displayMainService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 
 class DisplayChangeRemeasureFonts extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService
+		@INativeHostService nativeHostService: INativeHostService
 	) {
 		super();
-		const displayMainService = createChannelSender<IDisplayMainService>(mainProcessService.getChannel('display'));
-		displayMainService.onDidDisplayChanged(() => {
+
+		this._register(nativeHostService.onDidChangeDisplay(() => {
 			clearAllFontInfos();
-		});
+		}));
 	}
 }
 

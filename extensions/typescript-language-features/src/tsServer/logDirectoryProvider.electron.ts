@@ -6,8 +6,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { ILogDirectoryProvider } from './logDirectoryProvider';
 import { memoize } from '../utils/memoize';
+import { ILogDirectoryProvider } from './logDirectoryProvider';
 
 export class NodeLogDirectoryProvider implements ILogDirectoryProvider {
 	public constructor(

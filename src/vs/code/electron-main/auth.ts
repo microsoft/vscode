@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { app, AuthenticationResponseDetails, AuthInfo, Event as ElectronEvent, WebContents } from 'electron';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { app, AuthInfo, WebContents, Event as ElectronEvent, AuthenticationResponseDetails } from 'electron';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
-import product from 'vs/platform/product/common/product';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDetails {
 	firstAuthAttempt?: boolean; // https://github.com/electron/electron/blob/84a42a050e7d45225e69df5bd2d2bf9f1037ea41/shell/browser/login_handler.cc#L70
@@ -56,7 +56,7 @@ enum ProxyAuthState {
 
 export class ProxyAuthHandler extends Disposable {
 
-	private static PROXY_CREDENTIALS_SERVICE_KEY = `${product.urlProtocol}.proxy-credentials`;
+	private readonly PROXY_CREDENTIALS_SERVICE_KEY = `${this.productService.urlProtocol}.proxy-credentials`;
 
 	private pendingProxyResolve: Promise<Credentials | undefined> | undefined = undefined;
 
@@ -68,7 +68,8 @@ export class ProxyAuthHandler extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IEncryptionMainService private readonly encryptionMainService: IEncryptionMainService
+		@IEncryptionMainService private readonly encryptionMainService: IEncryptionMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -153,7 +154,7 @@ export class ProxyAuthHandler extends Disposable {
 		let storedUsername: string | undefined = undefined;
 		let storedPassword: string | undefined = undefined;
 		try {
-			const encryptedSerializedProxyCredentials = await this.nativeHostMainService.getPassword(undefined, ProxyAuthHandler.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+			const encryptedSerializedProxyCredentials = await this.nativeHostMainService.getPassword(undefined, this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 			if (encryptedSerializedProxyCredentials) {
 				const credentials: Credentials = JSON.parse(await this.encryptionMainService.decrypt(encryptedSerializedProxyCredentials));
 
@@ -201,7 +202,7 @@ export class ProxyAuthHandler extends Disposable {
 			const proxyAuthResponseHandler = async (event: ElectronEvent, channel: string, reply: Credentials & { remember: boolean } | undefined /* canceled */) => {
 				if (channel === payload.replyChannel) {
 					this.logService.trace(`auth#doResolveProxyCredentials - exit - received credentials from window ${window.id}`);
-					window.win.webContents.off('ipc-message', proxyAuthResponseHandler);
+					window.win?.webContents.off('ipc-message', proxyAuthResponseHandler);
 
 					// We got credentials from the window
 					if (reply) {
@@ -211,9 +212,9 @@ export class ProxyAuthHandler extends Disposable {
 						try {
 							if (reply.remember) {
 								const encryptedSerializedCredentials = await this.encryptionMainService.encrypt(JSON.stringify(credentials));
-								await this.nativeHostMainService.setPassword(undefined, ProxyAuthHandler.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
+								await this.nativeHostMainService.setPassword(undefined, this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash, encryptedSerializedCredentials);
 							} else {
-								await this.nativeHostMainService.deletePassword(undefined, ProxyAuthHandler.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
+								await this.nativeHostMainService.deletePassword(undefined, this.PROXY_CREDENTIALS_SERVICE_KEY, authInfoHash);
 							}
 						} catch (error) {
 							this.logService.error(error); // handle gracefully
@@ -229,7 +230,7 @@ export class ProxyAuthHandler extends Disposable {
 				}
 			};
 
-			window.win.webContents.on('ipc-message', proxyAuthResponseHandler);
+			window.win?.webContents.on('ipc-message', proxyAuthResponseHandler);
 		});
 
 		// Remember credentials for the session in case

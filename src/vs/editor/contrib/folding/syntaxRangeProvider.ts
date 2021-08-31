@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FoldingRangeProvider, FoldingRange, FoldingContext } from 'vs/editor/common/modes';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { ITextModel } from 'vs/editor/common/model';
-import { RangeProvider } from './folding';
-import { MAX_LINE_NUMBER, FoldingRegions } from './foldingRanges';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ITextModel } from 'vs/editor/common/model';
+import { FoldingContext, FoldingRange, FoldingRangeProvider } from 'vs/editor/common/modes';
+import { RangeProvider } from './folding';
+import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges';
 
 const MAX_FOLDING_REGIONS = 5000;
 

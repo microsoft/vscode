@@ -55,7 +55,7 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 
 	} else if (selector) {
 		// filter -> select accordingly, use defaults for scheme
-		const { language, pattern, scheme, hasAccessToAllModels } = selector;
+		const { language, pattern, scheme, hasAccessToAllModels } = selector as LanguageFilter; // TODO: microsoft/TypeScript#42768
 
 		if (!candidateIsSynchronized && !hasAccessToAllModels) {
 			return 0;

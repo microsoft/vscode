@@ -10,14 +10,14 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import * as modes from 'vs/editor/common/modes';
+import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };

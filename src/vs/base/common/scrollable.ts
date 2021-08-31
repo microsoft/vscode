@@ -41,7 +41,7 @@ export interface ScrollEvent {
 }
 
 export class ScrollState implements IScrollDimensions, IScrollPosition {
-	_scrollStateBrand: void;
+	_scrollStateBrand: void = undefined;
 
 	public readonly rawScrollLeft: number;
 	public readonly rawScrollTop: number;
@@ -204,7 +204,7 @@ export interface INewScrollPosition {
 
 export class Scrollable extends Disposable {
 
-	_scrollableBrand: void;
+	_scrollableBrand: void = undefined;
 
 	private _smoothScrollDuration: number;
 	private readonly _scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
@@ -223,7 +223,7 @@ export class Scrollable extends Disposable {
 		this._smoothScrolling = null;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._smoothScrolling) {
 			this._smoothScrolling.dispose();
 			this._smoothScrolling = null;

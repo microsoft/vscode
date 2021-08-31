@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
@@ -43,18 +43,18 @@ class CheckoutItem implements QuickPickItem {
 
 class CheckoutTagItem extends CheckoutItem {
 
-	get description(): string {
+	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
 	}
 }
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	get description(): string {
+	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	override async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
@@ -153,21 +153,21 @@ class AddRemoteItem implements QuickPickItem {
 	}
 }
 
-interface CommandOptions {
+interface ScmCommandOptions {
 	repository?: boolean;
 	diff?: boolean;
 }
 
-interface Command {
+interface ScmCommand {
 	commandId: string;
 	key: string;
 	method: Function;
-	options: CommandOptions;
+	options: ScmCommandOptions;
 }
 
-const Commands: Command[] = [];
+const Commands: ScmCommand[] = [];
 
-function command(commandId: string, options: CommandOptions = {}): Function {
+function command(commandId: string, options: ScmCommandOptions = {}): Function {
 	return (_target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
@@ -374,16 +374,20 @@ export class CommandCenter {
 
 	@command('git.openAllChanges', { repository: true })
 	async openChanges(repository: Repository): Promise<void> {
-		[
-			...repository.workingTreeGroup.resourceStates,
-			...repository.untrackedGroup.resourceStates,
-		].forEach(resource => {
-			commands.executeCommand(
+		for (const resource of [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates]) {
+			if (
+				resource.type === Status.DELETED || resource.type === Status.DELETED_BY_THEM ||
+				resource.type === Status.DELETED_BY_US || resource.type === Status.BOTH_DELETED
+			) {
+				continue;
+			}
+
+			void commands.executeCommand(
 				'vscode.open',
 				resource.resourceUri,
-				{ preview: false, }
+				{ background: true, preview: false, }
 			);
-		});
+		}
 	}
 
 	async cloneRepository(url?: string, parentPath?: string, options: { recursive?: boolean } = {}): Promise<void> {
@@ -793,7 +797,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const from = path.relative(repository.root, fromUri.path);
+		const from = path.relative(repository.root, fromUri.fsPath);
 		let to = await window.showInputBox({
 			value: from,
 			valueSelection: [from.length - path.basename(from).length, from.length]
@@ -2242,8 +2246,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.addRemote(name, url);
-		await repository.fetch(name);
+		await repository.addRemote(name, url.trim());
+		await repository.fetch({ remote: name });
 		return name;
 	}
 
@@ -2608,6 +2612,22 @@ export class CommandCenter {
 
 	@command('git.timeline.openDiff', { repository: false })
 	async timelineOpenDiff(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		const cmd = this.resolveTimelineOpenDiffCommand(
+			item, uri,
+			{
+				preserveFocus: true,
+				preview: true,
+				viewColumn: ViewColumn.Active
+			},
+		);
+		if (cmd === undefined) {
+			return undefined;
+		}
+
+		return commands.executeCommand(cmd.command, ...(cmd.arguments ?? []));
+	}
+
+	resolveTimelineOpenDiffCommand(item: TimelineItem, uri: Uri | undefined, options?: TextDocumentShowOptions): Command | undefined {
 		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
 			return undefined;
 		}
@@ -2624,13 +2644,11 @@ export class CommandCenter {
 			title = localize('git.title.diffRefs', '{0} ({1}) ⟷ {0} ({2})', basename, item.shortPreviousRef, item.shortRef);
 		}
 
-		const options: TextDocumentShowOptions = {
-			preserveFocus: true,
-			preview: true,
-			viewColumn: ViewColumn.Active
+		return {
+			command: 'vscode.diff',
+			title: 'Open Comparison',
+			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
 		};
-
-		return commands.executeCommand('vscode.diff', toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options);
 	}
 
 	@command('git.timeline.copyCommitId', { repository: false })
@@ -2651,6 +2669,52 @@ export class CommandCenter {
 		env.clipboard.writeText(item.message);
 	}
 
+	private _selectedForCompare: { uri: Uri, item: GitTimelineItem } | undefined;
+
+	@command('git.timeline.selectForCompare', { repository: false })
+	async timelineSelectForCompare(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item) || !uri) {
+			return;
+		}
+
+		this._selectedForCompare = { uri, item };
+		await commands.executeCommand('setContext', 'git.timeline.selectedForCompare', true);
+	}
+
+	@command('git.timeline.compareWithSelected', { repository: false })
+	async timelineCompareWithSelected(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item) || !uri || !this._selectedForCompare || uri.toString() !== this._selectedForCompare.uri.toString()) {
+			return;
+		}
+
+		const { item: selected } = this._selectedForCompare;
+
+		const basename = path.basename(uri.fsPath);
+		let leftTitle;
+		if ((selected.previousRef === 'HEAD' || selected.previousRef === '~') && selected.ref === '') {
+			leftTitle = localize('git.title.workingTree', '{0} (Working Tree)', basename);
+		}
+		else if (selected.previousRef === 'HEAD' && selected.ref === '~') {
+			leftTitle = localize('git.title.index', '{0} (Index)', basename);
+		} else {
+			leftTitle = localize('git.title.ref', '{0} ({1})', basename, selected.shortRef);
+		}
+
+		let rightTitle;
+		if ((item.previousRef === 'HEAD' || item.previousRef === '~') && item.ref === '') {
+			rightTitle = localize('git.title.workingTree', '{0} (Working Tree)', basename);
+		}
+		else if (item.previousRef === 'HEAD' && item.ref === '~') {
+			rightTitle = localize('git.title.index', '{0} (Index)', basename);
+		} else {
+			rightTitle = localize('git.title.ref', '{0} ({1})', basename, item.shortRef);
+		}
+
+
+		const title = localize('git.title.diff', '{0} ⟷ {1}', leftTitle, rightTitle);
+		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
+	}
+
 	@command('git.rebaseAbort', { repository: true })
 	async rebaseAbort(repository: Repository): Promise<void> {
 		if (repository.rebaseCommit) {
@@ -2660,7 +2724,7 @@ export class CommandCenter {
 		}
 	}
 
-	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
+	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
 

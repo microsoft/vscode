@@ -26,10 +26,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
-import { mergeSort } from 'vs/base/common/arrays';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
@@ -39,6 +37,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	static readonly configName = 'editor.defaultFormatter';
 
 	static extensionIds: (string | null)[] = [];
+	static extensionItemLabels: string[] = [];
 	static extensionDescriptions: string[] = [];
 
 	constructor(
@@ -49,7 +48,6 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IModeService private readonly _modeService: IModeService,
-		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 		this._register(this._extensionService.onDidChangeExtensions(this._updateConfigValues, this));
@@ -60,7 +58,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	private async _updateConfigValues(): Promise<void> {
 		let extensions = await this._extensionService.getExtensions();
 
-		extensions = mergeSort(extensions, (a, b) => {
+		extensions = extensions.sort((a, b) => {
 			let boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 			let boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 
@@ -74,15 +72,18 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		});
 
 		DefaultFormatter.extensionIds.length = 0;
+		DefaultFormatter.extensionItemLabels.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;
 
 		DefaultFormatter.extensionIds.push(null);
+		DefaultFormatter.extensionItemLabels.push(nls.localize('null', 'None'));
 		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "None"));
 
 		for (const extension of extensions) {
 			if (extension.main || extension.browser) {
 				DefaultFormatter.extensionIds.push(extension.identifier.value);
-				DefaultFormatter.extensionDescriptions.push(extension.description || '');
+				DefaultFormatter.extensionItemLabels.push(extension.displayName ?? '');
+				DefaultFormatter.extensionDescriptions.push(extension.description ?? '');
 			}
 		}
 	}
@@ -110,10 +111,24 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			const extension = await this._extensionService.getExtension(defaultFormatterId);
 			if (extension && this._extensionEnablementService.isEnabled(toExtension(extension))) {
 				// formatter does not target this file
-				const label = this._labelService.getUriLabel(document.uri, { relative: true });
-				const message = nls.localize('miss', "Extension '{0}' cannot format '{1}'", extension.displayName || extension.name, label);
-				this._notificationService.status(message, { hideAfter: 4000 });
-				return undefined;
+				const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
+				const detail = nls.localize('miss', "Extension '{0}' is configured as formatter but it cannot format '{1}'-files", extension.displayName || extension.name, langName);
+				if (mode === FormattingMode.Silent) {
+					this._notificationService.status(detail, { hideAfter: 4000 });
+					return undefined;
+				} else {
+					const result = await this._dialogService.confirm({
+						message: nls.localize('miss.1', "Change Default Formatter"),
+						detail,
+						primaryButton: nls.localize('do.config', "Configure..."),
+						secondaryButton: nls.localize('cancel', "Cancel")
+					});
+					if (result.confirmed) {
+						return this._pickAndPersistDefaultFormatter(formatter, document);
+					} else {
+						return undefined;
+					}
+				}
 			}
 		} else if (formatter.length === 1) {
 			// ok -> nothing configured but only one formatter available
@@ -183,6 +198,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: ['string', 'null'],
 			default: null,
 			enum: DefaultFormatter.extensionIds,
+			enumItemLabels: DefaultFormatter.extensionItemLabels,
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		}
 	}

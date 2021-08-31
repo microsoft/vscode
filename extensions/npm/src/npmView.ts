@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { JSONVisitor, visit } from 'jsonc-parser';
 import * as path from 'path';
 import {
 	commands, Event, EventEmitter, ExtensionContext,
 	Range,
 	Selection, Task,
 	TaskGroup, tasks, TextDocument, TextDocumentShowOptions, ThemeIcon, TreeDataProvider, TreeItem, TreeItemLabel, TreeItemCollapsibleState, Uri,
-	window, workspace, WorkspaceFolder
+	window, workspace, WorkspaceFolder, Position, Location
 } from 'vscode';
 import * as nls from 'vscode-nls';
+import { readScripts } from './readScripts';
 import {
 	createTask, getPackageManager, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, NpmTaskDefinition,
 	NpmTaskProvider,
 	startDebugging,
-	TaskLocation,
 	TaskWithLocation
 } from './tasks';
 
@@ -78,7 +77,7 @@ class NpmScript extends TreeItem {
 	task: Task;
 	package: PackageJSON;
 
-	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: Task, public taskLocation?: TaskLocation) {
+	constructor(_context: ExtensionContext, packageJson: PackageJSON, task: Task, public taskLocation?: Location) {
 		super(task.name, TreeItemCollapsibleState.None);
 		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
 
@@ -87,9 +86,9 @@ class NpmScript extends TreeItem {
 				title: 'Edit Script',
 				command: 'vscode.open',
 				arguments: [
-					taskLocation?.document,
+					taskLocation?.uri,
 					taskLocation ? <TextDocumentShowOptions>{
-						selection: new Range(taskLocation.line, taskLocation.line)
+						selection: new Range(taskLocation.range.start, taskLocation.range.start)
 					} : undefined
 				]
 			},
@@ -153,37 +152,18 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		startDebugging(this.extensionContext, script.task.definition.script, path.dirname(script.package.resourceUri!.fsPath), script.getFolder());
 	}
 
-	private findScript(document: TextDocument, script?: NpmScript): number {
-		let scriptOffset = 0;
-		let inScripts = false;
+	private findScriptPosition(document: TextDocument, script?: NpmScript) {
+		const scripts = readScripts(document);
+		if (!scripts) {
+			return undefined;
+		}
 
-		let visitor: JSONVisitor = {
-			onError() {
-				return scriptOffset;
-			},
-			onObjectEnd() {
-				if (inScripts) {
-					inScripts = false;
-				}
-			},
-			onObjectProperty(property: string, offset: number, _length: number) {
-				if (property === 'scripts') {
-					inScripts = true;
-					if (!script) { // select the script section
-						scriptOffset = offset;
-					}
-				}
-				else if (inScripts && script) {
-					let label = getTaskName(property, script.task.definition.path);
-					if (script.task.name === label) {
-						scriptOffset = offset;
-					}
-				}
-			}
-		};
-		visit(document.getText(), visitor);
-		return scriptOffset;
+		if (!script) {
+			return scripts.location.range.start;
+		}
 
+		const found = scripts.scripts.find(s => getTaskName(s.name, script.task.definition.path) === script.task.name);
+		return found?.nameRange.start;
 	}
 
 	private async runInstall(selection: PackageJSON) {
@@ -194,7 +174,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		if (!uri) {
 			return;
 		}
-		let task = await createTask(this.extensionContext, 'install', ['install'], selection.folder.workspaceFolder, uri, true, undefined, []);
+		let task = await createTask(await getPackageManager(this.context, selection.folder.workspaceFolder.uri, true), 'install', ['install'], selection.folder.workspaceFolder, uri, undefined, []);
 		tasks.executeTask(task);
 	}
 
@@ -209,8 +189,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			return;
 		}
 		let document: TextDocument = await workspace.openTextDocument(uri);
-		let offset = this.findScript(document, selection instanceof NpmScript ? selection : undefined);
-		let position = document.positionAt(offset);
+		let position = this.findScriptPosition(document, selection instanceof NpmScript ? selection : undefined) || new Position(0, 0);
 		await window.showTextDocument(document, { preserveFocus: true, selection: new Selection(position, position) });
 	}
 

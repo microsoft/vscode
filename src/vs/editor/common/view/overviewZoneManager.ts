@@ -8,7 +8,7 @@ const enum Constants {
 }
 
 export class ColorZone {
-	_colorZoneBrand: void;
+	_colorZoneBrand: void = undefined;
 
 	public readonly from: number;
 	public readonly to: number;
@@ -35,7 +35,7 @@ export class ColorZone {
  * A zone in the overview ruler
  */
 export class OverviewRulerZone {
-	_overviewRulerZoneBrand: void;
+	_overviewRulerZoneBrand: void = undefined;
 
 	public readonly startLineNumber: number;
 	public readonly endLineNumber: number;

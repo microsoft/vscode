@@ -11,11 +11,12 @@ import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHost
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
-import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
+import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
+import { realpathSync } from 'vs/base/node/extpath';
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -23,7 +24,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 		const that = this;
 		const node_module = <any>require.__$__nodeRequire('module');
 		const original = node_module._load;
-		node_module._load = function load(request: string, parent: { filename: string; }, isMain: any) {
+		node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
 			for (let alternativeModuleName of that._alternatives) {
 				let alternative = alternativeModuleName(request);
 				if (alternative) {
@@ -36,7 +37,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			}
 			return that._factories.get(request)!.load(
 				request,
-				URI.file(parent.filename),
+				URI.file(realpathSync(parent.filename)),
 				request => original.apply(this, [request, parent, isMain])
 			);
 		};

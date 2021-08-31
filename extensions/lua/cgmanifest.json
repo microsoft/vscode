@@ -1,0 +1,32 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "textmate/lua.tmbundle",
+					"repositoryUrl": "https://github.com/textmate/lua.tmbundle",
+					"commitHash": "8ae5641365b28f697121ba1133890e8d81f5b00e"
+				}
+			},
+			"licenseDetail": [
+				"Copyright (c) textmate-lua.tmbundle project authors",
+				"",
+				"If not otherwise specified (see below), files in this repository fall under the following license:",
+				"",
+				"Permission to copy, use, modify, sell and distribute this",
+				"software is granted. This software is provided \"as is\" without",
+				"express or implied warranty, and with no claim as to its",
+				"suitability for any purpose.",
+				"",
+				"An exception is made for files in readable text which contain their own license information,",
+				"or files where an accompanying file exists (in the same directory) with a \"-license\" suffix added",
+				"to the base-name name of the original file, and an extension of txt, html, or similar. For example",
+				"\"tidy\" is accompanied by \"tidy-license.txt\"."
+			],
+			"license": "TextMate Bundle License",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

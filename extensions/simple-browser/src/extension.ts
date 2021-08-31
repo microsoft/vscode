@@ -7,7 +7,10 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SimpleBrowserManager } from './simpleBrowserManager';
 
-declare const URL: typeof import('url').URL;
+declare class URL {
+	constructor(input: string, base?: string | URL);
+	hostname: string;
+}
 
 const localize = nls.loadMessageBundle();
 
@@ -16,7 +19,16 @@ const showCommand = 'simpleBrowser.show';
 
 const enabledHosts = new Set<string>([
 	'localhost',
-	'127.0.0.1'
+	// localhost IPv4
+	'127.0.0.1',
+	// localhost IPv6
+	'0:0:0:0:0:0:0:1',
+	'::1',
+	// all interfaces IPv4
+	'0.0.0.0',
+	// all interfaces IPv6
+	'0:0:0:0:0:0:0:0',
+	'::'
 ]);
 
 const openerId = 'simpleBrowser.open';

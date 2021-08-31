@@ -6,13 +6,13 @@
 import * as assert from 'assert';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-suite('Workbench editor model', () => {
+suite('TextDiffEditorModel', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -22,21 +22,22 @@ suite('Workbench editor model', () => {
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 
-	test('TextDiffEditorModel', async () => {
+	test('basics', async () => {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): Promise<ITextModel> {
+			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let languageSelection = accessor.modeService.create('json');
-					return Promise.resolve(accessor.modelService.createModel(modelContent, languageSelection, resource));
+
+					return accessor.modelService.createModel(modelContent, languageSelection, resource);
 				}
 
-				return Promise.resolve(null!);
+				return null;
 			}
 		});
 
-		let input = instantiationService.createInstance(ResourceEditorInput, URI.from({ scheme: 'test', authority: null!, path: 'thePath' }), 'name', 'description', undefined);
-		let otherInput = instantiationService.createInstance(ResourceEditorInput, URI.from({ scheme: 'test', authority: null!, path: 'thePath' }), 'name2', 'description', undefined);
+		let input = instantiationService.createInstance(TextResourceEditorInput, URI.from({ scheme: 'test', authority: null!, path: 'thePath' }), 'name', 'description', undefined, undefined);
+		let otherInput = instantiationService.createInstance(TextResourceEditorInput, URI.from({ scheme: 'test', authority: null!, path: 'thePath' }), 'name2', 'description', undefined, undefined);
 		let diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input, otherInput, undefined);
 
 		let model = await diffInput.resolve() as TextDiffEditorModel;

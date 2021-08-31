@@ -39,7 +39,7 @@ async function main() {
     }
     console.log(`Releasing build ${commit}...`);
     const scripts = client.database('builds').container(quality).scripts;
-    await retry_1.retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
+    await (0, retry_1.retry)(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
 }
 main().then(() => {
     console.log('Build successfully released');

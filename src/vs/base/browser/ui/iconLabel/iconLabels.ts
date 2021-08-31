@@ -6,8 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { CSSIcon } from 'vs/base/common/codicons';
 
-const labelWithIconsRegex = /(\\)?\$\(([a-z\-]+(?:~[a-z\-]+)?)\)/gi;
-
+const labelWithIconsRegex = new RegExp(`(\\\\)?\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)`, 'g');
 export function renderLabelWithIcons(text: string): Array<HTMLSpanElement | string> {
 	const elements = new Array<HTMLSpanElement | string>();
 	let match: RegExpMatchArray | null;

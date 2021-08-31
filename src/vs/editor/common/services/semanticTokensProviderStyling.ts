@@ -15,6 +15,7 @@ export const enum SemanticTokensProviderStylingConstants {
 export class SemanticTokensProviderStyling {
 
 	private readonly _hashTable: HashTable;
+	private _hasWarnedOverlappingTokens: boolean;
 
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
@@ -22,6 +23,7 @@ export class SemanticTokensProviderStyling {
 		private readonly _logService: ILogService
 	) {
 		this._hashTable = new HashTable();
+		this._hasWarnedOverlappingTokens = false;
 	}
 
 	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: LanguageIdentifier): number {
@@ -90,6 +92,14 @@ export class SemanticTokensProviderStyling {
 
 		return metadata;
 	}
+
+	public warnOverlappingSemanticTokens(lineNumber: number, startColumn: number): void {
+		if (!this._hasWarnedOverlappingTokens) {
+			this._hasWarnedOverlappingTokens = true;
+			console.warn(`Overlapping semantic tokens detected at lineNumber ${lineNumber}, column ${startColumn}`);
+		}
+	}
+
 }
 
 const enum SemanticColoringConstants {
@@ -142,6 +152,9 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 		let destData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 4);
 		let destOffset = 0;
 		let areaLine = 0;
+		let prevLineNumber = 0;
+		let prevStartCharacter = 0;
+		let prevEndCharacter = 0;
 		while (tokenIndex < tokenEndIndex) {
 			const srcOffset = 5 * tokenIndex;
 			const deltaLine = srcData[srcOffset];
@@ -157,11 +170,25 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 				if (areaLine === 0) {
 					areaLine = lineNumber;
 				}
+				if (prevLineNumber === lineNumber && prevEndCharacter > startCharacter) {
+					styling.warnOverlappingSemanticTokens(lineNumber, startCharacter + 1);
+					if (prevStartCharacter < startCharacter) {
+						// the previous token survives after the overlapping one
+						destData[destOffset - 4 + 2] = startCharacter;
+					} else {
+						// the previous token is entirely covered by the overlapping one
+						destOffset -= 4;
+					}
+				}
 				destData[destOffset] = lineNumber - areaLine;
 				destData[destOffset + 1] = startCharacter;
 				destData[destOffset + 2] = startCharacter + length;
 				destData[destOffset + 3] = metadata;
 				destOffset += 4;
+
+				prevLineNumber = lineNumber;
+				prevStartCharacter = startCharacter;
+				prevEndCharacter = startCharacter + length;
 			}
 
 			lastLineNumber = lineNumber;

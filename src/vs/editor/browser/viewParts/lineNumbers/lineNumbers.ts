@@ -28,6 +28,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _lineNumbersWidth!: number;
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[] | null;
+	private _activeLineNumber: number;
 
 	constructor(context: ViewContext) {
 		super();
@@ -37,6 +38,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 		this._lastCursorModelPosition = new Position(1, 1);
 		this._renderResult = null;
+		this._activeLineNumber = 1;
 		this._context.addEventHandler(this);
 	}
 
@@ -52,7 +54,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._context.removeEventHandler(this);
 		this._renderResult = null;
 		super.dispose();
@@ -60,35 +62,40 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this._readConfig();
 		return true;
 	}
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		const primaryViewPosition = e.selections[0].getPosition();
 		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
 
-		if (this._renderLineNumbers === RenderLineNumbersType.Relative || this._renderLineNumbers === RenderLineNumbersType.Interval) {
-			return true;
+		let shouldRender = false;
+		if (this._activeLineNumber !== primaryViewPosition.lineNumber) {
+			this._activeLineNumber = primaryViewPosition.lineNumber;
+			shouldRender = true;
 		}
-		return false;
+		if (this._renderLineNumbers === RenderLineNumbersType.Relative || this._renderLineNumbers === RenderLineNumbersType.Interval) {
+			shouldRender = true;
+		}
+		return shouldRender;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -135,7 +142,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const lineHeightClassName = (platform.isLinux ? (this._lineHeight % 2 === 0 ? ' lh-even' : ' lh-odd') : '');
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const common = '<div class="' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft.toString() + 'px;width:' + this._lineNumbersWidth.toString() + 'px;">';
+		const common = '<div class="' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft + 'px;width:' + this._lineNumbersWidth + 'px;">';
 
 		const lineCount = this._context.model.getLineCount();
 		const output: string[] = [];
@@ -153,11 +160,19 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			const renderLineNumber = this._getLineRenderLineNumber(lineNumber);
 
 			if (renderLineNumber) {
-				output[lineIndex] = (
-					common
-					+ renderLineNumber
-					+ '</div>'
-				);
+				if (lineNumber === this._activeLineNumber) {
+					output[lineIndex] = (
+						'<div class="active-line-number ' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft + 'px;width:' + this._lineNumbersWidth + 'px;">'
+						+ renderLineNumber
+						+ '</div>'
+					);
+				} else {
+					output[lineIndex] = (
+						common
+						+ renderLineNumber
+						+ '</div>'
+					);
+				}
 			} else {
 				output[lineIndex] = '';
 			}
@@ -187,6 +202,6 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const activeLineNumber = theme.getColor(editorActiveLineNumber);
 	if (activeLineNumber) {
-		collector.addRule(`.monaco-editor .current-line ~ .line-numbers { color: ${activeLineNumber}; }`);
+		collector.addRule(`.monaco-editor .line-numbers.active-line-number { color: ${activeLineNumber}; }`);
 	}
 });

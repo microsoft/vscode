@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { UndoRedoElementType, IUndoRedoElement, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { IUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 suite('UndoRedoService', () => {
 
@@ -133,7 +133,7 @@ suite('UndoRedoService', () => {
 		const resource1 = URI.file('test1.txt');
 		const resource2 = URI.file('test2.txt');
 		const service = createUndoRedoService(new class extends mock<IDialogService>() {
-			async show() {
+			override async show() {
 				return {
 					choice: 0 // confirm!
 				};

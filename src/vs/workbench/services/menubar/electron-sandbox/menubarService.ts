@@ -4,18 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 
-// @ts-ignore: interface is implemented via proxy
-export class MenubarService implements IMenubarService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
-		return createChannelSender<IMenubarService>(mainProcessService.getChannel('menubar'));
-	}
-}
-
-registerSingleton(IMenubarService, MenubarService, true);
+registerMainProcessRemoteService(IMenubarService, 'menubar', { supportsDelayedInstantiation: true });

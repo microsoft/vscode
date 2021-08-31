@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypeScriptServiceClient, ClientCapability } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from './api';
 import { Disposable } from './dispose';
 

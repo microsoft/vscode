@@ -37,6 +37,9 @@ export class SimpleBrowserView extends Disposable {
 		}, {
 			enableScripts: true,
 			retainContextWhenHidden: true,
+			localResourceRoots: [
+				vscode.Uri.joinPath(extensionUri, 'media')
+			]
 		}));
 
 		this._register(this._webviewPanel.webview.onDidReceiveMessage(e => {
@@ -69,7 +72,7 @@ export class SimpleBrowserView extends Disposable {
 		this.show(url);
 	}
 
-	public dispose() {
+	public override dispose() {
 		this._onDidDispose.fire();
 		super.dispose();
 	}
@@ -82,12 +85,11 @@ export class SimpleBrowserView extends Disposable {
 	private getHtml(url: string) {
 		const configuration = vscode.workspace.getConfiguration('simpleBrowser');
 
-		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
+		const nonce = getNonce();
 
 		const mainJs = this.extensionResourceUrl('media', 'index.js');
 		const mainCss = this.extensionResourceUrl('media', 'main.css');
-		const codiconsUri = this.extensionResourceUrl('node_modules', 'vscode-codicons', 'dist', 'codicon.css');
-		const codiconsFontUri = this.extensionResourceUrl('node_modules', 'vscode-codicons', 'dist', 'codicon.ttf');
+		const codiconsUri = this.extensionResourceUrl('media', 'codicon.css');
 
 		return /* html */ `<!DOCTYPE html>
 			<html>
@@ -96,7 +98,7 @@ export class SimpleBrowserView extends Disposable {
 
 				<meta http-equiv="Content-Security-Policy" content="
 					default-src 'none';
-					font-src ${codiconsFontUri};
+					font-src ${this._webviewPanel.webview.cspSource};
 					style-src ${this._webviewPanel.webview.cspSource};
 					script-src 'nonce-${nonce}';
 					frame-src *;
@@ -126,7 +128,7 @@ export class SimpleBrowserView extends Disposable {
 							class="reload-button icon"><i class="codicon codicon-refresh"></i></button>
 					</nav>
 
-					<input class="url-input" type="text" value=${url}>
+					<input class="url-input" type="text">
 
 					<nav class="controls">
 						<button
@@ -151,4 +153,14 @@ export class SimpleBrowserView extends Disposable {
 
 function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
+}
+
+
+function getNonce() {
+	let text = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 64; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
 }

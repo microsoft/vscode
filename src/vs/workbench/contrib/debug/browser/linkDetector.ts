@@ -15,6 +15,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { localize } from 'vs/nls';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -41,6 +43,7 @@ export class LinkDetector {
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPathService private readonly pathService: IPathService,
+		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		// noop
@@ -100,8 +103,8 @@ export class LinkDetector {
 	private createWebLink(url: string): Node {
 		const link = this.createLink(url);
 
-		this.decorateLink(link, async () => {
-			const uri = URI.parse(url);
+		const uri = URI.parse(url);
+		this.decorateLink(link, uri, async () => {
 
 			if (uri.scheme === Schemas.file) {
 				// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
@@ -137,7 +140,7 @@ export class LinkDetector {
 			}
 			const uri = workspaceFolder.toResource(path);
 			const link = this.createLink(text);
-			this.decorateLink(link, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
+			this.decorateLink(link, uri, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
 			return link;
 		}
 
@@ -155,7 +158,7 @@ export class LinkDetector {
 			if (stat.isDirectory) {
 				return;
 			}
-			this.decorateLink(link, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
+			this.decorateLink(link, uri, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
 		}).catch(() => {
 			// If the uri can not be resolved we should not spam the console with error, remain quite #86587
 		});
@@ -168,8 +171,10 @@ export class LinkDetector {
 		return link;
 	}
 
-	private decorateLink(link: HTMLElement, onClick: (preserveFocus: boolean) => void) {
+	private decorateLink(link: HTMLElement, uri: URI, onClick: (preserveFocus: boolean) => void) {
 		link.classList.add('link');
+		const followLink = this.tunnelService.canTunnel(uri) ? localize('followForwardedLink', "follow link using forwarded port") : localize('followLink', "follow link");
+		link.title = platform.isMacintosh ? localize('fileLinkMac', "Cmd + click to {0}", followLink) : localize('fileLink', "Ctrl + click to {0}", followLink);
 		link.onmousemove = (event) => { link.classList.toggle('pointer', platform.isMacintosh ? event.metaKey : event.ctrlKey); };
 		link.onmouseleave = () => link.classList.remove('pointer');
 		link.onclick = (event) => {
@@ -177,6 +182,10 @@ export class LinkDetector {
 			if (!selection || selection.type === 'Range') {
 				return; // do not navigate when user is selecting
 			}
+			if (!(platform.isMacintosh ? event.metaKey : event.ctrlKey)) {
+				return;
+			}
+
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			onClick(false);

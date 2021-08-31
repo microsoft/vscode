@@ -5,11 +5,20 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export class RuntimeExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.runtimeExtensions.input';
+
+	override get typeId(): string {
+		return RuntimeExtensionsInput.ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	}
 
 	static _instance: RuntimeExtensionsInput;
 	static get instance() {
@@ -25,19 +34,14 @@ export class RuntimeExtensionsInput extends EditorInput {
 		path: 'default'
 	});
 
-	getTypeId(): string {
-		return RuntimeExtensionsInput.ID;
-	}
-
-	getName(): string {
+	override getName(): string {
 		return nls.localize('extensionsInputName', "Running Extensions");
 	}
 
-	supportsSplitEditor(): boolean {
-		return false;
-	}
-
-	matches(other: unknown): boolean {
+	override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
 		return other instanceof RuntimeExtensionsInput;
 	}
 }

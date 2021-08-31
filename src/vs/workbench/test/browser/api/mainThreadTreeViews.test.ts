@@ -29,15 +29,15 @@ suite('MainThreadHostTreeView', function () {
 	}
 
 	class MockExtHostTreeViewsShape extends mock<ExtHostTreeViewsShape>() {
-		async $getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]> {
+		override async $getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[]> {
 			return [<CustomTreeItem>{ handle: 'testItem1', collapsibleState: TreeItemCollapsibleState.Expanded, customProp: customValue }];
 		}
 
-		async $hasResolve(): Promise<boolean> {
+		override async $hasResolve(): Promise<boolean> {
 			return false;
 		}
 
-		$setVisible(): void { }
+		override $setVisible(): void { }
 	}
 
 	let container: ViewContainer;
@@ -48,7 +48,7 @@ suite('MainThreadHostTreeView', function () {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
-		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptor: ITreeViewDescriptor = {
 			id: testTreeViewId,
 			ctorDescriptor: null!,
@@ -70,7 +70,7 @@ suite('MainThreadHostTreeView', function () {
 				}
 				drain(): any { return null; }
 			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService());
-		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false });
+		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, canDragAndDrop: false });
 		await testExtensionService.whenInstalledExtensionsRegistered();
 	});
 

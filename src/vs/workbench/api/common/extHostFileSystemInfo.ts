@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
+import { ExtUri, IExtUri } from 'vs/base/common/resources';
+import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostFileSystemInfoShape } from 'vs/workbench/api/common/extHost.protocol';
 
@@ -13,6 +15,23 @@ export class ExtHostFileSystemInfo implements ExtHostFileSystemInfoShape {
 
 	private readonly _systemSchemes = new Set(Object.keys(Schemas));
 	private readonly _providerInfo = new Map<string, number>();
+
+	readonly extUri: IExtUri;
+
+	constructor() {
+		this.extUri = new ExtUri(uri => {
+			const capabilities = this._providerInfo.get(uri.scheme);
+			if (capabilities === undefined) {
+				// default: not ignore
+				return false;
+			}
+			if (capabilities & FileSystemProviderCapabilities.PathCaseSensitive) {
+				// configured as case sensitive
+				return false;
+			}
+			return true;
+		});
+	}
 
 	$acceptProviderInfos(scheme: string, capabilities: number | null): void {
 		if (capabilities === null) {
@@ -31,5 +50,7 @@ export class ExtHostFileSystemInfo implements ExtHostFileSystemInfoShape {
 	}
 }
 
-export interface IExtHostFileSystemInfo extends ExtHostFileSystemInfo { }
+export interface IExtHostFileSystemInfo extends ExtHostFileSystemInfo {
+	readonly extUri: IExtUri;
+}
 export const IExtHostFileSystemInfo = createDecorator<IExtHostFileSystemInfo>('IExtHostFileSystemInfo');

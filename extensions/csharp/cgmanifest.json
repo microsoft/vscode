@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "dotnet/csharp-tmLanguage",
+					"repositoryUrl": "https://github.com/dotnet/csharp-tmLanguage",
+					"commitHash": "5f62efed7a0319dc41ee2ed227577633b52312a2"
+				}
+			},
+			"license": "MIT",
+			"version": "0.1.0",
+			"description": "The file syntaxes/csharp.tmLanguage.json was derived from https://github.com/dotnet/csharp-tmLanguage"
+		}
+	],
+	"version": 1
+}

@@ -107,6 +107,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		].join('\n'));
 
 		const linesCollection = new SplitLinesCollection(
+			1,
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
@@ -407,6 +408,10 @@ suite('SplitLinesCollection', () => {
 
 	function assertAllMinimapLinesRenderingData(splitLinesCollection: SplitLinesCollection, all: ITestMinimapLineRenderingData[]): void {
 		let lineCount = all.length;
+		for (let line = 1; line <= lineCount; line++) {
+			assert.strictEqual(splitLinesCollection.getViewLineData(line).content, splitLinesCollection.getViewLineContent(line));
+		}
+
 		for (let start = 1; start <= lineCount; start++) {
 			for (let end = start; end <= lineCount; end++) {
 				let count = end - start + 1;
@@ -418,6 +423,7 @@ suite('SplitLinesCollection', () => {
 						expected[i] = (needed[i] ? all[start - 1 + i] : null);
 					}
 					let actual = splitLinesCollection.getViewLinesData(start, end, needed);
+
 					assertMinimapLinesRenderingData(actual, expected);
 					// Comment out next line to test all possible combinations
 					break;
@@ -733,6 +739,177 @@ suite('SplitLinesCollection', () => {
 		});
 	});
 
+	test('getViewLinesData - with wrapping and injected text', () => {
+		model!.deltaDecorations([], [{
+			range: new Range(1, 9, 1, 9),
+			options: {
+				description: 'example',
+				after: {
+					content: 'very very long injected text that causes a line break'
+				}
+			}
+		}]);
+
+		withSplitLinesCollection(model!, 'wordWrapColumn', 30, (splitLinesCollection) => {
+			assert.strictEqual(splitLinesCollection.getViewLineCount(), 14);
+
+			assert.strictEqual(splitLinesCollection.getViewLineMaxColumn(1), 24);
+
+			let _expected: ITestMinimapLineRenderingData[] = [
+				{
+					content: 'class Nivery very long ',
+					minColumn: 1,
+					maxColumn: 24,
+					tokens: [
+						{ endIndex: 5, value: 1 },
+						{ endIndex: 6, value: 2 },
+						{ endIndex: 8, value: 3 },
+						{ endIndex: 23, value: 1 },
+					]
+				},
+				{
+					content: '    injected text that causes ',
+					minColumn: 5,
+					maxColumn: 31,
+					tokens: [{ endIndex: 30, value: 1 }]
+				},
+				{
+					content: '    a line breakce {',
+					minColumn: 5,
+					maxColumn: 21,
+					tokens: [
+						{ endIndex: 16, value: 1 },
+						{ endIndex: 18, value: 3 },
+						{ endIndex: 20, value: 4 }
+					]
+				},
+				{
+					content: '	function hi() {',
+					minColumn: 1,
+					maxColumn: 17,
+					tokens: [
+						{ endIndex: 1, value: 5 },
+						{ endIndex: 9, value: 6 },
+						{ endIndex: 10, value: 7 },
+						{ endIndex: 12, value: 8 },
+						{ endIndex: 16, value: 9 },
+					]
+				},
+				{
+					content: '		console.log("Hello ',
+					minColumn: 1,
+					maxColumn: 22,
+					tokens: [
+						{ endIndex: 2, value: 10 },
+						{ endIndex: 9, value: 11 },
+						{ endIndex: 10, value: 12 },
+						{ endIndex: 13, value: 13 },
+						{ endIndex: 14, value: 14 },
+						{ endIndex: 21, value: 15 },
+					]
+				},
+				{
+					content: '            world");',
+					minColumn: 13,
+					maxColumn: 21,
+					tokens: [
+						{ endIndex: 18, value: 15 },
+						{ endIndex: 20, value: 16 },
+					]
+				},
+				{
+					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
+					tokens: [
+						{ endIndex: 2, value: 17 },
+					]
+				},
+				{
+					content: '	function hello() {',
+					minColumn: 1,
+					maxColumn: 20,
+					tokens: [
+						{ endIndex: 1, value: 18 },
+						{ endIndex: 9, value: 19 },
+						{ endIndex: 10, value: 20 },
+						{ endIndex: 15, value: 21 },
+						{ endIndex: 19, value: 22 },
+					]
+				},
+				{
+					content: '		console.log("Hello ',
+					minColumn: 1,
+					maxColumn: 22,
+					tokens: [
+						{ endIndex: 2, value: 23 },
+						{ endIndex: 9, value: 24 },
+						{ endIndex: 10, value: 25 },
+						{ endIndex: 13, value: 26 },
+						{ endIndex: 14, value: 27 },
+						{ endIndex: 21, value: 28 },
+					]
+				},
+				{
+					content: '            world, this is a ',
+					minColumn: 13,
+					maxColumn: 30,
+					tokens: [
+						{ endIndex: 29, value: 28 },
+					]
+				},
+				{
+					content: '            somewhat longer ',
+					minColumn: 13,
+					maxColumn: 29,
+					tokens: [
+						{ endIndex: 28, value: 28 },
+					]
+				},
+				{
+					content: '            line");',
+					minColumn: 13,
+					maxColumn: 20,
+					tokens: [
+						{ endIndex: 17, value: 28 },
+						{ endIndex: 19, value: 29 },
+					]
+				},
+				{
+					content: '	}',
+					minColumn: 1,
+					maxColumn: 3,
+					tokens: [
+						{ endIndex: 2, value: 30 },
+					]
+				},
+				{
+					content: '}',
+					minColumn: 1,
+					maxColumn: 2,
+					tokens: [
+						{ endIndex: 1, value: 31 },
+					]
+				}
+			];
+
+			assertAllMinimapLinesRenderingData(splitLinesCollection, [
+				_expected[0],
+				_expected[1],
+				_expected[2],
+				_expected[3],
+				_expected[4],
+				_expected[5],
+				_expected[6],
+				_expected[7],
+				_expected[8],
+				_expected[9],
+				_expected[10],
+				_expected[11],
+			]);
+		});
+	});
+
 	function withSplitLinesCollection(model: TextModel, wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded', wordWrapColumn: number, callback: (splitLinesCollection: SplitLinesCollection) => void): void {
 		const configuration = new TestConfiguration({
 			wordWrap: wordWrap,
@@ -748,6 +925,7 @@ suite('SplitLinesCollection', () => {
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const linesCollection = new SplitLinesCollection(
+			1,
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
@@ -778,7 +956,7 @@ function createLineBreakData(breakingLengths: number[], breakingOffsetsVisibleCo
 	for (let i = 0; i < breakingLengths.length; i++) {
 		sums[i] = (i > 0 ? sums[i - 1] : 0) + breakingLengths[i];
 	}
-	return new LineBreakData(sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth);
+	return new LineBreakData(sums, breakingOffsetsVisibleColumn, wrappedTextIndentWidth, null, null);
 }
 
 function createModel(text: string): ISimpleModel {

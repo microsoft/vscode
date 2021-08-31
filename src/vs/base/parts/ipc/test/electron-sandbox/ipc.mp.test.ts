@@ -11,7 +11,7 @@ suite('IPC, MessagePorts', () => {
 	test('message port close event', async () => {
 		const { port1, port2 } = new MessageChannel();
 
-		new MessagePortClient(port1, 'client1');
+		const client1 = new MessagePortClient(port1, 'client1');
 		const client2 = new MessagePortClient(port2, 'client2');
 
 		// This test ensures that Electron's API for the close event
@@ -24,5 +24,7 @@ suite('IPC, MessagePorts', () => {
 		client2.dispose();
 
 		assert.ok(await whenClosed);
+
+		client1.dispose();
 	});
 });

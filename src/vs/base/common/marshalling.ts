@@ -17,15 +17,31 @@ export function parse(text: string): any {
 	return data;
 }
 
+export const enum MarshalledId {
+	Uri = 1,
+	Regexp,
+	ScmResource,
+	ScmResourceGroup,
+	ScmProvider,
+	CommentController,
+	CommentThread,
+	CommentThreadReply,
+	CommentNode,
+	CommentThreadNode,
+	TimelineActionContext,
+	NotebookCellActionContext,
+	TestItemContext,
+}
+
 export interface MarshalledObject {
-	$mid: number;
+	$mid: MarshalledId;
 }
 
 function replacer(key: string, value: any): any {
 	// URI is done via toJSON-member
 	if (value instanceof RegExp) {
 		return {
-			$mid: 2,
+			$mid: MarshalledId.Regexp,
 			source: value.source,
 			flags: regExpFlags(value),
 		};
@@ -35,6 +51,7 @@ function replacer(key: string, value: any): any {
 
 
 type Deserialize<T> = T extends UriComponents ? URI
+	: T extends VSBuffer ? VSBuffer
 	: T extends object
 	? Revived<T>
 	: T;
@@ -49,8 +66,8 @@ export function revive<T = any>(obj: any, depth = 0): Revived<T> {
 	if (typeof obj === 'object') {
 
 		switch ((<MarshalledObject>obj).$mid) {
-			case 1: return <any>URI.revive(obj);
-			case 2: return <any>new RegExp(obj.source, obj.flags);
+			case MarshalledId.Uri: return <any>URI.revive(obj);
+			case MarshalledId.Regexp: return <any>new RegExp(obj.source, obj.flags);
 		}
 
 		if (

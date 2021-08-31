@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { VSBuffer, bufferToReadable, readableToBuffer, bufferToStream, streamToBuffer, newWriteableBufferStream, bufferedStreamToBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
+import { bufferedStreamToBuffer, bufferToReadable, bufferToStream, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
 import { peekStream } from 'vs/base/common/stream';
 
 suite('Buffer', () => {
@@ -88,7 +88,8 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
-		stream.end(new Error());
+		stream.error(new Error());
+		stream.end();
 
 		assert.strictEqual(chunks.length, 1);
 		assert.strictEqual(chunks[0].toString(), 'Hello');
@@ -329,7 +330,8 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
-		stream.end(new Error());
+		stream.error(new Error());
+		stream.end();
 
 		assert.strictEqual(chunks.length, 0);
 		assert.strictEqual(ended, false);

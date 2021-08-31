@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -85,7 +85,7 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string): ResolvedKeybinding | undefined;
+	lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined;
 
 	getDefaultKeybindingsContent(): string;
 

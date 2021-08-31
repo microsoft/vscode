@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { VSBuffer, bufferToStream } from 'vs/base/common/buffer';
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
+import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 
 export function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	if (options.proxyAuthorization) {

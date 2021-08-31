@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager, DynamicPreviewSettings } from '../features/previewManager';
+import { DynamicPreviewSettings, MarkdownPreviewManager } from '../features/previewManager';
 import { TelemetryReporter } from '../telemetryReporter';
+
 
 interface ShowPreviewSettings {
 	readonly sideBySide?: boolean;
@@ -40,7 +40,7 @@ async function showPreview(
 	const resourceColumn = (vscode.window.activeTextEditor && vscode.window.activeTextEditor.viewColumn) || vscode.ViewColumn.One;
 	webviewManager.openDynamicPreview(resource, {
 		resourceColumn: resourceColumn,
-		previewColumn: previewSettings.sideBySide ? resourceColumn + 1 : resourceColumn,
+		previewColumn: previewSettings.sideBySide ? vscode.ViewColumn.Beside : resourceColumn,
 		locked: !!previewSettings.locked
 	});
 

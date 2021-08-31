@@ -61,8 +61,6 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	async asExternalUri(uri: URI, options: IOpenUriOptions): Promise<URI> {
 		if (isFalsyOrWhitespace(uri.scheme)) {
 			return Promise.reject('Invalid scheme - cannot be empty');
-		} else if (!new Set([Schemas.http, Schemas.https]).has(uri.scheme)) {
-			return Promise.reject(`Invalid scheme '${uri.scheme}'`);
 		}
 
 		const result = await this._proxy.$asExternalUri(uri, options);

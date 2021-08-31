@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import 'vs/editor/contrib/symbolIcons/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { AbstractGotoSymbolQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';

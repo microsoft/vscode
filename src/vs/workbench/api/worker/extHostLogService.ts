@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogger } from 'vs/platform/log/common/log';
 import { ExtHostLogServiceShape, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { UriComponents } from 'vs/base/common/uri';
 
-export class ExtHostLogService extends AbstractLogService implements ILogService, ExtHostLogServiceShape {
+export class ExtHostLogService extends AbstractLogger implements ILogService, ExtHostLogServiceShape {
 
 	declare readonly _serviceBrand: undefined;
 

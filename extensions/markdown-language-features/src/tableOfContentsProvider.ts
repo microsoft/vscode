@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
-import { Slug, githubSlugifier } from './slugify';
+import { githubSlugifier, Slug } from './slugify';
 
 export interface TocEntry {
 	readonly slug: Slug;

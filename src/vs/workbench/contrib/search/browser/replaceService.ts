@@ -23,9 +23,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { mergeSort } from 'vs/base/common/arrays';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { Promises } from 'vs/base/common/async';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -106,15 +106,15 @@ export class ReplaceService implements IReplaceService {
 		const edits = this.createEdits(arg, resource);
 		await this.bulkEditorService.apply(edits, { progress });
 
-		return Promise.all(edits.map(e => this.textFileService.files.get(e.resource)?.save()));
+		return Promises.settled(edits.map(async e => this.textFileService.files.get(e.resource)?.save()));
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		const editor = await this.editorService.openEditor({
-			leftResource: fileMatch.resource,
-			rightResource: toReplaceResource(fileMatch.resource),
+			original: { resource: fileMatch.resource },
+			modified: { resource: toReplaceResource(fileMatch.resource) },
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
 			description: this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true }),
 			options: {
@@ -169,7 +169,7 @@ export class ReplaceService implements IReplaceService {
 				resourceEdit.textEdit.text)
 			);
 		}
-		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
+		replaceModel.pushEditOperations([], modelEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
 	}
 
 	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {

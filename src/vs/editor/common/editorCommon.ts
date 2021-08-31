@@ -503,7 +503,7 @@ export interface IEditor {
 	 * Change the decorations. All decorations added through this changeAccessor
 	 * will get the ownerId of the editor (meaning they will not show up in other
 	 * editors).
-	 * @see `ITextModel.changeDecorations`
+	 * @see {@link ITextModel.changeDecorations}
 	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
@@ -620,6 +620,9 @@ export interface IThemeDecorationRenderOptions {
 
 	before?: IContentDecorationRenderOptions;
 	after?: IContentDecorationRenderOptions;
+
+	beforeInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
+	afterInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
 }
 
 /**
@@ -639,6 +642,8 @@ export interface IContentDecorationRenderOptions {
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
+	opacity?: string;
+	verticalAlign?: string;
 
 	margin?: string;
 	padding?: string;
@@ -700,6 +705,7 @@ export const enum Handler {
 	CompositionEnd = 'compositionEnd',
 	Type = 'type',
 	ReplacePreviousChar = 'replacePreviousChar',
+	CompositionType = 'compositionType',
 	Paste = 'paste',
 	Cut = 'cut',
 }
@@ -717,6 +723,16 @@ export interface TypePayload {
 export interface ReplacePreviousCharPayload {
 	text: string;
 	replaceCharCnt: number;
+}
+
+/**
+ * @internal
+ */
+export interface CompositionTypePayload {
+	text: string;
+	replacePrevCharCnt: number;
+	replaceNextCharCnt: number;
+	positionDelta: number;
 }
 
 /**

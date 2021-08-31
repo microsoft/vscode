@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { assertIsDefined, isFunction, withNullAsUndefined } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { TextEditorOptions, EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -23,8 +25,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ModelConstants } from 'vs/editor/common/model';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -45,15 +48,15 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super(id, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 	}
 
-	getTitle(): string | undefined {
+	override getTitle(): string | undefined {
 		if (this.input) {
 			return this.input.getName();
 		}
 
-		return nls.localize('textEditor', "Text Editor");
+		return localize('textEditor', "Text Editor");
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: AbstractTextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
@@ -77,11 +80,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		const textEditorModel = resolvedModel.textEditorModel;
 		textEditor.setModel(textEditorModel);
 
-		// Apply Options from TextOptions
+		// Apply options to editor if any
 		let optionsGotApplied = false;
-		const textOptions = <TextEditorOptions>options;
-		if (textOptions && isFunction(textOptions.apply)) {
-			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
+		if (options) {
+			optionsGotApplied = applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
 		}
 
 		// Otherwise restore View State unless disabled via settings
@@ -97,8 +99,8 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
 	}
 
-	private restoreTextResourceEditorViewState(editor: EditorInput, control: IEditor) {
-		if (editor instanceof UntitledTextEditorInput || editor instanceof ResourceEditorInput) {
+	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, control: IEditor) {
+		if (editor instanceof UntitledTextEditorInput || editor instanceof TextResourceEditorInput) {
 			const viewState = this.loadTextEditorViewState(editor.resource);
 			if (viewState) {
 				control.restoreViewState(viewState);
@@ -119,7 +121,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
 		this.saveTextResourceEditorViewState(this.input);
@@ -133,7 +135,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Save View State (only for untitled)
 		if (this.input instanceof UntitledTextEditorInput) {
@@ -144,7 +146,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	}
 
 	private saveTextResourceEditorViewState(input: EditorInput | undefined): void {
-		if (!(input instanceof UntitledTextEditorInput) && !(input instanceof ResourceEditorInput)) {
+		if (!(input instanceof UntitledTextEditorInput) && !(input instanceof TextResourceEditorInput)) {
 			return; // only enabled for untitled and resource inputs
 		}
 
@@ -152,7 +154,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		// Clear view state if input is disposed
 		if (input.isDisposed()) {
-			super.clearTextEditorViewState([resource]);
+			super.clearTextEditorViewState(resource);
 		}
 
 		// Otherwise save it
@@ -180,7 +182,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}
 
-	protected createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
 		const control = super.createEditorControl(parent, configuration);
 
 		// Install a listener for paste to update this editors

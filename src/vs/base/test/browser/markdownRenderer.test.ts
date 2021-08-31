@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as marked from 'vs/base/common/marked/marked';
 import { renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { MarkdownString, IMarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
+import { URI } from 'vs/base/common/uri';
 
 suite('MarkdownRenderer', () => {
 	suite('Images', () => {
@@ -111,7 +111,7 @@ suite('MarkdownRenderer', () => {
 
 		const data = <{ script: string, documentUri: URI }>parse(decodeURIComponent(uri.query));
 		assert.ok(data);
-		assert.equal(data.script, 'echo');
+		assert.strictEqual(data.script, 'echo');
 		assert.ok(data.documentUri.toString().startsWith('file:///c%3A/'));
 	});
 

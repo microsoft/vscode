@@ -6,8 +6,8 @@
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ShutdownReason, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -16,48 +16,22 @@ import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import Severity from 'vs/base/common/severity';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { disposableTimeout } from 'vs/base/common/async';
+import { Promises, disposableTimeout } from 'vs/base/common/async';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
-
-	private static readonly LAST_SHUTDOWN_REASON_KEY = 'lifecyle.lastShutdownReason';
 
 	private static readonly BEFORE_SHUTDOWN_WARNING_DELAY = 5000;
 	private static readonly WILL_SHUTDOWN_WARNING_DELAY = 5000;
 
-	declare readonly _serviceBrand: undefined;
-
-	private shutdownReason: ShutdownReason | undefined;
-
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IStorageService readonly storageService: IStorageService,
-		@ILogService readonly logService: ILogService
+		@IStorageService storageService: IStorageService,
+		@ILogService logService: ILogService
 	) {
-		super(logService);
-
-		this._startupKind = this.resolveStartupKind();
+		super(logService, storageService);
 
 		this.registerListeners();
-	}
-
-	private resolveStartupKind(): StartupKind {
-		const lastShutdownReason = this.storageService.getNumber(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
-		this.storageService.remove(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
-
-		let startupKind: StartupKind;
-		if (lastShutdownReason === ShutdownReason.RELOAD) {
-			startupKind = StartupKind.ReloadedWindow;
-		} else if (lastShutdownReason === ShutdownReason.LOAD) {
-			startupKind = StartupKind.ReopenedWindow;
-		} else {
-			startupKind = StartupKind.NewWindow;
-		}
-
-		this.logService.trace(`[lifecycle] starting up (startup kind: ${this._startupKind})`);
-
-		return startupKind;
 	}
 
 	private registerListeners(): void {
@@ -89,18 +63,11 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			// trigger onWillShutdown events and joining
 			await this.handleWillShutdown(reply.reason);
 
-			// trigger onShutdown event now that we know we will quit
-			this._onShutdown.fire();
+			// trigger onDidShutdown event now that we know we will quit
+			this._onDidShutdown.fire();
 
 			// acknowledge to main side
 			ipcRenderer.send(reply.replyChannel, windowId);
-		});
-
-		// Save shutdown reason to retrieve on next startup
-		this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storageService.store(NativeLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			}
 		});
 	}
 
@@ -148,13 +115,11 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 		this._onWillShutdown.fire({
 			join(promise, id) {
-				if (promise) {
-					joiners.push(promise);
+				joiners.push(promise);
 
-					// Track promise completion
-					pendingJoiners.add(id);
-					promise.finally(() => pendingJoiners.delete(id));
-				}
+				// Track promise completion
+				pendingJoiners.add(id);
+				promise.finally(() => pendingJoiners.delete(id));
 			},
 			reason
 		});
@@ -164,7 +129,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		}, NativeLifecycleService.WILL_SHUTDOWN_WARNING_DELAY);
 
 		try {
-			await Promise.all(joiners);
+			await Promises.settled(joiners);
 		} catch (error) {
 			this.onShutdownError(reason, error);
 		} finally {

@@ -6,7 +6,6 @@
 import { IExtensionTipsService, IExecutableBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { localize } from 'vs/nls';
-import { basename } from 'vs/base/common/path';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 
 export class ExeBasedRecommendations extends ExtensionRecommendations {
@@ -62,7 +61,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			extensionId: tip.extensionId.toLowerCase(),
 			reason: {
 				reasonId: ExtensionRecommendationReason.Executable,
-				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.exeFriendlyName || basename(tip.windowsPath!))
+				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.exeFriendlyName)
 			}
 		};
 	}

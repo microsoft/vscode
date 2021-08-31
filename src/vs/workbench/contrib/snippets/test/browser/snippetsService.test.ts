@@ -94,8 +94,8 @@ suite('SnippetsService', function () {
 			assert.strictEqual(result.incomplete, undefined);
 			assert.strictEqual(result.suggestions.length, 1);
 			assert.deepStrictEqual(result.suggestions[0].label, {
-				name: 'bar',
-				type: 'barTest'
+				label: 'bar',
+				description: 'barTest'
 			});
 			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
 			assert.strictEqual(result.suggestions[0].insertText, 'barCodeSnippet');
@@ -129,14 +129,14 @@ suite('SnippetsService', function () {
 			assert.strictEqual(result.incomplete, undefined);
 			assert.strictEqual(result.suggestions.length, 2);
 			assert.deepStrictEqual(result.suggestions[0].label, {
-				name: 'bar',
-				type: 'barTest'
+				label: 'bar',
+				description: 'barTest'
 			});
 			assert.strictEqual(result.suggestions[0].insertText, 's1');
 			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
 			assert.deepStrictEqual(result.suggestions[1].label, {
-				name: 'bar-bar',
-				type: 'name'
+				label: 'bar-bar',
+				description: 'name'
 			});
 			assert.strictEqual(result.suggestions[1].insertText, 's2');
 			assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
@@ -146,8 +146,8 @@ suite('SnippetsService', function () {
 			assert.strictEqual(result.incomplete, undefined);
 			assert.strictEqual(result.suggestions.length, 1);
 			assert.deepStrictEqual(result.suggestions[0].label, {
-				name: 'bar-bar',
-				type: 'name'
+				label: 'bar-bar',
+				description: 'name'
 			});
 			assert.strictEqual(result.suggestions[0].insertText, 's2');
 			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
@@ -157,14 +157,14 @@ suite('SnippetsService', function () {
 			assert.strictEqual(result.incomplete, undefined);
 			assert.strictEqual(result.suggestions.length, 2);
 			assert.deepStrictEqual(result.suggestions[0].label, {
-				name: 'bar',
-				type: 'barTest'
+				label: 'bar',
+				description: 'barTest'
 			});
 			assert.strictEqual(result.suggestions[0].insertText, 's1');
 			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 5);
 			assert.deepStrictEqual(result.suggestions[1].label, {
-				name: 'bar-bar',
-				type: 'name'
+				label: 'bar-bar',
+				description: 'name'
 			});
 			assert.strictEqual(result.suggestions[1].insertText, 's2');
 			assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
@@ -254,12 +254,12 @@ suite('SnippetsService', function () {
 			assert.strictEqual(result.suggestions.length, 2);
 			let [first, second] = result.suggestions;
 			assert.deepStrictEqual(first.label, {
-				name: 'first',
-				type: 'first'
+				label: 'first',
+				description: 'first'
 			});
 			assert.deepStrictEqual(second.label, {
-				name: 'second',
-				type: 'second'
+				label: 'second',
+				description: 'second'
 			});
 		});
 	});
@@ -344,8 +344,8 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		assert.deepStrictEqual(result.suggestions[0].label, {
-			name: 'mytemplate',
-			type: 'mytemplate'
+			label: 'mytemplate',
+			description: 'mytemplate'
 		});
 	});
 

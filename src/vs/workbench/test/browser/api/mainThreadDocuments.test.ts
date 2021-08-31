@@ -46,7 +46,7 @@ suite('BoundModelReferenceCollection', () => {
 				dispose() {
 					disposed.push(0);
 				}
-			});
+			}, 6);
 
 		col.add(
 			URI.parse('test://boofar'),
@@ -55,7 +55,7 @@ suite('BoundModelReferenceCollection', () => {
 				dispose() {
 					disposed.push(1);
 				}
-			});
+			}, 6);
 
 		col.add(
 			URI.parse('test://xxxxxxx'),
@@ -64,7 +64,7 @@ suite('BoundModelReferenceCollection', () => {
 				dispose() {
 					disposed.push(2);
 				}
-			});
+			}, 70);
 
 		assert.deepStrictEqual(disposed, [0, 1]);
 	});

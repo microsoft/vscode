@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents, URI } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
-import { MainContext, MainThreadEditorInsetsShape, IExtHostContext, ExtHostEditorInsetsShape, ExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { reviveWebviewContentOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
+import { ExtHostContext, ExtHostEditorInsetsShape, IExtHostContext, IWebviewOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { extHostNamedCustomer } from '../common/extHostCustomers';
 
 // todo@jrieken move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -70,7 +70,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		this._disposables.dispose();
 	}
 
-	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
+	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
 
 		let editor: IActiveCodeEditor | undefined;
 		id = id.substr(0, id.indexOf(',')); //todo@jrieken HACK
@@ -91,10 +91,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const webview = this._webviewService.createWebviewElement('' + handle, {
 			enableFindWidget: false,
-		}, {
-			allowScripts: options.enableScripts,
-			localResourceRoots: options.localResourceRoots ? options.localResourceRoots.map(uri => URI.revive(uri)) : undefined
-		}, { id: extensionId, location: URI.revive(extensionLocation) });
+		}, reviveWebviewContentOptions(options), { id: extensionId, location: URI.revive(extensionLocation) });
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
 
@@ -108,7 +105,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		disposables.add(editor.onDidDispose(remove));
 		disposables.add(webviewZone);
 		disposables.add(webview);
-		disposables.add(webview.onMessage(msg => this._proxy.$onDidReceiveMessage(handle, msg)));
+		disposables.add(webview.onMessage(msg => this._proxy.$onDidReceiveMessage(handle, msg.message)));
 
 		this._insets.set(handle, webviewZone);
 	}
@@ -117,7 +114,6 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		const inset = this.getInset(handle);
 		this._insets.delete(handle);
 		inset.dispose();
-
 	}
 
 	$setHtml(handle: number, value: string): void {
@@ -125,12 +121,9 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		inset.webview.html = value;
 	}
 
-	$setOptions(handle: number, options: modes.IWebviewOptions): void {
+	$setOptions(handle: number, options: IWebviewOptions): void {
 		const inset = this.getInset(handle);
-		inset.webview.contentOptions = {
-			...options,
-			localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
-		};
+		inset.webview.contentOptions = reviveWebviewContentOptions(options);
 	}
 
 	async $postMessage(handle: number, value: any): Promise<boolean> {

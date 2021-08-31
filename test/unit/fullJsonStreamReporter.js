@@ -7,6 +7,7 @@ const { constants } = require('mocha/lib/runner');
 const BaseRunner = require('mocha/lib/reporters/base');
 
 const {
+	EVENT_TEST_BEGIN,
 	EVENT_TEST_PASS,
 	EVENT_TEST_FAIL,
 	EVENT_RUN_BEGIN,
@@ -28,6 +29,7 @@ module.exports = class FullJsonStreamReporter extends BaseRunner {
 		runner.once(EVENT_RUN_BEGIN, () => writeEvent(['start', { total }]));
 		runner.once(EVENT_RUN_END, () => writeEvent(['end', this.stats]));
 
+		runner.on(EVENT_TEST_BEGIN, test => writeEvent(['testStart', clean(test)]));
 		runner.on(EVENT_TEST_PASS, test => writeEvent(['pass', clean(test)]));
 		runner.on(EVENT_TEST_FAIL, (test, err) => {
 			test = clean(test);

@@ -3,29 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorModel } from 'vs/workbench/common/editor';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { MIME_BINARY } from 'vs/base/common/mime';
+import { Mimes } from 'vs/base/common/mime';
 
 /**
  * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
+
+	private readonly mime = Mimes.binary;
+
 	private size: number | undefined;
 	private etag: string | undefined;
-	private readonly mime: string;
 
 	constructor(
-		public readonly resource: URI,
+		readonly resource: URI,
 		private readonly name: string,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
-
-		this.resource = resource;
-		this.name = name;
-		this.mime = MIME_BINARY;
 	}
 
 	/**
@@ -56,7 +54,7 @@ export class BinaryEditorModel extends EditorModel {
 		return this.etag;
 	}
 
-	async load(): Promise<BinaryEditorModel> {
+	override async resolve(): Promise<void> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {
@@ -67,6 +65,6 @@ export class BinaryEditorModel extends EditorModel {
 			}
 		}
 
-		return this;
+		return super.resolve();
 	}
 }

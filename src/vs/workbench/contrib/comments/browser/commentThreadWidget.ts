@@ -30,7 +30,7 @@ import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/co
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
@@ -48,6 +48,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
@@ -56,6 +57,52 @@ export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
 const COMMENT_SCHEME = 'comment';
 
+
+export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
+	const range = e.target.range;
+
+	if (!range) {
+		return null;
+	}
+
+	if (!e.event.leftButton) {
+		return null;
+	}
+
+	if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+		return null;
+	}
+
+	const data = e.target.detail as IMarginData;
+	const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
+
+	// don't collide with folding and git decorations
+	if (gutterOffsetX > 14) {
+		return null;
+	}
+
+	return { lineNumber: range.startLineNumber };
+}
+
+export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
+	if (!mouseDownInfo) {
+		return null;
+	}
+
+	const { lineNumber } = mouseDownInfo;
+
+	const range = e.target.range;
+
+	if (!range || range.startLineNumber !== lineNumber) {
+		return null;
+	}
+
+	if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
+		return null;
+	}
+
+	return lineNumber;
+}
 
 let INMEM_MODEL_ID = 0;
 
@@ -180,7 +227,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return undefined;
 	}
 
-	protected revealLine(lineNumber: number) {
+	protected override revealLine(lineNumber: number) {
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 
@@ -397,11 +444,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.setFocusedComment(this._focusedComment);
 	}
 
-	protected _onWidth(widthInPixel: number): void {
+	protected override _onWidth(widthInPixel: number): void {
 		this._commentReplyComponent?.editor.layout({ height: 5 * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this._commentReplyComponent?.editor.layout({ height: 5 * 18, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
 
@@ -666,7 +713,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			action.run({
 				thread: this._commentThread,
 				text: this._commentReplyComponent?.editor.getValue(),
-				$mid: 8
+				$mid: MarshalledId.CommentThreadReply
 			});
 
 			this.hideReplyArea();
@@ -805,73 +852,35 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				renderOptions: {
 					after: {
 						contentText: placeholder,
-						color: `${transparent(editorForeground, 0.4)(this.themeService.getColorTheme())}`
+						color: `${resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4)}`
 					}
 				}
 			}];
 
-			this._commentReplyComponent?.editor.setDecorations(COMMENTEDITOR_DECORATION_KEY, decorations);
+			this._commentReplyComponent?.editor.setDecorations('review-zone-widget', COMMENTEDITOR_DECORATION_KEY, decorations);
 		}
 	}
 
 	private mouseDownInfo: { lineNumber: number } | null = null;
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = null;
-
-		const range = e.target.range;
-
-		if (!range) {
-			return;
-		}
-
-		if (!e.event.leftButton) {
-			return;
-		}
-
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
-
-		const data = e.target.detail as IMarginData;
-		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
-
-		// don't collide with folding and git decorations
-		if (gutterOffsetX > 14) {
-			return;
-		}
-
-		this.mouseDownInfo = { lineNumber: range.startLineNumber };
+		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		if (!this.mouseDownInfo) {
-			return;
-		}
-
-		const { lineNumber } = this.mouseDownInfo;
+		const matchedLineNumber = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
 		this.mouseDownInfo = null;
 
-		const range = e.target.range;
-
-		if (!range || range.startLineNumber !== lineNumber) {
+		if (matchedLineNumber === null || !e.target.element) {
 			return;
 		}
 
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
-
-		if (!e.target.element) {
-			return;
-		}
-
-		if (this._commentGlyph && this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
+		if (this._commentGlyph && this._commentGlyph.getPosition().position!.lineNumber !== matchedLineNumber) {
 			return;
 		}
 
 		if (e.target.element.className.indexOf('comment-thread') >= 0) {
-			this.toggleExpand(lineNumber);
+			this.toggleExpand(matchedLineNumber);
 		}
 	}
 
@@ -941,10 +950,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		const fontFamilyVar = '--comment-thread-editor-font-family';
+		const fontSizeVar = '--comment-thread-editor-font-size';
+		const fontWeightVar = '--comment-thread-editor-font-weight';
+		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
+		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
+		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
+
 		content.push(`.monaco-editor .review-widget .body code {
-			font-family: '${fontInfo.fontFamily}';
-			font-size: ${fontInfo.fontSize}px;
-			font-weight: ${fontInfo.fontWeight};
+			font-family: var(${fontFamilyVar});
+			font-weight: var(${fontWeightVar});
+			font-size: var(${fontSizeVar});
 		}`);
 
 		this._styleElement.textContent = content.join('\n');
@@ -953,13 +969,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.setCommentEditorDecorations();
 	}
 
-	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+	override show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
 		this._isExpanded = true;
 		super.show(rangeOrPos, heightInLines);
 		this._refresh();
 	}
 
-	hide() {
+	override hide() {
 		if (this._isExpanded) {
 			this._isExpanded = false;
 			// Focus the container so that the comment editor will be blurred before it is hidden
@@ -968,7 +984,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super.hide();
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		if (this._resizeObserver) {
 			this._resizeObserver.disconnect();

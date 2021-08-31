@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import * as objects from 'vs/base/common/objects';
 
 export interface IHighlight {
 	start: number;

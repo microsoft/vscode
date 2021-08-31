@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/links';
+import { dirname } from '../util/path';
 
 const localize = nls.loadMessageBundle();
 
@@ -43,7 +43,7 @@ function parseLink(
 				resourceUri = vscode.Uri.joinPath(root, tempUri.path);
 			}
 		} else {
-			const base = document.uri.with({ path: path.dirname(document.uri.fsPath) });
+			const base = document.uri.with({ path: dirname(document.uri.fsPath) });
 			resourceUri = vscode.Uri.joinPath(base, tempUri.path);
 		}
 	}

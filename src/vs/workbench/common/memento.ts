@@ -59,6 +59,19 @@ export class Memento {
 			globalMemento.save();
 		}
 	}
+
+	static clear(scope: StorageScope): void {
+
+		// Workspace
+		if (scope === StorageScope.WORKSPACE) {
+			Memento.workspaceMementos.clear();
+		}
+
+		// Global
+		if (scope === StorageScope.GLOBAL) {
+			Memento.globalMementos.clear();
+		}
+	}
 }
 
 class ScopedMemento {

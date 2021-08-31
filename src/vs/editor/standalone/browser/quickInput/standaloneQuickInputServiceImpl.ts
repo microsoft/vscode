@@ -40,12 +40,12 @@ export class EditorScopedQuickInputServiceImpl extends QuickInputService {
 			_serviceBrand: undefined,
 			get container() { return contribution.widget.getDomNode(); },
 			get dimension() { return editor.getLayoutInfo(); },
-			get onLayout() { return editor.onDidLayoutChange; },
+			get onDidLayout() { return editor.onDidLayoutChange; },
 			focus: () => editor.focus()
 		};
 	}
 
-	protected createController(): QuickInputController {
+	protected override createController(): QuickInputController {
 		return super.createController(this.host);
 	}
 }

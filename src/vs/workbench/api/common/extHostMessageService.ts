@@ -37,8 +37,9 @@ export class ExtHostMessageService {
 		if (typeof optionsOrFirstItem === 'string' || isMessageItem(optionsOrFirstItem)) {
 			items = [optionsOrFirstItem, ...rest];
 		} else {
-			options.modal = optionsOrFirstItem && optionsOrFirstItem.modal;
-			options.useCustom = optionsOrFirstItem && optionsOrFirstItem.useCustom;
+			options.modal = optionsOrFirstItem?.modal;
+			options.useCustom = optionsOrFirstItem?.useCustom;
+			options.detail = optionsOrFirstItem?.detail;
 			items = rest;
 		}
 

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { Codicon } from 'vs/base/common/codicons';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/foldingModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -17,6 +17,7 @@ export const foldingCollapsedIcon = registerIcon('folding-collapsed', Codicon.ch
 export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-collapsed-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		isWholeLine: true,
@@ -24,6 +25,7 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	});
 
 	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-collapsed-highlighted-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		afterContentClassName: 'inline-folded',
 		className: 'folded-background',
@@ -32,18 +34,21 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	});
 
 	private static readonly EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-expanded-auto-hide-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingExpandedIcon)
 	});
 
 	private static readonly EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-expanded-visual-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		isWholeLine: true,
 		firstLineDecorationClassName: 'alwaysShowFoldIcons ' + ThemeIcon.asClassName(foldingExpandedIcon)
 	});
 
 	private static readonly HIDDEN_RANGE_DECORATION = ModelDecorationOptions.register({
+		description: 'folding-hidden-range-decoration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 	});
 

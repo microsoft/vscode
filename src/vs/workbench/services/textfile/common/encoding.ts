@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Readable, ReadableStream, newWriteableStream } from 'vs/base/common/stream';
+import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 export const UTF8 = 'utf8';
@@ -133,49 +133,46 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 			}
 		};
 
-		// Stream error: forward to target
-		source.on('error', error => target.error(error));
+		listenStream(source, {
+			onData: async chunk => {
 
-		// Stream data
-		source.on('data', async chunk => {
-
-			// if the decoder is ready, we just write directly
-			if (decoder) {
-				target.write(decoder.write(chunk.buffer));
-			}
-
-			// otherwise we need to buffer the data until the stream is ready
-			else {
-				bufferedChunks.push(chunk);
-				bytesBuffered += chunk.byteLength;
-
-				// buffered enough data for encoding detection, create stream
-				if (bytesBuffered >= minBytesRequiredForDetection) {
-
-					// pause stream here until the decoder is ready
-					source.pause();
-
-					await createDecoder();
-
-					// resume stream now that decoder is ready but
-					// outside of this stack to reduce recursion
-					setTimeout(() => source.resume());
+				// if the decoder is ready, we just write directly
+				if (decoder) {
+					target.write(decoder.write(chunk.buffer));
 				}
+
+				// otherwise we need to buffer the data until the stream is ready
+				else {
+					bufferedChunks.push(chunk);
+					bytesBuffered += chunk.byteLength;
+
+					// buffered enough data for encoding detection, create stream
+					if (bytesBuffered >= minBytesRequiredForDetection) {
+
+						// pause stream here until the decoder is ready
+						source.pause();
+
+						await createDecoder();
+
+						// resume stream now that decoder is ready but
+						// outside of this stack to reduce recursion
+						setTimeout(() => source.resume());
+					}
+				}
+			},
+			onError: error => target.error(error), // simply forward to target
+			onEnd: async () => {
+
+				// we were still waiting for data to do the encoding
+				// detection. thus, wrap up starting the stream even
+				// without all the data to get things going
+				if (!decoder) {
+					await createDecoder();
+				}
+
+				// end the target with the remainders of the decoder
+				target.end(decoder?.end());
 			}
-		});
-
-		// Stream end
-		source.on('end', async () => {
-
-			// we were still waiting for data to do the encoding
-			// detection. thus, wrap up starting the stream even
-			// without all the data to get things going
-			if (!decoder) {
-				await createDecoder();
-			}
-
-			// end the target with the remainders of the decoder
-			target.end(decoder?.end());
 		});
 	});
 }

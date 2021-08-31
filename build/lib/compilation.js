@@ -17,7 +17,7 @@ const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const os = require("os");
 const watch = require('./watch');
-const reporter = reporter_1.createReporter();
+const reporter = (0, reporter_1.createReporter)();
 function getTypeScriptCompilerOptions(src) {
     const rootDir = path.join(__dirname, `../../${src}`);
     let options = {};
@@ -37,6 +37,9 @@ function createCompile(src, build, emitError) {
     const sourcemaps = require('gulp-sourcemaps');
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
     const overrideOptions = Object.assign(Object.assign({}, getTypeScriptCompilerOptions(src)), { inlineSources: Boolean(build) });
+    if (!build) {
+        overrideOptions.inlineSourceMap = true;
+    }
     const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
     function pipeline(token) {
         const bom = require('gulp-bom');

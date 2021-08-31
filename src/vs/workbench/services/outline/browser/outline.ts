@@ -36,7 +36,7 @@ export interface IOutlineCreator<P extends IEditorPane, E> {
 }
 
 export interface IBreadcrumbsDataSource<E> {
-	getBreadcrumbElements(): Iterable<E>;
+	getBreadcrumbElements(): readonly E[];
 }
 
 export interface IOutlineComparator<E> {
@@ -54,7 +54,7 @@ export interface IQuickPickOutlineElement<E> {
 }
 
 export interface IQuickPickDataSource<E> {
-	getQuickPickElements(): Iterable<IQuickPickOutlineElement<E>>;
+	getQuickPickElements(): IQuickPickOutlineElement<E>[];
 }
 
 export interface IOutlineListConfig<E> {

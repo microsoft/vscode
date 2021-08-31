@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion, requireConfiguration, Condition } from '../utils/dependentRegistration';
+import { Condition, conditionalRegistration, requireConfiguration, requireMinVersion } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../utils/documentSelector';
 import * as typeConverters from '../utils/typeConverters';
@@ -29,7 +29,7 @@ class TagClosing extends Disposable {
 			this._disposables);
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 		this._disposed = true;
 

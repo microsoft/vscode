@@ -17,7 +17,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { SymbolKind } from 'vs/editor/common/modes';
@@ -28,6 +28,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -55,11 +56,11 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	}
 
 	protected get activeTextEditorControl() {
-		// TODO@bpasero this distinction should go away by adopting `IOutlineService`
+
+		// TODO: this distinction should go away by adopting `IOutlineService`
 		// for all editors (either text based ones or not). Currently text based
 		// editors are not yet using the new outline service infrastructure but the
 		// "classical" document symbols approach.
-
 		if (isCompositeEditor(this.editorService.activeEditorPane?.getControl())) {
 			return undefined;
 		}
@@ -67,17 +68,19 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.editorService.activeTextEditorControl;
 	}
 
-	protected gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
+	protected override gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
 
 		// Check for sideBySide use
 		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
 			context.restoreViewState?.(); // since we open to the side, restore view state in this editor
 
-			this.editorService.openEditor(this.editorService.activeEditor, {
+			const editorOptions: ITextEditorOptions = {
 				selection: options.range,
 				pinned: options.keyMods.ctrlCmd || this.configuration.openEditorPinned,
 				preserveFocus: options.preserveFocus
-			}, SIDE_GROUP);
+			};
+
+			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it
@@ -110,17 +113,17 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token);
 	}
 
-	addDecorations(editor: IEditor, range: IRange): void {
+	override addDecorations(editor: IEditor, range: IRange): void {
 		super.addDecorations(editor, range);
 	}
 
-	clearDecorations(editor: IEditor): void {
+	override clearDecorations(editor: IEditor): void {
 		super.clearDecorations(editor);
 	}
 
 	//#endregion
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
 		if (this.canPickWithOutlineService()) {
 			return this.doGetOutlinePicks(picker);
 		}
@@ -162,7 +165,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				}
 			}));
 
-			const entries = Array.from(outline.config.quickPickDataSource.getQuickPickElements());
+			const entries = outline.config.quickPickDataSource.getQuickPickElements();
 
 			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
 				return {
@@ -252,6 +255,7 @@ registerAction2(class GotoSymbolAction extends Action2 {
 			id: 'workbench.action.gotoSymbol',
 			title: {
 				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
 				original: 'Go to Symbol in Editor...'
 			},
 			f1: true,
@@ -259,6 +263,11 @@ registerAction2(class GotoSymbolAction extends Action2 {
 				when: undefined,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+			},
+			menu: {
+				id: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 1
 			}
 		});
 	}

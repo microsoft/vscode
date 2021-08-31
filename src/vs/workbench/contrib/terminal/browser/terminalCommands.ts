@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export function setupTerminalCommands(): void {
 	registerOpenTerminalAtIndexCommands();
@@ -21,9 +21,8 @@ function registerOpenTerminalAtIndexCommands(): void {
 			when: undefined,
 			primary: 0,
 			handler: accessor => {
-				const terminalService = accessor.get(ITerminalService);
-				terminalService.setActiveInstanceByIndex(terminalIndex);
-				return terminalService.showPanel(true);
+				accessor.get(ITerminalGroupService).setActiveInstanceByIndex(terminalIndex);
+				return accessor.get(ITerminalGroupService).showPanel(true);
 			}
 		});
 	}

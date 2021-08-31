@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { TitleCaseAction, DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction, SnakeCaseAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { DeleteAllLeftAction, DeleteAllRightAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {
@@ -549,7 +549,10 @@ suite('Editor Contrib - Line Operations', () => {
 				`function helloWorld() {
 				return someGlobalObject.printHelloWorld("en", "utf-8");
 				}
-				helloWorld();`.replace(/^\s+/gm, '')
+				helloWorld();`.replace(/^\s+/gm, ''),
+				`'JavaScript'`,
+				'parseHTML4String',
+				'_accessor: ServicesAccessor'
 			], {}, (editor) => {
 				let model = editor.getModel()!;
 				let uppercaseAction = new UpperCaseAction();
@@ -659,6 +662,21 @@ suite('Editor Contrib - Line Operations', () => {
 				}
 				hello_world();`.replace(/^\s+/gm, ''));
 				assertSelection(editor, new Selection(14, 1, 17, 15));
+
+				editor.setSelection(new Selection(18, 1, 18, 13));
+				executeAction(snakecaseAction, editor);
+				assert.strictEqual(model.getLineContent(18), `'java_script'`);
+				assertSelection(editor, new Selection(18, 1, 18, 14));
+
+				editor.setSelection(new Selection(19, 1, 19, 17));
+				executeAction(snakecaseAction, editor);
+				assert.strictEqual(model.getLineContent(19), 'parse_html4_string');
+				assertSelection(editor, new Selection(19, 1, 19, 19));
+
+				editor.setSelection(new Selection(20, 1, 20, 28));
+				executeAction(snakecaseAction, editor);
+				assert.strictEqual(model.getLineContent(20), '_accessor: services_accessor');
+				assertSelection(editor, new Selection(20, 1, 20, 29));
 			}
 		);
 

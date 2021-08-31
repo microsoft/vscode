@@ -19,7 +19,7 @@ import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bu
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 class BulkEdit {
@@ -195,7 +195,7 @@ export class BulkEditService implements IBulkEditService {
 
 		let listener: IDisposable | undefined;
 		try {
-			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this.shouldVeto(label), 'veto.blukEditService'));
+			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this.shouldVeto(label, e.reason), 'veto.blukEditService'));
 			await bulkEdit.perform();
 			return { ariaSummary: bulkEdit.ariaMessage() };
 		} catch (err) {
@@ -209,11 +209,13 @@ export class BulkEditService implements IBulkEditService {
 		}
 	}
 
-	private async shouldVeto(label: string | undefined): Promise<boolean> {
+	private async shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
 		label = label || localize('fileOperation', "File operation");
+		const reasonLabel = reason === ShutdownReason.CLOSE ? localize('closeTheWindow', "Close Window") : reason === ShutdownReason.LOAD ? localize('changeWorkspace', "Change Workspace") :
+			reason === ShutdownReason.RELOAD ? localize('reloadTheWindow', "Reload Window") : localize('quit', "Quit");
 		const result = await this._dialogService.confirm({
-			message: localize('areYouSureQuiteBulkEdit', "Are you sure you want to quit? '{0}' is in progress.", label),
-			primaryButton: localize('quit', "Quit")
+			message: localize('areYouSureQuiteBulkEdit', "Are you sure you want to {0}? '{1}' is in progress.", reasonLabel.toLowerCase(), label),
+			primaryButton: reasonLabel
 		});
 
 		return !result.confirmed;

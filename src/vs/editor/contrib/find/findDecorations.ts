@@ -7,9 +7,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IModelDecorationsChangeAccessor, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
+import { FindMatch, IModelDecorationsChangeAccessor, IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
+import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 export class FindDecorations implements IDisposable {
@@ -276,6 +276,7 @@ export class FindDecorations implements IDisposable {
 	}
 
 	public static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+		description: 'current-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 13,
 		className: 'currentFindMatch',
@@ -291,6 +292,7 @@ export class FindDecorations implements IDisposable {
 	});
 
 	public static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+		description: 'find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true,
@@ -305,12 +307,14 @@ export class FindDecorations implements IDisposable {
 	});
 
 	public static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+		description: 'find-match-no-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true
 	});
 
 	private static readonly _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+		description: 'find-match-only-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
@@ -319,12 +323,14 @@ export class FindDecorations implements IDisposable {
 	});
 
 	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		description: 'find-range-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
 	private static readonly _FIND_SCOPE_DECORATION = ModelDecorationOptions.register({
+		description: 'find-scope',
 		className: 'findScope',
 		isWholeLine: true
 	});

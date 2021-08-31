@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Promises } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -34,10 +37,23 @@ export const NullTelemetryService = new class implements ITelemetryService {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
 		});
 	}
 };
+
+export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
+	_serviceBrand: undefined;
+
+	async publicLog(_endpoint: ITelemetryEndpoint, _eventName: string, _data?: ITelemetryData): Promise<void> {
+		// noop
+	}
+
+	async publicLogError(_endpoint: ITelemetryEndpoint, _errorEventName: string, _data?: ITelemetryData): Promise<void> {
+		// noop
+	}
+}
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
@@ -47,7 +63,7 @@ export interface ITelemetryAppender {
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
 	return {
 		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		flush: () => Promise.all(appenders.map(a => a.flush()))
+		flush: () => Promises.settled(appenders.map(a => a.flush())),
 	};
 }
 
@@ -86,6 +102,34 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			});
 		}
 	});
+}
+
+export const enum TelemetryLevel {
+	NONE,
+	LOG,
+	USER
+}
+
+/**
+ * Determines how telemetry is handled based on the current running configuration.
+ * To log telemetry locally, the client must not disable telemetry via the CLI
+ * If client is a built product and telemetry is enabled via the product.json, defer to user setting
+ * Note that when running from sources, we log telemetry locally but do not send it
+ *
+ * @param productService
+ * @param environmentService
+ * @returns NONE - telemetry is completely disabled, LOG - telemetry is logged locally but not sent, USER - verify with user setting
+ */
+export function getTelemetryLevel(productService: IProductService, environmentService: IEnvironmentService): TelemetryLevel {
+	if (environmentService.disableTelemetry || !productService.enableTelemetry) {
+		return TelemetryLevel.NONE;
+	}
+
+	if (!environmentService.isBuilt) {
+		return TelemetryLevel.LOG;
+	}
+
+	return TelemetryLevel.USER;
 }
 
 export interface Properties {

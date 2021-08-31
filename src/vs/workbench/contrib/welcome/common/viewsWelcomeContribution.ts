@@ -10,7 +10,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ViewsWelcomeExtensionPoint, ViewWelcome, ViewIdentifierMap } from './viewsWelcomeExtensionPoint';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IViewContentDescriptor, IViewsRegistry } from 'vs/workbench/common/views';
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -32,19 +32,34 @@ export class ViewsWelcomeContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 
+			const welcomesByViewId = new Map<string, Map<ViewWelcome, IViewContentDescriptor>>();
+
 			for (const contribution of added) {
 				for (const welcome of contribution.value) {
-					const id = ViewIdentifierMap[welcome.view] ?? welcome.view;
 					const { group, order } = parseGroupAndOrder(welcome, contribution);
 					const precondition = ContextKeyExpr.deserialize(welcome.enablement);
-					const disposable = viewsRegistry.registerViewWelcomeContent(id, {
+
+					const id = ViewIdentifierMap[welcome.view] ?? welcome.view;
+					let viewContentMap = welcomesByViewId.get(id);
+					if (!viewContentMap) {
+						viewContentMap = new Map();
+						welcomesByViewId.set(id, viewContentMap);
+					}
+
+					viewContentMap.set(welcome, {
 						content: welcome.contents,
 						when: ContextKeyExpr.deserialize(welcome.when),
 						precondition,
 						group,
 						order
 					});
+				}
+			}
 
+			for (const [id, viewContentMap] of welcomesByViewId) {
+				const disposables = viewsRegistry.registerViewWelcomeContent2(id, viewContentMap);
+
+				for (const [welcome, disposable] of disposables) {
 					this.viewWelcomeContents.set(welcome, disposable);
 				}
 			}

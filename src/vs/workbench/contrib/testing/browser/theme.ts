@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { editorErrorForeground, editorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { contrastBorder, editorErrorForeground, editorForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
+import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',
@@ -52,49 +55,80 @@ export const testingColorIconSkipped = registerColor('testing.iconSkipped', {
 export const testingPeekBorder = registerColor('testing.peekBorder', {
 	dark: editorErrorForeground,
 	light: editorErrorForeground,
-	hc: editorErrorForeground,
+	hc: contrastBorder,
+}, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
+
+export const testingPeekHeaderBackground = registerColor('testing.peekHeaderBackground', {
+	dark: transparent(editorErrorForeground, 0.1),
+	light: transparent(editorErrorForeground, 0.1),
+	hc: null,
 }, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
 
 export const testMessageSeverityColors: {
-	[K in TestMessageSeverity]: {
+	[K in TestMessageType]: {
 		decorationForeground: string,
+		marginBackground: string,
 	};
 } = {
-	[TestMessageSeverity.Error]: {
+	[TestMessageType.Error]: {
 		decorationForeground: registerColor(
 			'testing.message.error.decorationForeground',
 			{ dark: editorErrorForeground, light: editorErrorForeground, hc: editorForeground },
 			localize('testing.message.error.decorationForeground', 'Text color of test error messages shown inline in the editor.')
 		),
-	},
-	[TestMessageSeverity.Warning]: {
-		decorationForeground: registerColor(
-			'testing.message.warning.decorationForeground',
-			{ dark: editorWarningForeground, light: editorWarningForeground, hc: editorForeground },
-			localize('testing.message.warning.decorationForeground', 'Text color of test warning messages shown inline in the editor.')
+		marginBackground: registerColor(
+			'testing.message.error.lineBackground',
+			{ dark: new Color(new RGBA(255, 0, 0, 0.2)), light: new Color(new RGBA(255, 0, 0, 0.2)), hc: null },
+			localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
 		),
 	},
-	[TestMessageSeverity.Information]: {
+	[TestMessageType.Info]: {
 		decorationForeground: registerColor(
 			'testing.message.info.decorationForeground',
-			{ dark: editorInfoForeground, light: editorInfoForeground, hc: editorForeground },
+			{ dark: transparent(editorForeground, 0.5), light: transparent(editorForeground, 0.5), hc: transparent(editorForeground, 0.5) },
 			localize('testing.message.info.decorationForeground', 'Text color of test info messages shown inline in the editor.')
 		),
-	},
-	[TestMessageSeverity.Hint]: {
-		decorationForeground: registerColor(
-			'testing.message.hint.decorationForeground',
-			{ dark: editorHintForeground, light: editorHintForeground, hc: editorForeground },
-			localize('testing.message.hint.decorationForeground', 'Text color of test hint messages shown inline in the editor.')
+		marginBackground: registerColor(
+			'testing.message.info.lineBackground',
+			{ dark: null, light: null, hc: null },
+			localize('testing.message.info.marginBackground', 'Margin color beside info messages shown inline in the editor.')
 		),
 	},
 };
 
-export const testStatesToIconColors: { [K in TestRunState]?: string } = {
-	[TestRunState.Errored]: testingColorIconErrored,
-	[TestRunState.Failed]: testingColorIconFailed,
-	[TestRunState.Passed]: testingColorIconPassed,
-	[TestRunState.Queued]: testingColorIconQueued,
-	[TestRunState.Unset]: testingColorIconUnset,
-	[TestRunState.Skipped]: testingColorIconUnset,
+export const testStatesToIconColors: { [K in TestResultState]?: string } = {
+	[TestResultState.Errored]: testingColorIconErrored,
+	[TestResultState.Failed]: testingColorIconFailed,
+	[TestResultState.Passed]: testingColorIconPassed,
+	[TestResultState.Queued]: testingColorIconQueued,
+	[TestResultState.Unset]: testingColorIconUnset,
+	[TestResultState.Skipped]: testingColorIconUnset,
 };
+
+
+registerThemingParticipant((theme, collector) => {
+	//#region test states
+	for (const [state, { marginBackground }] of Object.entries(testMessageSeverityColors)) {
+		collector.addRule(`.monaco-editor .testing-inline-message-severity-${state} {
+			background: ${theme.getColor(marginBackground)};
+		}`);
+	}
+	//#endregion test states
+
+	//#region active buttons
+	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
+	if (inputActiveOptionBorderColor) {
+		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { border-color: ${inputActiveOptionBorderColor}; }`);
+	}
+	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
+	if (inputActiveOptionForegroundColor) {
+		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { color: ${inputActiveOptionForegroundColor}; }`);
+	}
+	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
+	if (inputActiveOptionBackgroundColor) {
+		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
+	}
+	const badgeColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
+	collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::after { background-color: ${badgeColor}; }`);
+	//#endregion
+});

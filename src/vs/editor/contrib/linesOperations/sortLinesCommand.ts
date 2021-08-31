@@ -6,7 +6,7 @@
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 
 export class SortLinesCommand implements ICommand {

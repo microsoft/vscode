@@ -43,7 +43,7 @@ function code() {
 	export ELECTRON_ENABLE_LOGGING=1
 
 	# Launch Code
-	exec "$CODE" . --no-sandbox "$@"
+	exec "$CODE" . "$@"
 }
 
 function code-wsl()
@@ -71,7 +71,12 @@ function code-wsl()
 	fi
 }
 
-if ! [ -z ${IN_WSL+x} ]; then
+if [ "$IN_WSL" == "true" ] && [ -z "$DISPLAY" ]; then
 	code-wsl "$@"
+elif [ -f /mnt/wslg/versions.txt ]; then
+	code --disable-gpu "$@"
+else
+	code "$@"
 fi
-code "$@"
+
+exit $?

@@ -26,7 +26,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onRecentlyOpenedChange = this._register(new Emitter<void>());
-	readonly onRecentlyOpenedChange = this._onRecentlyOpenedChange.event;
+	readonly onDidChangeRecentlyOpened = this._onRecentlyOpenedChange.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -125,7 +125,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	//#region Workspace Management
 
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
+	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return { workspace: await this.getWorkspaceIdentifier(path) };
 	}
 

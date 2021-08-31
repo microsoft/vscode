@@ -166,7 +166,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		this.updateChecked();
 	}
@@ -227,7 +227,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		];
 	}
 
-	updateChecked(): void {
+	override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 
@@ -244,6 +244,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private filterBadge: HTMLElement | null = null;
 	private focusContextKey: IContextKey<boolean>;
 	private readonly filtersAction: IAction;
+	private actionbar: ActionBar | null = null;
 
 	constructor(
 		action: IAction,
@@ -264,7 +265,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this._register(markersView.filters.onDidChange(e => this.onDidFiltersChange(e)));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		this.container = container;
 		this.container.classList.add('markers-panel-action-filter-container');
 
@@ -277,10 +278,24 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.adjustInputBox();
 	}
 
-	focus(): void {
+	override focus(): void {
 		if (this.filterInputBox) {
 			this.filterInputBox.focus();
 		}
+	}
+
+	override blur(): void {
+		if (this.filterInputBox) {
+			this.filterInputBox.blur();
+		}
+	}
+
+	override setFocusable(): void {
+		// noop input elements are focusable by default
+	}
+
+	override get trapsArrowNavigation(): boolean {
+		return true;
 	}
 
 	private clearFilterText(): void {
@@ -353,7 +368,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private createFilters(container: HTMLElement): void {
-		const actionbar = this._register(new ActionBar(container, {
+		this.actionbar = this._register(new ActionBar(container, {
 			actionViewItemProvider: action => {
 				if (action.id === this.filtersAction.id) {
 					return this.instantiationService.createInstance(FiltersDropdownMenuActionViewItem, action, this.markersView.filters, this.actionRunner);
@@ -361,7 +376,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 				return undefined;
 			}
 		}));
-		actionbar.push(this.filtersAction, { icon: true, label: false });
+		this.actionbar.push(this.filtersAction, { icon: true, label: false });
 	}
 
 	private onDidInputChange(inputbox: HistoryInputBox) {
@@ -402,13 +417,17 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			this.clearFilterText();
 			handled = true;
 		}
+		if (event.equals(KeyCode.Tab)) {
+			this.actionbar?.focus();
+			handled = true;
+		}
 		if (handled) {
 			event.stopPropagation();
 			event.preventDefault();
 		}
 	}
 
-	protected updateClass(): void {
+	protected override updateClass(): void {
 		if (this.element && this.container) {
 			this.element.className = this.class;
 			this.container.classList.toggle('grow', this.element.classList.contains('grow'));
@@ -455,7 +474,7 @@ export class QuickFixAction extends Action {
 		super(QuickFixAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_QUICKFIX, QuickFixAction.CLASS, false);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		this._onShowQuickFixes.fire();
 		return Promise.resolve();
 	}
@@ -469,7 +488,7 @@ export class QuickFixActionViewItem extends ActionViewItem {
 		super(null, action, { icon: true, label: false });
 	}
 
-	public onClick(event: DOM.EventLike): void {
+	public override onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 		this.showQuickFixes();
 	}

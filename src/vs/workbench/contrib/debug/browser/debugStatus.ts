@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 export class DebugStatusContribution implements IWorkbenchContribution {
@@ -23,7 +23,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 	) {
 
 		const addStatusBarEntry = () => {
-			this.entryAccessor = this.statusBarService.addEntry(this.entry, 'status.debug', nls.localize('status.debug', "Debug"), StatusbarAlignment.LEFT, 30 /* Low Priority */);
+			this.entryAccessor = this.statusBarService.addEntry(this.entry, 'status.debug', StatusbarAlignment.LEFT, 30 /* Low Priority */);
 		};
 
 		const setShowInStatusBar = () => {
@@ -65,6 +65,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 		}
 
 		return {
+			name: nls.localize('status.debug', "Debug"),
 			text: '$(debug-alt-small) ' + text,
 			ariaLabel: nls.localize('debugTarget', "Debug: {0}", text),
 			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),

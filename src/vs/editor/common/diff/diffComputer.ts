@@ -45,6 +45,10 @@ class LineSequence implements ISequence {
 		return elements;
 	}
 
+	public getStrictElement(index: number): string {
+		return this.lines[index];
+	}
+
 	public getStartLineNumber(i: number): number {
 		return i + 1;
 	}

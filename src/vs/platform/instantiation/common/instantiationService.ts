@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { illegalState } from 'vs/base/common/errors';
-import { Graph } from 'vs/platform/instantiation/common/graph';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ServiceIdentifier, IInstantiationService, ServicesAccessor, _util, optional } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IdleValue } from 'vs/base/common/async';
+import { illegalState } from 'vs/base/common/errors';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Graph } from 'vs/platform/instantiation/common/graph';
+import { IInstantiationService, optional, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 // TRACING
 const _enableTracing = false;
@@ -16,7 +16,7 @@ const _enableTracing = false;
 class CyclicDependencyError extends Error {
 	constructor(graph: Graph<any>) {
 		super('cyclic dependency between services');
-		this.message = graph.toString();
+		this.message = graph.findCycleSlow() ?? `UNABLE to detect cycle, dumping graph: \n${graph.toString()}`;
 	}
 }
 
@@ -267,8 +267,8 @@ class Trace {
 
 	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }
-		stop() { }
-		branch() { return this; }
+		override stop() { }
+		override branch() { return this; }
 	};
 
 	static traceInvocation(ctor: any): Trace {

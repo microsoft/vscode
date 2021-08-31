@@ -1,0 +1,53 @@
+{
+  "name": "powershell",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "powershell",
+        "extensions": [
+          ".ps1",
+          ".psm1",
+          ".psd1",
+          ".pssc",
+          ".psrc"
+        ],
+        "aliases": [
+          "PowerShell",
+          "powershell",
+          "ps",
+          "ps1"
+        ],
+        "firstLine": "^#!\\s*/.*\\bpwsh\\b",
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "powershell",
+        "scopeName": "source.powershell",
+        "path": "./syntaxes/powershell.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "powershell",
+        "path": "./snippets/powershell.code-snippets"
+      }
+    ]
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin PowerShell/EditorSyntax PowerShellSyntax.tmLanguage ./syntaxes/powershell.tmLanguage.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

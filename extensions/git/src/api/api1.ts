@@ -9,7 +9,7 @@ import { findGit, Git as GitClient, ICloneOptions } from '../git';
 import { Model } from '../model';
 import { pickRemoteSource, PickRemoteSourceOptions } from '../remoteSource';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions } from './git';
 import { mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
@@ -195,8 +195,16 @@ export class ApiRepository implements Repository {
 		return this._repository.renameRemote(name, newName);
 	}
 
-	fetch(remote?: string | undefined, ref?: string | undefined, depth?: number | undefined): Promise<void> {
-		return this._repository.fetch(remote, ref, depth);
+	fetch(arg0?: FetchOptions | string | undefined,
+		ref?: string | undefined,
+		depth?: number | undefined,
+		prune?: boolean | undefined
+	): Promise<void> {
+		if (arg0 !== undefined && typeof arg0 !== 'string') {
+			return this._repository.fetch(arg0);
+		}
+
+		return this._repository.fetch({ remote: arg0, ref, depth, prune });
 	}
 
 	pull(unshallow?: boolean): Promise<void> {

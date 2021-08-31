@@ -8,7 +8,7 @@ import { Constants, getCharIndex } from './minimapCharSheet';
 import { toUint8 } from 'vs/base/common/uint';
 
 export class MinimapCharRenderer {
-	_minimapCharRendererBrand: void;
+	_minimapCharRendererBrand: void = undefined;
 
 	private readonly charDataNormal: Uint8ClampedArray;
 	private readonly charDataLight: Uint8ClampedArray;

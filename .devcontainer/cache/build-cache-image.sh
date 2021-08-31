@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# This file simply wraps the dockeer build command used to build the image with the
-# cached result of the commands from "prepare.sh" and pushes it to the specified
-# container image registry.
+# This file simply wraps the docker build command to build an image that includes
+# a cache.tar file with the result of "prepare.sh" inside of it. See cache.Dockerfile
+# for the steps that are actually taken to do this.
 
 set -e
 
-SCRIPT_PATH="$(cd "$(dirname $0)" && pwd)"
+SCRIPT_PATH="$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)"
 CONTAINER_IMAGE_REPOSITORY="$1"
-BRANCH="${2:-"master"}"
+BRANCH="${2:-"main"}"
 
 if [ "${CONTAINER_IMAGE_REPOSITORY}" = "" ]; then
 	echo "Container repository not specified!"

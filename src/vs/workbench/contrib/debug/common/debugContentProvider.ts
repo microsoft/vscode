@@ -5,7 +5,7 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
+import { guessMimeTypes, Mimes } from 'vs/base/common/mime';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -94,7 +94,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		}
 		const createErrModel = (errMsg?: string) => {
 			this.debugService.sourceIsNotAvailable(resource);
-			const languageSelection = this.modeService.create(MIME_TEXT);
+			const languageSelection = this.modeService.create(Mimes.text);
 			const message = errMsg
 				? localize('canNotResolveSourceWithError', "Could not load source '{0}': {1}.", resource.path, errMsg)
 				: localize('canNotResolveSource', "Could not load source '{0}'.", resource.path);

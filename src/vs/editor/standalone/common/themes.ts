@@ -65,7 +65,7 @@ export const vs: IStandaloneThemeData = {
 		{ token: 'operator.scss', foreground: '666666' },
 		{ token: 'operator.sql', foreground: '778899' },
 		{ token: 'operator.swift', foreground: '666666' },
-		{ token: 'predefined.sql', foreground: 'FF00FF' },
+		{ token: 'predefined.sql', foreground: 'C700C7' },
 	],
 	colors: {
 		[editorBackground]: '#FFFFFE',

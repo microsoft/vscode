@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, DebounceEmitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } from 'vs/base/browser/dom';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -19,6 +19,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { iconRegistry } from 'vs/base/common/codicons';
+import { asArray } from 'vs/base/common/arrays';
 
 class DecorationRule {
 
@@ -27,7 +29,11 @@ class DecorationRule {
 			return data.map(DecorationRule.keyOf).join(',');
 		} else {
 			const { color, letter } = data;
-			return `${color}/${letter}`;
+			if (ThemeIcon.isThemeIcon(letter)) {
+				return `${color}+${letter.id}`;
+			} else {
+				return `${color}/${letter}`;
+			}
 		}
 	}
 
@@ -36,6 +42,7 @@ class DecorationRule {
 	readonly data: IDecorationData | IDecorationData[];
 	readonly itemColorClassName: string;
 	readonly itemBadgeClassName: string;
+	readonly iconBadgeClassName: string;
 	readonly bubbleBadgeClassName: string;
 
 	private _refCounter: number = 0;
@@ -46,6 +53,7 @@ class DecorationRule {
 		this.itemColorClassName = `${DecorationRule._classNamesPrefix}-itemColor-${suffix}`;
 		this.itemBadgeClassName = `${DecorationRule._classNamesPrefix}-itemBadge-${suffix}`;
 		this.bubbleBadgeClassName = `${DecorationRule._classNamesPrefix}-bubbleBadge-${suffix}`;
+		this.iconBadgeClassName = `${DecorationRule._classNamesPrefix}-iconBadge-${suffix}`;
 	}
 
 	acquire(): void {
@@ -68,8 +76,9 @@ class DecorationRule {
 		const { color, letter } = data;
 		// label
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
-		// letter
-		if (letter) {
+		if (ThemeIcon.isThemeIcon(letter)) {
+			this._createIconCSSRule(letter, color, element, theme);
+		} else if (letter) {
 			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(theme, color)};`, element);
 		}
 	}
@@ -79,17 +88,57 @@ class DecorationRule {
 		const { color } = data[0];
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
 
-		// badge
-		const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
-		if (letters.length) {
-			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(theme, color)};`, element);
+		// badge or icon
+		let letters: string[] = [];
+		let icon: ThemeIcon | undefined;
+
+		for (let d of data) {
+			if (ThemeIcon.isThemeIcon(d.letter)) {
+				icon = d.letter;
+				break;
+			} else if (d.letter) {
+				letters.push(d.letter);
+			}
 		}
 
-		// bubble badge
-		// TODO @misolori update bubble badge to use class name instead of unicode
+		if (icon) {
+			this._createIconCSSRule(icon, color, element, theme);
+		} else {
+			if (letters.length) {
+				createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${getColor(theme, color)};`, element);
+			}
+
+			// bubble badge
+			// TODO @misolori update bubble badge to adopt letter: ThemeIcon instead of unicode
+			createCSSRule(
+				`.${this.bubbleBadgeClassName}::after`,
+				`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
+				element
+			);
+		}
+	}
+
+	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement, theme: IColorTheme) {
+
+		const index = icon.id.lastIndexOf('~');
+		const id = index < 0 ? icon.id : icon.id.substr(0, index);
+		const modifier = index < 0 ? '' : icon.id.substr(index + 1);
+
+		const codicon = iconRegistry.get(id);
+		if (!codicon || !('fontCharacter' in codicon.definition)) {
+			return;
+		}
+		const charCode = parseInt(codicon.definition.fontCharacter.substr(1), 16);
 		createCSSRule(
-			`.${this.bubbleBadgeClassName}::after`,
-			`content: "\uea71"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			`.${this.iconBadgeClassName}::after`,
+			`content: "${String.fromCharCode(charCode)}";
+			color: ${getColor(theme, color)};
+			font-family: codicon;
+			font-size: 16px;
+			margin-right: 14px;
+			font-weight: normal;
+			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
+			`,
 			element
 		);
 	}
@@ -98,6 +147,7 @@ class DecorationRule {
 		removeCSSRulesContainingSelector(this.itemColorClassName, element);
 		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
 		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
+		removeCSSRulesContainingSelector(this.iconBadgeClassName, element);
 	}
 }
 
@@ -135,6 +185,7 @@ class DecorationStyles {
 
 		let labelClassName = rule.itemColorClassName;
 		let badgeClassName = rule.itemBadgeClassName;
+		let iconClassName = rule.iconBadgeClassName;
 		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
 
 		if (onlyChildren) {
@@ -146,6 +197,7 @@ class DecorationStyles {
 		return {
 			labelClassName,
 			badgeClassName,
+			iconClassName,
 			tooltip,
 			dispose: () => {
 				if (rule?.release()) {
@@ -169,25 +221,26 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
 	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
 
+	constructor(all: URI | URI[]) {
+		for (let uri of asArray(all)) {
+			this._data.set(uri, true);
+		}
+	}
+
 	affectsResource(uri: URI): boolean {
 		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
 	}
 
-	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]): FileDecorationChangeEvent {
-		if (!last) {
-			last = new FileDecorationChangeEvent();
-		}
-		if (Array.isArray(current)) {
-			// many
-			for (const uri of current) {
-				last._data.set(uri, true);
+	static merge(all: (URI | URI[])[]): URI[] {
+		let res: URI[] = [];
+		for (let uriOrArray of all) {
+			if (Array.isArray(uriOrArray)) {
+				res = res.concat(uriOrArray);
+			} else {
+				res.push(uriOrArray);
 			}
-		} else {
-			// one
-			last._data.set(current, true);
 		}
-
-		return last;
+		return res;
 	}
 }
 
@@ -314,24 +367,19 @@ export class DecorationsService implements IDecorationsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
-	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
+	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: FileDecorationChangeEvent.merge });
 	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
 	private readonly _decorationStyles: DecorationStyles;
 
-	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.any(
-		this._onDidChangeDecorations.event,
-		Event.debounce<URI | URI[], FileDecorationChangeEvent>(
-			this._onDidChangeDecorationsDelayed.event,
-			FileDecorationChangeEvent.debouncer,
-			undefined, undefined, 500
-		)
-	);
+	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
+
+		this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); });
 	}
 
 	dispose(): void {

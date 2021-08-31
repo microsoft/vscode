@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/tree';
-import { Iterable } from 'vs/base/common/iterator';
-import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { IndexTreeModel, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { Iterable } from 'vs/base/common/iterator';
+import 'vs/css!./media/tree';
 
 export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
 export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
 
-	protected model!: IndexTreeModel<T, TFilterData>;
+	protected override model!: IndexTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,

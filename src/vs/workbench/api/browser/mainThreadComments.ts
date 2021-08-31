@@ -23,6 +23,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { localize } from 'vs/nls';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -154,7 +155,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 
 	toJSON(): any {
 		return {
-			$mid: 7,
+			$mid: MarshalledId.CommentThread,
 			commentControlHandle: this.controllerHandle,
 			commentThreadHandle: this.commentThreadHandle,
 		};
@@ -347,7 +348,7 @@ export class MainThreadCommentController {
 
 	toJSON(): any {
 		return {
-			$mid: 6,
+			$mid: MarshalledId.CommentController,
 			handle: this.handle
 		};
 	}
@@ -473,7 +474,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!commentsViewAlreadyRegistered) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
-				name: COMMENTS_VIEW_TITLE,
+				title: COMMENTS_VIEW_TITLE,
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 				storageId: COMMENTS_VIEW_TITLE,
 				hideIfEmpty: true,
@@ -535,7 +536,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.updateComments(providerId, event);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._workspaceProviders.forEach(value => dispose(value));
 		this._workspaceProviders.clear();

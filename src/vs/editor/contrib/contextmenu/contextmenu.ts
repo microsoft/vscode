@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isIOS } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ITextModel } from 'vs/editor/common/model';
+import * as nls from 'vs/nls';
 import { IMenuService, MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -88,6 +89,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		e.event.preventDefault();
+		e.event.stopPropagation();
 
 		if (e.target.type !== MouseTargetType.CONTENT_TEXT && e.target.type !== MouseTargetType.CONTENT_EMPTY && e.target.type !== MouseTargetType.TEXTAREA) {
 			return; // only support mouse click into text or native context menu key for now
@@ -135,7 +137,8 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Find actions available for menu
-		const menuActions = this._getMenuActions(this._editor.getModel(), MenuId.EditorContext);
+		const menuActions = this._getMenuActions(this._editor.getModel(),
+			this._editor.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext);
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -208,10 +211,12 @@ export class ContextMenuController implements IEditorContribution {
 			anchor = { x: posx, y: posy };
 		}
 
+		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
+
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
-			domForShadowRoot: this._editor.getDomNode(),
+			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
 
 			getAnchor: () => anchor!,
 

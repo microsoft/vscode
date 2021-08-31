@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as vscode from 'vscode';
-import { onChangedDocument, wait, retryUntilDocumentChanges } from './testUtils';
+import { onChangedDocument, retryUntilDocumentChanges, wait } from './testUtils';
 
 export async function acceptFirstSuggestion(uri: vscode.Uri, _disposables: vscode.Disposable[]) {
 	return retryUntilDocumentChanges(uri, { retries: 10, timeout: 0 }, _disposables, async () => {

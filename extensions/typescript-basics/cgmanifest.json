@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "TypeScript-TmLanguage",
+					"repositoryUrl": "https://github.com/microsoft/TypeScript-TmLanguage",
+					"commitHash": "33d8371c344f0b54746586313a939f742f9bcd3a"
+				}
+			},
+			"license": "MIT",
+			"description": "The files syntaxes/TypeScript.tmLanguage.json and syntaxes/TypeScriptReact.tmLanguage.json were derived from TypeScript.tmLanguage and TypeScriptReact.tmLanguage in https://github.com/microsoft/TypeScript-TmLanguage.",
+			"version": "1.0.0"
+		}
+	],
+	"version": 1
+}

@@ -6,31 +6,9 @@
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 import { FileAccess } from 'vs/base/common/network';
 
 export class TextMateService extends AbstractTextMateService {
-
-	constructor(
-		@IModeService modeService: IModeService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IExtensionResourceLoaderService extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@INotificationService notificationService: INotificationService,
-		@ILogService logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
-		@IProgressService progressService: IProgressService
-	) {
-		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService, progressService);
-	}
-
 	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
 		const response = await fetch(FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm', require).toString(true));
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.

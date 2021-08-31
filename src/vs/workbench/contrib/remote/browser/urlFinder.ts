@@ -33,13 +33,13 @@ export class UrlFinder extends Disposable {
 	constructor(terminalService: ITerminalService, debugService: IDebugService) {
 		super();
 		// Terminal
-		terminalService.terminalInstances.forEach(instance => {
+		terminalService.instances.forEach(instance => {
 			this.registerTerminalInstance(instance);
 		});
-		this._register(terminalService.onInstanceCreated(instance => {
+		this._register(terminalService.onDidCreateInstance(instance => {
 			this.registerTerminalInstance(instance);
 		}));
-		this._register(terminalService.onInstanceDisposed(instance => {
+		this._register(terminalService.onDidDisposeInstance(instance => {
 			this.listeners.get(instance)?.dispose();
 			this.listeners.delete(instance);
 		}));
@@ -89,7 +89,7 @@ export class UrlFinder extends Disposable {
 		}
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		const listeners = this.listeners.values();
 		for (const listener of listeners) {
@@ -104,7 +104,12 @@ export class UrlFinder extends Disposable {
 		if (urlMatches && urlMatches.length > 0) {
 			urlMatches.forEach((match) => {
 				// check if valid url
-				const serverUrl = new URL(match);
+				let serverUrl;
+				try {
+					serverUrl = new URL(match);
+				} catch (e) {
+					// Not a valid URL
+				}
 				if (serverUrl) {
 					// check if the port is a valid integer value
 					const portMatch = match.match(UrlFinder.extractPortRegex);

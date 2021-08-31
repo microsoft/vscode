@@ -16,6 +16,7 @@ import { TaskQuickPick, TaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isString } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -28,7 +29,8 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		@ITaskService private taskService: ITaskService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickInputService private quickInputService: IQuickInputService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IDialogService private dialogService: IDialogService
 	) {
 		super(TasksQuickAccessProvider.PREFIX, {
 			noResultsPick: {
@@ -39,7 +41,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		this.activationPromise = extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask');
 	}
 
-	protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
+	protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
 		// always await extensions
 		await this.activationPromise;
 
@@ -47,7 +49,7 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			return [];
 		}
 
-		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService);
+		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService, this.dialogService);
 		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
@@ -64,13 +66,21 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
 			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
 			quickAccessEntry.highlights = { label: highlights };
-			quickAccessEntry.trigger = () => {
-				if (ContributedTask.is(task)) {
-					this.taskService.customize(task, undefined, true);
-				} else if (CustomTask.is(task)) {
-					this.taskService.openConfig(task);
+			quickAccessEntry.trigger = (index) => {
+				if ((index === 1) && (quickAccessEntry.buttons?.length === 2)) {
+					const key = (task && !isString(task)) ? task.getRecentlyUsedKey() : undefined;
+					if (key) {
+						this.taskService.removeRecentlyUsedTask(key);
+					}
+					return TriggerAction.REFRESH_PICKER;
+				} else {
+					if (ContributedTask.is(task)) {
+						this.taskService.customize(task, undefined, true);
+					} else if (CustomTask.is(task)) {
+						this.taskService.openConfig(task);
+					}
+					return TriggerAction.CLOSE_PICKER;
 				}
-				return TriggerAction.CLOSE_PICKER;
 			};
 			quickAccessEntry.accept = async () => {
 				if (isString(task)) {

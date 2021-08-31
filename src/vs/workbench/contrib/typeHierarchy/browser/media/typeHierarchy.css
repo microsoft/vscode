@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .type-hierarchy .results,
+.monaco-workbench .type-hierarchy .message {
+	display: none;
+}
+
+.monaco-workbench .type-hierarchy[data-state="data"] .results {
+	display: inherit;
+	height: 100%;
+}
+
+.monaco-workbench .type-hierarchy[data-state="message"] .message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+}
+
+.monaco-workbench .type-hierarchy .editor,
+.monaco-workbench .type-hierarchy .tree {
+	height: 100%;
+}
+
+.monaco-workbench .type-hierarchy .tree .typehierarchy-element {
+	display: flex;
+	flex: 1;
+	flex-flow: row nowrap;
+	align-items: center;
+}
+
+.monaco-workbench .type-hierarchy .tree .typehierarchy-element .monaco-icon-label {
+	padding-left: 4px;
+}

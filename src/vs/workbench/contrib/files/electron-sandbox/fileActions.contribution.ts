@@ -8,7 +8,6 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -22,11 +21,11 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ContextKeyOrExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
-const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyOrExpr.create([ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.userData)]);
+const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.userData));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
@@ -38,7 +37,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
+		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
 
@@ -54,7 +53,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { filterByScheme: Schemas.file, supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
-		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
+		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
 

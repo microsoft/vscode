@@ -12,7 +12,6 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
-
 export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
@@ -206,12 +205,13 @@ class Preview extends Disposable {
 	private async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
-			isMac: process.platform === 'darwin',
+			isMac: isMac(),
 			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
 		};
 
-		const nonce = Date.now().toString();
+		const nonce = getNonce();
 
+		const cspSource = this.webviewEditor.webview.cspSource;
 		return /* html */`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -225,7 +225,7 @@ class Preview extends Disposable {
 
 	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('/media/main.css'))}" type="text/css" media="screen" nonce="${nonce}">
 
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' data: ${this.webviewEditor.webview.cspSource}; script-src 'nonce-${nonce}'; style-src 'self' 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="image-preview-settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
 <body class="container image scale-to-fit loading">
@@ -261,6 +261,24 @@ class Preview extends Disposable {
 	}
 }
 
+declare const process: undefined | { readonly platform: string };
+
+function isMac(): boolean {
+	if (typeof process === 'undefined') {
+		return false;
+	}
+	return process.platform === 'darwin';
+}
+
 function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
+}
+
+function getNonce() {
+	let text = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 64; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
 }

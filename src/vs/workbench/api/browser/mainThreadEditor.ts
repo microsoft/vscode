@@ -79,7 +79,6 @@ export class MainThreadTextEditorProperties {
 		return {
 			insertSpaces: modelOptions.insertSpaces,
 			tabSize: modelOptions.tabSize,
-			indentSize: modelOptions.indentSize,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};
@@ -146,7 +145,6 @@ export class MainThreadTextEditorProperties {
 		}
 		return (
 			a.tabSize === b.tabSize
-			&& a.indentSize === b.indentSize
 			&& a.insertSpaces === b.insertSpaces
 			&& a.cursorStyle === b.cursorStyle
 			&& a.lineNumbers === b.lineNumbers
@@ -377,13 +375,6 @@ export class MainThreadTextEditor {
 		if (typeof newConfiguration.tabSize !== 'undefined') {
 			newOpts.tabSize = newConfiguration.tabSize;
 		}
-		if (typeof newConfiguration.indentSize !== 'undefined') {
-			if (newConfiguration.indentSize === 'tabSize') {
-				newOpts.indentSize = newOpts.tabSize || creationOpts.tabSize;
-			} else {
-				newOpts.indentSize = newConfiguration.indentSize;
-			}
-		}
 		this._model.updateOptions(newOpts);
 	}
 
@@ -423,7 +414,7 @@ export class MainThreadTextEditor {
 		if (!this._codeEditor) {
 			return;
 		}
-		this._codeEditor.setDecorations(key, ranges);
+		this._codeEditor.setDecorations('exthost-api', key, ranges);
 	}
 
 	public setDecorationsFast(key: string, _ranges: number[]): void {
@@ -527,7 +518,7 @@ export class MainThreadTextEditor {
 
 		const snippetController = SnippetController2.get(this._codeEditor);
 
-		// // cancel previous snippet mode
+		// cancel previous snippet mode
 		// snippetController.leaveSnippet();
 
 		// set selection, focus editor

@@ -3,23 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService,
-	USER_DATA_SYNC_SCHEME, ISyncResourceHandle, IRemoteUserData, ISyncData, Change
-} from 'vs/platform/userDataSync/common/userDataSync';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService, IFileStat, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { merge, IMergeResult as ISnippetsMergeResult, areSame } from 'vs/platform/userDataSync/common/snippetsMerge';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { deepClone } from 'vs/base/common/objects';
+import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
+import { deepClone } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { areSame, IMergeResult as ISnippetsMergeResult, merge } from 'vs/platform/userDataSync/common/snippetsMerge';
+import { Change, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISnippetsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
@@ -52,10 +49,13 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.affects(this.snippetsFolder))(() => this.triggerLocalChange()));
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISnippetsResourcePreview[]> {
+	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<ISnippetsResourcePreview[]> {
 		const local = await this.getSnippetsFileContents();
 		const localSnippets = this.toSnippetsContents(local);
 		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? this.parseSnippets(remoteUserData.syncData) : null;
+
+		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
+		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const lastSyncSnippets: IStringDictionary<string> | null = lastSyncUserData && lastSyncUserData.syncData ? this.parseSnippets(lastSyncUserData.syncData) : null;
 
 		if (remoteSnippets) {
@@ -355,7 +355,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		return [];
 	}
 
-	async resolveContent(uri: URI): Promise<string | null> {
+	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }))
 			|| this.extUri.isEqualOrParent(uri, this.syncPreviewFolder.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' }))) {

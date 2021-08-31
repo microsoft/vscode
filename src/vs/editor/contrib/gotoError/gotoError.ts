@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMarker } from 'vs/platform/markers/common/markers';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, EditorCommand, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MarkerNavigationWidget } from './gotoErrorWidget';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { Codicon } from 'vs/base/common/codicons';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkerNavigationService, MarkerList } from 'vs/editor/contrib/gotoError/markerNavigationService';
+import * as nls from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IMarker } from 'vs/platform/markers/common/markers';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { MarkerNavigationWidget } from './gotoErrorWidget';
 
 export class MarkerController implements IEditorContribution {
 
@@ -200,7 +200,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 			menuOpts: {
 				menuId: MarkerNavigationWidget.TitleMenu,
 				title: NextMarkerAction.LABEL,
-				icon: registerIcon('marker-navigation-next', Codicon.chevronDown, nls.localize('nextMarkerIcon', 'Icon for goto next marker.')),
+				icon: registerIcon('marker-navigation-next', Codicon.arrowDown, nls.localize('nextMarkerIcon', 'Icon for goto next marker.')),
 				group: 'navigation',
 				order: 1
 			}
@@ -225,7 +225,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			menuOpts: {
 				menuId: MarkerNavigationWidget.TitleMenu,
 				title: NextMarkerAction.LABEL,
-				icon: registerIcon('marker-navigation-previous', Codicon.chevronUp, nls.localize('previousMarkerIcon', 'Icon for goto previous marker.')),
+				icon: registerIcon('marker-navigation-previous', Codicon.arrowUp, nls.localize('previousMarkerIcon', 'Icon for goto previous marker.')),
 				group: 'navigation',
 				order: 2
 			}

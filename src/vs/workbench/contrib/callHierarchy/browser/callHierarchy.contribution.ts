@@ -26,9 +26,9 @@ import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false);
-const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false);
-const _ctxCallHierarchyDirection = new RawContextKey<string>('callHierarchyDirection', undefined);
+const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false, localize('editorHasCallHierarchyProvider', 'Whether a call hierarchy provider is available'));
+const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false, localize('callHierarchyVisible', 'Whether call hierarchy peek is currently showing'));
+const _ctxCallHierarchyDirection = new RawContextKey<string>('callHierarchyDirection', undefined, { type: 'string', description: localize('callHierarchyDirection', 'Whether call hierarchy shows incoming or outgoing calls') });
 
 function sanitizedDirection(candidate: string): CallHierarchyDirection {
 	return candidate === CallHierarchyDirection.CallsFrom || candidate === CallHierarchyDirection.CallsTo

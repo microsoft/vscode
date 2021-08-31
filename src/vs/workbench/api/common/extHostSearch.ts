@@ -105,11 +105,13 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 
+	$enableExtensionHostSearch(): void { }
+
 	protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
 		return new TextSearchManager(query, provider, {
 			readdir: resource => Promise.resolve([]), // TODO@rob implement
 			toCanonicalName: encoding => encoding
-		});
+		}, 'textSearchProvider');
 	}
 }
 

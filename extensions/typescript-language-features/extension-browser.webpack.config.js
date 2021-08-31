@@ -7,10 +7,11 @@
 
 'use strict';
 const CopyPlugin = require('copy-webpack-plugin');
-const { lchmod } = require('graceful-fs');
 const Terser = require('terser');
 
-const withBrowserDefaults = require('../shared.webpack.config').browser;
+const defaultConfig = require('../shared.webpack.config');
+const withBrowserDefaults = defaultConfig.browser;
+const browserPlugins = defaultConfig.browserPlugins;
 
 const languages = [
 	'zh-tw',
@@ -34,23 +35,25 @@ module.exports = withBrowserDefaults({
 		extension: './src/extension.browser.ts',
 	},
 	plugins: [
+		...browserPlugins, // add plugins, don't replace inherited
+
 		// @ts-ignore
 		new CopyPlugin({
 			patterns: [
 				{
-					from: 'node_modules/typescript-web/lib/*.d.ts',
-					to: 'typescript-web/',
+					from: '../node_modules/typescript/lib/*.d.ts',
+					to: 'typescript/',
 					flatten: true
 				},
 				{
-					from: 'node_modules/typescript-web/lib/typesMap.json',
-					to: 'typescript-web/'
+					from: '../node_modules/typescript/lib/typesMap.json',
+					to: 'typescript/'
 				},
 				...languages.map(lang => ({
-					from: `node_modules/typescript-web/lib/${lang}/**/*`,
-					to: 'typescript-web/',
+					from: `../node_modules/typescript/lib/${lang}/**/*`,
+					to: 'typescript/',
 					transformPath: (targetPath) => {
-						return targetPath.replace(/node_modules[\/\\]typescript-web[\/\\]lib/, '');
+						return targetPath.replace(/\.\.[\/\\]node_modules[\/\\]typescript[\/\\]lib/, '');
 					}
 				}))
 			],
@@ -59,10 +62,10 @@ module.exports = withBrowserDefaults({
 		new CopyPlugin({
 			patterns: [
 				{
-					from: 'node_modules/typescript-web/lib/tsserver.js',
-					to: 'typescript-web/tsserver.web.js',
+					from: '../node_modules/typescript/lib/tsserver.js',
+					to: 'typescript/tsserver.web.js',
 					transform: (content) => {
-						return Terser.minify(content.toString()).code;
+						return Terser.minify(content.toString()).then(output => output.code);
 
 					},
 					transformPath: (targetPath) => {

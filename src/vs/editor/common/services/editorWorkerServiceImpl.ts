@@ -77,7 +77,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 	}
 
@@ -225,7 +225,7 @@ class WorkerManager extends Disposable {
 		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._editorWorkerClient) {
 			this._editorWorkerClient.dispose();
 			this._editorWorkerClient = null;
@@ -292,7 +292,7 @@ class EditorModelManager extends Disposable {
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		for (let modelUrl in this._syncedModels) {
 			dispose(this._syncedModels[modelUrl]);
 		}
@@ -388,11 +388,15 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 	}
 }
 
+export interface IEditorWorkerClient {
+	fhr(method: string, args: any[]): Promise<any>;
+}
+
 export class EditorWorkerHost {
 
-	private readonly _workerClient: EditorWorkerClient;
+	private readonly _workerClient: IEditorWorkerClient;
 
-	constructor(workerClient: EditorWorkerClient) {
+	constructor(workerClient: IEditorWorkerClient) {
 		this._workerClient = workerClient;
 	}
 
@@ -402,12 +406,12 @@ export class EditorWorkerHost {
 	}
 }
 
-export class EditorWorkerClient extends Disposable {
+export class EditorWorkerClient extends Disposable implements IEditorWorkerClient {
 
 	private readonly _modelService: IModelService;
 	private readonly _keepIdleModels: boolean;
-	private _worker: IWorkerClient<EditorSimpleWorker> | null;
-	private readonly _workerFactory: DefaultWorkerFactory;
+	protected _worker: IWorkerClient<EditorSimpleWorker> | null;
+	protected readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: EditorModelManager | null;
 	private _disposed = false;
 
@@ -523,7 +527,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._disposed = true;
 	}

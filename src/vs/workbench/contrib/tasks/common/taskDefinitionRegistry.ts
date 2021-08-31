@@ -14,6 +14,7 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/serv
 import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Emitter, Event } from 'vs/base/common/event';
 
 
 const taskDefinitionSchema: IJSONSchema = {
@@ -95,6 +96,7 @@ export interface ITaskDefinitionRegistry {
 	get(key: string): Tasks.TaskDefinition;
 	all(): Tasks.TaskDefinition[];
 	getJsonSchema(): IJSONSchema;
+	onDefinitionsChanged: Event<void>;
 }
 
 class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
@@ -102,6 +104,8 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
 	private readyPromise: Promise<void>;
 	private _schema: IJSONSchema | undefined;
+	private _onDefinitionsChanged: Emitter<void> = new Emitter();
+	public onDefinitionsChanged: Event<void> = this._onDefinitionsChanged.event;
 
 	constructor() {
 		this.taskTypes = Object.create(null);
@@ -124,6 +128,9 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 								this.taskTypes[type.taskType] = type;
 							}
 						}
+					}
+					if ((delta.removed.length > 0) || (delta.added.length > 0)) {
+						this._onDefinitionsChanged.fire();
 					}
 				} catch (error) {
 				}

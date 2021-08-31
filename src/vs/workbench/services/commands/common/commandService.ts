@@ -70,7 +70,7 @@ export class CommandService extends Disposable implements ICommandService {
 					]),
 				]);
 			}
-			return (waitFor as Promise<any>).then(_ => this._tryExecuteCommand(id, args));
+			return waitFor.then(_ => this._tryExecuteCommand(id, args));
 		}
 	}
 

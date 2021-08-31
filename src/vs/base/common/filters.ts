@@ -357,37 +357,23 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 }
 
 /**
- * Match pattern againt word in a fuzzy way. As in IntelliSense and faster and more
- * powerfull than `matchesFuzzy`
+ * Match pattern against word in a fuzzy way. As in IntelliSense and faster and more
+ * powerful than `matchesFuzzy`
  */
 export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
 	const score = fuzzyScore(pattern, pattern.toLowerCase(), 0, word, word.toLowerCase(), 0, true);
 	return score ? createMatches(score) : null;
 }
 
-export function anyScore(pattern: string, lowPattern: string, _patternPos: number, word: string, lowWord: string, _wordPos: number): FuzzyScore {
-	const result = fuzzyScore(pattern, lowPattern, 0, word, lowWord, 0, true);
-	if (result) {
-		return result;
-	}
-	let matches = 0;
-	let score = 0;
-	let idx = _wordPos;
-	for (let patternPos = 0; patternPos < lowPattern.length && patternPos < _maxLen; ++patternPos) {
-		const wordPos = lowWord.indexOf(lowPattern.charAt(patternPos), idx);
-		if (wordPos >= 0) {
-			score += 1;
-			matches += 2 ** wordPos;
-			idx = wordPos + 1;
-
-		} else if (matches !== 0) {
-			// once we have started matching things
-			// we need to match the remaining pattern
-			// characters
-			break;
+export function anyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number): FuzzyScore {
+	const max = Math.min(13, pattern.length);
+	for (; patternPos < max; patternPos++) {
+		const result = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, false);
+		if (result) {
+			return result;
 		}
 	}
-	return [score, _wordPos, matches];
+	return [0, wordPos];
 }
 
 //#region --- fuzzyScore ---
@@ -532,15 +518,15 @@ export function isPatternInWord(patternLow: string, patternPos: number, patternL
 const enum Arrow { Diag = 1, Left = 2, LeftLeft = 3 }
 
 /**
- * An array representating a fuzzy match.
+ * An array representing a fuzzy match.
  *
  * 0. the score
  * 1. the offset at which matching started
- * 2. `<match_pos_1>`
- * 3. `<match_pos_2>`
- * 4. `<match_pos_3>` etc
+ * 2. `<match_pos_N>`
+ * 3. `<match_pos_1>`
+ * 4. `<match_pos_0>` etc
  */
-export type FuzzyScore = [score: number, wordStart: number, ...matches: number[]];// [number, number, number];
+export type FuzzyScore = [score: number, wordStart: number, ...matches: number[]];
 
 export namespace FuzzyScore {
 	/**
@@ -548,8 +534,8 @@ export namespace FuzzyScore {
 	 */
 	export const Default: FuzzyScore = ([-100, 0]);
 
-	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
-		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);
+	export function isDefault(score?: FuzzyScore): score is [-100, 0] {
+		return !score || (score.length === 2 && score[0] === -100 && score[1] === 0);
 	}
 }
 
@@ -776,7 +762,7 @@ function _doScore(
 			// this would be the beginning of a new match (i.e. there would be a gap before this location)
 			score += isGapLocation ? 2 : 0;
 		} else {
-			// this is part of a contiguous match, so give it a slight bonus, but do so only if it would not be a prefered gap location
+			// this is part of a contiguous match, so give it a slight bonus, but do so only if it would not be a preferred gap location
 			score += isGapLocation ? 0 : 1;
 		}
 	}

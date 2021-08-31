@@ -1,0 +1,43 @@
+{
+  "name": "r",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin Ikuyadeu/vscode-R syntax/r.json ./syntaxes/r.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "r",
+        "extensions": [
+          ".r",
+          ".rhistory",
+          ".rprofile",
+          ".rt"
+        ],
+        "aliases": [
+          "R",
+          "r"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "r",
+        "scopeName": "source.r",
+        "path": "./syntaxes/r.tmLanguage.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

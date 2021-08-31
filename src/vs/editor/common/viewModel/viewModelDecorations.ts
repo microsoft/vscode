@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
@@ -81,11 +81,13 @@ export class ViewModelDecorations implements IDisposable {
 			const options = modelDecoration.options;
 			let viewRange: Range;
 			if (options.isWholeLine) {
-				const start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1));
-				const end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)));
+				const start = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.startLineNumber, 1), PositionAffinity.Left);
+				const end = this._coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.endLineNumber, this.model.getLineMaxColumn(modelRange.endLineNumber)), PositionAffinity.Right);
 				viewRange = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 			} else {
-				viewRange = this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
+				// For backwards compatibility reasons, we want injected text before any decoration.
+				// Thus, move decorations to the right.
+				viewRange = this._coordinatesConverter.convertModelRangeToViewRange(modelRange, PositionAffinity.Right);
 			}
 			r = new ViewModelDecoration(viewRange, options);
 			this._decorationsCache[id] = r;

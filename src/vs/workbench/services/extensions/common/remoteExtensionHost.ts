@@ -52,6 +52,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.Remote;
 	public readonly remoteAuthority: string;
+	public readonly lazyStart = false;
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
@@ -81,7 +82,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		this._hasLostConnection = false;
 		this._terminating = false;
 
-		this._register(this._lifecycleService.onShutdown(reason => this.dispose()));
+		this._register(this._lifecycleService.onDidShutdown(() => this.dispose()));
 
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -230,14 +231,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				isExtensionDevelopmentDebug,
 				appRoot: remoteInitData.appRoot,
 				appName: this._productService.nameLong,
+				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
-				workspaceStorageHome: remoteInitData.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
+				workspaceStorageHome: remoteInitData.workspaceStorageHome
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,
@@ -269,7 +269,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		return Promise.resolve(false);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this._terminating = true;

@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { isFirefox } from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Command, EditorCommand, ICommandOptions, registerEditorCommand, MultiCommand, UndoCommand, RedoCommand, SelectAllCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -235,7 +236,7 @@ export namespace RevealLine_ {
 				name: 'Reveal line argument object',
 				description: `Property-value pairs that can be passed through this argument:
 					* 'lineNumber': A mandatory line number value.
-					* 'at': Logical position at which line has to be revealed .
+					* 'at': Logical position at which line has to be revealed.
 						\`\`\`
 						'top', 'center', 'bottom'
 						\`\`\`
@@ -280,7 +281,7 @@ abstract class EditorOrNativeTextInputCommand {
 
 	constructor(target: MultiCommand) {
 		// 1. handle case when focus is in editor.
-		target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 			// Only if editor text focus (i.e. not if editor has widget focus).
 			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 			if (focusedEditor && focusedEditor.hasTextFocus()) {
@@ -290,7 +291,7 @@ abstract class EditorOrNativeTextInputCommand {
 		});
 
 		// 2. handle case when focus is in some other `input` / `textarea`.
-		target.addImplementation(1000, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(1000, 'generic-dom-input-textarea', (accessor: ServicesAccessor, args: any) => {
 			// Only if focused on an element that allows for entering text
 			const activeElement = <HTMLElement>document.activeElement;
 			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
@@ -301,7 +302,7 @@ abstract class EditorOrNativeTextInputCommand {
 		});
 
 		// 3. (default) handle case when focus is somewhere else.
-		target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+		target.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
 			// Redirecting to active editor
 			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 			if (activeEditor) {
@@ -554,6 +555,8 @@ export namespace CoreNavigationCommands {
 				case CursorMove_.Direction.Right:
 				case CursorMove_.Direction.Up:
 				case CursorMove_.Direction.Down:
+				case CursorMove_.Direction.PrevBlankLine:
+				case CursorMove_.Direction.NextBlankLine:
 				case CursorMove_.Direction.WrappedLineStart:
 				case CursorMove_.Direction.WrappedLineFirstNonWhitespaceCharacter:
 				case CursorMove_.Direction.WrappedLineColumnCenter:
@@ -1591,6 +1594,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			viewModel.revealPrimaryCursor(args.source, true);
+			status(nls.localize('removedCursor', "Removed secondary cursors"));
 		}
 	});
 
@@ -1818,7 +1822,7 @@ export namespace CoreEditingCommands {
 		}
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection));
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(viewModel.getPrevEditOperationType(), viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection), viewModel.getCursorAutoClosedCharacters());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
@@ -1929,6 +1933,7 @@ registerOverwritableCommand(Handler.Type, {
 	}]
 });
 registerOverwritableCommand(Handler.ReplacePreviousChar);
+registerOverwritableCommand(Handler.CompositionType);
 registerOverwritableCommand(Handler.CompositionStart);
 registerOverwritableCommand(Handler.CompositionEnd);
 registerOverwritableCommand(Handler.Paste);

@@ -27,17 +27,6 @@
 	margin-left: 0;
 }
 
-/* TODO @misolori make this a color token */
-.extension-ratings .codicon-extensions-star-full,
-.extension-ratings .codicon-extensions-star-half {
-	color: #FF8E00 !important;
-}
-
-.extension-install-count .codicon,
-.extension-action.codicon-extensions-manage {
-	color: inherit;
-}
-
 .extension-ratings .codicon-extensions-star-empty {
 	opacity: .4;
 }

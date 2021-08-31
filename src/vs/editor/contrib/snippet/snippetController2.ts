@@ -14,11 +14,12 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
+import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
+import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -42,15 +43,15 @@ const _defaultOptions: ISnippetInsertOptions = {
 
 export class SnippetController2 implements IEditorContribution {
 
-	public static ID = 'snippetController2';
+	public static readonly ID = 'snippetController2';
 
 	static get(editor: ICodeEditor): SnippetController2 {
 		return editor.getContribution<SnippetController2>(SnippetController2.ID);
 	}
 
-	static readonly InSnippetMode = new RawContextKey('inSnippetMode', false);
-	static readonly HasNextTabstop = new RawContextKey('hasNextTabstop', false);
-	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false);
+	static readonly InSnippetMode = new RawContextKey('inSnippetMode', false, localize('inSnippetMode', "Whether the editor in current in snippet mode"));
+	static readonly HasNextTabstop = new RawContextKey('hasNextTabstop', false, localize('hasNextTabstop', "Whether there is a next tab stop when in snippet mode"));
+	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false, localize('hasPrevTabstop', "Whether there is a previous tab stop when in snippet mode"));
 
 	private readonly _inSnippet: IContextKey<boolean>;
 	private readonly _hasNextTabstop: IContextKey<boolean>;

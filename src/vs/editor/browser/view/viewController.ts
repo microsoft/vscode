@@ -37,7 +37,7 @@ export interface IMouseDispatchData {
 export interface ICommandDelegate {
 	paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
 	type(text: string): void;
-	replacePreviousChar(text: string, replaceCharCnt: number): void;
+	compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void;
 	startComposition(): void;
 	endComposition(): void;
 	cut(): void;
@@ -70,8 +70,8 @@ export class ViewController {
 		this.commandDelegate.type(text);
 	}
 
-	public replacePreviousChar(text: string, replaceCharCnt: number): void {
-		this.commandDelegate.replacePreviousChar(text, replaceCharCnt);
+	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
+		this.commandDelegate.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 	}
 
 	public compositionStart(): void {

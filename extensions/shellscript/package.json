@@ -1,0 +1,92 @@
+{
+  "name": "shellscript",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-shellscript grammars/shell-unix-bash.cson ./syntaxes/shell-unix-bash.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "shellscript",
+        "aliases": [
+          "Shell Script",
+          "shellscript",
+          "bash",
+          "sh",
+          "zsh",
+          "ksh",
+          "csh"
+        ],
+        "extensions": [
+          ".sh",
+          ".bash",
+          ".bashrc",
+          ".bash_aliases",
+          ".bash_profile",
+          ".bash_login",
+          ".ebuild",
+          ".profile",
+          ".bash_logout",
+          ".xprofile",
+          ".xsession",
+          ".xsessionrc",
+          ".Xsession",
+          ".zsh",
+          ".zshrc",
+          ".zprofile",
+          ".zlogin",
+          ".zlogout",
+          ".zshenv",
+          ".zsh-theme",
+          ".ksh",
+          ".csh",
+          ".cshrc",
+          ".tcshrc",
+          ".yashrc",
+          ".yash_profile"
+        ],
+        "filenames": [
+          "APKBUILD",
+          "PKGBUILD",
+          ".envrc",
+          ".hushlogin",
+          "zshrc",
+          "zshenv",
+          "zlogin",
+          "zprofile",
+          "zlogout",
+          "bashrc_Apple_Terminal",
+          "zshrc_Apple_Terminal"
+        ],
+        "firstLine": "^#!.*\\b(bash|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+        "configuration": "./language-configuration.json",
+        "mimetypes": [
+          "text/x-shellscript"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "shellscript",
+        "scopeName": "source.shell",
+        "path": "./syntaxes/shell-unix-bash.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[shellscript]": {
+        "files.eol": "\n"
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

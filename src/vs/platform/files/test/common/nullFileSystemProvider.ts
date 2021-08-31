@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { FileSystemProviderCapabilities, IFileSystemProvider, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileChange } from 'vs/platform/files/common/files';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 export class NullFileSystemProvider implements IFileSystemProvider {
 
@@ -15,15 +15,20 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	private readonly _onDidChangeCapabilities = new Emitter<void>();
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
 
+	private readonly _onDidChangeFile = new Emitter<readonly IFileChange[]>();
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
+
+	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
+
+	emitFileChangeEvents(changes: IFileChange[]): void {
+		this._onDidChangeFile.fire(changes);
+	}
+
 	setCapabilities(capabilities: FileSystemProviderCapabilities): void {
 		this.capabilities = capabilities;
 
 		this._onDidChangeCapabilities.fire();
 	}
-
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
-
-	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
 	async stat(resource: URI): Promise<IStat> { return undefined!; }

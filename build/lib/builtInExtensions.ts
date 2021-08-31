@@ -17,7 +17,7 @@ import { Stream } from 'stream';
 
 const mkdirp = require('mkdirp');
 
-interface IExtensionDefinition {
+export interface IExtensionDefinition {
 	name: string;
 	version: string;
 	repo: string;
@@ -36,8 +36,8 @@ interface IExtensionDefinition {
 
 const root = path.dirname(path.dirname(__dirname));
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions;
-const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions;
+const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
+const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 

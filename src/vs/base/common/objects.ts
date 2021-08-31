@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
+import { isArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
@@ -225,4 +225,14 @@ export function getCaseInsensitive(target: obj, key: string): any {
 	const lowercaseKey = key.toLowerCase();
 	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
 	return equivalentKey ? target[equivalentKey] : target[key];
+}
+
+export function filter(obj: obj, predicate: (key: string, value: any) => boolean): obj {
+	const result = Object.create(null);
+	for (const key of Object.keys(obj)) {
+		if (predicate(key, obj[key])) {
+			result[key] = obj[key];
+		}
+	}
+	return result;
 }

@@ -6,8 +6,8 @@
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Gesture } from 'vs/base/browser/touch';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export abstract class Widget extends Disposable {
 

@@ -8,61 +8,61 @@ import { parseLinkedText } from 'vs/base/common/linkedText';
 
 suite('LinkedText', () => {
 	test('parses correctly', () => {
-		assert.deepEqual(parseLinkedText('').nodes, []);
-		assert.deepEqual(parseLinkedText('hello').nodes, ['hello']);
-		assert.deepEqual(parseLinkedText('hello there').nodes, ['hello there']);
-		assert.deepEqual(parseLinkedText('Some message with [link text](http://link.href).').nodes, [
+		assert.deepStrictEqual(parseLinkedText('').nodes, []);
+		assert.deepStrictEqual(parseLinkedText('hello').nodes, ['hello']);
+		assert.deepStrictEqual(parseLinkedText('hello there').nodes, ['hello there']);
+		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href).').nodes, [
 			'Some message with ',
 			{ label: 'link text', href: 'http://link.href' },
 			'.'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [link text](http://link.href "and a title").').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href "and a title").').nodes, [
 			'Some message with ',
 			{ label: 'link text', href: 'http://link.href', title: 'and a title' },
 			'.'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [link text](http://link.href \'and a title\').').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href \'and a title\').').nodes, [
 			'Some message with ',
 			{ label: 'link text', href: 'http://link.href', title: 'and a title' },
 			'.'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [link text](http://link.href "and a \'title\'").').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href "and a \'title\'").').nodes, [
 			'Some message with ',
 			{ label: 'link text', href: 'http://link.href', title: 'and a \'title\'' },
 			'.'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [link text](http://link.href \'and a "title"\').').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [link text](http://link.href \'and a "title"\').').nodes, [
 			'Some message with ',
 			{ label: 'link text', href: 'http://link.href', title: 'and a "title"' },
 			'.'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [link text](random stuff).').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [link text](random stuff).').nodes, [
 			'Some message with [link text](random stuff).'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [https link](https://link.href).').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [https link](https://link.href).').nodes, [
 			'Some message with ',
 			{ label: 'https link', href: 'https://link.href' },
 			'.'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [https link](https:).').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [https link](https:).').nodes, [
 			'Some message with [https link](https:).'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [a command](command:foobar).').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [a command](command:foobar).').nodes, [
 			'Some message with ',
 			{ label: 'a command', href: 'command:foobar' },
 			'.'
 		]);
-		assert.deepEqual(parseLinkedText('Some message with [a command](command:).').nodes, [
+		assert.deepStrictEqual(parseLinkedText('Some message with [a command](command:).').nodes, [
 			'Some message with [a command](command:).'
 		]);
-		assert.deepEqual(parseLinkedText('link [one](command:foo "nice") and link [two](http://foo)...').nodes, [
+		assert.deepStrictEqual(parseLinkedText('link [one](command:foo "nice") and link [two](http://foo)...').nodes, [
 			'link ',
 			{ label: 'one', href: 'command:foo', title: 'nice' },
 			' and link ',
 			{ label: 'two', href: 'http://foo' },
 			'...'
 		]);
-		assert.deepEqual(parseLinkedText('link\n[one](command:foo "nice")\nand link [two](http://foo)...').nodes, [
+		assert.deepStrictEqual(parseLinkedText('link\n[one](command:foo "nice")\nand link [two](http://foo)...').nodes, [
 			'link\n',
 			{ label: 'one', href: 'command:foo', title: 'nice' },
 			'\nand link ',

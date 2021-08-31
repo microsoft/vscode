@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as crypto from 'crypto';
-import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-browser/workspaceTags';
+import { getHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/electron-sandbox/workspaceTags';
 
 function hash(value: string): string {
 	return crypto.createHash('sha1').update(value.toString()).digest('hex');

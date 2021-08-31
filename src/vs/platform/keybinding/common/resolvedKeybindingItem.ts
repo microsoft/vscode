@@ -8,7 +8,7 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class ResolvedKeybindingItem {
-	_resolvedKeybindingItemBrand: void;
+	_resolvedKeybindingItemBrand: void = undefined;
 
 	public readonly resolvedKeybinding: ResolvedKeybinding | undefined;
 	public readonly keypressParts: string[];
@@ -23,6 +23,10 @@ export class ResolvedKeybindingItem {
 	constructor(resolvedKeybinding: ResolvedKeybinding | undefined, command: string | null, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean, extensionId: string | null, isBuiltinExtension: boolean) {
 		this.resolvedKeybinding = resolvedKeybinding;
 		this.keypressParts = resolvedKeybinding ? removeElementsAfterNulls(resolvedKeybinding.getDispatchParts()) : [];
+		if (resolvedKeybinding && this.keypressParts.length === 0) {
+			// handle possible single modifier chord keybindings
+			this.keypressParts = removeElementsAfterNulls(resolvedKeybinding.getSingleModifierDispatchParts());
+		}
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command!.substr(1) : command;
 		this.commandArgs = commandArgs;

@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { UriComponents } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 
 export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
@@ -19,21 +16,28 @@ export interface WebviewWindowId {
 	readonly windowId: number;
 }
 
+export interface FindInFrameOptions {
+	forward?: boolean;
+	findNext?: boolean;
+	matchCase?: boolean;
+}
+
+export interface FoundInFrameResult {
+	requestId: number;
+	activeMatchOrdinal: number;
+	matches: number;
+	selectionArea: any;
+	finalUpdate: boolean;
+}
+
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
-	registerWebview(id: string, windowId: number, metadata: RegisterWebviewMetadata): Promise<void>;
-	unregisterWebview(id: string): Promise<void>;
-	updateWebviewMetadata(id: string, metadataDelta: Partial<RegisterWebviewMetadata>): Promise<void>;
-
-	didLoadResource(requestId: number, content: VSBuffer | undefined): void;
+	onFoundInFrame: Event<FoundInFrameResult>;
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
-}
 
-export interface RegisterWebviewMetadata {
-	readonly extensionLocation: UriComponents | undefined;
-	readonly localResourceRoots: readonly UriComponents[];
-	readonly remoteConnectionData: IRemoteConnectionData | null;
-	readonly portMappings: readonly IWebviewPortMapping[];
+	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
+
+	stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
 }

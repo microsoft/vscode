@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# This file establishes a basline for the reposuitory before any steps in the "prepare.sh"
+# This file establishes a basline for the repository before any steps in the "prepare.sh"
 # are run. Its just a find command that filters out a few things we don't need to watch.
 
 set -e
 
-SCRIPT_PATH="$(cd "$(dirname $0)" && pwd)"
+SCRIPT_PATH="$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)"
 SOURCE_FOLDER="${1:-"."}"
 
 cd "${SOURCE_FOLDER}"

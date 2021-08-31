@@ -8,6 +8,9 @@ import { IPath, win32, posix } from 'vs/base/common/path';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const IPathService = createDecorator<IPathService>('pathService');
@@ -69,11 +72,11 @@ export abstract class AbstractPathService implements IPathService {
 	private resolveUserHome: Promise<URI>;
 	private maybeUnresolvedUserHome: URI | undefined;
 
-	abstract readonly defaultUriScheme: string;
-
 	constructor(
 		private localUserHome: URI,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 
 		// OS
@@ -91,6 +94,33 @@ export abstract class AbstractPathService implements IPathService {
 
 			return userHome;
 		})();
+	}
+
+	get defaultUriScheme(): string {
+		return AbstractPathService.findDefaultUriScheme(this.environmentService, this.contextService);
+	}
+
+	protected static findDefaultUriScheme(environmentService: IWorkbenchEnvironmentService, contextService: IWorkspaceContextService): string {
+		if (environmentService.remoteAuthority) {
+			return Schemas.vscodeRemote;
+		}
+
+		const virtualWorkspace = getVirtualWorkspaceScheme(contextService.getWorkspace());
+		if (virtualWorkspace) {
+			return virtualWorkspace;
+		}
+
+		const firstFolder = contextService.getWorkspace().folders[0];
+		if (firstFolder) {
+			return firstFolder.uri.scheme;
+		}
+
+		const configuration = contextService.getWorkspace().configuration;
+		if (configuration) {
+			return configuration.scheme;
+		}
+
+		return Schemas.file;
 	}
 
 	async userHome(options?: { preferLocal: boolean }): Promise<URI> {

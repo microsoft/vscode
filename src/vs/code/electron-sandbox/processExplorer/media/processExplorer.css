@@ -49,6 +49,10 @@ body {
 	width: 90px;
 }
 
+.monaco-list:focus {
+	outline: 0;
+}
+
 .monaco-list-row:first-of-type {
 	border-bottom: 1px solid;
 }

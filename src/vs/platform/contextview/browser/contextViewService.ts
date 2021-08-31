@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextViewService, IContextViewDelegate } from './contextView';
 import { ContextView, ContextViewDOMPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IContextViewDelegate, IContextViewService } from './contextView';
 
 export class ContextViewService extends Disposable implements IContextViewService {
 	declare readonly _serviceBrand: undefined;
@@ -24,7 +24,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 		this.contextView = this._register(new ContextView(this.container, ContextViewDOMPosition.ABSOLUTE));
 		this.layout();
 
-		this._register(layoutService.onLayout(() => this.layout()));
+		this._register(layoutService.onDidLayout(() => this.layout()));
 	}
 
 	// ContextView

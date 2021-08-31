@@ -127,9 +127,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
-					this.openerService.open(content).catch(onUnexpectedError);
+					this.openerService.open(content, { allowCommands: node.element.comment.body.isTrusted }).catch(onUnexpectedError);
 				},
-				disposeables: disposables
+				disposables: disposables
 			}
 		});
 

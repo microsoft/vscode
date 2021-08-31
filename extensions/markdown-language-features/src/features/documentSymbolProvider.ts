@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider, SkinnyTextDocument, TocEntry } from '../tableOfContentsProvider';
+import { SkinnyTextDocument, TableOfContentsProvider, TocEntry } from '../tableOfContentsProvider';
 
 interface MarkdownSymbol {
 	readonly level: number;

@@ -120,7 +120,6 @@ export interface TaskSystemInfo {
 	context: any;
 	uriProvider: (this: void, path: string) => URI;
 	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables | undefined>;
-	getDefaultShellAndArgs(): Promise<{ shell: string, args: string[] | string | undefined }>;
 	findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
 }
 

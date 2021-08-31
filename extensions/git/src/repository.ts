@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
 import * as nls from 'vscode-nls';
-import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery } from './api/git';
+import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
@@ -55,13 +55,13 @@ export class Resource implements SourceControlResourceState {
 			case Status.UNTRACKED: return localize('untracked', "Untracked");
 			case Status.IGNORED: return localize('ignored', "Ignored");
 			case Status.INTENT_TO_ADD: return localize('intent to add', "Intent to Add");
-			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
-			case Status.ADDED_BY_US: return localize('added by us', "Added By Us");
-			case Status.DELETED_BY_THEM: return localize('deleted by them', "Deleted By Them");
-			case Status.ADDED_BY_THEM: return localize('added by them', "Added By Them");
-			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
-			case Status.BOTH_ADDED: return localize('both added', "Both Added");
-			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
+			case Status.BOTH_DELETED: return localize('both deleted', "Conflict: Both Deleted");
+			case Status.ADDED_BY_US: return localize('added by us', "Conflict: Added By Us");
+			case Status.DELETED_BY_THEM: return localize('deleted by them', "Conflict: Deleted By Them");
+			case Status.ADDED_BY_THEM: return localize('added by them', "Conflict: Added By Them");
+			case Status.DELETED_BY_US: return localize('deleted by us', "Conflict: Deleted By Us");
+			case Status.BOTH_ADDED: return localize('both added', "Conflict: Both Added");
+			case Status.BOTH_MODIFIED: return localize('both modified', "Conflict: Both Modified");
 			default: return '';
 		}
 	}
@@ -199,12 +199,13 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_US:
 				return 'D';
 			case Status.INDEX_COPIED:
+				return 'C';
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.ADDED_BY_THEM:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return 'C';
+				return '!'; // Using ! instead of ⚠, because the latter looks really bad on windows
 			default:
 				throw new Error('Unknown git status: ' + this.type);
 		}
@@ -223,12 +224,13 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_ADDED:
 			case Status.INTENT_TO_ADD:
 				return new ThemeColor('gitDecoration.addedResourceForeground');
+			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
+				return new ThemeColor('gitDecoration.renamedResourceForeground');
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
 			case Status.IGNORED:
 				return new ThemeColor('gitDecoration.ignoredResourceForeground');
-			case Status.INDEX_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.DELETED_BY_THEM:
@@ -246,10 +248,10 @@ export class Resource implements SourceControlResourceState {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
+			case Status.INDEX_COPIED:
 				return 2;
 			case Status.IGNORED:
 				return 3;
-			case Status.INDEX_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.DELETED_BY_THEM:
@@ -934,7 +936,16 @@ export class Repository implements Disposable {
 		this.disposables.push(this.workingTreeGroup);
 		this.disposables.push(this.untrackedGroup);
 
-		this.disposables.push(new AutoFetcher(this, globalState));
+		// Don't allow auto-fetch in untrusted workspaces
+		if (workspace.isTrusted) {
+			this.disposables.push(new AutoFetcher(this, globalState));
+		} else {
+			const trustDisposable = workspace.onDidGrantWorkspaceTrust(() => {
+				trustDisposable.dispose();
+				this.disposables.push(new AutoFetcher(this, globalState));
+			});
+			this.disposables.push(trustDisposable);
+		}
 
 		// https://github.com/microsoft/vscode/issues/39039
 		const onSuccessfulPush = filterEvent(this.onDidRunOperation, e => e.operation === Operation.Push && !e.error);
@@ -1317,8 +1328,8 @@ export class Repository implements Disposable {
 		await this._fetch({ all: true });
 	}
 
-	async fetch(remote?: string, ref?: string, depth?: number): Promise<void> {
-		await this._fetch({ remote, ref, depth });
+	async fetch(options: FetchOptions): Promise<void> {
+		await this._fetch(options);
 	}
 
 	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean; } = {}): Promise<void> {
@@ -1482,7 +1493,7 @@ export class Repository implements Disposable {
 
 		const maybeRebased = await this.run(Operation.Log, async () => {
 			try {
-				const result = await this.repository.run(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
+				const result = await this.repository.exec(['log', '--oneline', '--cherry', `${currentBranch ?? ''}...${currentBranch ?? ''}@{upstream}`, '--']);
 				if (result.exitCode) {
 					return false;
 				}
@@ -1833,7 +1844,10 @@ export class Repository implements Disposable {
 			// noop
 		}
 
-		const sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+		let sort = config.get<'alphabetically' | 'committerdate'>('branchSortOrder') || 'alphabetically';
+		if (sort !== 'alphabetically' && sort !== 'committerdate') {
+			sort = 'alphabetically';
+		}
 		const [refs, remotes, submodules, rebaseCommit] = await Promise.all([this.repository.getRefs({ sort }), this.repository.getRemotes(), this.repository.getSubmodules(), this.getRebaseCommit()]);
 
 		this._HEAD = HEAD;
@@ -1841,6 +1855,7 @@ export class Repository implements Disposable {
 		this._remotes = remotes!;
 		this._submodules = submodules!;
 		this.rebaseCommit = rebaseCommit;
+
 
 		const untrackedChanges = scopedConfig.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
 		const index: Resource[] = [];
@@ -1899,6 +1914,9 @@ export class Repository implements Disposable {
 
 		// set count badge
 		this.setCountBadge();
+
+		// Update context key with changed resources
+		commands.executeCommand('setContext', 'git.changedResources', [...merge, ...index, ...workingTree, ...untracked].map(r => r.resourceUri.fsPath.toString()));
 
 		this._onDidChangeStatus.fire();
 

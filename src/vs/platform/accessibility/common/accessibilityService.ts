@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IAccessibilityService, AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class AccessibilityService extends Disposable implements IAccessibilityService {
 	declare readonly _serviceBrand: undefined;

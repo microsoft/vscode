@@ -8,7 +8,7 @@ import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/li
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -27,6 +27,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -236,7 +237,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			}
 
 			// Extension is disabled. Enable the extension and reload the window to handle.
-			else {
+			else if (this.extensionEnablementService.canChangeEnablement(extension)) {
 				const result = await this.dialogService.confirm({
 					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
 					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
@@ -255,7 +256,13 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		// Extension is not installed
 		else {
-			const galleryExtension = await this.galleryService.getCompatibleExtension(extensionIdentifier);
+			let galleryExtension: IGalleryExtension | undefined;
+
+			try {
+				galleryExtension = (await this.galleryService.getExtensions([extensionIdentifier], CancellationToken.None))[0] ?? undefined;
+			} catch (err) {
+				return;
+			}
 
 			if (!galleryExtension) {
 				return;
@@ -277,7 +284,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				await this.progressService.withProgress({
 					location: ProgressLocation.Notification,
 					title: localize('Installing', "Installing Extension '{0}'...", galleryExtension.displayName || galleryExtension.name)
-				}, () => this.extensionManagementService.installFromGallery(galleryExtension));
+				}, () => this.extensionManagementService.installFromGallery(galleryExtension!));
 
 				this.notificationService.prompt(
 					Severity.Info,
@@ -321,7 +328,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	}
 
 	private getConfirmedTrustedExtensionIdsFromConfiguration(): Array<string> {
-		const trustedExtensionIds = this.configurationService.getValue<Array<string>>(USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY);
+		const trustedExtensionIds = this.configurationService.getValue(USER_TRUSTED_EXTENSIONS_CONFIGURATION_KEY);
 
 		if (!Array.isArray(trustedExtensionIds)) {
 			return [];

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { IAutoClosingPair, StandardAutoClosingPairConditional, LanguageConfiguration, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { ScopedLineTokens } from 'vs/editor/common/modes/supports';
 
 export class CharacterPairSupport {
@@ -14,6 +14,7 @@ export class CharacterPairSupport {
 	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
 	private readonly _surroundingPairs: IAutoClosingPair[];
 	private readonly _autoCloseBefore: string;
+	private readonly _colorizedBracketPairs: CharacterPair[];
 
 	constructor(config: LanguageConfiguration) {
 		if (config.autoClosingPairs) {
@@ -22,6 +23,14 @@ export class CharacterPairSupport {
 			this._autoClosingPairs = config.brackets.map(b => new StandardAutoClosingPairConditional({ open: b[0], close: b[1] }));
 		} else {
 			this._autoClosingPairs = [];
+		}
+
+		if (config.colorizedBracketPairs) {
+			this._colorizedBracketPairs = config.colorizedBracketPairs.map(b => [b[0], b[1]]);
+		} else if (config.brackets) {
+			this._colorizedBracketPairs = config.brackets.map(b => [b[0], b[1]]);
+		} else {
+			this._colorizedBracketPairs = [];
 		}
 
 		if (config.__electricCharacterSupport && config.__electricCharacterSupport.docComment) {
@@ -56,5 +65,9 @@ export class CharacterPairSupport {
 
 	public getSurroundingPairs(): IAutoClosingPair[] {
 		return this._surroundingPairs;
+	}
+
+	public getColorizedBrackets(): CharacterPair[] {
+		return this._colorizedBracketPairs;
 	}
 }

@@ -1,0 +1,42 @@
+{
+  "name": "pug",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin davidrios/pug-tmbundle Syntaxes/Pug.JSON-tmLanguage ./syntaxes/pug.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "jade",
+        "extensions": [
+          ".pug",
+          ".jade"
+        ],
+        "aliases": [
+          "Pug",
+          "Jade",
+          "jade"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jade",
+        "scopeName": "text.pug",
+        "path": "./syntaxes/pug.tmLanguage.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { InputBox, IRange, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Severity from 'vs/base/common/severity';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IInputBoxStyles, InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import Severity from 'vs/base/common/severity';
+import 'vs/css!./media/quickInput';
 
 const $ = dom.$;
 
