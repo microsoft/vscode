@@ -2393,7 +2393,7 @@
     "@types/file-type": "^5.2.1",
     "@types/mocha": "^8.2.3",
     "@types/node": "^12.19.9",
-    "@types/which": "^1.0.28"
+    "@types/which": "^1.3.2"
   },
   "repository": {
     "type": "git",
