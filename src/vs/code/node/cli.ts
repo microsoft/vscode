@@ -382,7 +382,6 @@ export async function main(argv: string[]): Promise<any> {
 				openArgs.push('-W');
 				openArgs.push('--stdout', tmpfile);
 				openArgs.push('--stderr', tmpfileError);
-				argv.push('--wait');
 			}
 			const argsArr: string[] = [];
 			const isDev = env['NODE_ENV'] === 'development';
