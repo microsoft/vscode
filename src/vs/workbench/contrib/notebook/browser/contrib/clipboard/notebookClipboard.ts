@@ -78,7 +78,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 	items: NotebookCellTextModel[];
 	isCopy: boolean;
 }): boolean {
-	const viewModel = editor.viewModel;
+	const viewModel = editor._getViewModel();
 
 	if (!viewModel || viewModel.options.isReadOnly) {
 		return false;
@@ -139,7 +139,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 
 	const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 	const notebookService = accessor.get<INotebookService>(INotebookService);
-	const viewModel = editor.viewModel;
+	const viewModel = editor._getViewModel();
 	const selections = viewModel.getSelections();
 
 	if (targetCell) {
@@ -153,8 +153,8 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 		}
 	}
 
-	const selectionRanges = expandCellRangesWithHiddenCells(editor, editor.viewModel, editor.viewModel.getSelections());
-	const selectedCells = cellRangeToViewCells(editor.viewModel, selectionRanges);
+	const selectionRanges = expandCellRangesWithHiddenCells(editor, viewModel, viewModel.getSelections());
+	const selectedCells = cellRangeToViewCells(viewModel, selectionRanges);
 
 	if (!selectedCells.length) {
 		return false;
@@ -166,7 +166,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 	return true;
 }
 export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor, targetCell: ICellViewModel | undefined): boolean {
-	const viewModel = editor.viewModel;
+	const viewModel = editor._getViewModel();
 
 	if (!viewModel || viewModel.options.isReadOnly) {
 		return false;
@@ -415,7 +415,7 @@ registerAction2(class extends NotebookAction {
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const pasteCells = notebookService.getToCopy();
 
-		const viewModel = context.notebookEditor.viewModel;
+		const viewModel = context.notebookEditor._getViewModel();
 
 		if (!viewModel || viewModel.options.isReadOnly) {
 			return;
@@ -447,7 +447,7 @@ registerAction2(class extends NotebookCellAction {
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const pasteCells = notebookService.getToCopy();
 
-		const viewModel = context.notebookEditor.viewModel;
+		const viewModel = context.notebookEditor._getViewModel();
 
 		if (!viewModel || viewModel.options.isReadOnly) {
 			return;

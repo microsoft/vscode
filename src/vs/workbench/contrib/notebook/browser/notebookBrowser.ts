@@ -21,7 +21,7 @@ import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/c
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -377,11 +377,50 @@ export interface INotebookEditorCreationOptions {
 
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
+	_getViewModel(): NotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
 }
 
+export enum NotebookViewEventType {
+	LayoutChanged = 1,
+	MetadataChanged = 2,
+	CellStateChanged = 3
+}
+
+export class NotebookLayoutChangedEvent {
+	public readonly type = NotebookViewEventType.LayoutChanged;
+
+	constructor(readonly source: NotebookLayoutChangeEvent, readonly value: NotebookLayoutInfo) {
+
+	}
+}
+
+
+export class NotebookMetadataChangedEvent {
+	public readonly type = NotebookViewEventType.MetadataChanged;
+
+	constructor(readonly source: NotebookDocumentMetadata) {
+
+	}
+}
+
+export class NotebookCellStateChangedEvent {
+	public readonly type = NotebookViewEventType.CellStateChanged;
+
+	constructor(readonly source: CellViewModelStateChangeEvent, readonly cell: ICellViewModel) {
+
+	}
+}
+
+
+export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataChangedEvent | NotebookCellStateChangedEvent;
+
+
 export interface INotebookEditor extends ICommonNotebookEditor {
+	//#region Eventing
+	onDidChangeCellState: Event<NotebookCellStateChangedEvent>;
+	//#endregion
 
 	// from the old IEditor
 	readonly onDidChangeVisibleRanges: Event<void>;
@@ -404,6 +443,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * Notebook view model attached to the current editor
 	 */
 	viewModel: NotebookViewModel | undefined;
+	_getViewModel(): NotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 
 	/**
