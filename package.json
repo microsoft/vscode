@@ -197,7 +197,7 @@
     "underscore": "^1.12.1",
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
-    "vscode-debugprotocol": "1.47.0",
+    "vscode-debugprotocol": "1.48.0",
     "vscode-nls-dev": "^3.3.1",
     "vscode-telemetry-extractor": "^1.7.0",
     "webpack": "^4.43.0",
