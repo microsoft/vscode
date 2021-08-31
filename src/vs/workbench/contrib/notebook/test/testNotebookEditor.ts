@@ -242,6 +242,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override getOutputRenderer() { return new OutputRenderer(notebookEditor, instantiationService); }
 		override async layoutNotebookCell() { }
 		override async removeInset() { }
+		override async focusNotebookCell() { }
 	};
 
 	return { editor: notebookEditor, viewModel };

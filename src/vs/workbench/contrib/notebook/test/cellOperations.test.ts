@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { Range } from 'vs/editor/common/core/range';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { copyCellRange, joinNotebookCells, moveCellRange } from 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { changeCellToKind, copyCellRange, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { Range } from 'vs/editor/common/core/range';
+import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
 suite('CellOperations', () => {
 	test('Move cells - single cell', async function () {
@@ -73,6 +72,7 @@ suite('CellOperations', () => {
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
 			});
 	});
+
 
 	test('Copy/duplicate cells - single cell', async function () {
 		await withTestNotebook(
@@ -433,4 +433,38 @@ suite('CellOperations', () => {
 				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
 			});
 	});
+
+	test('Change cell kind - single cell', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel) => {
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
+				await changeCellToKind(CellKind.Markup, { notebookEditor: editor, cell: viewModel.cellAt(1)!, ui: true });
+				assert.strictEqual(viewModel.cellAt(1)?.cellKind, CellKind.Markup);
+			});
+	});
+
+	test('Change cell kind - multi cells', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel) => {
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
+				await changeCellToKind(CellKind.Markup, { notebookEditor: editor, selectedCells: [viewModel.cellAt(3)!, viewModel.cellAt(4)!], ui: false });
+				assert.strictEqual(viewModel.cellAt(3)?.cellKind, CellKind.Markup);
+				assert.strictEqual(viewModel.cellAt(4)?.cellKind, CellKind.Markup);
+			});
+	});
+
 });
