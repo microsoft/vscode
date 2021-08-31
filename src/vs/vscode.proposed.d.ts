@@ -1044,6 +1044,9 @@ declare module 'vscode' {
 	export interface DragAndDropController<T> extends Disposable {
 		readonly supportedTypes: string[];
 
+		// todo@API maybe
+		// onWillDrop(target: T): Thenable<TreeDataTransfer>;
+
 		/**
 		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
 		 *
@@ -2511,7 +2514,7 @@ declare module 'vscode' {
 		/**
 		 * The file is readonly.
 		 *
-		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered  with
+		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered with
 		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
 		 * is set. As a consequence, it is not possible to have a readonly file system provider
 		 * registered where some `FileStat` are not readonly.
@@ -2882,6 +2885,7 @@ declare module 'vscode' {
 		text: string;
 		detail: string;
 		command: Command | undefined;
+		// accessibilityInformation?: AccessibilityInformation; TODO@API
 		dispose(): void;
 	}
 
