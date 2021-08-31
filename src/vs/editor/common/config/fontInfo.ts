@@ -11,7 +11,7 @@ import { EditorZoom } from 'vs/editor/common/config/editorZoom';
  * Determined from empirical observations.
  * @internal
  */
-const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
+const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.4;
 
 /**
  * @internal
@@ -54,12 +54,13 @@ export class BareFontInfo {
 		if (lineHeight === 0) {
 			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
 		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
+			// Enforce integer
+			lineHeight = Math.round(lineHeight);
 			// Values too small to be line heights in pixels are probably in ems. Accept them gracefully.
 			lineHeight = lineHeight * fontSize;
 		}
 
-		// Enforce integer, minimum constraints
-		lineHeight = Math.round(lineHeight);
+		// minimum constraints
 		if (lineHeight < MINIMUM_LINE_HEIGHT) {
 			lineHeight = MINIMUM_LINE_HEIGHT;
 		}
@@ -108,7 +109,7 @@ export class BareFontInfo {
 		this.fontWeight = String(opts.fontWeight);
 		this.fontSize = opts.fontSize;
 		this.fontFeatureSettings = opts.fontFeatureSettings;
-		this.lineHeight = opts.lineHeight | 0;
+		this.lineHeight = opts.lineHeight;
 		this.letterSpacing = opts.letterSpacing;
 	}
 
