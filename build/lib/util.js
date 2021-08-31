@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildWebNodePaths = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
 const es = require("event-stream");
 const debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -301,6 +301,23 @@ function acquireWebNodePaths() {
     return nodePaths;
 }
 exports.acquireWebNodePaths = acquireWebNodePaths;
+function createExternalLoaderConfig(webEndpoint, commit, quality) {
+    if (!webEndpoint || !commit || !quality) {
+        return undefined;
+    }
+    webEndpoint = webEndpoint + `/${quality}/${commit}`;
+    let nodePaths = acquireWebNodePaths();
+    Object.keys(nodePaths).map(function (key, _) {
+        nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
+    });
+    const externalLoaderConfig = {
+        baseUrl: `${webEndpoint}/out`,
+        recordStats: true,
+        paths: nodePaths
+    };
+    return externalLoaderConfig;
+}
+exports.createExternalLoaderConfig = createExternalLoaderConfig;
 function buildWebNodePaths(outDir) {
     const result = () => new Promise((resolve, _) => {
         const root = path.join(__dirname, '..', '..');
