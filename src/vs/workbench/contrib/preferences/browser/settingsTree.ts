@@ -870,10 +870,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				disposables: disposeables
 			},
 			asyncRenderCallback: () => {
-				const height = container.clientHeight;
-				if (height) {
-					this._onDidChangeSettingHeight.fire({ element, height });
-				}
+				this._onDidChangeSettingHeight.fire({ element });
 			},
 		});
 		disposeables.add(renderedMarkdown);
