@@ -264,10 +264,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/gulp-filter@^3.0.32":
-  version "3.0.32"
-  resolved "https://registry.yarnpkg.com/@types/gulp-filter/-/gulp-filter-3.0.32.tgz#eeff3e9dbc092268fed01f2421ab00f6c8cb4848"
-  integrity sha512-JvY4qTxXehoK2yCUxYVxTMvckVbDM5TWHWeUoYJyX31gwFqw4YDD6JNzhuTxI3yHPUTY4BBRTqgm6puQEZVCNg==
+"@types/gulp-filter@^3.0.34":
+  version "3.0.34"
+  resolved "https://registry.yarnpkg.com/@types/gulp-filter/-/gulp-filter-3.0.34.tgz#80ee75a310f9307769adcd63a2bdbc1a4cbd9745"
+  integrity sha512-RgsfhEsDe68rG/6KrrBWcEDrVmK1AgScPYx3264v3P5yrg1MNKlKapI7jLhe3EnwYCSAePe7VnxyMygVPDmu0w==
   dependencies:
     "@types/minimatch" "*"
     "@types/node" "*"
