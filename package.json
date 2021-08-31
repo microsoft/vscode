@@ -198,7 +198,7 @@
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
     "vscode-debugprotocol": "1.48.0",
-    "vscode-nls-dev": "^3.3.1",
+    "vscode-nls-dev": "^3.3.2",
     "vscode-telemetry-extractor": "^1.7.0",
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.12",
