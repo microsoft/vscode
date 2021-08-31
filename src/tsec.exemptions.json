@@ -29,5 +29,9 @@
 	"ban-worker-calls": [
 		"vs/base/worker/defaultWorkerFactory.ts",
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
+	],
+	"ban-element-innerhtml-assignments":  [
+		"vs/base/browser/dom.ts",
+		"vs/base/browser/markdownRenderer.ts"
 	]
 }
