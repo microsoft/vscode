@@ -10,6 +10,7 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { FileAccess } from 'vs/base/common/network';
 
 class WelcomeBannerContribution {
 
@@ -37,7 +38,7 @@ class WelcomeBannerContribution {
 		bannerService.show({
 			id: 'welcome.banner',
 			message: welcomeBanner.message,
-			icon: icon ?? Codicon.code,
+			icon: icon ?? FileAccess.asBrowserUri('vs/workbench/browser/media/code-icon.svg', require),
 			actions: welcomeBanner.actions,
 			onClose: () => {
 				storageService.store(WelcomeBannerContribution.WELCOME_BANNER_DISMISSED_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE);

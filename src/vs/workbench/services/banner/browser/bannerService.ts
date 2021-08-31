@@ -5,13 +5,14 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILinkDescriptor } from 'vs/platform/opener/browser/link';
 
 
 export interface IBannerItem {
 	readonly id: string;
-	readonly icon: Codicon;
+	readonly icon: Codicon | URI;
 	readonly message: string | MarkdownString;
 	readonly actions?: ILinkDescriptor[];
 	readonly ariaLabel?: string;
