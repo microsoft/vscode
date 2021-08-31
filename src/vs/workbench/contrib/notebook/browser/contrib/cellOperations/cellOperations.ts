@@ -11,7 +11,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Range } from 'vs/editor/common/core/range';
-import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, changeCellToKind, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { cellExecutionArgs, CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, changeCellToKind, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -617,6 +617,7 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookMultiCellAction
 
 const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
 const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
+const TOGGLE_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.toggleOutputs';
 
 abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
@@ -734,6 +735,46 @@ registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAc
 
 	getMetadataDelta(): NotebookCellMetadata {
 		return { outputCollapsed: false };
+	}
+});
+
+registerAction2(class extends NotebookMultiCellAction {
+	constructor() {
+		super({
+			id: TOGGLE_CELL_OUTPUTS_COMMAND_ID,
+			precondition: NOTEBOOK_CELL_LIST_FOCUSED,
+			title: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
+			description: {
+				description: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
+				args: cellExecutionArgs
+			}
+		});
+	}
+
+	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		const textModel = context.notebookEditor.viewModel.notebookDocument;
+		let cells: ICellViewModel[] = [];
+		if (context.ui) {
+			cells = [context.cell];
+		} else if (context.selectedCells) {
+			cells = [...context.selectedCells];
+		} else {
+			cells = [...context.notebookEditor.viewModel.getCells()];
+		}
+
+		const edits: ICellEditOperation[] = [];
+		for (const cell of cells) {
+			const index = textModel.cells.indexOf(cell.model);
+			if (index >= 0) {
+				edits.push({ editType: CellEditType.Metadata, index, metadata: { ...cell.metadata, outputCollapsed: !cell.metadata.outputCollapsed } });
+			}
+		}
+
+		textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
 	}
 });
 

@@ -63,6 +63,8 @@ import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook
 // Editor Controller
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
+import 'vs/workbench/contrib/notebook/browser/controller/executeActions';
+import 'vs/workbench/contrib/notebook/browser/controller/layoutActions';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
