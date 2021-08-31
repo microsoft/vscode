@@ -2391,7 +2391,7 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
-    "@types/mocha": "^8.2.0",
+    "@types/mocha": "^8.2.3",
     "@types/node": "^12.19.9",
     "@types/which": "^1.0.28"
   },
