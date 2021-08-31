@@ -12,8 +12,8 @@ import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorsOrder } from 'vs/workbench/common/editor';
-import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeCondition, executeNotebookCondition, executeThisCellCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellKind, ConsolidatedRunButton, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -29,6 +29,18 @@ const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
 const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
 const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
+
+// If this changes, update getCodeCellExecutionContextKeyService to match
+export const executeCondition = ContextKeyExpr.and(
+	NOTEBOOK_CELL_TYPE.isEqualTo('code'),
+	ContextKeyExpr.or(
+		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0),
+		NOTEBOOK_MISSING_KERNEL_EXTENSION
+	));
+
+export const executeThisCellCondition = ContextKeyExpr.and(
+	executeCondition,
+	NOTEBOOK_CELL_EXECUTING.toNegated());
 
 function renderAllMarkdownCells(context: INotebookActionContext): void {
 	context.notebookEditor.viewModel.viewCells.forEach(cell => {
