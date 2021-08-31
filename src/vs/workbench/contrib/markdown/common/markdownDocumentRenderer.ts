@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dompurify from 'vs/base/common/dompurify/dompurify';
 import * as marked from 'vs/base/common/marked/marked';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { insane } from 'vs/base/common/insane/insane';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const DEFAULT_MARKDOWN_STYLES = `
 body {
@@ -149,26 +149,20 @@ code > div {
 
 `;
 
-function removeEmbeddedSVGs(documentContent: string): string {
-	return insane(documentContent, {
-		allowedTags: [
+function sanitize(documentContent: string): string {
+	return dompurify.sanitize(documentContent, {
+		ALLOWED_TAGS: [
 			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
 			'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
 			'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
 			'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
 		],
-		allowedAttributes: {
-			'*': [
-				'align',
-			],
-			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height', 'centered'],
-			span: ['class'],
-			checkbox: ['on-checked', 'checked-on', 'label', 'class']
-		},
-		allowedSchemes: ['http', 'https', 'command'],
-		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
-			return token.tag !== 'svg';
-		}
+		ALLOWED_ATTR: [
+			'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
+			'width', 'height', 'align', 'x-dispatch',
+			'required', 'checked', 'placeholder', 'on-checked', 'checked-on',
+		],
+		ALLOWED_URI_REGEXP: /^(http:|https:|command:|\.\/|#)/i,
 	});
 }
 
@@ -204,7 +198,10 @@ export async function renderMarkdownDocument(
 		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
 	}).then(raw => {
 		if (shouldRemoveEmbeddedSVGs) {
-			return removeEmbeddedSVGs(raw);
+			const x = sanitize(raw);
+			console.log(raw);
+			console.log(x);
+			return x;
 		}
 		else {
 			return raw;

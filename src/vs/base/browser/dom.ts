@@ -10,7 +10,7 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
+import { Config as DomPurifyConfig, sanitize } from 'vs/base/common/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
@@ -1361,52 +1361,20 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 // -- sanitize and trusted html
 
-function _extInsaneOptions(opts: InsaneOptions, allowedAttributesForAll: string[]): InsaneOptions {
-
-	let allowedAttributes: Record<string, string[]> = opts.allowedAttributes ?? {};
-
-	if (opts.allowedTags) {
-		for (let tag of opts.allowedTags) {
-			let array = allowedAttributes[tag];
-			if (!array) {
-				array = allowedAttributesForAll;
-			} else {
-				array = array.concat(allowedAttributesForAll);
-			}
-			allowedAttributes[tag] = array;
-		}
-	}
-
-	return { ...opts, allowedAttributes };
-}
-
-const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
-	createHTML(value, options: InsaneOptions) {
-		return insane(value, options);
-	}
-});
-
 /**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
+	const options: DomPurifyConfig = {
+		ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+		ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder'],
+		ALLOWED_URI_REGEXP: /^(http|https|command):/i,
+		RETURN_DOM: false,
+		RETURN_DOM_FRAGMENT: false,
+	};
 
-	const options = _extInsaneOptions({
-		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-		allowedAttributes: {
-			'a': ['href', 'x-dispatch'],
-			'button': ['data-href', 'x-dispatch'],
-			'input': ['type', 'placeholder', 'checked', 'required'],
-			'label': ['for'],
-			'select': ['required'],
-			'span': ['data-command', 'role'],
-			'textarea': ['name', 'placeholder', 'required'],
-		},
-		allowedSchemes: ['http', 'https', 'command']
-	}, ['class', 'id', 'role', 'tabindex']);
-
-	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
-	node.innerHTML = html as string;
+	const html = sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
+	node.innerHTML = html as any;
 }
 
 /**
