@@ -99,7 +99,7 @@
     "@types/copy-webpack-plugin": "^8.0.1",
     "@types/cssnano": "^4.0.0",
     "@types/debug": "4.1.7",
-    "@types/graceful-fs": "4.1.2",
+    "@types/graceful-fs": "4.1.5",
     "@types/gulp-postcss": "^8.0.0",
     "@types/http-proxy-agent": "^2.0.1",
     "@types/keytar": "^4.4.0",
