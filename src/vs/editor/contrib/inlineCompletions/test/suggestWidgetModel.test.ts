@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
+import { minimizeInlineCompletion, SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -28,6 +28,7 @@ import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils
 import { Range } from 'vs/editor/common/core/range';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Suggest Widget Model', () => {
 	test('Active', async () => {
@@ -82,6 +83,19 @@ suite('Suggest Widget Model', () => {
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello.']);
 			}
 		);
+	});
+
+	test('minimizeInlineCompletion', async () => {
+		const model = createTextModel('fun');
+		const result = minimizeInlineCompletion(model, { range: new Range(1, 1, 1, 4), text: 'function' })!;
+
+		assert.deepStrictEqual({
+			range: result.range.toString(),
+			text: result.text
+		}, {
+			range: '[1,4 -> 1,4]',
+			text: 'ction'
+		});
 	});
 });
 
