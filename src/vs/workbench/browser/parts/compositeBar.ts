@@ -152,7 +152,7 @@ export interface ICompositeBarOptions {
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => IAction;
 	getOnCompositeClickAction: (compositeId: string) => IAction;
-	fillExtraContextMenuActions: (actions: IAction[]) => void;
+	fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
 	getContextMenuActionsForComposite: (compositeId: string) => IAction[];
 	openComposite: (compositeId: string) => Promise<IComposite | null>;
 	getDefaultCompositeId: () => string;
@@ -627,11 +627,11 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const event = new StandardMouseEvent(e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => this.getContextMenuActions()
+			getActions: () => this.getContextMenuActions(e)
 		});
 	}
 
-	getContextMenuActions(): IAction[] {
+	getContextMenuActions(e?: MouseEvent | GestureEvent): IAction[] {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (toAction({
 				id,
@@ -647,7 +647,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				}
 			})));
 
-		this.options.fillExtraContextMenuActions(actions);
+		this.options.fillExtraContextMenuActions(actions, e);
 
 		return actions;
 	}
