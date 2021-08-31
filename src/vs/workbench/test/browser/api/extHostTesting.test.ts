@@ -540,14 +540,14 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('adds tests to run smartly', () => {
-			const task1 = c.createTestRun('ctrl', single, req, 'hello world', false);
+			const task1 = c.createTestRun('ctrlId', single, req, 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 			const expectedArgs: unknown[][] = [];
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
 			task1.passed(single.root.children.get('id-a')!.children.get('id-aa')!);
 			expectedArgs.push([
-				'ctrl',
+				'ctrlId',
 				tracker.id,
 				[
 					convert.TestItem.from(single.root),
@@ -557,10 +557,9 @@ suite('ExtHost Testing', () => {
 			]);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
-
 			task1.enqueued(single.root.children.get('id-a')!.children.get('id-ab')!);
 			expectedArgs.push([
-				'ctrl',
+				'ctrlId',
 				tracker.id,
 				[
 					convert.TestItem.from(single.root.children.get('id-a') as TestItemImpl),
