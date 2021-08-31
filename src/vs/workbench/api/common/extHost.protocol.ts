@@ -423,7 +423,6 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
-	$getLanguages(): Promise<string[]>;
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: modes.StandardTokenType, range: IRange }>;
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
@@ -1374,6 +1373,10 @@ export interface ExtHostFileSystemEventServiceShape {
 	$onDidRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[]): void;
 }
 
+export interface ExtHostLanguagesShape {
+	$acceptLanguageIds(ids: string[]): void;
+}
+
 export interface ObjectIdentifier {
 	$ident?: number;
 }
@@ -2252,6 +2255,7 @@ export const ExtHostContext = {
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemInfo: createExtId<ExtHostFileSystemInfoShape>('ExtHostFileSystemInfo'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
+	ExtHostLanguages: createExtId<ExtHostLanguagesShape>('ExtHostLanguages'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
