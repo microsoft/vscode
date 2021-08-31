@@ -358,17 +358,7 @@ export async function main(argv: string[]): Promise<any> {
 				});
 			}
 		} else {
-			const requiresWait = args['status'] || args['verbose'] || hasReadStdinArg;
-			const envVars: string[] = [];
-			for (const envKey in env) {
-				// Skip this envKey, otherwise we get a malformed argument warning in the console
-				if (envKey === '_') {
-					continue;
-				}
-				const value = env[envKey];
-				envVars.push('--env');
-				envVars.push(envKey + '=' + value ?? '');
-			}
+			const requiresWait = verbose || hasReadStdinArg;
 			const openArgs: string[] = ['-n'];
 
 			let tmpfile = '';
@@ -388,7 +378,7 @@ export async function main(argv: string[]): Promise<any> {
 			// When we're in development mode, call the OSS app rather than the OSS app's Electron
 			const execPathToUse = isDev ? resolve(join(process.execPath, '../../..')) : process.execPath;
 			argsArr.push('-a', execPathToUse);
-			argsArr.push(...envVars, ...openArgs, '--args', ...argv.slice(2));
+			argsArr.push(...openArgs, '--args', ...argv.slice(2));
 			if (isDev) {
 				// If we're in development mode, replace the . arg with the
 				// vscode source arg. Because the OSS app isn't bundled,
@@ -400,14 +390,14 @@ export async function main(argv: string[]): Promise<any> {
 
 			if (requiresWait) {
 				const openPromise = (child: ChildProcess) => new Promise<void>((c) => {
-					if (args['verbose'] || args['status']) {
+					if (verbose) {
 						const stream = openSync(tmpfile, 'r');
 						const bufferSize = 500;
 						const buffer = Buffer.alloc(bufferSize);
 						const interval = setInterval(() => {
 							const readAmount = readSync(stream, buffer, 0, bufferSize, null);
 							process.stdout.write(buffer.toString(undefined, 0, readAmount));
-						}, 0);
+						}, 50);
 						child.on('exit', () => {
 							setTimeout(() => {
 								clearTimeout(interval);
