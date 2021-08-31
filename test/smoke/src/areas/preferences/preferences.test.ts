@@ -20,7 +20,7 @@ export function setup(opts: minimist.ParsedArgs) {
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');
 			await app.workbench.editors.selectTab('app.js');
-			await app.code.waitForElements('.line-numbers', false, result => !result || result.length === 0);
+			await app.code.waitForElements('.failingline-numbers', false, result => !result || result.length === 0);
 		});
 
 		it(`changes 'workbench.action.toggleSidebarPosition' command key binding and verifies it`, async function () {
