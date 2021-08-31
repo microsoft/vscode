@@ -6,17 +6,20 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { MainThreadLanguagesShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
+import { MainThreadLanguagesShape, MainContext, IExtHostContext, ExtHostContext, ExtHostLanguagesShape } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
 export class MainThreadLanguages implements MainThreadLanguagesShape {
+
+	private readonly _disposables = new DisposableStore();
+	private readonly _proxy: ExtHostLanguagesShape;
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -24,14 +27,17 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private _resolverService: ITextModelService,
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
-	) { }
+	) {
+		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostLanguages);
 
-	dispose(): void {
-		// nothing
+		this._proxy.$acceptLanguageIds(_modeService.getRegisteredModes());
+		this._disposables.add(_modeService.onLanguagesMaybeChanged(e => {
+			this._proxy.$acceptLanguageIds(_modeService.getRegisteredModes());
+		}));
 	}
 
-	$getLanguages(): Promise<string[]> {
-		return Promise.resolve(this._modeService.getRegisteredModes());
+	dispose(): void {
+		this._disposables.dispose();
 	}
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {

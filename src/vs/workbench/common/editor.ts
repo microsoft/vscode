@@ -607,7 +607,7 @@ export interface IEditorInput extends IDisposable {
 	 * to participate. If an editor is returned though, it will replace the
 	 * current one with that editor and optional options.
 	 */
-	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined;
+	rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined>;
 
 	/**
 	 * Returns a copy of the current editor input. Used when we can't just reuse the input

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadLanguagesShape, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesShape } from './extHost.protocol';
 import type * as vscode from 'vscode';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
@@ -14,9 +14,11 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 
-export class ExtHostLanguages {
+export class ExtHostLanguages implements ExtHostLanguagesShape {
 
 	private readonly _proxy: MainThreadLanguagesShape;
+
+	private _languageIds: string[] = [];
 
 	constructor(
 		mainContext: IMainContext,
@@ -26,8 +28,12 @@ export class ExtHostLanguages {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguages);
 	}
 
-	getLanguages(): Promise<string[]> {
-		return this._proxy.$getLanguages();
+	$acceptLanguageIds(ids: string[]): void {
+		this._languageIds = ids;
+	}
+
+	async getLanguages(): Promise<string[]> {
+		return this._languageIds.slice(0);
 	}
 
 	async changeLanguage(uri: vscode.Uri, languageId: string): Promise<vscode.TextDocument> {

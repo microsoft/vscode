@@ -27,6 +27,8 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	private _internalFileSearchHandle: number = -1;
 	private _internalFileSearchProvider: SearchService | null = null;
 
+	private _registeredEHSearchProvider = false;
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
@@ -47,6 +49,11 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	}
 
 	private _registerEHSearchProviders(): void {
+		if (this._registeredEHSearchProvider) {
+			return;
+		}
+
+		this._registeredEHSearchProvider = true;
 		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
 		this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel));
 		this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider'));

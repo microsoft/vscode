@@ -382,7 +382,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return !!this.model;
 	}
 
-	override rename(group: GroupIdentifier, target: URI): IMoveResult {
+	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult> {
 		return {
 			editor: {
 				resource: target,
