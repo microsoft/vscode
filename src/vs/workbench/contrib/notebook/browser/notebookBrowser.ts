@@ -672,6 +672,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
 	getCellById(cellId: string): ICellViewModel | undefined;
+	getCellByHandle(handle: number): ICellViewModel | undefined;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 }
 
