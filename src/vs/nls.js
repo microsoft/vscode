@@ -55,7 +55,7 @@ var NLSLoaderPlugin;
 				var index = rest[0];
 				var arg = args[index] + "               //(Add description of code for project at this specific location)" + "https://www.google.com/search?q=" + args[index];//Tanishq's Edit
 				x = "Tanishq's Edit";//Tanishq's Edit
-				link = 'https://www.google.com/search?igu=1&q=' + args[index];//Tanishq's Edit("igu=1 for making website visible on internet otherwise it is an error")
+				link = 'https://www.google.com/search?q=' + args[index];//Tanishq's Edit
 				var result = match;
 				if (typeof arg === 'string') {
 					result = arg;
@@ -70,101 +70,95 @@ var NLSLoaderPlugin;
 			// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
 			result = '\uFF3B' + result.replace(/[aouei]/g, '$&$&') + '\uFF3D' + "               //(Add description of code for project at this specific location)" + "https://www.google.com/search?q=" + result.replace(/[aouei]/g, '$&$&');//Tanishq's Edit
 			x = "Tanishq's Edit";//Tanishq's Edit
-			link = 'https://www.google.com/search?igu=1&q="+args[index];'//Tanishq's Edit("igu=1 for making website visible on internet otherwise it is an error")
+			link = 'https://www.google.com/search?q="+args[index];'//Tanishq's Edit
 		}
 		return result;
 	}
-	if (env.isPseudo) {
-		// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
-		result = '\uFF3B' + result.replace(/[aouei]/g, '$&$&') + '\uFF3D';
+	function findLanguageForModule(config, name) {
+		var result = config[name];
+		if (result)
+			return result;
+		result = config['*'];
+		if (result)
+			return result;
+		return null;
 	}
-	return result;
-}
-    function findLanguageForModule(config, name) {
-	var result = config[name];
-	if (result)
-		return result;
-	result = config['*'];
-	if (result)
-		return result;
-	return null;
-}
-function localize(env, data, message) {
-	var args = [];
-	for (var _i = 3; _i < arguments.length; _i++) {
-		args[_i - 3] = arguments[_i];
-	}
-	return _format(message, args, env);
-}
-function createScopedLocalize(scope, env) {
-	return function (idx, defaultValue) {
-		var restArgs = Array.prototype.slice.call(arguments, 2);
-		return _format(scope[idx], restArgs, env);
-	};
-}
-var NLSPlugin = /** @class */ (function () {
-	function NLSPlugin(env) {
-		var _this = this;
-		this._env = env;
-		this.localize = function (data, message) {
-			var args = [];
-			for (var _i = 2; _i < arguments.length; _i++) {
-				args[_i - 2] = arguments[_i];
-			}
-			return localize.apply(void 0, __spreadArrays([_this._env, data, message], args));
-		};
-	}
-	NLSPlugin.prototype.setPseudoTranslation = function (value) {
-		this._env._isPseudo = value;
-	};
-	NLSPlugin.prototype.create = function (key, data) {
-		return {
-			localize: createScopedLocalize(data[key], this._env)
-		};
-	};
-	NLSPlugin.prototype.load = function (name, req, load, config) {
-		var _this = this;
-		config = config || {};
-		if (!name || name.length === 0) {
-			load({
-				localize: this.localize
-			});
+	function localize(env, data, message) {
+		var args = [];
+		for (var _i = 3; _i < arguments.length; _i++) {
+			args[_i - 3] = arguments[_i];
 		}
-		else {
-			var pluginConfig = config['vs/nls'] || {};
-			var language = pluginConfig.availableLanguages ? findLanguageForModule(pluginConfig.availableLanguages, name) : null;
-			var suffix = '.nls';
-			if (language !== null && language !== NLSPlugin.DEFAULT_TAG) {
-				suffix = suffix + '.' + language;
-			}
-			var messagesLoaded_1 = function (messages) {
-				if (Array.isArray(messages)) {
-					messages.localize = createScopedLocalize(messages, _this._env);
+		return _format(message, args, env);
+	}
+	function createScopedLocalize(scope, env) {
+		return function (idx, defaultValue) {
+			var restArgs = Array.prototype.slice.call(arguments, 2);
+			return _format(scope[idx], restArgs, env);
+		};
+	}
+	var NLSPlugin = /** @class */ (function () {
+		function NLSPlugin(env) {
+			var _this = this;
+			this._env = env;
+			this.localize = function (data, message) {
+				var args = [];
+				for (var _i = 2; _i < arguments.length; _i++) {
+					args[_i - 2] = arguments[_i];
 				}
-				else {
-					messages.localize = createScopedLocalize(messages[name], _this._env);
-				}
-				load(messages);
+				return localize.apply(void 0, __spreadArrays([_this._env, data, message], args));
 			};
-			if (typeof pluginConfig.loadBundle === 'function') {
-				pluginConfig.loadBundle(name, language, function (err, messages) {
-					// We have an error. Load the English default strings to not fail
-					if (err) {
-						req([name + '.nls'], messagesLoaded_1);
-					}
-					else {
-						messagesLoaded_1(messages);
-					}
+		}
+		NLSPlugin.prototype.setPseudoTranslation = function (value) {
+			this._env._isPseudo = value;
+		};
+		NLSPlugin.prototype.create = function (key, data) {
+			return {
+				localize: createScopedLocalize(data[key], this._env)
+			};
+		};
+		NLSPlugin.prototype.load = function (name, req, load, config) {
+			var _this = this;
+			config = config || {};
+			if (!name || name.length === 0) {
+				load({
+					localize: this.localize
 				});
 			}
 			else {
-				req([name + suffix], messagesLoaded_1);
+				var pluginConfig = config['vs/nls'] || {};
+				var language = pluginConfig.availableLanguages ? findLanguageForModule(pluginConfig.availableLanguages, name) : null;
+				var suffix = '.nls';
+				if (language !== null && language !== NLSPlugin.DEFAULT_TAG) {
+					suffix = suffix + '.' + language;
+				}
+				var messagesLoaded_1 = function (messages) {
+					if (Array.isArray(messages)) {
+						messages.localize = createScopedLocalize(messages, _this._env);
+					}
+					else {
+						messages.localize = createScopedLocalize(messages[name], _this._env);
+					}
+					load(messages);
+				};
+				if (typeof pluginConfig.loadBundle === 'function') {
+					pluginConfig.loadBundle(name, language, function (err, messages) {
+						// We have an error. Load the English default strings to not fail
+						if (err) {
+							req([name + '.nls'], messagesLoaded_1);
+						}
+						else {
+							messagesLoaded_1(messages);
+						}
+					});
+				}
+				else {
+					req([name + suffix], messagesLoaded_1);
+				}
 			}
-		}
-	};
-	NLSPlugin.DEFAULT_TAG = 'i-default';
-	return NLSPlugin;
-}());
-NLSLoaderPlugin.NLSPlugin = NLSPlugin;
-define('vs/nls', new NLSPlugin(new Environment()));
-}) (NLSLoaderPlugin || (NLSLoaderPlugin = {}));
+		};
+		NLSPlugin.DEFAULT_TAG = 'i-default';
+		return NLSPlugin;
+	}());
+	NLSLoaderPlugin.NLSPlugin = NLSPlugin;
+	define('vs/nls', new NLSPlugin(new Environment()));
+})(NLSLoaderPlugin || (NLSLoaderPlugin = {}));
