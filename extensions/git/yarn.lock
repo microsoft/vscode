@@ -9,10 +9,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/file-type@^5.2.1":
-  version "5.2.1"
-  resolved "https://registry.yarnpkg.com/@types/file-type/-/file-type-5.2.1.tgz#e7af49e08187b6b7598509c5e416669d25fa3461"
-  integrity sha512-Im0cJaIPJbbpuW91OrjXnqWPZCJK/tcFy2cFX+1qjG1gubgVZPPO9OVsTVAjotN4I1E6FAV0eIqt+rR8Y1c3iA==
+"@types/file-type@^5.2.2":
+  version "5.2.2"
+  resolved "https://registry.yarnpkg.com/@types/file-type/-/file-type-5.2.2.tgz#901cda395f75780c52bbc7a56fd1f5b5bc96f28f"
+  integrity sha512-GWtM4fyqfb+bec4ocpo51/y4x0b83Je+iA6eV131LT9wL0//G+1UgwbkMg7w61ceOwR+KkZXK00z44jrrNljWg==
   dependencies:
     "@types/node" "*"
 
