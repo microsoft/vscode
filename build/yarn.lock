@@ -272,10 +272,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/gulp-json-editor@^2.2.31":
-  version "2.2.31"
-  resolved "https://registry.yarnpkg.com/@types/gulp-json-editor/-/gulp-json-editor-2.2.31.tgz#3c1a8950556c109a0e2d0ab11d5f2a2443665ed2"
-  integrity sha512-piis0ImYAy0dt18R4EtTbAY+RV8jwTq5VisnUV6OfP8kD4743aHGkAdAd08No4NY3rFa5mD6ytIu8L0YU7nL9w==
+"@types/gulp-json-editor@^2.2.33":
+  version "2.2.33"
+  resolved "https://registry.yarnpkg.com/@types/gulp-json-editor/-/gulp-json-editor-2.2.33.tgz#8d928f819ddb7444eb03c0f506cf69ca2b00e8b9"
+  integrity sha512-cEF4A6PIdNhIG9enVAYpkB106vm/iSQSS/KITCsW0+OLxiea3RQhYcTDTro3kNp6xsynXguHzn0kTzn3UvNYKg==
   dependencies:
     "@types/js-beautify" "*"
     "@types/node" "*"
