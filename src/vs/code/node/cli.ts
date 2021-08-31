@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
-import { chmodSync, closeSync, existsSync, openSync, readFileSync, readSync, statSync, truncateSync, unlinkSync } from 'fs';
+import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, platform, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isAbsolute, join, resolve } from 'vs/base/common/path';
@@ -13,6 +13,7 @@ import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
+import { CliVerboseLogger } from 'vs/code/node/cliVerboseLogger';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
@@ -343,17 +344,17 @@ export async function main(argv: string[]): Promise<any> {
 			const requiresWait = verbose || hasReadStdinArg;
 			const openArgs: string[] = ['-n'];
 
-			let tmpfile = '';
-			let tmpfileError = '';
+			let tmpStdoutLogger: CliVerboseLogger | undefined;
+			let tmpStderrLogger: CliVerboseLogger | undefined;
 			if (requiresWait) {
 				const time = new Date().getTime();
-				tmpfile = `${tmpdir()}/vscode-wait-transfer-${time}.log`;
-				tmpfileError = `${tmpdir()}/vscode-wait-transfer-error-${time}.log`;
-				writeFileSync(tmpfile, '');
-				writeFileSync(tmpfileError, '');
+				const tmpStdoutName = `${tmpdir()}/vscode-wait-transfer-${time}.log`;
+				const tmpStderrName = `${tmpdir()}/vscode-wait-transfer-error-${time}.log`;
+				tmpStdoutLogger = new CliVerboseLogger(tmpStdoutName);
+				tmpStderrLogger = new CliVerboseLogger(tmpStderrName);
 				openArgs.push('-W');
-				openArgs.push('--stdout', tmpfile);
-				openArgs.push('--stderr', tmpfileError);
+				openArgs.push('--stdout', tmpStdoutName);
+				openArgs.push('--stderr', tmpStderrName);
 			}
 			const argsArr: string[] = [];
 			const isDev = env['NODE_ENV'] === 'development';
@@ -371,28 +372,9 @@ export async function main(argv: string[]): Promise<any> {
 			child = spawn('open', argsArr, options);
 
 			if (requiresWait) {
-				const openPromise = (child: ChildProcess) => new Promise<void>((c) => {
-					if (verbose) {
-						const stream = openSync(tmpfile, 'r');
-						const bufferSize = 500;
-						const buffer = Buffer.alloc(bufferSize);
-						const interval = setInterval(() => {
-							const readAmount = readSync(stream, buffer, 0, bufferSize, null);
-							process.stdout.write(buffer.toString(undefined, 0, readAmount));
-						}, 50);
-						child.on('exit', () => {
-							setTimeout(() => {
-								clearTimeout(interval);
-								closeSync(stream);
-								c();
-							}, 500);
-						});
-					}
-				}).then(() => {
-					unlinkSync(tmpfile);
-					unlinkSync(tmpfileError);
-				});
-				processCallbacks.push(openPromise);
+				const stdoutPromise = tmpStdoutLogger!.track();
+				const stderrPromise = tmpStderrLogger!.track();
+				processCallbacks.push(stdoutPromise, stderrPromise);
 			}
 		}
 
