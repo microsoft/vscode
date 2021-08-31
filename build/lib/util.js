@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
+exports.buildWebNodePaths = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
 const es = require("event-stream");
 const debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -274,31 +274,37 @@ function getElectronVersion() {
     return target;
 }
 exports.getElectronVersion = getElectronVersion;
+function acquireWebNodePaths() {
+    var _a;
+    const root = path.join(__dirname, '..', '..');
+    const webPackageJSON = path.join(root, '/remote/web', 'package.json');
+    const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
+    const nodePaths = {};
+    for (const key of Object.keys(webPackages)) {
+        const packageJSON = path.join(root, 'node_modules', key, 'package.json');
+        const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
+        let entryPoint = (_a = packageData.browser) !== null && _a !== void 0 ? _a : packageData.main;
+        // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
+        if (!entryPoint) {
+            console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+            entryPoint = `dist/${key}.min.js`;
+        }
+        // Remove any starting path information so it's all relative info
+        if (entryPoint.startsWith('./')) {
+            entryPoint = entryPoint.substr(2);
+        }
+        else if (entryPoint.startsWith('/')) {
+            entryPoint = entryPoint.substr(1);
+        }
+        nodePaths[key] = entryPoint;
+    }
+    return nodePaths;
+}
+exports.acquireWebNodePaths = acquireWebNodePaths;
 function buildWebNodePaths(outDir) {
     const result = () => new Promise((resolve, _) => {
-        var _a;
         const root = path.join(__dirname, '..', '..');
-        const webPackageJSON = path.join(root, '/remote/web', 'package.json');
-        const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
-        const nodePaths = {};
-        for (const key of Object.keys(webPackages)) {
-            const packageJSON = path.join(root, 'node_modules', key, 'package.json');
-            const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-            let entryPoint = (_a = packageData.browser) !== null && _a !== void 0 ? _a : packageData.main;
-            // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
-            if (!entryPoint) {
-                console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
-                entryPoint = `dist/${key}.min.js`;
-            }
-            // Remove any starting path information so it's all relative info
-            if (entryPoint.startsWith('./')) {
-                entryPoint = entryPoint.substr(2);
-            }
-            else if (entryPoint.startsWith('/')) {
-                entryPoint = entryPoint.substr(1);
-            }
-            nodePaths[key] = entryPoint;
-        }
+        const nodePaths = acquireWebNodePaths();
         // Now we write the node paths to out/vs
         const outDirectory = path.join(root, outDir, 'vs');
         fs.mkdirSync(outDirectory, { recursive: true });

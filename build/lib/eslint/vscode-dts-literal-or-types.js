@@ -12,9 +12,8 @@ module.exports = new class ApiLiteralOrTypes {
     }
     create(context) {
         return {
-            ['TSTypeAnnotation TSUnionType TSLiteralType']: (node) => {
-                var _a;
-                if (((_a = node.literal) === null || _a === void 0 ? void 0 : _a.type) === 'TSNullKeyword') {
+            ['TSTypeAnnotation TSUnionType']: (node) => {
+                if (!node.types.every(value => value.type === 'TSLiteralType')) {
                     return;
                 }
                 context.report({
