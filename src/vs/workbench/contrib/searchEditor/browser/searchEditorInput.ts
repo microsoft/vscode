@@ -214,7 +214,7 @@ export class SearchEditorInput extends EditorInput {
 		return this.dirty;
 	}
 
-	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
 		if (extname(target) === SEARCH_EDITOR_EXT) {
 			return {
 				editor: this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: target })

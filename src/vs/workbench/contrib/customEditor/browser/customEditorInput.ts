@@ -294,7 +294,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined;
 		}
 
-		return this.rename(groupId, target)?.editor;
+		return (await this.rename(groupId, target))?.editor;
 	}
 
 	public override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -333,14 +333,14 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	public override rename(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+	public override async rename(group: GroupIdentifier, newResource: URI): Promise<{ editor: IEditorInput } | undefined> {
 		// See if we can keep using the same custom editor provider
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(newResource)) {
 			return { editor: this.doMove(group, newResource) };
 		}
 
-		const resolvedEditor = this.editorResolverService.resolveEditor({ resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, undefined);
+		const resolvedEditor = await this.editorResolverService.resolveEditor({ resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, undefined);
 		return isEditorInputWithOptionsAndGroup(resolvedEditor) ? { editor: resolvedEditor.editor } : undefined;
 	}
 
