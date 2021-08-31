@@ -13,7 +13,7 @@ import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry 
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
-import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
+import { minimizeInlineCompletion, SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
 import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
@@ -28,6 +28,7 @@ import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/com
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import assert = require('assert');
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Suggest Widget Model', () => {
 	test('Active', async () => {
@@ -82,6 +83,19 @@ suite('Suggest Widget Model', () => {
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello.']);
 			}
 		);
+	});
+
+	test('minimizeInlineCompletion', async () => {
+		const model = createTextModel('fun');
+		const result = minimizeInlineCompletion(model, { range: new Range(1, 1, 1, 4), text: 'function' })!;
+
+		assert.deepStrictEqual({
+			range: result.range.toString(),
+			text: result.text
+		}, {
+			range: '[1,4 -> 1,4]',
+			text: 'ction'
+		});
 	});
 });
 
