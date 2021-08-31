@@ -81,3 +81,5 @@ export const breakpointsActivate = registerIcon('breakpoints-activate', Codicon.
 
 export const debugConsoleEvaluationInput = registerIcon('debug-console-evaluation-input', Codicon.arrowSmallRight, localize('debugConsoleEvaluationInput', 'Icon for the debug evaluation input marker.'));
 export const debugConsoleEvaluationPrompt = registerIcon('debug-console-evaluation-prompt', Codicon.chevronRight, localize('debugConsoleEvaluationPrompt', 'Icon for the debug evaluation prompt.'));
+
+export const openPreviewIcon = registerIcon('ports-open-preview-icon', Codicon.openPreview, localize('openPreviewIcon', 'Icon for the open preview action.'));
