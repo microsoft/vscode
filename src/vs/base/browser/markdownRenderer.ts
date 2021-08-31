@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import * as dompurify from 'vs/base/common/dompurify/dompurify';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';

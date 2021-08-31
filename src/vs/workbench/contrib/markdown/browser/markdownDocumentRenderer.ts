@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dompurify from 'vs/base/common/dompurify/dompurify';
+import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import * as marked from 'vs/base/common/marked/marked';
 import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';

@@ -10,7 +10,7 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Config as DomPurifyConfig, sanitize } from 'vs/base/common/dompurify/dompurify';
+import { Config as DomPurifyConfig, sanitize } from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';

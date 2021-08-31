@@ -45,7 +45,7 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { generateUuid } from 'vs/base/common/uuid';

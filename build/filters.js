@@ -37,7 +37,7 @@ module.exports.indentationFilter = [
 	'!src/vs/css.js',
 	'!src/vs/css.build.js',
 	'!src/vs/loader.js',
-	'!src/vs/base/common/dompurify/*',
+	'!src/vs/base/browser/dompurify/*',
 	'!src/vs/base/common/marked/marked.js',
 	'!src/vs/base/common/semver/semver.js',
 	'!src/vs/base/node/terminateProcess.sh',
