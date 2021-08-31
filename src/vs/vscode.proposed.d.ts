@@ -2276,23 +2276,57 @@ declare module 'vscode' {
 
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
-	// TODO@API must be a class
-	// TODO@API @lramos15 Call this XYZTabs
-	export interface TabInfo {
-		name: string;
-		// viewColumn: ViewColumn; // todo @lramos15
-		resource?: Uri; // make optional @lramos15
+	/**
+	 * Represents a tab within the window
+	 */
+	export interface Tab {
+		/**
+		 * The text displayed on the tab
+		 */
+		label: string;
+
+		/**
+		 * The position of the tab
+		 */
+		viewColumn: ViewColumn;
+
+		/**
+		 * The resource represented by the tab.
+		 * May be undefined in certain cases such as diff editor and marketplace tabs
+		 */
+		resource?: Uri;
+
+		/**
+		 * Whether or not the tab is currently active
+		 * Dictated by being the selected tab in the active group
+		 */
 		isActive: boolean;
 	}
 
 	export namespace window {
-		export const openTabs: ReadonlyArray<TabInfo>;
+		/**
+		 * A list of all opened tabs
+		 * Ordered from left to right
+		 */
+		export const tabs: ReadonlyArray<Tab>;
 
-		export const activeTab: TabInfo | undefined;
+		/**
+		 * The currently active tab
+		 * Undefined if no tabs are currently opened
+		 */
+		export const activeTab: Tab | undefined;
 
-		// todo@API @lramos15 proper event type {}
-		export const onDidChangeTabs: Event<TabInfo[]>;
-		export const onDidChangeActiveTab: Event<TabInfo | undefined>;
+		/**
+		 * An {@link Event} which fires when the array of {@link window.tabs tabs}
+		 * has changed.
+		 */
+		export const onDidChangeTabs: Event<ReadonlyArray<Tab>>;
+
+		/**
+		 * An {@link Event} which fires when the {@link window.activeTab activeTab}
+		 * has changed.
+		 */
+		export const onDidChangeActiveTab: Event<Tab | undefined>;
 
 	}
 
