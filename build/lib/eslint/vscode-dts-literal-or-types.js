@@ -13,13 +13,12 @@ module.exports = new class ApiLiteralOrTypes {
     create(context) {
         return {
             ['TSTypeAnnotation TSUnionType']: (node) => {
-                if (!node.types.every(value => value.type === 'TSLiteralType')) {
-                    return;
+                if (node.types.every(value => value.type === 'TSLiteralType')) {
+                    context.report({
+                        node: node,
+                        messageId: 'useEnum'
+                    });
                 }
-                context.report({
-                    node: node,
-                    messageId: 'useEnum'
-                });
             }
         };
     }
