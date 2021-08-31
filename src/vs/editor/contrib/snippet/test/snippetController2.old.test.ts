@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { mock } from 'vs/base/test/common/mock';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 class TestSnippetController extends SnippetController2 {
 
@@ -40,7 +44,12 @@ suite('SnippetController', () => {
 			];
 		}
 
-		withTestCodeEditor(lines, {}, (editor) => {
+		const serviceCollection = new ServiceCollection(
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+		);
+
+		withTestCodeEditor(lines, { serviceCollection }, (editor) => {
 			editor.getModel()!.updateOptions({
 				insertSpaces: false
 			});

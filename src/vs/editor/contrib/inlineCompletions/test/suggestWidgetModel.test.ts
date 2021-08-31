@@ -29,6 +29,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import assert = require('assert');
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 suite('Suggest Widget Model', () => {
 	test('Active', async () => {
@@ -149,7 +151,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 							override dispose() { }
 						};
 					}
-				}]
+				}],
+				[ILabelService, new class extends mock<ILabelService>() { }],
+				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 			);
 
 			if (options.provider) {

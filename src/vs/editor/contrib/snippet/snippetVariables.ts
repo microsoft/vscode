@@ -149,7 +149,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _labelService: ILabelService | undefined,
+		private readonly _labelService: ILabelService,
 		private readonly _model: ITextModel
 	) {
 		//
@@ -171,15 +171,15 @@ export class ModelBasedVariableResolver implements VariableResolver {
 				return name.slice(0, idx);
 			}
 
-		} else if (name === 'TM_DIRECTORY' && this._labelService) {
+		} else if (name === 'TM_DIRECTORY') {
 			if (path.dirname(this._model.uri.fsPath) === '.') {
 				return '';
 			}
 			return this._labelService.getUriLabel(dirname(this._model.uri));
 
-		} else if (name === 'TM_FILEPATH' && this._labelService) {
+		} else if (name === 'TM_FILEPATH') {
 			return this._labelService.getUriLabel(this._model.uri);
-		} else if (name === 'RELATIVE_FILEPATH' && this._labelService) {
+		} else if (name === 'RELATIVE_FILEPATH') {
 			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
 		}
 

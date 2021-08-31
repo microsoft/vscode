@@ -23,10 +23,12 @@ import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 suite('SuggestController', function () {
 
@@ -63,7 +65,9 @@ suite('SuggestController', function () {
 						override dispose() { }
 					};
 				}
-			}]
+			}],
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		);
 
 		model = createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' }));

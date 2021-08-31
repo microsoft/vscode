@@ -33,10 +33,12 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
@@ -54,6 +56,8 @@ function createMockEditor(model: TextModel): ITestCodeEditor {
 					return -1;
 				}
 			}],
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		),
 	});
 	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
