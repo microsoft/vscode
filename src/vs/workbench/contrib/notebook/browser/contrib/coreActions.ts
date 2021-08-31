@@ -60,8 +60,6 @@ const INSERT_CODE_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertCodeCellAtTop';
 const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellAbove';
 const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
 const INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertMarkdownCellAtTop';
-const CHANGE_CELL_TO_CODE_COMMAND_ID = 'notebook.cell.changeToCode';
-const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
 
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
@@ -996,53 +994,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
 
-registerAction2(class ChangeCellToCodeAction extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
-			title: localize('notebookActions.changeCellToCode', "Change Cell to Code"),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.KEY_Y,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
-				group: CellOverflowToolbarGroups.Edit,
-			}
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Code, context);
-	}
-});
-
-registerAction2(class ChangeCellToMarkdownAction extends NotebookMultiCellAction {
-	constructor() {
-		super({
-			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
-			title: localize('notebookActions.changeCellToMarkdown', "Change Cell to Markdown"),
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyCode.KEY_M,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('code')),
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_TYPE.isEqualTo('code')),
-				group: CellOverflowToolbarGroups.Edit,
-			}
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Markup, context, 'markdown', Mimes.markdown);
-	}
-});
 
 async function runCell(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 

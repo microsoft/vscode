@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Mimes } from 'vs/base/common/mime';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Range } from 'vs/editor/common/core/range';
-import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, changeCellToKind, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -546,5 +547,56 @@ registerAction2(class extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const bulkEditService = accessor.get(IBulkEditService);
 		return joinCellsWithSurrounds(bulkEditService, context, 'below');
+	}
+});
+
+const CHANGE_CELL_TO_CODE_COMMAND_ID = 'notebook.cell.changeToCode';
+const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
+
+registerAction2(class ChangeCellToCodeAction extends NotebookMultiCellAction {
+	constructor() {
+		super({
+			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
+			title: localize('notebookActions.changeCellToCode', "Change Cell to Code"),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyCode.KEY_Y,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
+			menu: {
+				id: MenuId.NotebookCellTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
+				group: CellOverflowToolbarGroups.Edit,
+			}
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		await changeCellToKind(CellKind.Code, context);
+	}
+});
+
+registerAction2(class ChangeCellToMarkdownAction extends NotebookMultiCellAction {
+	constructor() {
+		super({
+			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
+			title: localize('notebookActions.changeCellToMarkdown', "Change Cell to Markdown"),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyCode.KEY_M,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('code')),
+			menu: {
+				id: MenuId.NotebookCellTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_TYPE.isEqualTo('code')),
+				group: CellOverflowToolbarGroups.Edit,
+			}
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		await changeCellToKind(CellKind.Markup, context, 'markdown', Mimes.markdown);
 	}
 });
