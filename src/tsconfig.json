@@ -8,8 +8,8 @@
 		"target": "es2020",
 		"types": [
 			"keytar",
-			"mocha",
-			"semver",
+			// "mocha",
+			// "semver",
 			"sinon",
 			"winreg",
 			"trusted-types",
