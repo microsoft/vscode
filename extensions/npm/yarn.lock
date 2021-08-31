@@ -250,11 +250,6 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
-vscode-nls@^4.1.1:
-  version "4.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.1.1.tgz#f9916b64e4947b20322defb1e676a495861f133c"
-  integrity sha512-4R+2UoUUU/LdnMnFjePxfLqNhBS8lrAFyX7pjb2ud/lqDkrUavFUTcG7wR0HBZFakae0Q6KLBFjMS6W93F403A==
-
 vscode-nls@^4.1.2:
   version "4.1.2"
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-4.1.2.tgz#ca8bf8bb82a0987b32801f9fddfdd2fb9fd3c167"
