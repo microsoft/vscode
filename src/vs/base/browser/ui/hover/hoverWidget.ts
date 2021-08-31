@@ -23,6 +23,15 @@ export class HoverWidget extends Disposable {
 	constructor() {
 		super();
 
+		// Tanishq's Edit(start)
+		var html = '<html><body></body></html>';
+
+		var iframe = document.createElement('iframe');
+		iframe.src = HTMLElement + encodeURI(html);
+
+		document.body.appendChild(iframe);
+		// Tanishq's Edit(start)
+
 		this.containerDomNode = document.createElement('div');
 		this.containerDomNode.className = 'monaco-hover';
 		this.containerDomNode.tabIndex = 0;

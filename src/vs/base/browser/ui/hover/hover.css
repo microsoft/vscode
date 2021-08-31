@@ -20,9 +20,18 @@
 	display: none;
 }
 
-.monaco-hover .hover-contents:not(.html-hover-contents) {
+/* .monaco-hover .hover-contents:not(.html-hover-contents) {
 	padding: 4px 8px;
+} */
+
+/*Tanishq's Edit(Start)*/
+.monaco-hover .hover-contents:not(.html-hover-contents) {
+	width: 400px;
+	height: 200px;
+	border: 1px solid black;
+	border-radius: 5px;
 }
+/*Tanishq's Edit(End)*/
 
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
 	max-width: 500px;
