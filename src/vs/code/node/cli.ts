@@ -31,6 +31,10 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['telemetry'];
 }
 
+function createFileName(dir: string, prefix: string): string {
+	return join(dir, prefix + '-' + Math.random().toString(16).slice(-4));
+}
+
 interface IMainCli {
 	main: (argv: NativeParsedArgs) => Promise<void>;
 }
@@ -233,7 +237,7 @@ export async function main(argv: string[]): Promise<any> {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = join(homedir(), 'prof-' + Math.random().toString(16).slice(-4));
+			const filenamePrefix = createFileName(homedir(), 'prof');
 
 			addArg(argv, `--inspect-brk=${portMain}`);
 			addArg(argv, `--remote-debugging-port=${portRenderer}`);
@@ -365,9 +369,8 @@ export async function main(argv: string[]): Promise<any> {
 			let tmpStdoutLogger: CliVerboseLogger | undefined;
 			let tmpStderrLogger: CliVerboseLogger | undefined;
 			if (requiresWait) {
-				const time = new Date().getTime();
-				const tmpStdoutName = `${tmpdir()}/vscode-wait-transfer-${time}.log`;
-				const tmpStderrName = `${tmpdir()}/vscode-wait-transfer-error-${time}.log`;
+				const tmpStdoutName = createFileName(tmpdir(), 'code-stdout');
+				const tmpStderrName = createFileName(tmpdir(), 'code-stderr');
 				tmpStdoutLogger = new CliVerboseLogger(tmpStdoutName);
 				tmpStderrLogger = new CliVerboseLogger(tmpStderrName);
 				openArgs.push('-W');
