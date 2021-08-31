@@ -17,7 +17,7 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
 import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -38,7 +38,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	): IEditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			if (viewType === defaultCustomEditor.id) {
-				return accessor.get(IEditorService).createEditorInput({ resource, forceFile: true });
+				return accessor.get(IEditorService).createEditorInput({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } });
 			}
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
@@ -340,7 +340,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return { editor: this.doMove(group, newResource) };
 		}
 
-		const resolvedEditor = this.editorResolverService.resolveEditor({ resource: newResource, forceFile: true }, undefined);
+		const resolvedEditor = this.editorResolverService.resolveEditor({ resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, undefined);
 		return isEditorInputWithOptionsAndGroup(resolvedEditor) ? { editor: resolvedEditor.editor } : undefined;
 	}
 
