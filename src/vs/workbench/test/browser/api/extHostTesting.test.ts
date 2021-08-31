@@ -16,7 +16,7 @@ import { TestDiffOpType, TestItemExpandState, TestMessageType } from 'vs/workben
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { URI } from 'vs/workbench/workbench.web.api';
+import { URI } from 'vs/base/common/uri';
 import type { TestItem, TestRunRequest } from 'vscode';
 
 const simplify = (item: TestItem) => ({
