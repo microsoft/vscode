@@ -455,6 +455,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnLabel = true;
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
+	private _resetScrollPosition = true;
 	private _itemActivation = this.ui.isScreenReaderOptimized() ? ItemActivation.NONE /* https://github.com/microsoft/vscode/issues/57501 */ : ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
@@ -527,6 +528,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this._items;
 	}
 
+	private get scrollTop() {
+		return this.ui.list.scrollTop;
+	}
+
+	private set scrollTop(scrollTop: number) {
+		this.ui.list.scrollTop = scrollTop;
+	}
+
 	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
@@ -593,6 +602,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set autoFocusOnList(autoFocusOnList: boolean) {
 		this._autoFocusOnList = autoFocusOnList;
 		this.update();
+	}
+
+	get resetScrollPosition() {
+		return this._resetScrollPosition;
+	}
+
+	set resetScrollPosition(resetScrollPosition: boolean) {
+		this._resetScrollPosition = resetScrollPosition;
 	}
 
 	get itemActivation() {
@@ -922,6 +939,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
+		// store the scrollTop before it is reset
+		const scrollTopBefore = this.resetScrollPosition ? 0 : this.scrollTop;
 		const hideInput = !!this._hideInput && this._items.length > 0;
 		this.ui.container.classList.toggle('hidden-input', hideInput && !this.description);
 		const visibilities: Visibilities = {
@@ -1021,6 +1040,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			if (this.canSelectMany) {
 				this.ui.list.focus(QuickInputListFocus.First);
 			}
+		}
+
+		// Set the scroll position to what it was before updating the items
+		if (!this.resetScrollPosition) {
+			this.scrollTop = scrollTopBefore;
 		}
 	}
 }
@@ -1411,10 +1435,13 @@ export class QuickInputController extends Disposable {
 							const items = input.items.slice();
 							const removed = items.splice(index, 1);
 							const activeItems = input.activeItems.filter((ai) => ai !== removed[0]);
+							const resetScrollPositionBefore = input.resetScrollPosition;
+							input.resetScrollPosition = false;
 							input.items = items;
 							if (activeItems) {
 								input.activeItems = activeItems;
 							}
+							input.resetScrollPosition = resetScrollPositionBefore;
 						}
 					}
 				})),
