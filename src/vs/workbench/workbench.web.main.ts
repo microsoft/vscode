@@ -79,7 +79,7 @@ import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
-import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
 import { ICustomEndpointTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullEndpointTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';

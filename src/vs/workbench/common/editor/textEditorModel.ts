@@ -15,7 +15,7 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { IAriaAlertService } from 'vs/workbench/services/accessibility/common/ariaAlertService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { localize } from 'vs/nls';
 
 /**
@@ -36,7 +36,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		@IModelService protected modelService: IModelService,
 		@IModeService protected modeService: IModeService,
 		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
-		@IAriaAlertService private readonly ariaAlertService: IAriaAlertService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		textEditorModelHandle?: URI
 	) {
 		super();
@@ -119,7 +119,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			this.setModeInternal(lang);
 			const languageName = this.modeService.getLanguageName(lang);
 			if (languageName) {
-				this.ariaAlertService?.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName));
+				this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName));
 			}
 		}
 	}
