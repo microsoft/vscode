@@ -332,7 +332,7 @@ export class CellOutputElement extends Disposable {
 
 		const toolbar = this._renderDisposableStore.add(new ToolBar(mimeTypePicker, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: false
 		}));
 		toolbar.context = <INotebookCellActionContext>{
 			ui: true,
