@@ -38,7 +38,7 @@ export class MainThreadEditorTabs {
 		const tabs: IEditorTabDto[] = [];
 		for (const group of this._editorGroupsService.groups) {
 			for (const editor of group.editors) {
-				if (editor.isDisposed() || !editor.resource) {
+				if (editor.isDisposed()) {
 					continue;
 				}
 				tabs.push({
