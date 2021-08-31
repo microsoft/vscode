@@ -27,6 +27,7 @@ import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { IAriaAlertService } from 'vs/workbench/services/accessibility/common/ariaAlertService';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -136,12 +137,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService
+		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
+		@IAriaAlertService ariaAlertService: IAriaAlertService
 	) {
-		super(
-			modelService,
-			modeService,
-			languageDetectionService);
+		super(modelService, modeService, languageDetectionService, ariaAlertService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));

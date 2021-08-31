@@ -96,6 +96,7 @@ import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/hover/browser/hoverService';
 import 'vs/workbench/services/experiment/common/experimentService';
 import 'vs/workbench/services/outline/browser/outlineService';
+import 'vs/workbench/services/accessibility/browser/ariaAlertServiceImpl';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

@@ -27,6 +27,7 @@ import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textMo
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { extUri } from 'vs/base/common/resources';
+import { IAriaAlertService } from 'vs/workbench/services/accessibility/common/ariaAlertService';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -111,9 +112,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
+		@IAriaAlertService ariaAlertService: IAriaAlertService,
 		@IPathService private readonly pathService: IPathService
 	) {
-		super(modelService, modeService, languageDetectionService);
+		super(modelService, modeService, languageDetectionService, ariaAlertService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
