@@ -1044,7 +1044,7 @@ declare module 'vscode' {
 		readonly supportedTypes: string[];
 
 		// todo@API maybe
-		// onWillDrop(target: T): Thenable<TreeDataTransfer>;
+		// onWillDrop?(source: T): Thenable<TreeDataTransfer>;
 
 		/**
 		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
