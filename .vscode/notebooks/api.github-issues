@@ -27,6 +27,6 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repo $milestone is:open label:api-proposal "
+    "value": "$repo $milestone is:open label:api-proposal sort:created-asc"
   }
 ]

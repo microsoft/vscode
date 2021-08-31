@@ -9,7 +9,6 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarLocation, ShowCellStatusBar, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -93,7 +92,7 @@ function isSetProfileArgs(args: unknown): args is ISetProfileArgs {
 }
 
 export class NotebookProfileContribution extends Disposable {
-	constructor(@IConfigurationService configService: IConfigurationService, @optional(ITASExperimentService) private readonly experimentService: ITASExperimentService) {
+	constructor(@IConfigurationService configService: IConfigurationService, @ITASExperimentService private readonly experimentService: ITASExperimentService) {
 		super();
 
 		if (this.experimentService) {

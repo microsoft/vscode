@@ -11,11 +11,12 @@ import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestMessage, TestResultState, TestRunProfileKind, TestTag } from 'vs/workbench/api/common/extHostTypes';
-import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestMessage, TestResultState, TestRunProfileKind, TestTag, Location, Position, Range } from 'vs/workbench/api/common/extHostTypes';
+import { TestDiffOpType, TestItemExpandState, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
+import { URI } from 'vs/base/common/uri';
 import type { TestItem, TestRunRequest } from 'vscode';
 
 const simplify = (item: TestItem) => ({
@@ -539,14 +540,14 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('adds tests to run smartly', () => {
-			const task1 = c.createTestRun('ctrl', single, req, 'hello world', false);
+			const task1 = c.createTestRun('ctrlId', single, req, 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 			const expectedArgs: unknown[][] = [];
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
 			task1.passed(single.root.children.get('id-a')!.children.get('id-aa')!);
 			expectedArgs.push([
-				'ctrl',
+				'ctrlId',
 				tracker.id,
 				[
 					convert.TestItem.from(single.root),
@@ -556,10 +557,9 @@ suite('ExtHost Testing', () => {
 			]);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
-
 			task1.enqueued(single.root.children.get('id-a')!.children.get('id-ab')!);
 			expectedArgs.push([
-				'ctrl',
+				'ctrlId',
 				tracker.id,
 				[
 					convert.TestItem.from(single.root.children.get('id-a') as TestItemImpl),
@@ -570,6 +570,47 @@ suite('ExtHost Testing', () => {
 
 			task1.passed(single.root.children.get('id-a')!.children.get('id-ab')!);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+		});
+
+		test('adds test messages to run', () => {
+			const test1 = new TestItemImpl('ctrlId', 'id-c', 'test c', URI.file('/testc.txt'));
+			const test2 = new TestItemImpl('ctrlId', 'id-d', 'test d', URI.file('/testd.txt'));
+			test1.range = test2.range = new Range(new Position(0, 0), new Position(1, 0));
+			single.root.children.replace([test1, test2]);
+			const task = c.createTestRun('ctrlId', single, req, 'hello world', false);
+
+			const message1 = new TestMessage('some message');
+			message1.location = new Location(URI.file('/a.txt'), new Position(0, 0));
+			task.failed(test1, message1);
+
+			const args = proxy.$appendTestMessagesInRun.args[0];
+			assert.deepStrictEqual(proxy.$appendTestMessagesInRun.args[0], [
+				args[0],
+				args[1],
+				new TestId(['ctrlId', 'id-c']).toString(),
+				[{
+					message: 'some message',
+					type: TestMessageType.Error,
+					expected: undefined,
+					actual: undefined,
+					location: convert.location.from(message1.location)
+				}]
+			]);
+
+			// should use test location as default
+			task.failed(test2, new TestMessage('some message'));
+			assert.deepStrictEqual(proxy.$appendTestMessagesInRun.args[1], [
+				args[0],
+				args[1],
+				new TestId(['ctrlId', 'id-d']).toString(),
+				[{
+					message: 'some message',
+					type: TestMessageType.Error,
+					expected: undefined,
+					actual: undefined,
+					location: convert.location.from({ uri: test2.uri!, range: test2.range! }),
+				}]
+			]);
 		});
 
 		test('guards calls after runs are ended', () => {
@@ -603,6 +644,33 @@ suite('ExtHost Testing', () => {
 				TestResultState.Passed,
 				undefined,
 			]]);
+		});
+
+		test('sets state of test with identical local IDs (#131827)', () => {
+			const testA = single.root.children.get('id-a');
+			const testB = single.root.children.get('id-b');
+			const childA = new TestItemImpl('ctrlId', 'id-child', 'child', undefined);
+			testA!.children.replace([childA]);
+			const childB = new TestItemImpl('ctrlId', 'id-child', 'child', undefined);
+			testB!.children.replace([childB]);
+
+			const task1 = c.createTestRun('ctrl', single, {}, 'hello world', false);
+			const tracker = Iterable.first(c.trackers)!;
+
+			task1.passed(childA);
+			task1.passed(childB);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, [
+				[
+					'ctrl',
+					tracker.id,
+					[single.root, testA, childA].map(t => convert.TestItem.from(t as TestItemImpl)),
+				],
+				[
+					'ctrl',
+					tracker.id,
+					[single.root, testB, childB].map(t => convert.TestItem.from(t as TestItemImpl)),
+				],
+			]);
 		});
 	});
 });

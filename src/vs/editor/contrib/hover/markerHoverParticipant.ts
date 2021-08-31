@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { CodeActionTriggerType } from 'vs/editor/common/modes';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { basename } from 'vs/base/common/resources';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Range } from 'vs/editor/common/core/range';
+import { IModelDecoration } from 'vs/editor/common/model';
+import { CodeActionTriggerType } from 'vs/editor/common/modes';
+import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
+import { CodeActionSet, getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
-import { IModelDecoration } from 'vs/editor/common/model';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/gotoError';
 import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import * as nls from 'vs/nls';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 

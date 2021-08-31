@@ -300,7 +300,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				this.editorService.openEditor({
 					resource: undefined,
-					forceUntitled: true,
 					options: {
 						pinned: true,
 						override: DEFAULT_EDITOR_ASSOCIATION.id

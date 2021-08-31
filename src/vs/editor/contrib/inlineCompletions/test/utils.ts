@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletionsProvider, InlineCompletion, InlineCompletionContext } from 'vs/editor/common/modes';
+import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/modes';
 import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 

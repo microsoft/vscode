@@ -15,7 +15,7 @@ import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platf
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -67,7 +67,7 @@ export class NotebookEditorToolbar extends Disposable {
 		@IMenuService readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@optional(ITASExperimentService) private readonly experimentService: ITASExperimentService
+		@ITASExperimentService private readonly experimentService: ITASExperimentService
 	) {
 		super();
 

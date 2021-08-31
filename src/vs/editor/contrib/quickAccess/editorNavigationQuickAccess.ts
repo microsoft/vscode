@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
-import { IEditor, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, OverviewRulerLane, ITextModel } from 'vs/editor/common/model';
-import { IRange } from 'vs/editor/common/core/range';
-import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
-import { IQuickPick, IQuickPickItem, IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { once } from 'vs/base/common/functional';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IRange } from 'vs/editor/common/core/range';
+import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from 'vs/editor/common/model';
+import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
+import { IQuickAccessProvider } from 'vs/platform/quickinput/common/quickAccess';
+import { IKeyMods, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 interface IEditorLineDecoration {
 	rangeHighlightId: string;

@@ -34,17 +34,12 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		@IModelService protected modelService: IModelService,
 		@IModeService protected modeService: IModeService,
 		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService,
-		textEditorModelHandle?: URI,
-		preferredMode?: string
+		textEditorModelHandle?: URI
 	) {
 		super();
 
 		if (textEditorModelHandle) {
 			this.handleExistingModel(textEditorModelHandle);
-		}
-
-		if (preferredMode) {
-			this.setModeInternal(preferredMode);
 		}
 	}
 

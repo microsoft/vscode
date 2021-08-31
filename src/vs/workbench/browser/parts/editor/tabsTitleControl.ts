@@ -237,7 +237,6 @@ export class TabsTitleControl extends TitleControl {
 
 				this.editorService.openEditor({
 					resource: undefined,
-					forceUntitled: true,
 					options: {
 						pinned: true,
 						index: this.group.count, // always at the end

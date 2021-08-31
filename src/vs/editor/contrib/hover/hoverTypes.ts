@@ -8,8 +8,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { IModelDecoration } from 'vs/editor/common/model';
+import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 
 export interface IHoverPart {
 	/**

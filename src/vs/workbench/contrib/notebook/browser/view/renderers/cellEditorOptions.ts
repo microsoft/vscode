@@ -15,8 +15,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActiveEditorContext } from 'vs/workbench/common/editor';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getContextFromActiveEditor, INotebookActionContext, INotebookCellActionContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -190,7 +190,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 	}
 });
 
-registerAction2(class ToggleActiveLineNumberAction extends Action2 {
+registerAction2(class ToggleActiveLineNumberAction extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
 		super({
 			id: 'notebook.cell.toggleLineNumbers',
@@ -208,34 +208,47 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: { cell: ICellViewModel; }): Promise<void> {
-		let cell = context?.cell;
-		if (!cell) {
-			const editor = getNotebookEditorFromEditorPane(accessor.get(IEditorService).activeEditorPane);
-			if (!editor || !editor.hasModel()) {
-				return;
-			}
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		const context = args[0];
+		const isNotebookActionContext = this.isNotebookActionContext(context);
+		if (isNotebookActionContext) {
+			return context;
+		} else {
+			return getContextFromActiveEditor(accessor.get(IEditorService));
+		}
+	}
 
-			cell = editor.getActiveCell();
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		if (!context) {
+			return;
 		}
 
-		if (cell) {
+		if (context.cell && context.ui) {
+			this.updateCell(accessor.get(IConfigurationService), context.cell);
+		} else if (context.selectedCells) {
 			const configurationService = accessor.get(IConfigurationService);
-			const renderLineNumbers = configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-			const cellLineNumbers = cell.lineNumbers;
-			// 'on', 'inherit' 	-> 'on'
-			// 'on', 'off'		-> 'off'
-			// 'on', 'on'		-> 'on'
-			// 'off', 'inherit'	-> 'off'
-			// 'off', 'off'		-> 'off'
-			// 'off', 'on'		-> 'on'
-			const currentLineNumberIsOn = cellLineNumbers === 'on' || (cellLineNumbers === 'inherit' && renderLineNumbers);
-
-			if (currentLineNumberIsOn) {
-				cell.lineNumbers = 'off';
-			} else {
-				cell.lineNumbers = 'on';
-			}
+			context.selectedCells.forEach(cell => {
+				this.updateCell(configurationService, cell);
+			});
 		}
+	}
+
+	private updateCell(configurationService: IConfigurationService, cell: ICellViewModel) {
+		const renderLineNumbers = configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
+		const cellLineNumbers = cell.lineNumbers;
+		// 'on', 'inherit' 	-> 'on'
+		// 'on', 'off'		-> 'off'
+		// 'on', 'on'		-> 'on'
+		// 'off', 'inherit'	-> 'off'
+		// 'off', 'off'		-> 'off'
+		// 'off', 'on'		-> 'on'
+		const currentLineNumberIsOn = cellLineNumbers === 'on' || (cellLineNumbers === 'inherit' && renderLineNumbers);
+
+		if (currentLineNumberIsOn) {
+			cell.lineNumbers = 'off';
+		} else {
+			cell.lineNumbers = 'on';
+		}
+
 	}
 });

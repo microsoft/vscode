@@ -94,7 +94,8 @@
     "@iktakahiro/markdown-it-katex": "https://github.com/mjbvz/markdown-it-katex.git"
   },
   "devDependencies": {
-    "@types/markdown-it": "^0.0.0"
+    "@types/markdown-it": "^0.0.0",
+    "@types/vscode-notebook-renderer": "^1.60.0"
   },
   "repository": {
     "type": "git",

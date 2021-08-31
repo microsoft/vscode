@@ -91,7 +91,7 @@ defaultStyles.textContent = `
 		max-height: 100%;
 	}
 
-	a {
+	a, a code {
 		color: var(--vscode-textLink-foreground);
 	}
 

@@ -606,8 +606,9 @@ export class DiskFileSystemProvider extends Disposable implements
 					watcherOptions = this.options?.watcher;
 				}
 
-				// Single Folder Watcher
 				else {
+
+					// Single Folder Watcher
 					if (this.recursiveFoldersToWatch.length === 1) {
 						if (isWindows) {
 							watcherImpl = WindowsWatcherService;

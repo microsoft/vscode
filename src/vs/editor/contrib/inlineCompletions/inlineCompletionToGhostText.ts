@@ -3,17 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion } from 'vs/editor/common/modes';
-import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
-
 
 export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
+}
+
+export function normalizedInlineCompletionsEquals(a: NormalizedInlineCompletion | undefined, b: NormalizedInlineCompletion | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return a.range.equalsRange(b.range) && a.text === b.text && a.command === b.command;
 }
 
 export function inlineCompletionToGhostText(

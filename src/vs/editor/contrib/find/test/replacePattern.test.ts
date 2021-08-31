@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ReplacePattern, ReplacePiece, parseReplaceString } from 'vs/editor/contrib/find/replacePattern';
 import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
+import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/contrib/find/replacePattern';
 
 suite('Replace Pattern test', () => {
 

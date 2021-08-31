@@ -364,6 +364,7 @@
     "@types/highlight.js": "10.1.0",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "0.0.2",
+    "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1"
   },

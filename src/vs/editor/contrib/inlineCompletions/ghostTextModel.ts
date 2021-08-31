@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { InlineCompletionTriggerKind } from 'vs/editor/common/modes';
+import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { InlineCompletionsModel, LiveInlineCompletions, SynchronizedInlineCompletionsCache } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Emitter } from 'vs/base/common/event';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
 import { createDisposableRef } from 'vs/editor/contrib/inlineCompletions/utils';
-import { GhostTextWidgetModel, GhostText } from 'vs/editor/contrib/inlineCompletions/ghostText';
-import { InlineCompletionTriggerKind } from 'vs/editor/common/modes';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export abstract class DelegatingModel extends Disposable implements GhostTextWidgetModel {
 	private readonly onDidChangeEmitter = new Emitter<void>();

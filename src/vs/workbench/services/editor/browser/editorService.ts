@@ -894,8 +894,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
-			const original = this.createEditorInput({ ...input.original, forceFile: input.forceFile });
-			const modified = this.createEditorInput({ ...input.modified, forceFile: input.forceFile });
+			const original = this.createEditorInput({ ...input.original, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
+			const modified = this.createEditorInput({ ...input.modified, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
 
 			return this.instantiationService.createInstance(DiffEditorInput,
 				input.label,

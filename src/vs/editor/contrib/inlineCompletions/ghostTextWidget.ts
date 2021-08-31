@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./ghostText';
 import * as dom from 'vs/base/browser/dom';
+import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
+import * as strings from 'vs/base/common/strings';
+import 'vs/css!./ghostText';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import * as strings from 'vs/base/common/strings';
-import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
-import { RGBA, Color } from 'vs/base/common/color';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 

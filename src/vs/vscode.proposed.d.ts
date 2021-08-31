@@ -179,8 +179,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true }): Thenable<AuthenticationSession>;
-		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: { detail: string } }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
 	}
 
 	export namespace workspace {
@@ -1043,6 +1042,9 @@ declare module 'vscode' {
 
 	export interface DragAndDropController<T> extends Disposable {
 		readonly supportedTypes: string[];
+
+		// todo@API maybe
+		// onWillDrop(target: T): Thenable<TreeDataTransfer>;
 
 		/**
 		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
@@ -2515,7 +2517,7 @@ declare module 'vscode' {
 		/**
 		 * The file is readonly.
 		 *
-		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered  with
+		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered with
 		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
 		 * is set. As a consequence, it is not possible to have a readonly file system provider
 		 * registered where some `FileStat` are not readonly.
@@ -2886,6 +2888,7 @@ declare module 'vscode' {
 		text: string;
 		detail: string;
 		command: Command | undefined;
+		// accessibilityInformation?: AccessibilityInformation; TODO@API
 		dispose(): void;
 	}
 

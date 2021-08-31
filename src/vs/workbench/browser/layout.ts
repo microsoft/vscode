@@ -610,8 +610,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					const diffEditorInput: IUntypedEditorInput[] = [{
 						original: { resource: filesToDiff[0].resource },
 						modified: { resource: filesToDiff[1].resource },
-						options: { pinned: true },
-						forceFile: true
+						options: { pinned: true }
 					}];
 
 					return diffEditorInput;

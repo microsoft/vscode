@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel, IModelDecorationOptions, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { Event, Emitter } from 'vs/base/common/event';
-import { FoldingRegions, ILineRange, FoldingRegion } from './foldingRanges';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { FoldingRegion, FoldingRegions, ILineRange } from './foldingRanges';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean, isHidden: boolean): IModelDecorationOptions;

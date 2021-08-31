@@ -42,7 +42,7 @@ export class FindModel extends Disposable {
 		super();
 
 		this._register(_state.onFindReplaceStateChange(e => {
-			if (e.searchString || (e.isRevealed && this._state.isRevealed)) {
+			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed)) {
 				this.research();
 			}
 
