@@ -1010,3 +1010,12 @@ export function getRanges(cells: ICellViewModel[], included: (cell: ICellViewMod
 
 	return ranges;
 }
+
+export function cellRangeToViewCells(viewModel: NotebookViewModel, ranges: ICellRange[]) {
+	const cells: ICellViewModel[] = [];
+	ranges.forEach(range => {
+		cells.push(...viewModel.getCells(range));
+	});
+
+	return cells;
+}

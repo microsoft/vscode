@@ -15,12 +15,11 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActiveEditorContext } from 'vs/workbench/common/editor';
-import { getContextFromActiveEditor, INotebookActionContext, INotebookCellActionContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class CellEditorOptions extends Disposable {
 
@@ -190,7 +189,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 	}
 });
 
-registerAction2(class ToggleActiveLineNumberAction extends NotebookMultiCellAction<INotebookActionContext> {
+registerAction2(class ToggleActiveLineNumberAction extends NotebookMultiCellAction {
 	constructor() {
 		super({
 			id: 'notebook.cell.toggleLineNumbers',
@@ -208,24 +207,10 @@ registerAction2(class ToggleActiveLineNumberAction extends NotebookMultiCellActi
 		});
 	}
 
-	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
-		const context = args[0];
-		const isNotebookActionContext = this.isNotebookActionContext(context);
-		if (isNotebookActionContext) {
-			return context;
-		} else {
-			return getContextFromActiveEditor(accessor.get(IEditorService));
-		}
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		if (!context) {
-			return;
-		}
-
-		if (context.cell && context.ui) {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		if (context.ui) {
 			this.updateCell(accessor.get(IConfigurationService), context.cell);
-		} else if (context.selectedCells) {
+		} else {
 			const configurationService = accessor.get(IConfigurationService);
 			context.selectedCells.forEach(cell => {
 				this.updateCell(configurationService, cell);
