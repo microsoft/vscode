@@ -24,8 +24,11 @@
 	display: none;
 }
 
-.monaco-workbench .hover-language-status-element .right,
 .monaco-workbench .hover-language-status-element .left {
+	margin: auto 0;
+}
+
+.monaco-workbench .hover-language-status-element .right {
 	margin: auto 0;
 	display: flex;
 }
