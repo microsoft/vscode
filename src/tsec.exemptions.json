@@ -30,8 +30,7 @@
 		"vs/base/worker/defaultWorkerFactory.ts",
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
 	],
-	"ban-element-innerhtml-assignments":  [
-		"vs/base/browser/dom.ts",
-		"vs/base/browser/markdownRenderer.ts"
+	"ban-domparser-parsefromstring": [
+		"vs/base/test/browser/markdownRenderer.test.ts"
 	]
 }

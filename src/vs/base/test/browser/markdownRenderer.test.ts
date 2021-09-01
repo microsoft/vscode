@@ -9,6 +9,17 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { parse } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 
+function strToNode(str: string): HTMLElement {
+	return new DOMParser().parseFromString(str, 'text/html').body.firstChild as HTMLElement;
+}
+
+function assertNodeEquals(actualNode: HTMLElement, expectedHtml: string) {
+	const expectedNode = strToNode(expectedHtml);
+	assert.ok(
+		actualNode.isEqualNode(expectedNode),
+		`Expected: ${expectedNode.outerHTML}\nActual: ${actualNode.outerHTML}`);
+}
+
 suite('MarkdownRenderer', () => {
 	suite('Sanitization', () => {
 		test('Should not render images with unknown schemes', () => {
@@ -18,32 +29,32 @@ suite('MarkdownRenderer', () => {
 		});
 	});
 
-	suite('Images', () => {
+	suite.only('Images', () => {
 		test('image rendering conforms to default', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
 			const result: HTMLElement = renderMarkdown(markdown);
-			assert.strictEqual(result.innerHTML, '<p><img title="caption" alt="image" src="http://example.com/cat.gif"></p>');
+			assertNodeEquals(result, '<div><p><img title="caption" alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image rendering conforms to default without title', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif)` };
 			const result: HTMLElement = renderMarkdown(markdown);
-			assert.strictEqual(result.innerHTML, '<p><img alt="image" src="http://example.com/cat.gif"></p>');
+			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image width from title params', () => {
 			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` });
-			assert.strictEqual(result.innerHTML, `<p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p>`);
+			assertNodeEquals(result, `<div><p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image height from title params', () => {
 			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=100 'caption')` });
-			assert.strictEqual(result.innerHTML, `<p><img height="100" title="caption" alt="image" src="http://example.com/cat.gif"></p>`);
+			assertNodeEquals(result, `<div><p><img height="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image width and height from title params', () => {
 			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` });
-			assert.strictEqual(result.innerHTML, `<p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p>`);
+			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 	});
 

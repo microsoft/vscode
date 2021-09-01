@@ -1392,7 +1392,7 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 
 	try {
 		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
-		node.innerHTML = html as any;
+		node.innerHTML = html as unknown as string;
 	} finally {
 		dompurify.removeHook('afterSanitizeAttributes');
 	}

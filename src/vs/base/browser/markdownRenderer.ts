@@ -236,7 +236,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const renderedMarkdown = marked.parse(value, markedOptions);
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as any;
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
