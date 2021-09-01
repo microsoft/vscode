@@ -7,7 +7,6 @@
 //                 Piotr Błażejewicz <https://github.com/peterblazejewicz>
 //                 Nicholas Ellul <https://github.com/NicholasEllul>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
-/// <reference types="trusted-types"/>
 
 export as namespace DOMPurify;
 export = DOMPurify;

@@ -29,7 +29,7 @@ suite('MarkdownRenderer', () => {
 		});
 	});
 
-	suite.only('Images', () => {
+	suite('Images', () => {
 		test('image rendering conforms to default', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
 			const result: HTMLElement = renderMarkdown(markdown);
