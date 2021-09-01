@@ -115,7 +115,7 @@
     "@types/windows-mutex": "^0.4.0",
     "@types/windows-process-tree": "^0.3.1",
     "@types/winreg": "^1.2.31",
-    "@types/yauzl": "^2.9.1",
+    "@types/yauzl": "^2.9.2",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/eslint-plugin": "4.29.3",
     "@typescript-eslint/parser": "^4.29.3",
