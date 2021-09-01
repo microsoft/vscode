@@ -7,8 +7,7 @@ import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesSh
 import type * as vscode from 'vscode';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { StandardTokenType, Range, Position, LanguageStatusSeverity } from 'vs/workbench/api/common/extHostTypes';
-import Severity from 'vs/base/common/severity';
+import { StandardTokenType, Range, Position } from 'vs/workbench/api/common/extHostTypes';
 import { disposableTimeout } from 'vs/base/common/async';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -83,7 +82,6 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			selector,
 			id,
 			name: extension.displayName ?? extension.name,
-			severity: LanguageStatusSeverity.Information,
 			command: undefined,
 			text: '',
 			detail: '',
@@ -104,7 +102,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 					selector: data.selector,
 					label: data.text,
 					detail: data.detail,
-					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info,
+					needsAttention: data.needsAttention,
 					command: data.command && this._commands.toInternal(data.command, commandDisposables),
 					accessibilityInfo: data.accessibilityInformation
 				});
@@ -148,11 +146,11 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 				data.detail = value;
 				updateAsync();
 			},
-			get severity() {
-				return data.severity;
+			get needsAttention() {
+				return data.needsAttention;
 			},
-			set severity(value) {
-				data.severity = value;
+			set needsAttention(value) {
+				data.needsAttention = value;
 				updateAsync();
 			},
 			get accessibilityInformation() {
