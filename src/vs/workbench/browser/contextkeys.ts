@@ -160,7 +160,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
 
 		// Entering a multi root workspace support: support for entering a multi-root
-		// workspace (e.g. "Open Workspace...", "Duplicate Workspace", "Save Workspace")
+		// workspace (e.g. "Open Workspace from File...", "Duplicate Workspace", "Save Workspace")
 		// is driven by the ability to resolve a workspace configuration file (*.code-workspace)
 		// with a built-in file system provider.
 		// This condition is met:
