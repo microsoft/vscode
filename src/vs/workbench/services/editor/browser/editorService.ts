@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolution, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -897,13 +897,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const original = this.createEditorInput({ ...input.original, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
 			const modified = this.createEditorInput({ ...input.modified, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
 
-			return this.instantiationService.createInstance(DiffEditorInput,
-				input.label,
-				input.description,
-				original,
-				modified,
-				undefined
-			);
+			return this.instantiationService.createInstance(DiffEditorInput, input.label, input.description, original, modified, undefined);
+		}
+
+		// Side by Side Editor Support
+		if (isResourceSideBySideEditorInput(input)) {
+			const primary = this.createEditorInput({ ...input.primary, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
+			const secondary = this.createEditorInput({ ...input.secondary, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
+
+			return new SideBySideEditorInput(input.label, input.description, secondary, primary);
 		}
 
 		// Untitled file support
