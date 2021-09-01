@@ -378,7 +378,7 @@ export async function main(argv: string[]): Promise<any> {
 				openArgs.push('--stderr', tmpStderrName);
 			}
 			const argsArr: string[] = [];
-			const isDev = env['NODE_ENV'] === 'development';
+			const isDev = env['VSCODE_DEV'];
 			// When we're in development mode, call the OSS app rather than the OSS app's Electron
 			const execPathToUse = isDev ? resolve(join(process.execPath, '../../..')) : process.execPath;
 			argsArr.push('-a', execPathToUse);
