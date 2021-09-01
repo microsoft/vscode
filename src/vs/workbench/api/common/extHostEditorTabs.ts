@@ -50,22 +50,14 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	$acceptEditorTabs(tabs: IEditorTabDto[]): void {
 		this._activeTab = undefined;
 		this._tabs = tabs.map(dto => {
-			// If we iterate through and find the active tab also set that
-			if (dto.isActive) {
-				this._activeTab = {
-					label: dto.label,
-					viewColumn: dto.viewColumn,
-					resource: URI.revive(dto.resource),
-					isActive: true
-				};
-			}
-			return {
+			return Object.freeze({
 				label: dto.label,
 				viewColumn: dto.viewColumn,
 				resource: URI.revive(dto.resource),
 				isActive: dto.isActive
-			};
+			});
 		});
+		this._activeTab = this._tabs.find(t => t.isActive);
 		this._onDidChangeActiveTab.fire(this._activeTab);
 		this._onDidChangeTabs.fire(this._tabs);
 	}

@@ -2283,24 +2283,24 @@ declare module 'vscode' {
 		/**
 		 * The text displayed on the tab
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * The position of the tab
 		 */
-		viewColumn: ViewColumn;
+		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The resource represented by the tab.
-		 * May be undefined in certain cases such as diff editor and marketplace tabs
+		 * The resource represented by the tab if availble.
+		 * Note: Not all editor types have a resource associated with them
 		 */
-		resource?: Uri;
+		readonly resource?: Uri;
 
 		/**
 		 * Whether or not the tab is currently active
 		 * Dictated by being the selected tab in the active group
 		 */
-		isActive: boolean;
+		readonly isActive: boolean;
 	}
 
 	export namespace window {
@@ -2308,7 +2308,7 @@ declare module 'vscode' {
 		 * A list of all opened tabs
 		 * Ordered from left to right
 		 */
-		export const tabs: ReadonlyArray<Tab>;
+		export const tabs: readonly Tab[];
 
 		/**
 		 * The currently active tab
@@ -2320,7 +2320,7 @@ declare module 'vscode' {
 		 * An {@link Event} which fires when the array of {@link window.tabs tabs}
 		 * has changed.
 		 */
-		export const onDidChangeTabs: Event<ReadonlyArray<Tab>>;
+		export const onDidChangeTabs: Event<readonly Tab[]>;
 
 		/**
 		 * An {@link Event} which fires when the {@link window.activeTab activeTab}
