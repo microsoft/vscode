@@ -89,9 +89,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		this.registerListeners();
 
-		// Register the default editor to the override service
-		// so that it shows up in the editors picker
-		this.registerDefaultOverride();
+		// Register the default editor to the editor resolver
+		// service so that it shows up in the editors picker
+		this.registerDefaultEditor();
 	}
 
 	private registerListeners(): void {
@@ -118,7 +118,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
 	}
 
-	private registerDefaultOverride(): void {
+	private registerDefaultEditor(): void {
 		this._register(this.editorResolverService.registerEditor(
 			'*',
 			{

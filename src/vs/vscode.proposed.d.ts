@@ -2841,21 +2841,17 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/129037
 
-	enum LanguageStatusSeverity {
-		Information = 0,
-		Warning = 1,
-		Error = 2
-	}
+
 
 	interface LanguageStatusItem {
 		readonly id: string;
 		selector: DocumentSelector;
-		severity: LanguageStatusSeverity;
-		name: string | undefined;
+		needsAttention?: boolean;
+		name?: string;
 		text: string;
 		detail: string;
 		command: Command | undefined;
-		// accessibilityInformation?: AccessibilityInformation; TODO@API
+		accessibilityInformation?: AccessibilityInformation;
 		dispose(): void;
 	}
 
