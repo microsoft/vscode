@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import {
 	IEditorFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorExtensions, EditorGroupEditorsCountContext,
-	ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext
+	ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, ActiveEditorContext
 } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
@@ -42,7 +42,7 @@ import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID,
 	CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_PINNED_EDITOR_COMMAND_ID, CLOSE_SAVED_EDITORS_COMMAND_ID, GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, KEEP_EDITOR_COMMAND_ID,
 	PIN_EDITOR_COMMAND_ID, SHOW_EDITORS_IN_GROUP, SPLIT_EDITOR_DOWN, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-	TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID, TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID
+	TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID, TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP
 } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -585,7 +585,27 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
+	group: '2_split_in_group',
+	command: {
+		id: SPLIT_EDITOR_IN_GROUP,
+		title: localize({ key: 'miSplitEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Split in &&Group")
+	},
+	when: ActiveEditorCanSplitInGroupContext,
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '2_split_in_group',
+	command: {
+		id: JOIN_EDITOR_IN_GROUP,
+		title: localize({ key: 'miJoinEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Join in &&Group")
+	},
+	when: ActiveEditorContext.isEqualTo(SideBySideEditor.ID),
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '3_layouts',
 	command: {
 		id: EditorLayoutSingleAction.ID,
 		title: localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single")
@@ -594,7 +614,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
+	group: '3_layouts',
 	command: {
 		id: EditorLayoutTwoColumnsAction.ID,
 		title: localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns")
@@ -603,7 +623,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
+	group: '3_layouts',
 	command: {
 		id: EditorLayoutThreeColumnsAction.ID,
 		title: localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns")
@@ -612,7 +632,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
+	group: '3_layouts',
 	command: {
 		id: EditorLayoutTwoRowsAction.ID,
 		title: localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows")
@@ -621,7 +641,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
+	group: '3_layouts',
 	command: {
 		id: EditorLayoutThreeRowsAction.ID,
 		title: localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows")
@@ -630,7 +650,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
+	group: '3_layouts',
 	command: {
 		id: EditorLayoutTwoByTwoGridAction.ID,
 		title: localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)")
@@ -639,7 +659,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
+	group: '3_layouts',
 	command: {
 		id: EditorLayoutTwoRowsRightAction.ID,
 		title: localize({ key: 'miTwoRowsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two R&&ows Right")
@@ -648,7 +668,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '2_layouts',
+	group: '3_layouts',
 	command: {
 		id: EditorLayoutTwoColumnsBottomAction.ID,
 		title: localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom")

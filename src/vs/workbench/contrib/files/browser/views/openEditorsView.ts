@@ -741,7 +741,7 @@ registerAction2(class extends Action2 {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: 'z_flip',
+	group: '4_flip',
 	command: {
 		id: toggleEditorGroupLayoutId,
 		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")

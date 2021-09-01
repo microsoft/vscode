@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorContext, ActiveEditorCanSplitInGroupContext } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorContext, ActiveEditorCanSplitInGroupContext, isTextEditorPane } from 'vs/workbench/common/editor';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -987,13 +987,22 @@ function registerSplitEditorInGroupCommands(): void {
 			const editorService = accessor.get(IEditorService);
 
 			const activeEditorPane = editorService.activeEditorPane;
-			if (!(activeEditorPane?.input instanceof SideBySideEditorInput)) {
+			if (!(activeEditorPane instanceof SideBySideEditor) || !(activeEditorPane.input instanceof SideBySideEditorInput)) {
 				return;
+			}
+
+			let options: ITextEditorOptions | undefined = undefined;
+			for (const pane of [activeEditorPane.getPrimaryEditorPane(), activeEditorPane.getSecondaryEditorPane()]) {
+				if (pane?.hasFocus() && isTextEditorPane(pane)) {
+					options = { viewState: pane.getViewState() };
+					break;
+				}
 			}
 
 			await editorService.replaceEditors([{
 				editor: activeEditorPane.input,
-				replacement: activeEditorPane.input.primary
+				replacement: activeEditorPane.input.primary,
+				options
 			}], activeEditorPane.group);
 		}
 	});
