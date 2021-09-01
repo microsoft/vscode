@@ -119,7 +119,7 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/eslint-plugin": "4.29.3",
     "@typescript-eslint/parser": "^4.29.3",
-    "ansi-colors": "^3.2.3",
+    "ansi-colors": "^4.1.1",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
     "copy-webpack-plugin": "^6.0.3",
