@@ -694,6 +694,14 @@ export function isSideBySideEditorInput(editor: unknown): editor is ISideBySideE
 	return isEditorInput(candidate?.primary) && isEditorInput(candidate?.secondary);
 }
 
+export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
+
+	/**
+	 * A marker to create a `IFileEditorInput` from this untyped input.
+	 */
+	forceFile: true;
+}
+
 /**
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.

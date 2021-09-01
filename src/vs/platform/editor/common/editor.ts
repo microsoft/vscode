@@ -66,15 +66,6 @@ export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
 	 * be used as associated path when saving the untitled file.
 	 */
 	readonly forceUntitled?: boolean;
-
-	/**
-	 * @deprecated internal hint that the editor should be resolved
-	 * into a `FileEditorInput` even if the resource cannot be handled
-	 * by any file system provider.
-	 *
-	 * See https://github.com/microsoft/vscode/issues/128209
-	 */
-	readonly forceFile?: boolean;
 }
 
 export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
