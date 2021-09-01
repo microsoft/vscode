@@ -91,7 +91,7 @@
 
 /* Action Items */
 .monaco-action-bar .action-item.select-container {
-	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here to not push */
+	overflow: hidden; /* somehow the dropdown overflows its container, we prevent it here not to push */
 	flex: 1;
 	max-width: 170px;
 	min-width: 60px;
