@@ -440,7 +440,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 
 	private async setLanguage(context: IChangeCellContext, languageId: string) {
 		if (languageId === 'markdown' && context.cell?.language !== 'markdown') {
-			const idx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+			const idx = context.notebookEditor.getCellIndex(context.cell);
 			await changeCellToKind(CellKind.Markup, { cell: context.cell, notebookEditor: context.notebookEditor }, 'markdown', Mimes.markdown);
 			const newCell = context.notebookEditor.viewModel.cellAt(idx);
 

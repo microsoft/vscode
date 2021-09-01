@@ -32,7 +32,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 		}
 
 		const text = cell.getText();
-		const idx = notebookEditor.viewModel.getCellIndex(cell);
+		const idx = notebookEditor.getCellIndex(cell);
 
 		if (language === undefined) {
 			const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
@@ -80,7 +80,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 				return;
 			}
 			const text = cell.getText();
-			const idx = notebookEditor.viewModel.getCellIndex(cell);
+			const idx = notebookEditor.getCellIndex(cell);
 
 			if (language === undefined) {
 				const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
@@ -273,7 +273,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 
 	if (context.ui) {
 		let targetCell = context.cell;
-		const targetCellIndex = viewModel.getCellIndex(targetCell);
+		const targetCellIndex = context.notebookEditor.getCellIndex(targetCell);
 		range = { start: targetCellIndex, end: targetCellIndex + 1 };
 	} else {
 		const selections = context.notebookEditor.getSelections();
@@ -431,7 +431,7 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 
 	if (context.ui) {
 		const focusMode = context.cell.focusMode;
-		const cellIndex = viewModel.getCellIndex(context.cell);
+		const cellIndex = context.notebookEditor.getCellIndex(context.cell);
 		ret = await joinNotebookCells(viewModel, { start: cellIndex, end: cellIndex + 1 }, direction);
 		if (!ret) {
 			return;

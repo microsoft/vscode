@@ -133,7 +133,7 @@ export class FindModel extends Disposable {
 	}
 
 	research() {
-		if (!this._state.isRevealed) {
+		if (!this._state.isRevealed || !this._notebookEditor.hasModel()) {
 			this.set([], false);
 			return;
 		}
@@ -156,7 +156,7 @@ export class FindModel extends Disposable {
 
 		const oldCurrIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		const oldCurrCell = this._findMatches[oldCurrIndex.index].cell;
-		const oldCurrMatchCellIndex = this._notebookEditor.viewModel!.getCellIndex(oldCurrCell);
+		const oldCurrMatchCellIndex = this._notebookEditor.getCellIndex(oldCurrCell);
 
 		if (oldCurrMatchCellIndex < 0) {
 			// the cell containing the active match is deleted

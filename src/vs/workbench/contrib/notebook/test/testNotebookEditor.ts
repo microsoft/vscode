@@ -246,6 +246,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override async layoutNotebookCell() { }
 		override async removeInset() { }
 		override async focusNotebookCell() { }
+		override getCellIndex(cell: ICellViewModel) { return viewModel.getCellIndex(cell); }
+		override getCellIndexByHandle(handle: number) { return viewModel.getCellIndexByHandle(handle); }
 	};
 
 	return { editor: notebookEditor, viewModel };

@@ -385,7 +385,7 @@ export class InteractiveEditor extends EditorPane {
 
 	#cellAtBottom(widget: NotebookEditorWidget & IActiveNotebookEditor, cell: ICellViewModel): boolean {
 		const visibleRanges = widget.visibleRanges;
-		const cellIndex = widget.viewModel.getCellIndex(cell);
+		const cellIndex = widget.getCellIndex(cell);
 		if (cellIndex === Math.max(...visibleRanges.map(range => range.end))) {
 			return true;
 		}

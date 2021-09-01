@@ -84,7 +84,7 @@ export class CodeCell extends Disposable {
 		});
 
 		const updateForFocusMode = () => {
-			if (this.notebookEditor.getFocus().start !== this.notebookEditor.viewModel.getCellIndex(viewCell)) {
+			if (this.notebookEditor.getFocus().start !== this.notebookEditor.getCellIndex(viewCell)) {
 				templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 			}
 

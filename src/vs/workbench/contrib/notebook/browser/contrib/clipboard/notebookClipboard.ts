@@ -78,9 +78,13 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 	items: NotebookCellTextModel[];
 	isCopy: boolean;
 }): boolean {
+	if (!editor.hasModel()) {
+		return false;
+	}
 	const viewModel = editor._getViewModel();
+	const textModel = editor.textModel;
 
-	if (!viewModel || viewModel.options.isReadOnly) {
+	if (viewModel.options.isReadOnly) {
 		return false;
 	}
 
@@ -93,7 +97,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 	if (activeCell) {
 		const currCellIndex = viewModel.getCellIndex(activeCell);
 		const newFocusIndex = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Replace,
 				index: newFocusIndex,
@@ -110,7 +114,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 			return false;
 		}
 
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{
 				editType: CellEditType.Replace,
 				index: 0,
@@ -166,7 +170,12 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 	return true;
 }
 export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor, targetCell: ICellViewModel | undefined): boolean {
+	if (!editor.hasModel()) {
+		return false;
+	}
+
 	const viewModel = editor._getViewModel();
+	const textModel = editor.textModel;
 
 	if (!viewModel || viewModel.options.isReadOnly) {
 		return false;
@@ -188,7 +197,7 @@ export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor,
 			const newFocus = focus.end <= targetCellIndex ? focus : { start: focus.start - 1, end: focus.end - 1 };
 			const newSelections = selections.map(selection => (selection.end <= targetCellIndex ? selection : { start: selection.start - 1, end: selection.end - 1 }));
 
-			viewModel.notebookDocument.applyEdits([
+			textModel.applyEdits([
 				{ editType: CellEditType.Replace, index: targetCellIndex, count: 1, cells: [] }
 			], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: selections }, () => ({ kind: SelectionStateType.Index, focus: newFocus, selections: newSelections }), undefined, true);
 
@@ -206,7 +215,7 @@ export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor,
 		clipboardService.writeText(targetCell.getText());
 		const newFocus = focus.end === viewModel.length ? { start: focus.start - 1, end: focus.end - 1 } : focus;
 		const newSelections = selections.map(selection => (selection.end <= focus.start ? selection : { start: selection.start - 1, end: selection.end - 1 }));
-		viewModel.notebookDocument.applyEdits([
+		textModel.applyEdits([
 			{ editType: CellEditType.Replace, index: focus.start, count: 1, cells: [] }
 		], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: selections }, () => ({ kind: SelectionStateType.Index, focus: newFocus, selections: newSelections }), undefined, true);
 
@@ -230,11 +239,11 @@ export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor,
 	 * and cells 1, 2 are selected, and then we delete cells 1 and 2
 	 * the new focused cell should still be at index 1
 	 */
-	const newFocusedCellIndex = firstSelectIndex < viewModel.notebookDocument.cells.length - 1
+	const newFocusedCellIndex = firstSelectIndex < textModel.cells.length - 1
 		? firstSelectIndex
-		: Math.max(viewModel.notebookDocument.cells.length - 2, 0);
+		: Math.max(textModel.cells.length - 2, 0);
 
-	viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: selectionRanges }, () => {
+	textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: selectionRanges }, () => {
 		return {
 			kind: SelectionStateType.Index,
 			focus: { start: newFocusedCellIndex, end: newFocusedCellIndex + 1 },

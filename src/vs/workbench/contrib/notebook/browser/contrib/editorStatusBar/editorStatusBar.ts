@@ -404,13 +404,17 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 
 	private _getSelectionsText(editor: INotebookEditor, vm: NotebookViewModel): string | undefined {
+		if (!editor.hasModel()) {
+			return undefined;
+		}
+
 		const activeCell = editor.getActiveCell();
 		if (!activeCell) {
 			return undefined;
 		}
 
-		const idxFocused = vm.getCellIndex(activeCell) + 1;
-		const numSelected = vm.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
+		const idxFocused = editor.getCellIndex(activeCell) + 1;
+		const numSelected = editor.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
 		const totalCells = vm.getCells().length;
 		return numSelected > 1 ?
 			nls.localize('notebook.multiActiveCellIndicator', "Cell {0} ({1} selected)", idxFocused, numSelected) :

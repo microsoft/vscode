@@ -58,7 +58,7 @@ registerAction2(class extends NotebookCellAction {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
-		const idx = editor.viewModel.getCellIndex(activeCell);
+		const idx = editor.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
@@ -100,7 +100,7 @@ registerAction2(class extends NotebookCellAction {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
-		const idx = editor.viewModel.getCellIndex(activeCell);
+		const idx = editor.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}

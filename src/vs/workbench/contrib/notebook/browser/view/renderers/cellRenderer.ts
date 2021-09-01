@@ -758,16 +758,17 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private addCollapseClickCollapseHandler(templateData: CodeCellRenderTemplate): IDisposable {
 		const dragHandleListener = DOM.addDisposableListener(templateData.dragHandle, DOM.EventType.DBLCLICK, e => {
 			const cell = templateData.currentRenderedCell;
-			if (!cell) {
+			if (!cell || !this.notebookEditor.hasModel()) {
 				return;
 			}
 
 			const clickedOnInput = e.offsetY < (cell.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
-			const viewModel = this.notebookEditor.viewModel!;
+			const viewModel = this.notebookEditor.viewModel;
+			const textModel = this.notebookEditor.textModel;
 			const metadata: Partial<NotebookCellMetadata> = clickedOnInput ?
 				{ inputCollapsed: !cell.metadata.inputCollapsed } :
 				{ outputCollapsed: !cell.metadata.outputCollapsed };
-			viewModel.notebookDocument.applyEdits([
+			textModel.applyEdits([
 				{
 					editType: CellEditType.PartialMetadata,
 					index: viewModel.getCellIndex(cell),
@@ -778,15 +779,17 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const collapsedPartListener = DOM.addDisposableListener(templateData.cellInputCollapsedContainer, DOM.EventType.DBLCLICK, e => {
 			const cell = templateData.currentRenderedCell;
-			if (!cell) {
+			if (!cell || !this.notebookEditor.hasModel()) {
 				return;
 			}
 
 			const metadata: Partial<NotebookCellMetadata> = cell.metadata.inputCollapsed ?
 				{ inputCollapsed: false } :
 				{ outputCollapsed: false };
-			const viewModel = this.notebookEditor.viewModel!;
-			viewModel.notebookDocument.applyEdits([
+			const viewModel = this.notebookEditor.viewModel;
+			const textModel = this.notebookEditor.textModel;
+
+			textModel.applyEdits([
 				{
 					editType: CellEditType.PartialMetadata,
 					index: viewModel.getCellIndex(cell),
@@ -797,7 +800,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const clickHandler = DOM.addDisposableListener(templateData.cellInputCollapsedContainer, DOM.EventType.CLICK, e => {
 			const cell = templateData.currentRenderedCell;
-			if (!cell) {
+			if (!cell || !this.notebookEditor.hasModel()) {
 				return;
 			}
 
@@ -805,8 +808,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			if (element && element.classList && element.classList.contains('expandInputIcon')) {
 				// clicked on the expand icon
-				const viewModel = this.notebookEditor.viewModel!;
-				viewModel.notebookDocument.applyEdits([
+				const viewModel = this.notebookEditor.viewModel;
+				const textModel = this.notebookEditor.textModel;
+				textModel.applyEdits([
 					{
 						editType: CellEditType.PartialMetadata,
 						index: viewModel.getCellIndex(cell),

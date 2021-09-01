@@ -209,9 +209,15 @@ export class CellDragAndDropController extends Disposable {
 
 		const isCopy = (ctx.ctrlKey && !platform.isMacintosh) || (ctx.altKey && platform.isMacintosh);
 
+		if (!this.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const textModel = this.notebookEditor.textModel;
+
 		if (isCopy) {
-			const viewModel = this.notebookEditor.viewModel!;
-			const draggedCellIndex = this.notebookEditor.viewModel!.getCellIndex(draggedCell);
+			const viewModel = this.notebookEditor.viewModel;
+			const draggedCellIndex = viewModel.getCellIndex(draggedCell);
 			const range = this.getCellRangeAroundDragTarget(draggedCellIndex);
 
 			let originalToIdx = viewModel.getCellIndex(draggedOverCell);
@@ -233,7 +239,7 @@ export class CellDragAndDropController extends Disposable {
 				finalFocus = { start: draggedCellIndex + delta, end: draggedCellIndex + delta + 1 };
 			}
 
-			viewModel.notebookDocument.applyEdits([
+			textModel.applyEdits([
 				{
 					editType: CellEditType.Replace,
 					index: originalToIdx,
@@ -243,8 +249,8 @@ export class CellDragAndDropController extends Disposable {
 			], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
 			this.notebookEditor.revealCellRangeInView(finalSelection);
 		} else {
-			const viewModel = this.notebookEditor.viewModel!;
-			const draggedCellIndex = this.notebookEditor.viewModel!.getCellIndex(draggedCell);
+			const viewModel = this.notebookEditor.viewModel;
+			const draggedCellIndex = viewModel.getCellIndex(draggedCell);
 			const range = this.getCellRangeAroundDragTarget(draggedCellIndex);
 			let originalToIdx = viewModel.getCellIndex(draggedOverCell);
 			if (dropDirection === 'below') {
@@ -269,7 +275,7 @@ export class CellDragAndDropController extends Disposable {
 				finalFocus = { start: draggedCellIndex + delta, end: draggedCellIndex + delta + 1 };
 			}
 
-			viewModel.notebookDocument.applyEdits([
+			textModel.applyEdits([
 				{
 					editType: CellEditType.Move,
 					index: range.start,
