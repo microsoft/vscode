@@ -4,8 +4,7 @@
   "description": "%description%",
   "extensionKind": [
     "ui",
-    "workspace",
-    "web"
+    "workspace"
   ],
   "version": "1.0.0",
   "publisher": "vscode",

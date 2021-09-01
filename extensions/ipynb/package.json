@@ -13,7 +13,6 @@
 	],
 	"extensionKind": [
 		"workspace",
-    "web",
 		"ui"
 	],
 	"main": "./out/ipynbMain.js",
