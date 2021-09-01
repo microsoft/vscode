@@ -676,10 +676,10 @@
   dependencies:
     windows-process-tree "*"
 
-"@types/winreg@^1.2.30":
-  version "1.2.30"
-  resolved "https://registry.yarnpkg.com/@types/winreg/-/winreg-1.2.30.tgz#91d6710e536d345b9c9b017c574cf6a8da64c518"
-  integrity sha1-kdZxDlNtNFucmwF8V0z2qNpkxRg=
+"@types/winreg@^1.2.31":
+  version "1.2.31"
+  resolved "https://registry.yarnpkg.com/@types/winreg/-/winreg-1.2.31.tgz#914a7f076fd8f0f39964eb2e5c624c4fbdca77f7"
+  integrity sha512-SDatEMEtQ1cJK3esIdH6colduWBP+42Xw9Guq1sf/N6rM3ZxgljBduvZOwBsxRps/k5+Wwf5HJun6pH8OnD2gg==
 
 "@types/yauzl@^2.9.1":
   version "2.9.1"
