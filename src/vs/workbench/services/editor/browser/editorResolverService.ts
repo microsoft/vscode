@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorResolverService, priorityToRank, ResolvedEditor, ResolvedStatus, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -117,6 +117,24 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	async resolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
+		if (isResourceSideBySideEditorInput(editor)) {
+			const primaryResolvedEditor = await this.resolveEditor(editor.primary, preferredGroup);
+			if (isEditorInputWithOptionsAndGroup(primaryResolvedEditor)) {
+				const secondaryResolvedEditor = await this.resolveEditor(editor.secondary, preferredGroup);
+				if (isEditorInputWithOptionsAndGroup(secondaryResolvedEditor)) {
+					return {
+						group: primaryResolvedEditor.group,
+						editor: new SideBySideEditorInput(editor.label, editor.description, secondaryResolvedEditor.editor as EditorInput, primaryResolvedEditor.editor as EditorInput),
+						options: primaryResolvedEditor.options ?? secondaryResolvedEditor.options
+					};
+				} else {
+					return secondaryResolvedEditor;
+				}
+			} else {
+				return primaryResolvedEditor;
+			}
+		}
+
 		const resolvedUntypedAndGroup = this.resolveUntypedInputAndGroup(editor, preferredGroup);
 		if (!resolvedUntypedAndGroup) {
 			return ResolvedStatus.NONE;
@@ -368,18 +386,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
-		// If it's a side by side editor, we resolve both sides
 		if (isResourceSideBySideEditorInput(editor)) {
-			const primaryInputWithOptions = await this.doResolveEditor(editor.primary, group, selectedEditor);
-			const secondaryInputWithOptions = await this.doResolveEditor(editor.secondary, group, selectedEditor);
-			if (!(primaryInputWithOptions?.editor instanceof EditorInput) || !(secondaryInputWithOptions?.editor instanceof EditorInput)) {
-				return;
-			}
-
-			return {
-				editor: new SideBySideEditorInput(editor.label, editor.description, secondaryInputWithOptions.editor, primaryInputWithOptions.editor),
-				options: primaryInputWithOptions.options ?? secondaryInputWithOptions.options
-			};
+			throw new Error(`Untyped side by side editor input not supported here.`);
 		}
 
 		if (isUntitledResourceEditorInput(editor)) {
