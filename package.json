@@ -103,7 +103,7 @@
     "@types/gulp-postcss": "^8.0.0",
     "@types/http-proxy-agent": "^4.0.1",
     "@types/keytar": "^4.4.0",
-    "@types/minimist": "^1.2.1",
+    "@types/minimist": "^1.2.2",
     "@types/mocha": "^9.0.0",
     "@types/node": "^14.14.37",
     "@types/sinon": "^1.16.36",
