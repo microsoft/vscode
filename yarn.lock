@@ -2803,10 +2803,10 @@ decompress-response@^4.2.0:
   dependencies:
     mimic-response "^2.0.0"
 
-deemon@^1.4.0:
-  version "1.4.0"
-  resolved "https://registry.yarnpkg.com/deemon/-/deemon-1.4.0.tgz#01c09cc23eec41e5d7ddac082eb52c3611d38dff"
-  integrity sha512-S0zK5tNTdVFsJZVUeKi/CYJn4zzhW0Y55lwXzv2hVxb7ajzAHf91BhE5y2xvx1X7czIZ6PHLPDj00TVAmylVXw==
+deemon@^1.6.0:
+  version "1.6.0"
+  resolved "https://registry.yarnpkg.com/deemon/-/deemon-1.6.0.tgz#4eff868e44e684a224c7cb65a32bb8142f2dabc5"
+  integrity sha512-6GN9m4o9c+PVcGuTPgcJ/UMbyoFgQBsFalityPDfJ5Fk5/hjKET67DAPVsM3+4uSHBfkDN+AW6BHQx852cJGvg==
   dependencies:
     bl "^4.0.2"
     tree-kill "^1.2.2"
