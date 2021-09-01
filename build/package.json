@@ -31,7 +31,7 @@
     "@types/request": "^2.47.0",
     "@types/rimraf": "^2.0.5",
     "@types/through": "^0.0.29",
-    "@types/through2": "^2.0.34",
+    "@types/through2": "^2.0.36",
     "@types/underscore": "^1.8.9",
     "@types/xml2js": "0.0.33",
     "@typescript-eslint/experimental-utils": "~2.13.0",
