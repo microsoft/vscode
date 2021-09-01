@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { Iterable } from 'vs/base/common/iterator';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 
 /**
@@ -16,6 +17,14 @@ export interface IComputedStateAccessor<T> {
 	getChildren(item: T): Iterable<T>;
 	getParents(item: T): Iterable<T>;
 }
+
+export interface IComputedStateAndDurationAccessor<T> extends IComputedStateAccessor<T> {
+	getOwnDuration(item: T): number | undefined;
+	getCurrentComputedDuration(item: T): number | undefined;
+	setComputedDuration(item: T, duration: number | undefined): void;
+}
+
+export const isDurationAccessor = <T>(accessor: IComputedStateAccessor<T>): accessor is IComputedStateAndDurationAccessor<T> => 'getOwnDuration' in accessor;
 
 /**
  * Gets the computed state for the node.
@@ -36,49 +45,85 @@ export const getComputedState = <T>(accessor: IComputedStateAccessor<T>, node: T
 
 	return computed;
 };
+
+export const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, node: T, force = false): number | undefined => {
+	let computed = accessor.getCurrentComputedDuration(node);
+	if (computed === undefined || force) {
+		const own = accessor.getOwnDuration(node);
+		if (own !== undefined) {
+			computed = own;
+		} else {
+			computed = undefined;
+			for (const child of accessor.getChildren(node)) {
+				const d = getComputedDuration(accessor, child);
+				if (d !== undefined) {
+					computed = (computed || 0) + d;
+				}
+			}
+		}
+
+		accessor.setComputedDuration(node, computed);
+	}
+
+	return computed;
+};
+
 /**
  * Refreshes the computed state for the node and its parents. Any changes
  * elements cause `addUpdated` to be called.
  */
-
 export const refreshComputedState = <T>(
 	accessor: IComputedStateAccessor<T>,
 	node: T,
-	addUpdated: (node: T) => void,
 	explicitNewComputedState?: TestResultState,
 ) => {
 	const oldState = accessor.getCurrentComputedState(node);
 	const oldPriority = statePriority[oldState];
 	const newState = explicitNewComputedState ?? getComputedState(accessor, node, true);
 	const newPriority = statePriority[newState];
-	if (newPriority === oldPriority) {
-		return;
+	const toUpdate = new Set<T>();
+
+	if (newPriority !== oldPriority) {
+		accessor.setComputedState(node, newState);
+		toUpdate.add(node);
+
+		if (newPriority > oldPriority) {
+			// Update all parents to ensure they're at least this priority.
+			for (const parent of accessor.getParents(node)) {
+				const prev = accessor.getCurrentComputedState(parent);
+				if (prev !== undefined && statePriority[prev] >= newPriority) {
+					break;
+				}
+
+				accessor.setComputedState(parent, newState);
+				toUpdate.add(parent);
+			}
+		} else if (newPriority < oldPriority) {
+			// Re-render all parents of this node whose computed priority might have come from this node
+			for (const parent of accessor.getParents(node)) {
+				const prev = accessor.getCurrentComputedState(parent);
+				if (prev === undefined || statePriority[prev] > oldPriority) {
+					break;
+				}
+
+				accessor.setComputedState(parent, getComputedState(accessor, parent, true));
+				toUpdate.add(parent);
+			}
+		}
 	}
 
-	accessor.setComputedState(node, newState);
-	addUpdated(node);
-
-	if (newPriority > oldPriority) {
-		// Update all parents to ensure they're at least this priority.
-		for (const parent of accessor.getParents(node)) {
-			const prev = accessor.getCurrentComputedState(parent);
-			if (prev !== undefined && statePriority[prev] >= newPriority) {
+	if (isDurationAccessor(accessor)) {
+		for (const parent of Iterable.concat(Iterable.single(node), accessor.getParents(node))) {
+			const oldDuration = accessor.getCurrentComputedDuration(node);
+			const newDuration = getComputedDuration(accessor, node, true);
+			if (oldDuration === newDuration) {
 				break;
 			}
 
-			accessor.setComputedState(parent, newState);
-			addUpdated(parent);
-		}
-	} else if (newPriority < oldPriority) {
-		// Re-render all parents of this node whose computed priority might have come from this node
-		for (const parent of accessor.getParents(node)) {
-			const prev = accessor.getCurrentComputedState(parent);
-			if (prev === undefined || statePriority[prev] > oldPriority) {
-				break;
-			}
-
-			accessor.setComputedState(parent, getComputedState(accessor, parent, true));
-			addUpdated(parent);
+			accessor.setComputedDuration(parent, newState);
+			toUpdate.add(parent);
 		}
 	}
+
+	return toUpdate;
 };

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { FoldingModel, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateUp, setCollapseStateForRest } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateUp, setCollapseStateForRest, getParentFoldLine, getPreviousFoldLine, getNextFoldLine } from 'vs/editor/contrib/folding/foldingModel';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
@@ -29,16 +29,19 @@ interface ExpectedDecoration {
 export class TestDecorationProvider {
 
 	private static readonly collapsedDecoration = ModelDecorationOptions.register({
+		description: 'test',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'folding'
 	});
 
 	private static readonly expandedDecoration = ModelDecorationOptions.register({
+		description: 'test',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'folding'
 	});
 
 	private static readonly hiddenDecoration = ModelDecorationOptions.register({
+		description: 'test',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		linesDecorationsClassName: 'folding'
 	});
@@ -828,4 +831,60 @@ suite('Folding Model', () => {
 
 	});
 
+	test('fold jumping', () => {
+		let lines = [
+			/* 1*/	'class A {',
+			/* 2*/	'  void foo() {',
+			/* 3*/	'    if (1) {',
+			/* 4*/	'      a();',
+			/* 5*/	'    } else if (2) {',
+			/* 6*/	'      if (true) {',
+			/* 7*/	'        b();',
+			/* 8*/	'      }',
+			/* 9*/	'    } else {',
+			/* 10*/	'      c();',
+			/* 11*/	'    }',
+			/* 12*/	'  }',
+			/* 13*/	'}'
+		];
+
+		let textModel = createTextModel(lines.join('\n'));
+		try {
+			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			let ranges = computeRanges(textModel, false, undefined);
+			foldingModel.update(ranges);
+
+			let r1 = r(1, 12, false);
+			let r2 = r(2, 11, false);
+			let r3 = r(3, 4, false);
+			let r4 = r(5, 8, false);
+			let r5 = r(6, 7, false);
+			let r6 = r(9, 10, false);
+			assertRanges(foldingModel, [r1, r2, r3, r4, r5, r6]);
+
+			// Test jump to parent.
+			assert.strictEqual(getParentFoldLine(7, foldingModel), 6);
+			assert.strictEqual(getParentFoldLine(6, foldingModel), 5);
+			assert.strictEqual(getParentFoldLine(5, foldingModel), 2);
+			assert.strictEqual(getParentFoldLine(2, foldingModel), 1);
+			assert.strictEqual(getParentFoldLine(1, foldingModel), null);
+
+			// Test jump to previous.
+			assert.strictEqual(getPreviousFoldLine(10, foldingModel), 9);
+			assert.strictEqual(getPreviousFoldLine(9, foldingModel), 5);
+			assert.strictEqual(getPreviousFoldLine(5, foldingModel), 3);
+			assert.strictEqual(getPreviousFoldLine(3, foldingModel), null);
+
+			// Test jump to next.
+			assert.strictEqual(getNextFoldLine(3, foldingModel), 5);
+			assert.strictEqual(getNextFoldLine(4, foldingModel), 5);
+			assert.strictEqual(getNextFoldLine(5, foldingModel), 9);
+			assert.strictEqual(getNextFoldLine(9, foldingModel), null);
+
+		} finally {
+			textModel.dispose();
+		}
+
+	});
 });

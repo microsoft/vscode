@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, isUpper, fuzzyScore, createMatches as createFuzzyMatches } from 'vs/base/common/filters';
-import { sep } from 'vs/base/common/path';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
+import { compareAnything } from 'vs/base/common/comparers';
+import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
+import { sep } from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { equalsIgnoreCase, stripWildcards } from 'vs/base/common/strings';
 
 //#region Fuzzy scorer
 
@@ -206,7 +206,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			score += separatorBonus;
 
 			// if (DEBUG) {
-			// console.log(`After separtor bonus: +${separatorBonus}`);
+			// console.log(`After separator bonus: +${separatorBonus}`);
 			// }
 		}
 
@@ -232,7 +232,7 @@ function considerAsEqual(a: string, b: string): boolean {
 		return true;
 	}
 
-	// Special case path spearators: ignore platform differences
+	// Special case path separators: ignore platform differences
 	if (a === '/' || a === '\\') {
 		return b === '/' || b === '\\';
 	}

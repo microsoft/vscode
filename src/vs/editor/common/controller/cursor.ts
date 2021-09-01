@@ -15,7 +15,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { RawContentChangedType, ModelRawContentChangedEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/view/viewEvents';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
@@ -29,7 +29,7 @@ export class CursorModelState {
 	public readonly modelVersionId: number;
 	public readonly cursorState: CursorState[];
 
-	constructor(model: ITextModel, cursor: Cursor) {
+	constructor(model: ITextModel, cursor: CursorsController) {
 		this.modelVersionId = model.getVersionId();
 		this.cursorState = cursor.getCursorStates();
 	}
@@ -119,7 +119,7 @@ class AutoClosedAction {
 	}
 }
 
-export class Cursor extends Disposable {
+export class CursorsController extends Disposable {
 
 	public static readonly MAX_CURSOR_COUNT = 10000;
 
@@ -144,7 +144,7 @@ export class Cursor extends Disposable {
 		this._knownModelVersionId = this._model.getVersionId();
 		this._viewModel = viewModel;
 		this._coordinatesConverter = coordinatesConverter;
-		this.context = new CursorContext(this._model, this._coordinatesConverter, cursorConfig);
+		this.context = new CursorContext(this._model, this._viewModel, this._coordinatesConverter, cursorConfig);
 		this._cursors = new CursorCollection(this.context);
 
 		this._hasFocus = false;
@@ -163,7 +163,7 @@ export class Cursor extends Disposable {
 	}
 
 	public updateConfiguration(cursorConfig: CursorConfiguration): void {
-		this.context = new CursorContext(this._model, this._coordinatesConverter, cursorConfig);
+		this.context = new CursorContext(this._model, this._viewModel, this._coordinatesConverter, cursorConfig);
 		this._cursors.updateContext(this.context);
 	}
 
@@ -216,8 +216,8 @@ export class Cursor extends Disposable {
 
 	public setStates(eventsCollector: ViewModelEventsCollector, source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
 		let reachedMaxCursorCount = false;
-		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
-			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
+		if (states !== null && states.length > CursorsController.MAX_CURSOR_COUNT) {
+			states = states.slice(0, CursorsController.MAX_CURSOR_COUNT);
 			reachedMaxCursorCount = true;
 		}
 
@@ -328,31 +328,36 @@ export class Cursor extends Disposable {
 		this.revealPrimary(eventsCollector, 'restoreState', true, editorCommon.ScrollType.Immediate);
 	}
 
-	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent): void {
-
-		this._knownModelVersionId = e.versionId;
-		if (this._isHandling) {
-			return;
-		}
-
-		const hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
-		this._prevEditOperationType = EditOperationType.Other;
-
-		if (hadFlushEvent) {
-			// a model.setValue() was called
-			this._cursors.dispose();
-			this._cursors = new CursorCollection(this.context);
-			this._validateAutoClosedActions();
-			this._emitStateChangedIfNecessary(eventsCollector, 'model', CursorChangeReason.ContentFlush, null, false);
+	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
+		if (e instanceof ModelInjectedTextChangedEvent) {
+			// If injected texts change, the view positions of all cursors need to be updated.
+			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
+			this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
 		} else {
-			if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
-				const cursorState = CursorState.fromModelSelections(e.resultingSelection);
-				if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
-					this._revealPrimaryCursor(eventsCollector, 'modelChange', VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
-				}
+			this._knownModelVersionId = e.versionId;
+			if (this._isHandling) {
+				return;
+			}
+
+			const hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
+			this._prevEditOperationType = EditOperationType.Other;
+
+			if (hadFlushEvent) {
+				// a model.setValue() was called
+				this._cursors.dispose();
+				this._cursors = new CursorCollection(this.context);
+				this._validateAutoClosedActions();
+				this._emitStateChangedIfNecessary(eventsCollector, 'model', CursorChangeReason.ContentFlush, null, false);
 			} else {
-				const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-				this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+				if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
+					const cursorState = CursorState.fromModelSelections(e.resultingSelection);
+					if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
+						this._revealPrimaryCursor(eventsCollector, 'modelChange', VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+					}
+				} else {
+					const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
+					this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+				}
 			}
 		}
 	}
@@ -415,6 +420,7 @@ export class Cursor extends Disposable {
 			autoClosedCharactersDeltaDecorations.push({
 				range: autoClosedCharactersRanges[i],
 				options: {
+					description: 'auto-closed-character',
 					inlineClassName: 'auto-closed-character',
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 				}
@@ -422,6 +428,7 @@ export class Cursor extends Disposable {
 			autoClosedEnclosingDeltaDecorations.push({
 				range: autoClosedEnclosingRanges[i],
 				options: {
+					description: 'auto-closed-enclosing',
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 				}
 			});

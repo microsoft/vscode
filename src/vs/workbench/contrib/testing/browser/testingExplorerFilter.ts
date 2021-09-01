@@ -27,19 +27,14 @@ import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestExplorerStateFilter, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { TestIdPath } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
 	readonly text: MutableObservableValue<string>;
-	/**
-	 * Reveal request: the path to the test to reveal. The last element of the
-	 * array is the test the user wanted to reveal, and the previous
-	 * items are its parents.
-	*/
-	readonly reveal: MutableObservableValue<TestIdPath | undefined>;
+	/** Test ID the user wants to reveal in the explorer */
+	readonly reveal: MutableObservableValue<string | undefined>;
 	readonly stateFilter: MutableObservableValue<TestExplorerStateFilter>;
 	readonly currentDocumentOnly: MutableObservableValue<boolean>;
 	/** Whether excluded test should be shown in the view */
@@ -67,7 +62,7 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 	}, this.storage), false);
 
 	public readonly showExcludedTests = new MutableObservableValue(false);
-	public readonly reveal = new MutableObservableValue<TestIdPath | undefined>(undefined);
+	public readonly reveal = new MutableObservableValue</* test ID */string | undefined>(undefined);
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
 
@@ -246,10 +241,10 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 			{
 				checked: false,
 				class: undefined,
-				enabled: this.testService.excludeTests.value.size > 0,
+				enabled: this.testService.excluded.hasAny,
 				id: 'removeExcluded',
 				label: localize('testing.filters.removeTestExclusions', "Unhide All Tests"),
-				run: async () => this.testService.clearExcludedTests(),
+				run: async () => this.testService.excluded.clear(),
 				tooltip: '',
 				dispose: () => null
 			},

@@ -10,8 +10,8 @@ import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { Separator } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -40,7 +40,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isArray } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -59,7 +59,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { whenTextEditorClosed } from 'vs/workbench/browser/editor';
+import { whenEditorClosed } from 'vs/workbench/browser/editor';
 
 export class NativeWindow extends Disposable {
 
@@ -186,38 +186,9 @@ export class NativeWindow extends Disposable {
 		// Message support
 		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
-		// Shell Environment Issue Notifications
-		const choices: IPromptChoice[] = [{
-			label: localize('learnMore', "Learn More"),
-			run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
-		}];
-
-		ipcRenderer.on('vscode:showShellEnvSlowWarning', () => this.notificationService.prompt(
-			Severity.Warning,
-			localize('shellEnvSlowWarning', "Resolving your shell environment is taking very long. Please review your shell configuration."),
-			choices,
-			{
-				sticky: true,
-				neverShowAgain: { id: 'ignoreShellEnvSlowWarning', scope: NeverShowAgainScope.GLOBAL }
-			}
-		));
-
-		ipcRenderer.on('vscode:showShellEnvTimeoutError', () => this.notificationService.prompt(
-			Severity.Error,
-			localize('shellEnvTimeoutError', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."),
-			choices
-		));
-
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(true);
-		});
-
-		ipcRenderer.on('vscode:leaveFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(false);
-		});
+		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
+		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
@@ -389,7 +360,7 @@ export class NativeWindow extends Disposable {
 		// or setting is disabled. Also enabled when running with --wait from the command line.
 		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue<boolean>('window.closeWhenEmpty');
+			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
 			if (closeWhenEmpty || this.environmentService.args.wait) {
 				this.closeEmptyWindowScheduler.schedule();
 			}
@@ -495,7 +466,7 @@ export class NativeWindow extends Disposable {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"), [localize('ok', "OK")]);
+				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
 		}
@@ -547,6 +518,23 @@ export class NativeWindow extends Disposable {
 						}
 					}
 				}
+
+				if (!options?.openExternal) {
+					// Assume `uri` this is a workspace uri, let's see if we can handle it
+					await this.fileService.activateProvider(uri.scheme);
+
+					if (this.fileService.canHandleResource(uri)) {
+						return {
+							resolved: URI.from({
+								scheme: this.productService.urlProtocol,
+								path: 'workspace',
+								query: uri.toString()
+							}),
+							dispose() { }
+						};
+					}
+				}
+
 				return undefined;
 			}
 		});
@@ -576,8 +564,9 @@ export class NativeWindow extends Disposable {
 
 		const actions: Array<MenuItemAction | Separator> = [];
 
-		const disabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled') === false;
-		const ignoredItems = this.configurationService.getValue<string[]>('keyboard.touchbar.ignored') || [];
+		const disabled = this.configurationService.getValue('keyboard.touchbar.enabled') === false;
+		const touchbarIgnored = this.configurationService.getValue('keyboard.touchbar.ignored');
+		const ignoredItems = isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
 		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
@@ -643,7 +632,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async onOpenFiles(request: INativeOpenFileRequest): Promise<void> {
-		const inputs: IResourceEditorInputType[] = [];
+		const inputs: Array<IResourceEditorInput | IUntitledTextResourceEditorInput> = [];
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 
 		if (!diffMode && request.filesToOpenOrCreate) {
@@ -662,33 +651,35 @@ export class NativeWindow extends Disposable {
 			// In wait mode, listen to changes to the editors and wait until the files
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
-			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(p => URI.revive(p.fileUri))));
+			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(path => URI.revive(path.fileUri))));
 		}
 	}
 
 	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
 
 		// Wait for the resources to be closed in the text editor...
-		await this.instantiationService.invokeFunction(accessor => whenTextEditorClosed(accessor, resourcesToWaitFor));
+		await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, resourcesToWaitFor));
 
 		// ...before deleting the wait marker file
 		await this.fileService.del(waitMarkerFile);
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
-		await this.lifecycleService.when(LifecyclePhase.Ready);
+		const editors: IUntypedEditorInput[] = [];
 
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
-			return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
+			const diffEditor: IResourceDiffEditorInput = {
+				original: { resource: resources[0].resource },
+				modified: { resource: resources[1].resource },
+				options: { pinned: true }
+			};
+			editors.push(diffEditor);
+		} else {
+			editors.push(...resources);
 		}
 
-		// For one file, just put it into the current active editor
-		if (resources.length === 1) {
-			return this.editorService.openEditor(resources[0]);
-		}
-
-		// Otherwise open all
-		return this.editorService.openEditors(resources);
+		// Open as editors
+		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
 	}
 }

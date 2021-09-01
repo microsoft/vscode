@@ -311,7 +311,7 @@ suite('Debug - CallStack', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
-		let decorations = createDecorationsForStackFrame(firstStackFrame, true);
+		let decorations = createDecorationsForStackFrame(firstStackFrame, true, false);
 		assert.strictEqual(decorations.length, 3);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
@@ -319,7 +319,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(secondStackFrame, true);
+		decorations = createDecorationsForStackFrame(secondStackFrame, true, false);
 		assert.strictEqual(decorations.length, 2);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframeFocused));
@@ -327,7 +327,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(decorations[1].options.className, 'debug-focused-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(firstStackFrame, true);
+		decorations = createDecorationsForStackFrame(firstStackFrame, true, false);
 		assert.strictEqual(decorations.length, 3);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
@@ -366,7 +366,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(contributedContext, session.getId());
 	});
 
-	test('focusStackFrameThreadAndSesion', () => {
+	test('focusStackFrameThreadAndSession', () => {
 		const threadId1 = 1;
 		const threadName1 = 'firstThread';
 		const threadId2 = 2;

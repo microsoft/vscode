@@ -53,7 +53,7 @@ declare const self: unknown;
 export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
 let nodeProcess: INodeProcess | undefined = undefined;
-if (typeof globals.vscode !== 'undefined') {
+if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
 	// Native environment (sandboxed)
 	nodeProcess = globals.vscode.process;
 } else if (typeof process !== 'undefined') {
@@ -63,26 +63,6 @@ if (typeof globals.vscode !== 'undefined') {
 
 const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
 export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
-export const browserCodeLoadingCacheStrategy: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' | undefined = (() => {
-
-	// Always enabled when sandbox is enabled
-	if (isElectronSandboxed) {
-		return 'bypassHeatCheck';
-	}
-
-	// Otherwise, only enabled conditionally
-	const env = nodeProcess?.env['VSCODE_BROWSER_CODE_LOADING'];
-	if (typeof env === 'string') {
-		if (env === 'none' || env === 'code' || env === 'bypassHeatCheck' || env === 'bypassHeatCheckAndEagerCompile') {
-			return env;
-		}
-
-		return 'bypassHeatCheck';
-	}
-
-	return undefined;
-})();
-export const isPreferringBrowserCodeLoad = typeof browserCodeLoadingCacheStrategy === 'string';
 
 interface INavigator {
 	userAgent: string;
@@ -201,7 +181,7 @@ export namespace Language {
 export const locale = _locale;
 
 /**
- * The translatios that are available through language packs.
+ * The translations that are available through language packs.
  */
 export const translationsConfigFile = _translationsConfigFile;
 

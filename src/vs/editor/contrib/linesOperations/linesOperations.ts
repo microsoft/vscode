@@ -1045,7 +1045,41 @@ export class TitleCaseAction extends AbstractCaseAction {
 	}
 }
 
+class BackwardsCompatibleRegExp {
+
+	private _actual: RegExp | null;
+	private _evaluated: boolean;
+
+	constructor(
+		private readonly _pattern: string,
+		private readonly _flags: string
+	) {
+		this._actual = null;
+		this._evaluated = false;
+	}
+
+	public get(): RegExp | null {
+		if (!this._evaluated) {
+			this._evaluated = true;
+			try {
+				this._actual = new RegExp(this._pattern, this._flags);
+			} catch (err) {
+				// this browser does not support this regular expression
+			}
+		}
+		return this._actual;
+	}
+
+	public isSupported(): boolean {
+		return (this.get() !== null);
+	}
+}
+
 export class SnakeCaseAction extends AbstractCaseAction {
+
+	public static regExp1 = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	public static regExp2 = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+
 	constructor() {
 		super({
 			id: 'editor.action.transformToSnakecase',
@@ -1056,9 +1090,15 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
+		const regExp1 = SnakeCaseAction.regExp1.get();
+		const regExp2 = SnakeCaseAction.regExp2.get();
+		if (!regExp1 || !regExp2) {
+			// cannot support this
+			return text;
+		}
 		return (text
-			.replace(/(\p{Ll})(\p{Lu})/gmu, '$1_$2')
-			.replace(/(\p{Lu}|\p{N})(\p{Lu})(\p{Ll})/gmu, '$1_$2$3')
+			.replace(regExp1, '$1_$2')
+			.replace(regExp2, '$1_$2$3')
 			.toLocaleLowerCase()
 		);
 	}
@@ -1084,4 +1124,7 @@ registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
 registerEditorAction(TitleCaseAction);
-registerEditorAction(SnakeCaseAction);
+
+if (SnakeCaseAction.regExp1.isSupported() && SnakeCaseAction.regExp2.isSupported()) {
+	registerEditorAction(SnakeCaseAction);
+}

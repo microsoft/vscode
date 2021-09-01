@@ -24,6 +24,8 @@ import { isLowSurrogate, isHighSurrogate, getLeadingWhitespace } from 'vs/base/c
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -95,6 +97,20 @@ export const enum State {
 	Auto = 2
 }
 
+function shouldPreventQuickSuggest(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	return (
+		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions'))
+	);
+}
+
+function shouldPreventSuggestOnTriggerCharacters(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	return (
+		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters'))
+	);
+}
+
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
@@ -123,6 +139,8 @@ export class SuggestModel implements IDisposable {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -212,6 +230,15 @@ export class SuggestModel implements IDisposable {
 
 
 		const checkTriggerCharacter = (text?: string) => {
+
+			if (shouldPreventSuggestOnTriggerCharacters(this._contextKeyService, this._configurationService)) {
+				return;
+			}
+
+			if (LineContext.shouldAutoTrigger(this._editor)) {
+				// don't trigger by trigger characters when this is a case for quick suggest
+				return;
+			}
 
 			if (!text) {
 				// came here from the compositionEnd-event
@@ -351,6 +378,11 @@ export class SuggestModel implements IDisposable {
 					}
 				}
 
+				if (shouldPreventQuickSuggest(this._contextKeyService, this._configurationService)) {
+					// do not trigger quick suggestions if inline suggestions are shown
+					return;
+				}
+
 				// we made it till here -> trigger now
 				this.trigger({ auto: true, shy: false });
 
@@ -428,13 +460,13 @@ export class SuggestModel implements IDisposable {
 				break;
 		}
 
-		const itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
+		const { itemKind: itemKindFilter, showDeprecated } = SuggestModel._createSuggestFilter(this._editor);
 		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
 		const completions = provideSuggestionItems(
 			model,
 			this._editor.getPosition(),
-			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom),
+			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom, showDeprecated),
 			suggestCtx,
 			this._requestToken.token
 		);
@@ -502,7 +534,7 @@ export class SuggestModel implements IDisposable {
 		});
 	}
 
-	private static _createItemKindFilter(editor: ICodeEditor): Set<CompletionItemKind> {
+	private static _createSuggestFilter(editor: ICodeEditor): { itemKind: Set<CompletionItemKind>; showDeprecated: boolean } {
 		// kind filter and snippet sort rules
 		const result = new Set<CompletionItemKind>();
 
@@ -543,7 +575,7 @@ export class SuggestModel implements IDisposable {
 		if (!suggestOptions.showUsers) { result.add(CompletionItemKind.User); }
 		if (!suggestOptions.showIssues) { result.add(CompletionItemKind.Issue); }
 
-		return result;
+		return { itemKind: result, showDeprecated: suggestOptions.showDeprecated };
 	}
 
 	private _onNewContext(ctx: LineContext): void {

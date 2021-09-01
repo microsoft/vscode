@@ -33,6 +33,16 @@ export function format(value: string, ...args: any[]): string {
 	});
 }
 
+const _format2Regexp = /{([^}]+)}/g;
+
+/**
+ * Helper to create a string from a template and a string record.
+ * Similar to `format` but with objects instead of positional arguments.
+ */
+export function format2(template: string, values: Record<string, unknown>): string {
+	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
+}
+
 /**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.
@@ -564,119 +574,6 @@ export function getCharContainingOffset(str: string, offset: number): [number, n
 }
 
 /**
- * A manual encoding of `str` to UTF8.
- * Use only in environments which do not offer native conversion methods!
- */
-export function encodeUTF8(str: string): Uint8Array {
-	const strLen = str.length;
-
-	// See https://en.wikipedia.org/wiki/UTF-8
-
-	// first loop to establish needed buffer size
-	let neededSize = 0;
-	let strOffset = 0;
-	while (strOffset < strLen) {
-		const codePoint = getNextCodePoint(str, strLen, strOffset);
-		strOffset += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-		if (codePoint < 0x0080) {
-			neededSize += 1;
-		} else if (codePoint < 0x0800) {
-			neededSize += 2;
-		} else if (codePoint < 0x10000) {
-			neededSize += 3;
-		} else {
-			neededSize += 4;
-		}
-	}
-
-	// second loop to actually encode
-	const arr = new Uint8Array(neededSize);
-	strOffset = 0;
-	let arrOffset = 0;
-	while (strOffset < strLen) {
-		const codePoint = getNextCodePoint(str, strLen, strOffset);
-		strOffset += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-		if (codePoint < 0x0080) {
-			arr[arrOffset++] = codePoint;
-		} else if (codePoint < 0x0800) {
-			arr[arrOffset++] = 0b11000000 | ((codePoint & 0b00000000000000000000011111000000) >>> 6);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000000000111111) >>> 0);
-		} else if (codePoint < 0x10000) {
-			arr[arrOffset++] = 0b11100000 | ((codePoint & 0b00000000000000001111000000000000) >>> 12);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000111111000000) >>> 6);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000000000111111) >>> 0);
-		} else {
-			arr[arrOffset++] = 0b11110000 | ((codePoint & 0b00000000000111000000000000000000) >>> 18);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000111111000000000000) >>> 12);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000111111000000) >>> 6);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000000000111111) >>> 0);
-		}
-	}
-
-	return arr;
-}
-
-/**
- * A manual decoding of a UTF8 string.
- * Use only in environments which do not offer native conversion methods!
- */
-export function decodeUTF8(buffer: Uint8Array): string {
-	// https://en.wikipedia.org/wiki/UTF-8
-
-	const len = buffer.byteLength;
-	const result: string[] = [];
-	let offset = 0;
-	while (offset < len) {
-		const v0 = buffer[offset];
-		let codePoint: number;
-		if (v0 >= 0b11110000 && offset + 3 < len) {
-			// 4 bytes
-			codePoint = (
-				(((buffer[offset++] & 0b00000111) << 18) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 12) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 6) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 0) >>> 0)
-			);
-		} else if (v0 >= 0b11100000 && offset + 2 < len) {
-			// 3 bytes
-			codePoint = (
-				(((buffer[offset++] & 0b00001111) << 12) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 6) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 0) >>> 0)
-			);
-		} else if (v0 >= 0b11000000 && offset + 1 < len) {
-			// 2 bytes
-			codePoint = (
-				(((buffer[offset++] & 0b00011111) << 6) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 0) >>> 0)
-			);
-		} else {
-			// 1 byte
-			codePoint = buffer[offset++];
-		}
-
-		if ((codePoint >= 0 && codePoint <= 0xD7FF) || (codePoint >= 0xE000 && codePoint <= 0xFFFF)) {
-			// Basic Multilingual Plane
-			result.push(String.fromCharCode(codePoint));
-		} else if (codePoint >= 0x010000 && codePoint <= 0x10FFFF) {
-			// Supplementary Planes
-			const uPrime = codePoint - 0x10000;
-			const w1 = 0xD800 + ((uPrime & 0b11111111110000000000) >>> 10);
-			const w2 = 0xDC00 + ((uPrime & 0b00000000001111111111) >>> 0);
-			result.push(String.fromCharCode(w1));
-			result.push(String.fromCharCode(w2));
-		} else {
-			// illegal code point
-			result.push(String.fromCharCode(0xFFFD));
-		}
-	}
-
-	return result.join('');
-}
-
-/**
  * Generated using https://github.com/alexdima/unicode-utils/blob/master/generate-rtl-test.js
  */
 const CONTAINS_RTL = /(?:[\u05BE\u05C0\u05C3\u05C6\u05D0-\u05F4\u0608\u060B\u060D\u061B-\u064A\u066D-\u066F\u0671-\u06D5\u06E5\u06E6\u06EE\u06EF\u06FA-\u0710\u0712-\u072F\u074D-\u07A5\u07B1-\u07EA\u07F4\u07F5\u07FA-\u0815\u081A\u0824\u0828\u0830-\u0858\u085E-\u08BD\u200F\uFB1D\uFB1F-\uFB28\uFB2A-\uFD3D\uFD50-\uFDFC\uFE70-\uFEFC]|\uD802[\uDC00-\uDD1B\uDD20-\uDE00\uDE10-\uDE33\uDE40-\uDEE4\uDEEB-\uDF35\uDF40-\uDFFF]|\uD803[\uDC00-\uDCFF]|\uD83A[\uDC00-\uDCCF\uDD00-\uDD43\uDD50-\uDFFF]|\uD83B[\uDC00-\uDEBB])/;
@@ -1082,3 +979,81 @@ function getGraphemeBreakRawData(): number[] {
 }
 
 //#endregion
+
+/**
+ * Computes the offset after performing a left delete on the given string,
+ * while considering unicode grapheme/emoji rules.
+*/
+export function getLeftDeleteOffset(offset: number, str: string): number {
+	if (offset === 0) {
+		return 0;
+	}
+
+	// Try to delete emoji part.
+	const emojiOffset = getOffsetBeforeLastEmojiComponent(offset, str);
+	if (emojiOffset !== undefined) {
+		return emojiOffset;
+	}
+
+	// Otherwise, just skip a single code point.
+	const codePoint = getPrevCodePoint(str, offset);
+	offset -= getUTF16Length(codePoint);
+	return offset;
+}
+
+function getOffsetBeforeLastEmojiComponent(offset: number, str: string): number | undefined {
+	// See https://www.unicode.org/reports/tr51/tr51-14.html#EBNF_and_Regex for the
+	// structure of emojis.
+	let codePoint = getPrevCodePoint(str, offset);
+	offset -= getUTF16Length(codePoint);
+
+	// Skip modifiers
+	while ((isEmojiModifier(codePoint) || codePoint === CodePoint.emojiVariantSelector || codePoint === CodePoint.enclosingKeyCap)) {
+		if (offset === 0) {
+			// Cannot skip modifier, no preceding emoji base.
+			return undefined;
+		}
+		codePoint = getPrevCodePoint(str, offset);
+		offset -= getUTF16Length(codePoint);
+	}
+
+	// Expect base emoji
+	if (!isEmojiImprecise(codePoint)) {
+		// Unexpected code point, not a valid emoji.
+		return undefined;
+	}
+
+	if (offset >= 0) {
+		// Skip optional ZWJ code points that combine multiple emojis.
+		// In theory, we should check if that ZWJ actually combines multiple emojis
+		// to prevent deleting ZWJs in situations we didn't account for.
+		const optionalZwjCodePoint = getPrevCodePoint(str, offset);
+		if (optionalZwjCodePoint === CodePoint.zwj) {
+			offset -= getUTF16Length(optionalZwjCodePoint);
+		}
+	}
+
+	return offset;
+}
+
+function getUTF16Length(codePoint: number) {
+	return codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1;
+}
+
+function isEmojiModifier(codePoint: number): boolean {
+	return 0x1F3FB <= codePoint && codePoint <= 0x1F3FF;
+}
+
+const enum CodePoint {
+	zwj = 0x200D,
+
+	/**
+	 * Variation Selector-16 (VS16)
+	*/
+	emojiVariantSelector = 0xFE0F,
+
+	/**
+	 * Combining Enclosing Keycap
+	 */
+	enclosingKeyCap = 0x20E3,
+}

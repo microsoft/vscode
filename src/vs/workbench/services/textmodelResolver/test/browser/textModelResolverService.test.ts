@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { ITextModel } from 'vs/editor/common/model';
 import { URI } from 'vs/base/common/uri';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
@@ -50,11 +50,11 @@ suite('Workbench - TextModelResolverService', () => {
 		});
 
 		let resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
-		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, resource, 'The Name', 'The Description', undefined);
+		let input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 
 		const model = await input.resolve();
 		assert.ok(model);
-		assert.strictEqual(snapshotToString(((model as ResourceEditorModel).createSnapshot()!)), 'Hello Test');
+		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'Hello Test');
 		let disposed = false;
 		let disposedPromise = new Promise<void>(resolve => {
 			Event.once(model.onWillDispose)(() => {

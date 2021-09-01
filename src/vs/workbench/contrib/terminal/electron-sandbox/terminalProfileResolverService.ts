@@ -5,13 +5,13 @@
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
+import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class ElectronTerminalProfileResolverService extends BaseTerminalProfileResolverService {
 
@@ -20,11 +20,11 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHistoryService historyService: IHistoryService,
 		@ILogService logService: ILogService,
-		@IShellEnvironmentService shellEnvironmentService: IShellEnvironmentService,
 		@ITerminalService terminalService: ITerminalService,
 		@ILocalTerminalService localTerminalService: ILocalTerminalService,
 		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(
 			{
@@ -32,11 +32,12 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 					const service = remoteAuthority ? remoteTerminalService : localTerminalService;
 					return service.getDefaultSystemShell(platform);
 				},
-				getShellEnvironment: (remoteAuthority) => {
+				getEnvironment: (remoteAuthority) => {
 					if (remoteAuthority) {
-						remoteTerminalService.getShellEnvironment();
+						return remoteTerminalService.getEnvironment();
+					} else {
+						return localTerminalService.getEnvironment();
 					}
-					return shellEnvironmentService.getShellEnv();
 				}
 			},
 			configurationService,
@@ -44,7 +45,8 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 			historyService,
 			logService,
 			terminalService,
-			workspaceContextService
+			workspaceContextService,
+			remoteAgentService
 		);
 	}
 }

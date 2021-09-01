@@ -6,16 +6,16 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { Mimes } from 'vs/base/common/mime';
 
 suite('NotebookKernelService', () => {
 
@@ -34,7 +34,7 @@ suite('NotebookKernelService', () => {
 		instantiationService = setupInstantiationService();
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
 			override onDidAddNotebookDocument = onDidAddNotebookDocument.event;
-			override onDidRemoveNotebookDocument = Event.None;
+			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
 		});
 		kernelService = instantiationService.createInstance(NotebookKernelService);
@@ -102,7 +102,7 @@ suite('NotebookKernelService', () => {
 		assert.ok(info.all[1] === kernel);
 	});
 
-	test('onDidChangeNotebookAssociation not fired on initial notebook open #121904', function () {
+	test('onDidChangeSelectedNotebooks not fired on initial notebook open #121904', function () {
 
 		const uri = URI.parse('foo:///one');
 		const jupyter = { uri, viewType: 'jupyter' };
@@ -123,7 +123,7 @@ suite('NotebookKernelService', () => {
 		assert.strictEqual(info.selected === jupyterKernel, true);
 	});
 
-	test('onDidChangeNotebookAssociation not fired on initial notebook open #121904, p2', async function () {
+	test('onDidChangeSelectedNotebooks not fired on initial notebook open #121904, p2', async function () {
 
 		const uri = URI.parse('foo:///one');
 		const jupyter = { uri, viewType: 'jupyter' };
@@ -139,16 +139,16 @@ suite('NotebookKernelService', () => {
 
 		{
 			// open as jupyter -> bind event
-			const p1 = Event.toPromise(kernelService.onDidChangeNotebookKernelBinding);
-			const d1 = instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {});
+			const p1 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
+			const d1 = instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, {});
 			onDidAddNotebookDocument.fire(d1);
 			const event = await p1;
 			assert.strictEqual(event.newKernel, jupyterKernel.id);
 		}
 		{
 			// RE-open as dotnet -> bind event
-			const p2 = Event.toPromise(kernelService.onDidChangeNotebookKernelBinding);
-			const d2 = instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {});
+			const p2 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
+			const d2 = instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, {});
 			onDidAddNotebookDocument.fire(d2);
 			const event2 = await p2;
 			assert.strictEqual(event2.newKernel, dotnetKernel.id);
@@ -176,7 +176,7 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 
 	constructor(opts?: { languages?: string[], label?: string, viewType?: string }) {
-		this.supportedLanguages = opts?.languages ?? ['text/plain'];
+		this.supportedLanguages = opts?.languages ?? [Mimes.text];
 		this.label = opts?.label ?? this.label;
 		this.viewType = opts?.viewType ?? this.viewType;
 	}

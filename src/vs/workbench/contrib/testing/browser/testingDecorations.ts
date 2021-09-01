@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, dispose, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -15,28 +17,36 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { overviewRulerError, overviewRulerInfo, overviewRulerWarning } from 'vs/editor/common/view/editorColorRegistry';
+import { overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
 import { localize } from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
+import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
-import { IncrementalTestCollectionItem, IRichLocation, ITestMessage, TestDiffOpType, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
+import { labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
+import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
+import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 
-function isInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
+function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
-		if (diffEditor.getModifiedEditor() === codeEditor || diffEditor.getOriginalEditor() === codeEditor) {
+		if (diffEditor.getOriginalEditor() === codeEditor) {
 			return true;
 		}
 	}
@@ -47,7 +57,6 @@ function isInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICode
 const FONT_FAMILY_VAR = `--testMessageDecorationFontFamily`;
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
-	private collection = this._register(new MutableDisposable<IReference<IMainThreadTestCollection>>());
 	private currentUri?: URI;
 	private lastDecorations: ITestDecoration[] = [];
 
@@ -113,92 +122,95 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		updateFontFamilyVar();
 
 		this._register(this.results.onTestChanged(({ item: result }) => {
-			if (this.currentUri && result.item.uri.toString() === this.currentUri.toString()) {
+			if (this.currentUri && result.item.uri && result.item.uri.toString() === this.currentUri.toString()) {
 				this.setDecorations(this.currentUri);
 			}
 		}));
-		this._register(Event.any(this.results.onResultsChanged, this.testService.excludeTests.onDidChange)(() => {
-			if (this.currentUri) {
-				this.setDecorations(this.currentUri);
-			}
-		}));
+
+		this._register(Event.any(
+			this.results.onResultsChanged,
+			this.testService.excluded.onTestExclusionsChanged,
+			this.testService.showInlineOutput.onDidChange,
+			this.testService.onDidProcessDiff,
+		)(() => this.setDecorations(this.currentUri)));
 	}
 
 	private attachModel(uri?: URI) {
-		if (isInDiffEditor(this.codeEditorService, this.editor)) {
+		if (isOriginalInDiffEditor(this.codeEditorService, this.editor)) {
 			uri = undefined;
 		}
 
 		this.currentUri = uri;
 
 		if (!uri) {
-			this.collection.value = undefined;
 			this.clearDecorations();
 			return;
 		}
 
-		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, diff => {
-			this.setDecorations(uri!);
-
-			for (const op of diff) {
-				switch (op[0]) {
-					case TestDiffOpType.Add:
-						if (!op[1].parent) {
-							this.collection.value?.object.expand(op[1].item.extId, Infinity);
-						}
-						break;
-					case TestDiffOpType.Remove:
-						TestingOutputPeekController.get(this.editor).removeIfPeekingForTest(op[1]);
-						break;
+		(async () => {
+			for await (const _test of testsInFile(this.testService.collection, uri)) {
+				// consume the iterator so that all tests in the file get expanded. Or
+				// at least until the URI changes. If new items are requested, changes
+				// will be trigged in the `onDidProcessDiff` callback.
+				if (this.currentUri !== uri) {
+					break;
 				}
 			}
-		});
-
-		for (const root of this.collection.value.object.rootIds) {
-			this.collection.value.object.expand(root, Infinity);
-		}
+		})();
 
 		this.setDecorations(uri);
 	}
 
-	private setDecorations(uri: URI): void {
-		const ref = this.collection.value;
-		if (!ref) {
+	private setDecorations(uri: URI | undefined): void {
+		if (!uri) {
+			this.clearDecorations();
 			return;
 		}
 
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
-			for (const test of ref.object.all) {
-				const stateLookup = this.results.getStateById(test.item.extId);
-				if (test.item.range) {
-					newDecorations.push(this.instantiationService.createInstance(
-						RunTestDecoration, test, ref.object, test.item.range, this.editor, stateLookup?.[1]));
-				}
-
-				if (!stateLookup) {
+			for (const test of this.testService.collection.all) {
+				if (!test.item.range || test.item.uri?.toString() !== uri.toString()) {
 					continue;
 				}
 
-				const [result, stateItem] = stateLookup;
-				if (stateItem.retired) {
-					continue; // do not show decorations for outdated tests
+				const stateLookup = this.results.getStateById(test.item.extId);
+				const line = test.item.range.startLineNumber;
+				const resultItem = stateLookup?.[1];
+				const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
+				if (existing !== -1) {
+					newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
+				} else {
+					newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
+				}
+			}
+
+			const lastResult = this.results.results[0];
+			if (this.testService.showInlineOutput.value && lastResult instanceof LiveTestResult) {
+				for (const task of lastResult.tasks) {
+					for (const m of task.otherMessages) {
+						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
+							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+						}
+					}
 				}
 
-				for (let taskId = 0; taskId < stateItem.tasks.length; taskId++) {
-					const state = stateItem.tasks[taskId];
-					for (let i = 0; i < state.messages.length; i++) {
-						const m = state.messages[i];
-						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-							const uri = buildTestUri({
-								type: TestUriType.ResultActualOutput,
-								messageIndex: i,
-								taskIndex: taskId,
-								resultId: result.id,
-								testExtId: stateItem.item.extId,
-							});
+				for (const test of lastResult.tests) {
+					for (let taskId = 0; taskId < test.tasks.length; taskId++) {
+						const state = test.tasks[taskId];
+						for (let i = 0; i < state.messages.length; i++) {
+							const m = state.messages[i];
+							if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
+								const uri = m.type === TestMessageType.Info ? undefined : buildTestUri({
+									type: TestUriType.ResultActualOutput,
+									messageIndex: i,
+									taskIndex: taskId,
+									resultId: lastResult.id,
+									testExtId: test.item.extId,
+								});
 
-							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+								newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+							}
 						}
 					}
 				}
@@ -213,6 +225,10 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 
 	private clearDecorations(): void {
+		if (!this.lastDecorations.length) {
+			return;
+		}
+
 		this.editor.changeDecorations(accessor => {
 			for (const decoration of this.lastDecorations) {
 				accessor.removeDecoration(decoration.id);
@@ -248,130 +264,324 @@ const firstLineRange = (originalRange: IRange) => ({
 	endColumn: 1,
 });
 
-class RunTestDecoration extends Disposable implements ITestDecoration {
-	/**
-	 * @inheritdoc
-	 */
-	id = '';
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly editorDecoration: IModelDeltaDecoration;
-
-	private line: number;
-
-	constructor(
-		private readonly test: IncrementalTestCollectionItem,
-		private readonly collection: IMainThreadTestCollection,
-		range: IRange,
-		private readonly editor: ICodeEditor,
-		stateItem: TestResultItem | undefined,
-		@ITestService private readonly testService: ITestService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService,
-	) {
-		super();
-		this.line = range.startLineNumber;
-
-		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestResultState.Unset
-			? testingStatesToIcons.get(stateItem.computedState)!
-			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
-
-		const hoverMessage = new MarkdownString('', true).appendText(localize('failedHoverMessage', '{0} has failed. ', test.item.label));
-		if (stateItem?.tasks.some(s => s.messages.length > 0)) {
-			const args = encodeURIComponent(JSON.stringify([test.item.extId]));
-			hoverMessage.appendMarkdown(`[${localize('failedPeekAction', 'Peek Error')}](command:vscode.peekTestError?${args})`);
-		}
-
-		let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
-		if (stateItem?.retired) {
-			glyphMarginClassName += ' retired';
-		}
-
-		this.editorDecoration = {
-			range: firstLineRange(range),
-			options: {
-				isWholeLine: true,
-				hoverMessage,
-				glyphMarginClassName,
-				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-				glyphMarginHoverMessage: new MarkdownString().appendText(localize('testing.clickToRun', 'Click to run tests, right click for more options')),
-			}
-		};
+const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[], states: readonly (TestResultItem | undefined)[]): IModelDeltaDecoration => {
+	const range = tests[0]?.item.range;
+	if (!range) {
+		throw new Error('Test decorations can only be created for tests with a range');
 	}
 
-	/**
-	 * @inheritdoc
-	 */
+	let computedState = TestResultState.Unset;
+	let hoverMessageParts: string[] = [];
+	let testIdWithMessages: string | undefined;
+	let retired = false;
+	for (let i = 0; i < tests.length; i++) {
+		const test = tests[i];
+		const resultItem = states[i];
+		const state = resultItem?.computedState ?? TestResultState.Unset;
+		hoverMessageParts.push(labelForTestInState(test.item.label, state));
+		computedState = maxPriority(computedState, state);
+		retired = retired || !!resultItem?.retired;
+		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
+			testIdWithMessages = test.item.extId;
+		}
+	}
+
+	const hasMultipleTests = tests.length > 1 || tests[0].children.size > 0;
+	const icon = computedState === TestResultState.Unset
+		? (hasMultipleTests ? testingRunAllIcon : testingRunIcon)
+		: testingStatesToIcons.get(computedState)!;
+
+	const hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');
+	if (testIdWithMessages) {
+		const args = encodeURIComponent(JSON.stringify([testIdWithMessages]));
+		hoverMessage.appendMarkdown(`[${localize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestError?${args})`);
+	}
+
+	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+	if (retired) {
+		glyphMarginClassName += ' retired';
+	}
+
+	return {
+		range: firstLineRange(range),
+		options: {
+			description: 'run-test-decoration',
+			isWholeLine: true,
+			hoverMessage,
+			glyphMarginClassName,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		}
+	};
+};
+
+abstract class RunTestDecoration extends Disposable {
+	/** @inheritdoc */
+	public id = '';
+
+	public get line() {
+		return this.editorDecoration.range.startLineNumber;
+	}
+
+	constructor(
+		public editorDecoration: IModelDeltaDecoration,
+		protected readonly editor: ICodeEditor,
+		@ITestService protected readonly testService: ITestService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@ICommandService protected readonly commandService: ICommandService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ITestProfileService protected readonly testProfileService: ITestProfileService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@IMenuService protected readonly menuService: IMenuService,
+	) {
+		super();
+		editorDecoration.options.glyphMarginHoverMessage = new MarkdownString().appendText(this.getGutterLabel());
+	}
+
+	/** @inheritdoc */
 	public click(e: IEditorMouseEvent): boolean {
 		if (e.target.position?.lineNumber !== this.line || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			return false;
 		}
 
 		if (e.event.rightButton) {
-			const actions = this.getContextMenu();
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
-				getActions: () => actions,
-				onHide: () => dispose(actions),
-			});
-		} else {
-			// todo: customize click behavior
-			this.testService.runTests({
-				tests: [{ testId: this.test.item.extId, src: this.test.src }],
-				debug: false,
-			});
+			this.showContextMenu(e);
+			return true;
+		}
+
+		switch (getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction)) {
+			case DefaultGutterClickAction.ContextMenu:
+				this.showContextMenu(e);
+				break;
+			case DefaultGutterClickAction.Debug:
+				this.defaultDebug();
+				break;
+			case DefaultGutterClickAction.Run:
+			default:
+				this.defaultRun();
+				break;
 		}
 
 		return true;
 	}
 
-	public override dispose() {
-		// no-op
+	/**
+	 * Adds the test to this decoration.
+	 */
+	public abstract merge(other: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration;
+
+	/**
+	 * Called when the decoration is clicked on.
+	 */
+	protected abstract getContextMenuActions(e: IEditorMouseEvent): IReference<IAction[]>;
+
+	/**
+	 * Default run action.
+	 */
+	protected abstract defaultRun(): void;
+
+	/**
+	 * Default debug action.
+	 */
+	protected abstract defaultDebug(): void;
+
+	private showContextMenu(e: IEditorMouseEvent) {
+		let actions = this.getContextMenuActions(e);
+
+		const model = this.editor.getModel();
+		if (model) {
+			actions = {
+				dispose: actions.dispose,
+				object: Separator.join(
+					actions.object,
+					this.editor
+						.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)
+						.getContextMenuActionsAtPosition(this.line, model)
+				)
+			};
+		}
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
+			getActions: () => actions.object,
+			onHide: () => actions.dispose,
+		});
 	}
 
-	private getContextMenu() {
-		const model = this.editor.getModel();
-		if (!model) {
-			return [];
+	private getGutterLabel() {
+		switch (getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction)) {
+			case DefaultGutterClickAction.ContextMenu:
+				return localize('testing.gutterMsg.contextMenu', 'Click for test options');
+			case DefaultGutterClickAction.Debug:
+				return localize('testing.gutterMsg.debug', 'Click to debug tests, right click for more options');
+			case DefaultGutterClickAction.Run:
+			default:
+				return localize('testing.gutterMsg.run', 'Click to run tests, right click for more options');
 		}
+	}
 
+	/**
+	 * Gets context menu actions relevant for a singel test.
+	 */
+	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
 		const testActions: IAction[] = [];
-		if (this.test.item.runnable) {
-			testActions.push(new Action('testing.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
-				debug: false,
-				tests: [{ src: this.test.src, testId: this.test.item.extId }],
+		const capabilities = this.testProfileService.capabilitiesForTest(test);
+		if (capabilities & TestRunProfileBitset.Run) {
+			testActions.push(new Action('testing.gutter.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
+				group: TestRunProfileBitset.Run,
+				tests: [test],
 			})));
 		}
 
-		if (this.test.item.debuggable) {
-			testActions.push(new Action('testing.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
-				debug: true,
-				tests: [{ src: this.test.src, testId: this.test.item.extId }],
+		if (capabilities & TestRunProfileBitset.Debug) {
+			testActions.push(new Action('testing.gutter.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
+				group: TestRunProfileBitset.Debug,
+				tests: [test],
 			})));
 		}
 
-		testActions.push(new Action('testing.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined, async () => {
-			const path = [this.test];
-			while (true) {
-				const parentId = path[0].parent;
-				const parent = parentId && this.collection.getNodeById(parentId);
-				if (!parent) {
-					break;
+		if (capabilities & TestRunProfileBitset.HasNonDefaultProfile) {
+			testActions.push(new Action('testing.runUsing', localize('testing.runUsing', 'Execute Using Profile...'), undefined, undefined, async () => {
+				const profile: ITestRunProfile | undefined = await this.commandService.executeCommand('vscode.pickTestProfile', { onlyForTest: test });
+				if (!profile) {
+					return;
 				}
 
-				path.unshift(parent);
-			}
+				this.testService.runResolvedTests({
+					targets: [{
+						profileGroup: profile.group,
+						profileId: profile.profileId,
+						controllerId: profile.controllerId,
+						testIds: [test.item.extId]
+					}]
+				});
+			}));
+		}
 
-			await this.commandService.executeCommand('vscode.revealTestInExplorer', path.map(t => t.item.extId));
-		}));
+		if (resultItem && isFailedState(resultItem.computedState)) {
+			testActions.push(new Action('testing.gutter.peekFailure', localize('peek failure', 'Peek Error'), undefined, undefined,
+				() => this.commandService.executeCommand('vscode.peekTestError', test.item.extId)));
+		}
 
-		const breakpointActions = this.editor
-			.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)
-			.getContextMenuActionsAtPosition(this.line, model);
+		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
+			() => this.commandService.executeCommand('vscode.revealTestInExplorer', test.item.extId)));
 
-		return breakpointActions.length ? [...testActions, new Separator(), ...breakpointActions] : testActions;
+		const contributed = this.getContributedTestActions(test, capabilities);
+		return { object: Separator.join(testActions, contributed.object), dispose: contributed.dispose };
+	}
+
+	private getContributedTestActions(test: InternalTestItem, capabilities: number): IReference<IAction[]> {
+		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
+		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
+
+		try {
+			const target: IAction[] = [];
+			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
+			const actionsDisposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
+			return { object: target, dispose: () => actionsDisposable.dispose };
+		} finally {
+			menu.dispose();
+		}
+	}
+}
+
+class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoration {
+	constructor(
+		private readonly tests: {
+			test: IncrementalTestCollectionItem,
+			resultItem: TestResultItem | undefined,
+		}[],
+		editor: ICodeEditor,
+		@ITestService testService: ITestService,
+		@ICommandService commandService: ICommandService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITestProfileService testProfiles: ITestProfileService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+	) {
+		super(createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem)), editor, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
+	}
+
+	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
+		this.tests.push({ test, resultItem });
+		this.editorDecoration = createRunTestDecoration(this.tests.map(t => t.test), this.tests.map(t => t.resultItem));
+		return this;
+	}
+
+	protected override getContextMenuActions() {
+		const allActions: IAction[] = [];
+		if (this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Run)) {
+			allActions.push(new Action('testing.gutter.runAll', localize('run all test', 'Run All Tests'), undefined, undefined, () => this.defaultRun()));
+		}
+
+		if (this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Debug)) {
+			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
+		}
+
+		const disposable = new DisposableStore();
+		const testSubmenus = this.tests.map(({ test, resultItem }) => {
+			const actions = this.getTestContextMenuActions(test, resultItem);
+			disposable.add(actions);
+			return new SubmenuAction(test.item.extId, test.item.label, actions.object);
+		});
+
+		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };
+	}
+
+	protected override defaultRun() {
+		return this.testService.runTests({
+			tests: this.tests.map(({ test }) => test),
+			group: TestRunProfileBitset.Run,
+		});
+	}
+
+	protected override defaultDebug() {
+		return this.testService.runTests({
+			tests: this.tests.map(({ test }) => test),
+			group: TestRunProfileBitset.Run,
+		});
+	}
+}
+
+class RunSingleTestDecoration extends RunTestDecoration implements ITestDecoration {
+	constructor(
+		private readonly test: IncrementalTestCollectionItem,
+		editor: ICodeEditor,
+		private readonly resultItem: TestResultItem | undefined,
+		@ITestService testService: ITestService,
+		@ICommandService commandService: ICommandService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITestProfileService testProfiles: ITestProfileService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+	) {
+		super(createRunTestDecoration([test], [resultItem]), editor, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
+	}
+
+	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
+		return new MultiRunTestDecoration([
+			{ test: this.test, resultItem: this.resultItem },
+			{ test, resultItem },
+		], this.editor, this.testService, this.commandService, this.contextMenuService, this.configurationService, this.testProfileService, this.contextKeyService, this.menuService);
+	}
+
+	protected override getContextMenuActions(e: IEditorMouseEvent) {
+		return this.getTestContextMenuActions(this.test, this.resultItem);
+	}
+
+	protected override defaultRun() {
+		return this.testService.runTests({
+			tests: [this.test],
+			group: TestRunProfileBitset.Run,
+		});
+	}
+
+	protected override defaultDebug() {
+		return this.testService.runTests({
+			tests: [this.test],
+			group: TestRunProfileBitset.Debug,
+		});
 	}
 }
 
@@ -383,17 +593,18 @@ class TestMessageDecoration implements ITestDecoration {
 
 	constructor(
 		public readonly testMessage: ITestMessage,
-		private readonly messageUri: URI,
+		private readonly messageUri: URI | undefined,
 		public readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly editorService: ICodeEditorService,
 		@IThemeService themeService: IThemeService,
 	) {
-		const { severity = TestMessageSeverity.Error, message } = testMessage;
+		const severity = testMessage.type;
+		const message = typeof testMessage.message === 'string' ? removeAnsiEscapeCodes(testMessage.message) : testMessage.message;
 		const colorTheme = themeService.getColorTheme();
-		editorService.registerDecorationType(this.decorationId, {
+		editorService.registerDecorationType('test-message-decoration', this.decorationId, {
 			after: {
-				contentText: message.toString(),
+				contentText: renderStringAsPlaintext(message),
 				color: `${colorTheme.getColor(testMessageSeverityColors[severity].decorationForeground)}`,
 				fontSize: `${editor.getOption(EditorOption.fontSize)}px`,
 				fontFamily: `var(${FONT_FAMILY_VAR})`,
@@ -410,13 +621,9 @@ class TestMessageDecoration implements ITestDecoration {
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
 
-		const rulerColor = severity === TestMessageSeverity.Error
+		const rulerColor = severity === TestMessageType.Error
 			? overviewRulerError
-			: severity === TestMessageSeverity.Warning
-				? overviewRulerWarning
-				: severity === TestMessageSeverity.Information
-					? overviewRulerInfo
-					: undefined;
+			: overviewRulerInfo;
 
 		if (rulerColor) {
 			options.overviewRuler = { color: themeColorFromId(rulerColor), position: OverviewRulerLane.Right };
@@ -427,6 +634,10 @@ class TestMessageDecoration implements ITestDecoration {
 
 	click(e: IEditorMouseEvent): boolean {
 		if (e.event.rightButton) {
+			return false;
+		}
+
+		if (!this.messageUri) {
 			return false;
 		}
 

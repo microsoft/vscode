@@ -6,7 +6,7 @@
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 
 export const testIdentityProvider: IIdentityProvider<TestItemTreeElement> = {
 	getId(element) {
@@ -67,7 +67,7 @@ const pruneNodesNotInTree = (nodes: Set<TestExplorerTreeElement | null>, tree: O
 /**
  * Helper to gather and bulk-apply tree updates.
  */
-export class NodeChangeList<T extends (TestItemTreeElement | TestTreeWorkspaceFolder)> {
+export class NodeChangeList<T extends TestItemTreeElement> {
 	private changedParents = new Set<T | null>();
 	private updatedNodes = new Set<TestExplorerTreeElement>();
 	private omittedNodes = new WeakSet<TestExplorerTreeElement>();

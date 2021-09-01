@@ -19,7 +19,7 @@ import { PaneView, IPaneViewOptions } from 'vs/base/browser/ui/splitview/panevie
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, IViewsService, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -35,9 +35,10 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
@@ -407,7 +408,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		options.orientation = this.orientation;
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
+		this._register(this.paneview.onDidScroll(_ => this.onDidScrollPane()));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		this._register(Gesture.addTarget(parent));
+		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 
 		this._menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
 		this._register(this._menuActions.onDidChange(() => this.updateTitleArea()));
@@ -1064,6 +1068,12 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return true;
 	}
 
+	private onDidScrollPane() {
+		for (const pane of this.panes) {
+			pane.onDidScrollRoot();
+		}
+	}
+
 	override dispose(): void {
 		super.dispose();
 		this.paneItems.forEach(i => i.disposable.dispose());
@@ -1182,3 +1192,36 @@ registerAction2(
 		}
 	}
 );
+
+
+registerAction2(class MoveViews extends Action2 {
+	constructor() {
+		super({
+			id: 'vscode.moveViews',
+			title: nls.localize('viewsMove', "Move Views"),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, options: { viewIds: string[], destinationId: string }): Promise<void> {
+		if (!Array.isArray(options?.viewIds) || typeof options?.destinationId !== 'string') {
+			return Promise.reject('Invalid arguments');
+		}
+
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+
+		const destination = viewDescriptorService.getViewContainerById(options.destinationId);
+		if (!destination) {
+			return;
+		}
+
+		// FYI, don't use `moveViewsToContainer` in 1 shot, because it expects all views to have the same current location
+		for (const viewId of options.viewIds) {
+			const viewDescriptor = viewDescriptorService.getViewDescriptorById(viewId);
+			if (viewDescriptor?.canMoveView) {
+				viewDescriptorService.moveViewsToContainer([viewDescriptor], destination, ViewVisibilityState.Default);
+			}
+		}
+
+		await accessor.get(IViewsService).openViewContainer(destination.id, true);
+	}
+});

@@ -11,7 +11,10 @@ import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IViewsService } from 'vs/workbench/common/views';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
@@ -47,13 +50,20 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
+		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
 		@ITestResultService resultService: ITestResultService,
+		@IViewsService private viewsService: IViewsService,
 	) {
 		// If a result terminal is currently active and we start a new test run,
 		// stream live results there automatically.
 		resultService.onResultsChanged(evt => {
-			const active = this.terminalService.getActiveInstance();
+			const active = this.terminalService.activeInstance;
 			if (!('started' in evt) || !active) {
+				return;
+			}
+
+			const pane = this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
+			if (!pane) {
 				return;
 			}
 
@@ -68,7 +78,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 	 * @inheritdoc
 	 */
 	public async open(result: ITestResult | undefined): Promise<void> {
-		const testOutputPtys = this.terminalService.terminalInstances
+		const testOutputPtys = this.terminalService.instances
 			.map(t => {
 				const output = this.outputTerminals.get(t);
 				return output ? [t, output] as const : undefined;
@@ -79,7 +89,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		const existing = testOutputPtys.find(([, o]) => o.resultId === result?.id);
 		if (existing) {
 			this.terminalService.setActiveInstance(existing[0]);
-			this.terminalService.showPanel();
+			this.terminalGroupService.showPanel();
 			return;
 		}
 
@@ -91,10 +101,13 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		}
 
 		const output = new TestOutputProcess();
-		this.showResultsInTerminal(this.terminalService.createTerminal({
-			isFeatureTerminal: true,
-			customPtyImplementation: () => output,
-			name: getTitle(result),
+		this.showResultsInTerminal(await this.terminalService.createTerminal({
+			config: {
+				isFeatureTerminal: true,
+				icon: testingViewIcon,
+				customPtyImplementation: () => output,
+				name: getTitle(result),
+			}
 		}), output, result);
 	}
 
@@ -102,7 +115,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		this.outputTerminals.set(terminal, output);
 		output.resetFor(result?.id, getTitle(result));
 		this.terminalService.setActiveInstance(terminal);
-		this.terminalService.showPanel();
+		this.terminalGroupService.showPanel();
 
 		if (!result) {
 			// seems like it takes a tick for listeners to be registered
@@ -165,12 +178,14 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 
 	public readonly onProcessData = this.processDataEmitter.event;
 	public readonly onProcessExit = this._register(new Emitter<number | undefined>()).event;
-	public readonly onProcessReady = this._register(new Emitter<{ pid: number; cwd: string; }>()).event;
+	private readonly _onProcessReady = this._register(new Emitter<{ pid: number; cwd: string; }>());
+	public readonly onProcessReady = this._onProcessReady.event;
 	public readonly onProcessTitleChanged = this.titleEmitter.event;
 	public readonly onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>()).event;
 
 	public start(): Promise<ITerminalLaunchError | undefined> {
 		this.startedDeferred.complete();
+		this._onProcessReady.fire({ pid: -1, cwd: '' });
 		return Promise.resolve(undefined);
 	}
 	public shutdown(): void {

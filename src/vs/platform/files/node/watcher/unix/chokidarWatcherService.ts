@@ -6,18 +6,18 @@
 import * as chokidar from 'chokidar';
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import * as glob from 'vs/base/common/glob';
-import { isEqualOrParent } from 'vs/base/common/extpath';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { realcaseSync } from 'vs/base/node/extpath';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
-import { Emitter, Event } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { Emitter } from 'vs/base/common/event';
+import { isEqualOrParent } from 'vs/base/common/extpath';
+import { match, parse, ParsedPattern } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { normalizeNFC } from 'vs/base/common/normalization';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { realcaseSync } from 'vs/base/node/extpath';
+import { FileChangeType } from 'vs/platform/files/common/files';
+import { IWatcherOptions, IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -29,7 +29,7 @@ interface IWatcher {
 }
 
 interface ExtendedWatcherRequest extends IWatcherRequest {
-	parsedPattern?: glob.ParsedPattern;
+	parsedPattern?: ParsedPattern;
 }
 
 export class ChokidarWatcherService extends Disposable implements IWatcherService {
@@ -41,7 +41,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage: Event<ILogMessage> = this._onDidLogMessage.event;
+	readonly onDidLogMessage = this._onDidLogMessage.event;
 
 	private watchers = new Map<string, IWatcher>();
 
@@ -104,7 +104,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 		let usePolling = this.usePolling; // boolean or a list of path patterns
 		if (Array.isArray(usePolling)) {
 			// switch to polling if one of the paths matches with a watched path
-			usePolling = usePolling.some(pattern => requests.some(r => glob.match(pattern, r.path)));
+			usePolling = usePolling.some(pattern => requests.some(request => match(pattern, request.path)));
 		}
 
 		const watcherOpts: chokidar.WatchOptions = {
@@ -113,7 +113,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
 			interval: pollingInterval, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
 			binaryInterval: pollingInterval,
-			usePolling: usePolling,
+			usePolling,
 			disableGlobbing: true // fix https://github.com/microsoft/vscode/issues/4586
 		};
 
@@ -146,7 +146,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
-		this.debug(`Start watching with chokidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
+		this.debug(`Start watching: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
 
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
@@ -166,11 +166,13 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 					if (this.verboseLogging) {
 						this.log(`Stop watching: ${basePath}]`);
 					}
+
 					if (chokidarWatcher) {
 						await chokidarWatcher.close();
 						this._watcherCount--;
 						chokidarWatcher = null;
 					}
+
 					if (fileEventDelayer) {
 						fileEventDelayer.cancel();
 						fileEventDelayer = null;
@@ -250,14 +252,14 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 					undeliveredFileEvents = [];
 
 					// Broadcast to clients normalized
-					const res = normalizeFileChanges(events);
-					this._onDidChangeFile.fire(res);
+					const normalizedEvents = normalizeFileChanges(events);
+					this._onDidChangeFile.fire(normalizedEvents);
 
 					// Logging
 					if (this.verboseLogging) {
-						res.forEach(r => {
-							this.log(` >> normalized  ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
-						});
+						for (const e of normalizedEvents) {
+							this.log(` >> normalized  ${e.type === FileChangeType.ADDED ? '[ADDED]' : e.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${e.path}`);
+						}
 					}
 
 					return undefined;
@@ -322,7 +324,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 			if (!request.parsedPattern) {
 				if (request.excludes && request.excludes.length > 0) {
 					const pattern = `{${request.excludes.join(',')}}`;
-					request.parsedPattern = glob.parse(pattern);
+					request.parsedPattern = parse(pattern);
 				} else {
 					request.parsedPattern = () => false;
 				}

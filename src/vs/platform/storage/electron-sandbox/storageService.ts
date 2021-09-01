@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { StorageScope, WillSaveStateReason, AbstractStorageService } from 'vs/platform/storage/common/storage';
-import { Storage, IStorage } from 'vs/base/parts/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { Promises } from 'vs/base/common/async';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
 import { joinPath } from 'vs/base/common/resources';
+import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
 export class NativeStorageService extends AbstractStorageService {
 

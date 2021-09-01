@@ -143,12 +143,17 @@
 	padding-right: 6px;
 	width: 16px;
 	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon {
-	margin-top: 3px;
+/* makes spinning icons square */
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
+	padding-left: 6px;
+	margin-left: -6px;
 }
 
 .customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon {

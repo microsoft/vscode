@@ -22,14 +22,14 @@
     "find-yarn-workspace-root": "^2.0.0",
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.4.0",
-    "vscode-nls": "^4.1.1",
+    "request-light": "^0.5.4",
+    "vscode-nls": "^5.0.0",
     "which": "^2.0.2",
     "which-pm": "^2.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^12.19.9",
+    "@types/node": "14.x",
     "@types/which": "^2.0.0"
   },
   "resolutions": {

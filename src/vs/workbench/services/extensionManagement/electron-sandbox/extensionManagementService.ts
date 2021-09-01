@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from 'vs/base/common/uuid';
-import { ILocalExtension, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IExtensionGalleryService, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -38,7 +38,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService);
 	}
 
-	protected override async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
+	protected override async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
 		if (vsix.scheme === Schemas.vscodeRemote && server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 			await this.downloadService.download(vsix, downloadedLocation);
@@ -47,7 +47,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {
 			await this.checkForWorkspaceTrust(manifest);
-			return server.extensionManagementService.install(vsix);
+			return server.extensionManagementService.install(vsix, options);
 		}
 
 		return Promise.reject('Unable to get the extension manifest.');

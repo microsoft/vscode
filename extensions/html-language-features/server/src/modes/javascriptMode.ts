@@ -127,7 +127,6 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		async doResolve(document: TextDocument, item: CompletionItem): Promise<CompletionItem> {
 			const jsDocument = jsDocuments.get(document);
 			const jsLanguageService = await host.getLanguageService(jsDocument);
-			// @ts-expect-error until 4.3 protocol update
 			let details = jsLanguageService.getCompletionEntryDetails(jsDocument.uri, item.data.offset, item.label, undefined, undefined, undefined, undefined);
 			if (details) {
 				item.detail = ts.displayPartsToString(details.displayParts);

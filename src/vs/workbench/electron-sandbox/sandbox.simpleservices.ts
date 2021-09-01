@@ -11,14 +11,11 @@ import { Event } from 'vs/base/common/event';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { isWindows } from 'vs/base/common/platform';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -28,8 +25,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 
 //#region Environment
 
@@ -268,23 +263,6 @@ registerSingleton(IExtensionService, SimpleExtensionService);
 //#endregion
 
 
-//#region Webview
-
-class SimpleWebviewService implements IWebviewService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly activeWebview = undefined;
-	readonly onDidChangeActiveWebview = Event.None;
-
-	createWebviewElement(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewElement { throw new Error('Method not implemented.'); }
-	createWebviewOverlay(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewOverlay { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(IWebviewService, SimpleWebviewService);
-
-//#endregion
-
-
 //#region Tunnel
 
 class SimpleTunnelService implements ITunnelService {
@@ -296,6 +274,8 @@ class SimpleTunnelService implements ITunnelService {
 	canMakePublic = false;
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
+	onAddedTunnelProvider = Event.None;
+	hasTunnelProvider = false;
 
 	canTunnel(uri: URI): boolean { return false; }
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined { return undefined; }
@@ -307,32 +287,6 @@ class SimpleTunnelService implements ITunnelService {
 registerSingleton(ITunnelService, SimpleTunnelService);
 
 //#endregion
-
-
-//#region Terminal Instance
-
-class SimpleTerminalInstanceService extends TerminalInstanceService { }
-
-registerSingleton(ITerminalInstanceService, SimpleTerminalInstanceService);
-
-//#endregion
-
-
-//#region Terminal Profile Resolver Service
-
-class SimpleTerminalProfileResolverService implements ITerminalProfileResolverService {
-
-	_serviceBrand: undefined;
-
-	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void { }
-	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> { }
-	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { throw new Error('Method not implemented.'); }
-	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { throw new Error('Method not implemented.'); }
-	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { throw new Error('Method not implemented.'); }
-	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(ITerminalProfileResolverService, SimpleTerminalProfileResolverService);
 
 
 //#region Search Service

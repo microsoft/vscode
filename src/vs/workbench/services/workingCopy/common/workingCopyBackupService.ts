@@ -18,12 +18,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LegacyWorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/legacyBackupRestorer';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class WorkingCopyBackupsModel {
 
@@ -161,8 +157,8 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		return this.impl.discardBackup(identifier);
 	}
 
-	discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
-		return this.impl.discardBackups(except);
+	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		return this.impl.discardBackups(filter);
 	}
 
 	getBackups(): Promise<IWorkingCopyIdentifier[]> {
@@ -190,7 +186,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 	private readonly ioOperationQueues = this._register(new ResourceQueue()); // queue IO operations to ensure write/delete file order
 
 	private ready!: Promise<WorkingCopyBackupsModel>;
-	private model!: WorkingCopyBackupsModel;
+	private model: WorkingCopyBackupsModel | undefined = undefined;
 
 	constructor(
 		private backupWorkspaceHome: URI,
@@ -256,6 +252,10 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 	}
 
 	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
+		if (!this.model) {
+			return false;
+		}
+
 		const backupResource = this.toBackupResource(identifier);
 
 		return this.model.has(backupResource, versionId);
@@ -307,21 +307,22 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		return `${identifier.resource.toString()}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify({ ...meta, typeId: identifier.typeId })}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER}`;
 	}
 
-	async discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
+	async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
 		const model = await this.ready;
 
 		// Discard all but some backups
+		const except = filter?.except;
 		if (Array.isArray(except) && except.length > 0) {
 			const exceptMap = new ResourceMap<boolean>();
 			for (const exceptWorkingCopy of except) {
 				exceptMap.set(this.toBackupResource(exceptWorkingCopy), true);
 			}
 
-			for (const backupResource of model.get()) {
+			await Promises.settled(model.get().map(async backupResource => {
 				if (!exceptMap.has(backupResource)) {
 					await this.doDiscardBackup(backupResource);
 				}
-			}
+			}));
 		}
 
 		// Discard all backups
@@ -403,7 +404,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		}
 
 		return {
-			typeId: typeId ?? '', // Fallback for previous backups that do not encode the typeId (TODO@bpasero remove me eventually)
+			typeId: typeId ?? NO_TYPE_ID,
 			resource: URI.parse(resourcePreamble)
 		};
 	}
@@ -531,7 +532,8 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 		this.backups.delete(this.toBackupResource(identifier));
 	}
 
-	async discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void> {
+	async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		const except = filter?.except;
 		if (Array.isArray(except) && except.length > 0) {
 			const exceptMap = new ResourceMap<boolean>();
 			for (const exceptWorkingCopy of except) {
@@ -587,6 +589,3 @@ function hashPath(resource: URI): string {
 function hashString(str: string): string {
 	return hash(str).toString(16);
 }
-
-// Register Backup Restorer
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LegacyWorkingCopyBackupRestorer, LifecyclePhase.Starting);

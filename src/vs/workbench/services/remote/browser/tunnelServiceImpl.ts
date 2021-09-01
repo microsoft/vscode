@@ -18,7 +18,7 @@ export class TunnelService extends AbstractTunnelService {
 		super(logService);
 	}
 
-	protected retainOrCreateTunnel(_addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(_addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -26,7 +26,7 @@ export class TunnelService extends AbstractTunnelService {
 		}
 
 		if (this._tunnelProvider) {
-			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic);
+			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic, protocol);
 		}
 		return undefined;
 	}

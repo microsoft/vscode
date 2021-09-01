@@ -45,6 +45,7 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
+import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -660,10 +661,10 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 				},
-				'configurationService.folder.untrustedSetting': {
+				'configurationService.folder.restrictedSetting': {
 					'type': 'string',
 					'default': 'isSet',
-					requireTrust: true
+					restricted: true
 				},
 			}
 		});
@@ -693,13 +694,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		workspaceService.acquireInstantiationService(instantiationService);
 	});
 
 	teardown(() => disposables.clear());
 
 	test('defaults', () => {
-		assert.deepStrictEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet', 'untrustedSetting': 'isSet' } });
+		assert.deepStrictEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet', 'restrictedSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', async () => {
@@ -1122,108 +1124,110 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
 	});
 
-	test('untrusted setting is read from workspace when workspace is trusted', async () => {
+	test('restricted setting is read from workspace when workspace is trusted', async () => {
 		testObject.updateWorkspaceTrust(true);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
-		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.workspaceFolder, undefined);
+		assert.strictEqual(testObject.getValue('configurationService.folder.restrictedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
+		assert.ok(testObject.restrictedSettings.default.includes('configurationService.folder.restrictedSetting'));
+		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
+		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.folder.restrictedSetting']);
+		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.restrictedSetting']);
 	});
 
-	test('untrusted setting is not read from workspace when workspace is changed to trusted', async () => {
+	test('restricted setting is not read from workspace when workspace is changed to trusted', async () => {
 		testObject.updateWorkspaceTrust(true);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		testObject.updateWorkspaceTrust(false);
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
-		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.folder.untrustedSetting'));
-		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.folder.untrustedSetting']);
-		assert.strictEqual(testObject.unTrustedSettings.workspaceFolder?.size, 1);
-		assert.deepStrictEqual(testObject.unTrustedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.untrustedSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.folder.restrictedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assert.ok(testObject.restrictedSettings.default.includes('configurationService.folder.restrictedSetting'));
+		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
+		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.folder.restrictedSetting']);
+		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.restrictedSetting']);
 	});
 
 	test('change event is triggered when workspace is changed to untrusted', async () => {
 		testObject.updateWorkspaceTrust(true);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		testObject.updateWorkspaceTrust(false);
 
 		const event = await promise;
-		assert.ok(event.affectedKeys.includes('configurationService.folder.untrustedSetting'));
-		assert.ok(event.affectsConfiguration('configurationService.folder.untrustedSetting'));
+		assert.ok(event.affectedKeys.includes('configurationService.folder.restrictedSetting'));
+		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
 	});
 
-	test('untrusted setting is not read from workspace when workspace is not trusted', async () => {
+	test('restricted setting is not read from workspace when workspace is not trusted', async () => {
 		testObject.updateWorkspaceTrust(false);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
-		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.folder.untrustedSetting'));
-		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.folder.untrustedSetting']);
-		assert.strictEqual(testObject.unTrustedSettings.workspaceFolder?.size, 1);
-		assert.deepStrictEqual(testObject.unTrustedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.untrustedSetting']);
+		assert.strictEqual(testObject.getValue('configurationService.folder.restrictedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
+		assert.ok(testObject.restrictedSettings.default.includes('configurationService.folder.restrictedSetting'));
+		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
+		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.folder.restrictedSetting']);
+		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.restrictedSetting']);
 	});
 
-	test('untrusted setting is read when workspace is changed to trusted', async () => {
+	test('restricted setting is read when workspace is changed to trusted', async () => {
 		testObject.updateWorkspaceTrust(false);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		testObject.updateWorkspaceTrust(true);
 
-		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
-		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.workspaceFolder, undefined);
+		assert.strictEqual(testObject.getValue('configurationService.folder.restrictedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
+		assert.ok(testObject.restrictedSettings.default.includes('configurationService.folder.restrictedSetting'));
+		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
+		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.folder.restrictedSetting']);
+		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(workspaceService.getWorkspace().folders[0].uri), ['configurationService.folder.restrictedSetting']);
 	});
 
 	test('change event is triggered when workspace is changed to trusted', async () => {
 		testObject.updateWorkspaceTrust(false);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		testObject.updateWorkspaceTrust(true);
 
 		const event = await promise;
-		assert.ok(event.affectedKeys.includes('configurationService.folder.untrustedSetting'));
-		assert.ok(event.affectsConfiguration('configurationService.folder.untrustedSetting'));
+		assert.ok(event.affectedKeys.includes('configurationService.folder.restrictedSetting'));
+		assert.ok(event.affectsConfiguration('configurationService.folder.restrictedSetting'));
 	});
 
-	test('adding an untrusted setting triggers change event', async () => {
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
+	test('adding an restricted setting triggers change event', async () => {
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "userValue" }'));
 		testObject.updateWorkspaceTrust(false);
 
-		const promise = Event.toPromise(testObject.onDidChangeUntrustdSettings);
-		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
+		const promise = Event.toPromise(testObject.onDidChangeRestrictedSettings);
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 
 		return promise;
 	});
@@ -1269,16 +1273,16 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 					'default': 'isSet',
 					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 				},
-				'configurationService.workspace.testUntrustedSetting1': {
+				'configurationService.workspace.testRestrictedSetting1': {
 					'type': 'string',
 					'default': 'isSet',
-					requireTrust: true,
+					restricted: true,
 					scope: ConfigurationScope.RESOURCE
 				},
-				'configurationService.workspace.testUntrustedSetting2': {
+				'configurationService.workspace.testRestrictedSetting2': {
 					'type': 'string',
 					'default': 'isSet',
-					requireTrust: true,
+					restricted: true,
 					scope: ConfigurationScope.RESOURCE
 				}
 			}
@@ -1319,6 +1323,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		workspaceService.acquireInstantiationService(instantiationService);
 
 		workspaceContextService = workspaceService;
@@ -1775,6 +1780,12 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.ok(target.called);
 	});
 
+	test('update machine overridable setting in folder', async () => {
+		const workspace = workspaceContextService.getWorkspace();
+		await testObject.updateValue('configurationService.workspace.machineOverridableSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
+		assert.strictEqual(testObject.getValue('configurationService.workspace.machineOverridableSetting', { resource: workspace.folders[0].uri }), 'workspaceFolderValue');
+	});
+
 	test('update memory configuration', async () => {
 		await testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY);
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testSetting'), 'memoryValue');
@@ -1841,41 +1852,44 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		});
 	});
 
-	test('untrusted setting is read from workspace folders when workspace is trusted', async () => {
+	test('restricted setting is read from workspace folders when workspace is trusted', async () => {
 		testObject.updateWorkspaceTrust(true);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting1": "userValue", "configurationService.workspace.testUntrustedSetting2": "userValue" }'));
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testUntrustedSetting1': 'workspaceValue' } }], true);
-		await fileService.writeFile(joinPath(testObject.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting2": "workspaceFolder2Value" }'));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userValue", "configurationService.workspace.testRestrictedSetting2": "userValue" }'));
+		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testRestrictedSetting1': 'workspaceValue' } }], true);
+		await fileService.writeFile(joinPath(testObject.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting2": "workspaceFolder2Value" }'));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'workspaceFolder2Value');
-		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
-		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.workspaceFolder, undefined);
+		assert.strictEqual(testObject.getValue('configurationService.workspace.testRestrictedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'workspaceValue');
+		assert.strictEqual(testObject.getValue('configurationService.workspace.testRestrictedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'workspaceFolder2Value');
+		assert.ok(testObject.restrictedSettings.default.includes('configurationService.workspace.testRestrictedSetting1'));
+		assert.ok(testObject.restrictedSettings.default.includes('configurationService.workspace.testRestrictedSetting2'));
+		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
+		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.workspace.testRestrictedSetting1']);
+		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
+		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[0].uri), undefined);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[1].uri), ['configurationService.workspace.testRestrictedSetting2']);
 	});
 
-	test('untrusted setting is not read from workspace when workspace is not trusted', async () => {
+	test('restricted setting is not read from workspace when workspace is not trusted', async () => {
 		testObject.updateWorkspaceTrust(false);
 
-		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting1": "userValue", "configurationService.workspace.testUntrustedSetting2": "userValue" }'));
-		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testUntrustedSetting1': 'workspaceValue' } }], true);
-		await fileService.writeFile(joinPath(testObject.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting2": "workspaceFolder2Value" }'));
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting1": "userValue", "configurationService.workspace.testRestrictedSetting2": "userValue" }'));
+		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testRestrictedSetting1': 'workspaceValue' } }], true);
+		await fileService.writeFile(joinPath(testObject.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.testRestrictedSetting2": "workspaceFolder2Value" }'));
 		await testObject.reloadConfiguration();
 
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'userValue');
-		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'userValue');
-		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.workspace.testUntrustedSetting1'));
-		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.workspace.testUntrustedSetting2'));
-		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
-		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
-		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.workspace.testUntrustedSetting1']);
-		assert.strictEqual(testObject.unTrustedSettings.workspaceFolder?.size, 1);
-		assert.strictEqual(testObject.unTrustedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[0].uri), undefined);
-		assert.deepStrictEqual(testObject.unTrustedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[1].uri), ['configurationService.workspace.testUntrustedSetting2']);
+		assert.strictEqual(testObject.getValue('configurationService.workspace.testRestrictedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'userValue');
+		assert.strictEqual(testObject.getValue('configurationService.workspace.testRestrictedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'userValue');
+		assert.ok(testObject.restrictedSettings.default.includes('configurationService.workspace.testRestrictedSetting1'));
+		assert.ok(testObject.restrictedSettings.default.includes('configurationService.workspace.testRestrictedSetting2'));
+		assert.strictEqual(testObject.restrictedSettings.userLocal, undefined);
+		assert.strictEqual(testObject.restrictedSettings.userRemote, undefined);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspace, ['configurationService.workspace.testRestrictedSetting1']);
+		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
+		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[0].uri), undefined);
+		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[1].uri), ['configurationService.workspace.testRestrictedSetting2']);
 	});
 
 });
@@ -1942,6 +1956,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		instantiationService.stub(IConfigurationService, testObject);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 	});
 
 	async function initialize(): Promise<void> {

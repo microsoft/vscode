@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { joinPath, basenameOrAuthority } from 'vs/base/common/resources';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { Event } from 'vs/base/common/event';
-import { IWorkspaceIdentifier, IStoredWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { basenameOrAuthority, joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ISingleFolderWorkspaceIdentifier, IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 

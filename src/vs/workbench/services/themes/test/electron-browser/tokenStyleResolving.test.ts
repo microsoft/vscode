@@ -77,14 +77,15 @@ function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClas
 }
 
 suite('Themes - TokenStyleResolving', () => {
-
-
 	const fileService = new FileService(new NullLogService());
 	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService);
 
 	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+	teardown(() => {
+		diskFileSystemProvider.dispose();
+	});
 
 	test('color defaults', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');

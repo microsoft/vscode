@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContext, ContextKeyExpression, ContextKeyExprType } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IResolveResult {
@@ -183,10 +183,10 @@ export class KeybindingResolver {
 	 * Returns true if it is provable `a` implies `b`.
 	 */
 	public static whenIsEntirelyIncluded(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
-		if (!b) {
+		if (!b || b.type === ContextKeyExprType.True) {
 			return true;
 		}
-		if (!a) {
+		if (!a || a.type === ContextKeyExprType.True) {
 			return false;
 		}
 
@@ -247,10 +247,20 @@ export class KeybindingResolver {
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string): ResolvedKeybindingItem | null {
-		let items = this._lookupMap.get(commandId);
+	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService): ResolvedKeybindingItem | null {
+		const items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
+		}
+		if (items.length === 1) {
+			return items[0];
+		}
+
+		for (let i = items.length - 1; i >= 0; i--) {
+			const item = items[i];
+			if (context.contextMatchesRules(item.when)) {
+				return item;
+			}
 		}
 
 		return items[items.length - 1];

@@ -15,6 +15,7 @@ export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IW
 
 export const enum Parts {
 	TITLEBAR_PART = 'workbench.parts.titlebar',
+	BANNER_PART = 'workbench.parts.banner',
 	ACTIVITYBAR_PART = 'workbench.parts.activitybar',
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
@@ -161,6 +162,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Set activity bar hidden or not
 	 */
 	setActivityBarHidden(hidden: boolean): void;
+
+	/**
+	 * Set banner hidden or not
+	 */
+	setBannerHidden(hidden: boolean): void;
 
 	/**
 	 *

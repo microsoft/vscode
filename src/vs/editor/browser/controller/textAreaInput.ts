@@ -11,6 +11,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
@@ -653,7 +654,7 @@ class ClipboardEventUtils {
 		if (e.clipboardData) {
 			e.preventDefault();
 
-			const text = e.clipboardData.getData('text/plain');
+			const text = e.clipboardData.getData(Mimes.text);
 			let metadata: ClipboardStoredMetadata | null = null;
 			const rawmetadata = e.clipboardData.getData('vscode-editor-data');
 			if (typeof rawmetadata === 'string') {
@@ -681,7 +682,7 @@ class ClipboardEventUtils {
 
 	public static setTextData(e: ClipboardEvent, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
 		if (e.clipboardData) {
-			e.clipboardData.setData('text/plain', text);
+			e.clipboardData.setData(Mimes.text, text);
 			if (typeof html === 'string') {
 				e.clipboardData.setData('text/html', html);
 			}

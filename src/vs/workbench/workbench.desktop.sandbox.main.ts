@@ -39,5 +39,4 @@ import 'vs/workbench/electron-sandbox/desktop.main';
 
 //#region --- workbench contributions
 
-
 //#endregion

@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { CURSOR, withRandomFileEditor, wait, joinLines } from '../testUtils';
+import { CURSOR, joinLines, wait, withRandomFileEditor } from '../testUtils';
 
 const onDocumentChange = (doc: vscode.TextDocument): Promise<vscode.TextDocument> => {
 	return new Promise<vscode.TextDocument>(resolve => {

@@ -19,8 +19,6 @@ const glob = require('glob');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
-const fancyLog = require('fancy-log');
-const ansiColors = require('ansi-colors');
 const ext = require('./lib/extensions');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
@@ -47,18 +45,19 @@ const compilations = [
 	'html-language-features/client/tsconfig.json',
 	'html-language-features/server/tsconfig.json',
 	'image-preview/tsconfig.json',
+	'ipynb/tsconfig.json',
 	'jake/tsconfig.json',
 	'json-language-features/client/tsconfig.json',
 	'json-language-features/server/tsconfig.json',
 	'markdown-language-features/preview-src/tsconfig.json',
 	'markdown-language-features/tsconfig.json',
+	'markdown-math/tsconfig.json',
 	'merge-conflict/tsconfig.json',
 	'microsoft-authentication/tsconfig.json',
 	'npm/tsconfig.json',
 	'php-language-features/tsconfig.json',
 	'search-result/tsconfig.json',
 	'simple-browser/tsconfig.json',
-	'testing-editor-contributions/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
@@ -200,32 +199,15 @@ gulp.task(compileExtensionsBuildLegacyTask);
 
 //#region Extension media
 
-// Additional projects to webpack. These typically build code for webviews
-const webpackMediaConfigFiles = [
-	'markdown-language-features/webpack.config.js',
-	'markdown-language-features/webpack.notebook.js',
-	'notebook-markdown-extensions/webpack.notebook.js',
-	'simple-browser/webpack.config.js',
-];
-
-const compileExtensionMediaTask = task.define('compile-extension-media', () => webpackExtensionMedia(false));
+const compileExtensionMediaTask = task.define('compile-extension-media', () => ext.buildExtensionMedia(false));
 gulp.task(compileExtensionMediaTask);
 exports.compileExtensionMediaTask = compileExtensionMediaTask;
 
-const watchExtensionMedia = task.define('watch-extension-media', () => webpackExtensionMedia(true));
+const watchExtensionMedia = task.define('watch-extension-media', () => ext.buildExtensionMedia(true));
 gulp.task(watchExtensionMedia);
 exports.watchExtensionMedia = watchExtensionMedia;
 
-function webpackExtensionMedia(isWatch, outputRoot) {
-	const webpackConfigLocations = webpackMediaConfigFiles.map(p => {
-		return {
-			configPath: path.join(extensionsPath, p),
-			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-		};
-	});
-	return webpackExtensions('packaging extension media', isWatch, webpackConfigLocations);
-}
-const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => webpackExtensionMedia(false, '.build/extensions'));
+const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => ext.buildExtensionMedia(false, '.build/extensions'));
 gulp.task(compileExtensionMediaBuildTask);
 
 //#endregion
@@ -259,81 +241,5 @@ async function buildWebExtensions(isWatch) {
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
 		{ ignore: ['**/node_modules'] }
 	);
-	return webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
+	return ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
 }
-
-/**
- * @param {string} taskName
- * @param {boolean} isWatch
- * @param {{ configPath: string, outputRoot?: boolean}} webpackConfigLocations
- */
-async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
-	const webpack = require('webpack');
-
-	const webpackConfigs = [];
-
-	for (const { configPath, outputRoot } of webpackConfigLocations) {
-		const configOrFnOrArray = require(configPath);
-		function addConfig(configOrFn) {
-			let config;
-			if (typeof configOrFn === 'function') {
-				config = configOrFn({}, {});
-				webpackConfigs.push(config);
-			} else {
-				config = configOrFn;
-			}
-
-			if (outputRoot) {
-				config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
-			}
-
-			webpackConfigs.push(configOrFn);
-		}
-		addConfig(configOrFnOrArray);
-	}
-	function reporter(fullStats) {
-		if (Array.isArray(fullStats.children)) {
-			for (const stats of fullStats.children) {
-				const outputPath = stats.outputPath;
-				if (outputPath) {
-					const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
-					const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
-					fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
-				}
-				if (Array.isArray(stats.errors)) {
-					stats.errors.forEach(error => {
-						fancyLog.error(error);
-					});
-				}
-				if (Array.isArray(stats.warnings)) {
-					stats.warnings.forEach(warning => {
-						fancyLog.warn(warning);
-					});
-				}
-			}
-		}
-	}
-	return new Promise((resolve, reject) => {
-		if (isWatch) {
-			webpack(webpackConfigs).watch({}, (err, stats) => {
-				if (err) {
-					reject();
-				} else {
-					reporter(stats.toJson());
-				}
-			});
-		} else {
-			webpack(webpackConfigs).run((err, stats) => {
-				if (err) {
-					fancyLog.error(err);
-					reject();
-				} else {
-					reporter(stats.toJson());
-					resolve();
-				}
-			});
-		}
-	});
-}
-
-

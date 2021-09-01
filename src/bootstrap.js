@@ -42,11 +42,14 @@
 	//#region Add support for using node_modules.asar
 
 	/**
-	 * @param {string | undefined} appRoot
+	 * TODO@sandbox remove the support for passing in `appRoot` once
+	 * sandbox is fully enabled
+	 *
+	 * @param {string=} appRoot
 	 */
 	function enableASARSupport(appRoot) {
 		if (!path || !Module || typeof process === 'undefined') {
-			console.warn('enableASARSupport() is only available in node.js environments'); // TODO@sandbox ASAR is currently non-sandboxed only
+			console.warn('enableASARSupport() is only available in node.js environments');
 			return;
 		}
 
@@ -55,8 +58,14 @@
 			NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
 		} else {
 			// use the drive letter casing of __dirname
+			// if it matches the drive letter of `appRoot`
+			// (https://github.com/microsoft/vscode/issues/128725)
 			if (process.platform === 'win32') {
-				NODE_MODULES_PATH = __dirname.substr(0, 1) + NODE_MODULES_PATH.substr(1);
+				const nodejsDriveLetter = __dirname.substr(0, 1);
+				const vscodeDriveLetter = appRoot.substr(0, 1);
+				if (nodejsDriveLetter.toLowerCase() === vscodeDriveLetter.toLowerCase()) {
+					NODE_MODULES_PATH = nodejsDriveLetter + NODE_MODULES_PATH.substr(1);
+				}
 			}
 		}
 
@@ -69,11 +78,16 @@
 		Module._resolveLookupPaths = function (request, parent) {
 			const paths = originalResolveLookupPaths(request, parent);
 			if (Array.isArray(paths)) {
+				let asarPathAdded = false;
 				for (let i = 0, len = paths.length; i < len; i++) {
 					if (paths[i] === NODE_MODULES_PATH) {
+						asarPathAdded = true;
 						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
 						break;
 					}
+				}
+				if (!asarPathAdded && appRoot) {
+					paths.push(NODE_MODULES_ASAR_PATH);
 				}
 			}
 
@@ -93,7 +107,7 @@
 	 */
 	function fileUriFromPath(path, config) {
 
-		// Since we are building a URI, we normalize any backlsash
+		// Since we are building a URI, we normalize any backslash
 		// to slashes and we ensure that the path begins with a '/'.
 		let pathName = path.replace(/\\/g, '/');
 		if (pathName.length > 0 && pathName.charAt(0) !== '/') {

@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextModel } from 'vs/editor/common/model';
-import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -26,6 +26,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ThrottledDelayer } from 'vs/base/common/async';
 
 export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport, IEncodingSupport, IWorkingCopy {
 
@@ -63,12 +66,6 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 	 * Resolves the untitled model.
 	 */
 	resolve(): Promise<void>;
-
-	/**
-	 * Updates the value of the untitled model optionally allowing to ignore dirty.
-	 * The model must be resolved for this method to work.
-	 */
-	setValue(value: string, ignoreDirty?: boolean): void;
 }
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
@@ -99,6 +96,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
+	private readonly _autoDetectLanguageThrottler = this._register(new ThrottledDelayer<void>(600));
+
+	//#region Name
+
+	private configuredLabelFormat: 'content' | 'name' = 'content';
+
 	private cachedModelFirstLineWords: string | undefined = undefined;
 	get name(): string {
 		// Take name from first line if present and only if
@@ -112,17 +115,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.labelService.getUriBasenameLabel(this.resource);
 	}
 
-	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
-	private ignoreDirtyOnModelContentChange = false;
+	//#endregion
 
-	private versionId = 0;
-
-	private configuredEncoding: string | undefined;
-	private configuredLabelFormat: 'content' | 'name' = 'content';
 
 	constructor(
-		public readonly resource: URI,
-		public readonly hasAssociatedFilePath: boolean,
+		readonly resource: URI,
+		readonly hasAssociatedFilePath: boolean,
 		private readonly initialValue: string | undefined,
 		private preferredMode: string | undefined,
 		private preferredEncoding: string | undefined,
@@ -133,7 +131,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILanguageDetectionService private readonly languageDetectionService: ILanguageDetectionService
 	) {
 		super(modelService, modeService);
 
@@ -141,7 +140,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 
 		if (preferredMode) {
-			this.setMode(preferredMode);
+			this.setModeInternal(preferredMode);
 		}
 
 		// Fetch config
@@ -153,14 +152,14 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private registerListeners(): void {
 
 		// Config Changes
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => this.onConfigurationChange(true)));
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => this.onConfigurationChange(true)));
 	}
 
 	private onConfigurationChange(fromEvent: boolean): void {
 
 		// Encoding
-		const configuredEncoding = this.textResourceConfigurationService.getValue<string>(this.resource, 'files.encoding');
-		if (this.configuredEncoding !== configuredEncoding) {
+		const configuredEncoding = this.textResourceConfigurationService.getValue(this.resource, 'files.encoding');
+		if (this.configuredEncoding !== configuredEncoding && typeof configuredEncoding === 'string') {
 			this.configuredEncoding = configuredEncoding;
 
 			if (fromEvent && !this.preferredEncoding) {
@@ -169,7 +168,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		// Label Format
-		const configuredLabelFormat = this.textResourceConfigurationService.getValue<string>(this.resource, 'workbench.editor.untitled.labelFormat');
+		const configuredLabelFormat = this.textResourceConfigurationService.getValue(this.resource, 'workbench.editor.untitled.labelFormat');
 		if (this.configuredLabelFormat !== configuredLabelFormat && (configuredLabelFormat === 'content' || configuredLabelFormat === 'name')) {
 			this.configuredLabelFormat = configuredLabelFormat;
 
@@ -179,18 +178,20 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-	getVersionId(): number {
-		return this.versionId;
-	}
+
+	//#region Mode
 
 	private _hasModeSetExplicitly: boolean = false;
 	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
 
 	override setMode(mode: string): void {
-
 		// Remember that an explicit mode was set
 		this._hasModeSetExplicitly = true;
 
+		this.setModeInternal(mode);
+	}
+
+	private setModeInternal(mode: string): void {
 		let actualMode: string | undefined = undefined;
 		if (mode === '${activeEditorLanguage}') {
 			// support the special '${activeEditorLanguage}' mode by
@@ -216,6 +217,13 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return this.preferredMode;
 	}
 
+	//#endregion
+
+
+	//#region Encoding
+
+	private configuredEncoding: string | undefined;
+
 	getEncoding(): string | undefined {
 		return this.preferredEncoding || this.configuredEncoding;
 	}
@@ -230,24 +238,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-	setValue(value: string, ignoreDirty?: boolean): void {
-		if (ignoreDirty) {
-			this.ignoreDirtyOnModelContentChange = true;
-		}
-
-		try {
-			this.updateTextEditorModel(createTextBufferFactory(value));
-		} finally {
-			this.ignoreDirtyOnModelContentChange = false;
-		}
-	}
-
-	override isReadonly(): boolean {
-		return false;
-	}
+	//#endregion
 
 
 	//#region Dirty
+
+	private dirty = this.hasAssociatedFilePath || !!this.initialValue;
 
 	isDirty(): boolean {
 		return this.dirty;
@@ -357,22 +353,21 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 				this._onDidChangeContent.fire();
 			}
 		}
+
+		return super.resolve();
 	}
 
 	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {
-		this.versionId++;
 
-		if (!this.ignoreDirtyOnModelContentChange) {
-			// mark the untitled text editor as non-dirty once its content becomes empty and we do
-			// not have an associated path set. we never want dirty indicator in that case.
-			if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineContent(1) === '') {
-				this.setDirty(false);
-			}
+		// mark the untitled text editor as non-dirty once its content becomes empty and we do
+		// not have an associated path set. we never want dirty indicator in that case.
+		if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineContent(1) === '') {
+			this.setDirty(false);
+		}
 
-			// turn dirty otherwise
-			else {
-				this.setDirty(true);
-			}
+		// turn dirty otherwise
+		else {
+			this.setDirty(true);
 		}
 
 		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH columns
@@ -382,6 +377,24 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Emit as general content change event
 		this._onDidChangeContent.fire();
+
+		// Try to detect language from content (debounced by some time to reduce pressure).
+		this._autoDetectLanguageThrottler.trigger(() => this.autoDetectLanguage());
+	}
+
+	private async autoDetectLanguage() {
+		if (this.hasModeSetExplicitly || !this.languageDetectionService.isEnabledForMode(this.getMode() ?? PLAINTEXT_MODE_ID)) {
+			return;
+		}
+
+		const lang = await this.languageDetectionService.detectLanguage(this.resource);
+		if (!lang) {
+			return;
+		}
+
+		if (!this.isDisposed()) {
+			this.setModeInternal(lang);
+		}
 	}
 
 	private updateNameFromFirstLine(textEditorModel: ITextModel): void {
@@ -421,4 +434,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	//#endregion
+
+
+	override isReadonly(): boolean {
+		return false;
+	}
 }

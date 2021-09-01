@@ -233,6 +233,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		const ids = this._editor.deltaDecorations([], [{
 			range: symbol.range,
 			options: {
+				description: 'document-symbols-outline-range-highlight',
 				className: 'rangeHighlight',
 				isWholeLine: true
 			}

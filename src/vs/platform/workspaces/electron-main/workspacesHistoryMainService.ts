@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { coalesce } from 'vs/base/common/arrays';
-import { IStateService } from 'vs/platform/state/node/state';
 import { app, JumpListCategory, JumpListItem } from 'electron';
-import { ILogService } from 'vs/platform/log/common/log';
-import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
-import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier, IRecentlyOpened, isRecentWorkspace, isRecentFolder, IRecent, isRecentFile, IRecentFolder, IRecentWorkspace, IRecentFile, toStoreData, restoreRecentlyOpened, RecentlyOpenedStorageData, WORKSPACE_EXTENSION, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { coalesce } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { exists } from 'vs/base/node/pfs';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
+import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { basename, extUriBiasedIgnorePathCase, originalFSPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { Promises } from 'vs/base/node/pfs';
+import { localize } from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFile, isRecentFolder, isRecentWorkspace, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, RecentlyOpenedStorageData, restoreRecentlyOpened, toStoreData, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -62,7 +62,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private readonly macOSRecentDocumentsUpdater = this._register(new ThrottledDelayer<void>(800));
 
 	constructor(
-		@IStateService private readonly stateService: IStateService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
@@ -190,7 +190,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			const loc = location(mru.workspaces[i]);
 			if (loc.scheme === Schemas.file) {
 				const workspacePath = originalFSPath(loc);
-				if (await exists(workspacePath)) {
+				if (await Promises.exists(workspacePath)) {
 					workspaceEntries.push(workspacePath);
 					entries++;
 				}
@@ -210,7 +210,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					continue;
 				}
 
-				if (await exists(filePath)) {
+				if (await Promises.exists(filePath)) {
 					fileEntries.push(filePath);
 					entries++;
 				}
@@ -291,7 +291,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	}
 
 	private getRecentlyOpenedFromStorage(): IRecentlyOpened {
-		const storedRecents = this.stateService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.recentlyOpenedStorageKey);
+		const storedRecents = this.stateMainService.getItem<RecentlyOpenedStorageData>(WorkspacesHistoryMainService.recentlyOpenedStorageKey);
 
 		return restoreRecentlyOpened(storedRecents, this.logService);
 	}
@@ -299,7 +299,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
 		const serialized = toStoreData(recent);
 
-		this.stateService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
+		this.stateMainService.setItem(WorkspacesHistoryMainService.recentlyOpenedStorageKey, serialized);
 	}
 
 	updateWindowsJumpList(): void {

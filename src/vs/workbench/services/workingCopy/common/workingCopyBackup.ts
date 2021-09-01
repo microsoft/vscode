@@ -76,8 +76,8 @@ export interface IWorkingCopyBackupService {
 	/**
 	 * Discards all working copy backups.
 	 *
-	 * The optional set of identifiers can be provided to discard all but the
-	 * provided ones.
+	 * The optional set of identifiers in the filter can be
+	 * provided to discard all but the provided ones.
 	 */
-	discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void>;
+	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void>;
 }

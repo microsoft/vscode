@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as json from 'vs/base/common/json';
-import { ResourceMap, getOrSet } from 'vs/base/common/map';
 import * as arrays from 'vs/base/common/arrays';
-import * as types from 'vs/base/common/types';
-import * as objects from 'vs/base/common/objects';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { OVERRIDE_PROPERTY_PATTERN, ConfigurationScope, IConfigurationRegistry, Extensions, IConfigurationPropertySchema, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
-import { IOverrides, addToValueTree, toValuesTree, IConfigurationModel, getConfigurationValue, IConfigurationOverrides, IConfigurationData, getDefaultValues, getConfigurationKeys, removeFromValueTree, toOverrides, IConfigurationValue, ConfigurationTarget, compare, IConfigurationChangeEvent, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IFileService } from 'vs/platform/files/common/files';
+import * as json from 'vs/base/common/json';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { getOrSet, ResourceMap } from 'vs/base/common/map';
+import * as objects from 'vs/base/common/objects';
 import { IExtUri } from 'vs/base/common/resources';
+import * as types from 'vs/base/common/types';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { addToValueTree, compare, ConfigurationTarget, getConfigurationKeys, getConfigurationValue, getDefaultValues, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IOverrides, removeFromValueTree, toOverrides, toValuesTree } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IFileService } from 'vs/platform/files/common/files';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Workspace } from 'vs/platform/workspace/common/workspace';
 
 export class ConfigurationModel implements IConfigurationModel {
 
@@ -216,14 +216,14 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 
 export interface ConfigurationParseOptions {
 	scopes: ConfigurationScope[] | undefined;
-	isUntrusted?: boolean;
+	skipRestricted?: boolean;
 }
 
 export class ConfigurationModelParser {
 
 	private _raw: any = null;
 	private _configurationModel: ConfigurationModel | null = null;
-	private _untrustedConfigurations: string[] = [];
+	private _restrictedConfigurations: string[] = [];
 	private _parseErrors: any[] = [];
 
 	constructor(protected readonly _name: string) { }
@@ -232,8 +232,8 @@ export class ConfigurationModelParser {
 		return this._configurationModel || new ConfigurationModel();
 	}
 
-	get untrustedConfigurations(): string[] {
-		return this._untrustedConfigurations;
+	get restrictedConfigurations(): string[] {
+		return this._restrictedConfigurations;
 	}
 
 	get errors(): any[] {
@@ -255,9 +255,9 @@ export class ConfigurationModelParser {
 
 	public parseRaw(raw: any, options?: ConfigurationParseOptions): void {
 		this._raw = raw;
-		const { contents, keys, overrides, untrusted } = this.doParseRaw(raw, options);
+		const { contents, keys, overrides, restricted } = this.doParseRaw(raw, options);
 		this._configurationModel = new ConfigurationModel(contents, keys, overrides);
-		this._untrustedConfigurations = untrusted || [];
+		this._restrictedConfigurations = restricted || [];
 	}
 
 	private doParseContent(content: string): any {
@@ -270,7 +270,7 @@ export class ConfigurationModelParser {
 		function onValue(value: any) {
 			if (Array.isArray(currentParent)) {
 				(<any[]>currentParent).push(value);
-			} else if (currentProperty) {
+			} else if (currentProperty !== null) {
 				currentParent[currentProperty] = value;
 			}
 		}
@@ -317,41 +317,42 @@ export class ConfigurationModelParser {
 		return raw;
 	}
 
-	protected doParseRaw(raw: any, options?: ConfigurationParseOptions): IConfigurationModel & { untrusted?: string[] } {
+	protected doParseRaw(raw: any, options?: ConfigurationParseOptions): IConfigurationModel & { restricted?: string[] } {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		const filtered = this.filter(raw, configurationProperties, true, options);
 		raw = filtered.raw;
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const keys = Object.keys(raw);
 		const overrides: IOverrides[] = toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
-		return { contents, keys, overrides, untrusted: filtered.untrusted };
+		return { contents, keys, overrides, restricted: filtered.restricted };
 	}
 
-	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}, untrusted: string[] } {
-		if (!options?.scopes && !options?.isUntrusted) {
-			return { raw: properties, untrusted: [] };
+	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}, restricted: string[] } {
+		if (!options?.scopes && !options?.skipRestricted) {
+			return { raw: properties, restricted: [] };
 		}
 		const raw: any = {};
-		const untrusted: string[] = [];
+		const restricted: string[] = [];
 		for (let key in properties) {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
 				const result = this.filter(properties[key], configurationProperties, false, options);
 				raw[key] = result.raw;
-				untrusted.push(...result.untrusted);
+				restricted.push(...result.restricted);
 			} else {
 				const propertySchema = configurationProperties[key];
 				const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
+				if (propertySchema?.restricted) {
+					restricted.push(key);
+				}
 				// Load unregistered configurations always.
 				if (scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) {
-					if (options.isUntrusted && propertySchema?.requireTrust) {
-						untrusted.push(key);
-					} else {
+					if (!(options.skipRestricted && propertySchema?.restricted)) {
 						raw[key] = properties[key];
 					}
 				}
 			}
 		}
-		return { raw, untrusted };
+		return { raw, restricted };
 	}
 
 }
@@ -393,8 +394,8 @@ export class UserSettings extends Disposable {
 		return this.parser.configurationModel;
 	}
 
-	getUntrustedSettings(): string[] {
-		return this.parser.untrustedConfigurations;
+	getRestrictedSettings(): string[] {
+		return this.parser.restrictedConfigurations;
 	}
 }
 

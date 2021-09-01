@@ -13,8 +13,6 @@ import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskF
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 
 class DesktopMain extends SharedDesktopMain {
 
@@ -23,14 +21,6 @@ class DesktopMain extends SharedDesktopMain {
 
 		// Enable gracefulFs
 		gracefulify(fs);
-	}
-
-	protected override joinOpen(instantiationService: IInstantiationService): void {
-
-		// Driver
-		if (this.configuration.driver) {
-			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
-		}
 	}
 
 	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {

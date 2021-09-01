@@ -31,6 +31,7 @@ let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"ocaml": { extensions: ['ml', 'mli', 'mll', 'mly', 'eliom', 'eliomi'] },
 	"puppet": { extensions: ['puppet'] },
 	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+	"rescript": { extensions: ['res', 'resi'] },
 	"sass": { extensions: ['sass'] },
 	"stylus": { extensions: ['styl'] },
 	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
@@ -379,7 +380,7 @@ exports.update = function () {
 				}
 				if (preferredDef) {
 					lang2Def[lang] = preferredDef;
-					if (!nonBuiltInLanguages[lang]) {
+					if (!nonBuiltInLanguages[lang] && !inheritIconFromLanguage[lang]) {
 						for (let i2 = 0; i2 < exts.length; i2++) {
 							// remove the extension association, unless it is different from the preferred
 							if (ext2Def[exts[i2]] === preferredDef) {

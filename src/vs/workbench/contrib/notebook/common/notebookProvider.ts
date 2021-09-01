@@ -7,36 +7,30 @@ import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/path';
 import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
 export interface NotebookEditorDescriptor {
+	readonly extension?: ExtensionIdentifier,
 	readonly id: string;
 	readonly displayName: string;
 	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
-	readonly priority: ContributedEditorPriority;
-	readonly providerExtensionId?: string;
-	readonly providerDescription?: string;
+	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
-	readonly providerExtensionLocation: URI;
-	readonly dynamicContribution: boolean;
 	readonly exclusive: boolean;
 }
 
 export class NotebookProviderInfo {
 
+	readonly extension?: ExtensionIdentifier;
 	readonly id: string;
 	readonly displayName: string;
-
-	readonly priority: ContributedEditorPriority;
-	// it's optional as the memento might not have it
-	readonly providerExtensionId?: string;
-	readonly providerDescription?: string;
+	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
-	readonly providerExtensionLocation: URI;
-	readonly dynamicContribution: boolean;
 	readonly exclusive: boolean;
+
 	private _selectors: NotebookSelector[];
 	get selectors() {
 		return this._selectors;
@@ -47,6 +41,7 @@ export class NotebookProviderInfo {
 	}
 
 	constructor(descriptor: NotebookEditorDescriptor) {
+		this.extension = descriptor.extension;
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
 		this._selectors = descriptor.selectors?.map(selector => ({
@@ -54,11 +49,7 @@ export class NotebookProviderInfo {
 			exclude: selector.excludeFileNamePattern || ''
 		})) || [];
 		this.priority = descriptor.priority;
-		this.providerExtensionId = descriptor.providerExtensionId;
-		this.providerDescription = descriptor.providerDescription;
 		this.providerDisplayName = descriptor.providerDisplayName;
-		this.providerExtensionLocation = descriptor.providerExtensionLocation;
-		this.dynamicContribution = descriptor.dynamicContribution;
 		this.exclusive = descriptor.exclusive;
 		this._options = {
 			transientCellMetadata: {},
@@ -112,5 +103,39 @@ export class NotebookProviderInfo {
 		}
 
 		return false;
+	}
+
+	static possibleFileEnding(selectors: NotebookSelector[]): string | undefined {
+		for (let selector of selectors) {
+			const ending = NotebookProviderInfo._possibleFileEnding(selector);
+			if (ending) {
+				return ending;
+			}
+		}
+		return undefined;
+	}
+
+	private static _possibleFileEnding(selector: NotebookSelector): string | undefined {
+
+		const pattern = /^.*(\.[a-zA-Z0-9_-]+)$/;
+
+		let candidate: string | undefined;
+
+		if (typeof selector === 'string') {
+			candidate = selector;
+		} else if (glob.isRelativePattern(selector)) {
+			candidate = selector.pattern;
+		} else if (selector.include) {
+			return NotebookProviderInfo._possibleFileEnding(selector.include);
+		}
+
+		if (candidate) {
+			const match = pattern.exec(candidate);
+			if (match) {
+				return match[1];
+			}
+		}
+
+		return undefined;
 	}
 }

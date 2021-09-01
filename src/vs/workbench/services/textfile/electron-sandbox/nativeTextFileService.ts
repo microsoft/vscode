@@ -54,10 +54,11 @@ export class NativeTextFileService extends AbstractTextFileService {
 		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService, elevatedFileService);
 
 		this.environmentService = environmentService;
+
+		this.registerListeners();
 	}
 
-	protected override registerListeners(): void {
-		super.registerListeners();
+	private registerListeners(): void {
 
 		// Lifecycle
 		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.textFiles'));

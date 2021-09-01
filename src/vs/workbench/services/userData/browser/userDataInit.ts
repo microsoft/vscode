@@ -73,49 +73,63 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 	private createUserDataSyncStoreClient(): Promise<IUserDataSyncStoreClient | undefined> {
 		if (!this._userDataSyncStoreClientPromise) {
 			this._userDataSyncStoreClientPromise = (async (): Promise<IUserDataSyncStoreClient | undefined> => {
-				if (!isWeb) {
-					this.logService.trace(`Skipping initializing user data in desktop`);
-					return;
-				}
-
-				if (!this.storageService.isNew(StorageScope.GLOBAL)) {
-					this.logService.trace(`Skipping initializing user data as application was opened before`);
-					return;
-				}
-
-				if (!this.storageService.isNew(StorageScope.WORKSPACE)) {
-					this.logService.trace(`Skipping initializing user data as workspace was opened before`);
-					return;
-				}
-
-				if (!this.environmentService.options?.credentialsProvider) {
-					this.logService.trace(`Skipping initializing user data as credentials provider is not provided`);
-					return;
-				}
-
-				let authenticationSession;
 				try {
-					authenticationSession = await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService);
+					if (!isWeb) {
+						this.logService.trace(`Skipping initializing user data in desktop`);
+						return;
+					}
+
+					if (!this.storageService.isNew(StorageScope.GLOBAL)) {
+						this.logService.trace(`Skipping initializing user data as application was opened before`);
+						return;
+					}
+
+					if (!this.storageService.isNew(StorageScope.WORKSPACE)) {
+						this.logService.trace(`Skipping initializing user data as workspace was opened before`);
+						return;
+					}
+
+					if (!this.environmentService.options?.credentialsProvider) {
+						this.logService.trace(`Skipping initializing user data as credentials provider is not provided`);
+						return;
+					}
+
+					let authenticationSession;
+					try {
+						authenticationSession = await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService);
+					} catch (error) {
+						this.logService.error(error);
+					}
+					if (!authenticationSession) {
+						this.logService.trace(`Skipping initializing user data as authentication session is not set`);
+						return;
+					}
+
+					await this.initializeUserDataSyncStore(authenticationSession);
+
+					const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
+					if (!userDataSyncStore) {
+						this.logService.trace(`Skipping initializing user data as sync service is not provided`);
+						return;
+					}
+
+					const userDataSyncStoreClient = new UserDataSyncStoreClient(userDataSyncStore.url, this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
+					userDataSyncStoreClient.setAuthToken(authenticationSession.accessToken, authenticationSession.providerId);
+
+					const manifest = await userDataSyncStoreClient.manifest(null);
+					if (manifest === null) {
+						userDataSyncStoreClient.dispose();
+						this.logService.trace(`Skipping initializing user data as there is no data`);
+						return;
+					}
+
+					this.logService.info(`Using settings sync service ${userDataSyncStore.url.toString()} for initialization`);
+					return userDataSyncStoreClient;
+
 				} catch (error) {
 					this.logService.error(error);
-				}
-				if (!authenticationSession) {
-					this.logService.trace(`Skipping initializing user data as authentication session is not set`);
 					return;
 				}
-
-				await this.initializeUserDataSyncStore(authenticationSession);
-
-				const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-				if (!userDataSyncStore) {
-					this.logService.trace(`Skipping initializing user data as sync service is not provided`);
-					return;
-				}
-
-				this.logService.info(`Using settings sync service ${userDataSyncStore.url.toString()} for initialization`);
-				const userDataSyncStoreClient = new UserDataSyncStoreClient(userDataSyncStore.url, this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
-				userDataSyncStoreClient.setAuthToken(authenticationSession.accessToken, authenticationSession.providerId);
-				return userDataSyncStoreClient;
 			})();
 		}
 
@@ -171,7 +185,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 	async initializeOtherResources(instantiationService: IInstantiationService): Promise<void> {
 		try {
 			this.logService.trace(`UserDataInitializationService#initializeOtherResources`);
-			await Promises.allSettled([this.initialize([SyncResource.Keybindings, SyncResource.Snippets]), this.initializeExtensions(instantiationService)]);
+			await Promise.allSettled([this.initialize([SyncResource.Keybindings, SyncResource.Snippets]), this.initializeExtensions(instantiationService)]);
 		} finally {
 			this.initializationFinished.open();
 		}

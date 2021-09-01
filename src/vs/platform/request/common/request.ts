@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions, ConfigurationScope, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { streamToBuffer } from 'vs/base/common/buffer';
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { localize } from 'vs/nls';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
@@ -87,19 +87,19 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				type: 'string',
 				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables."),
-				requireTrust: true
+				restricted: true
 			},
 			'http.proxyStrictSSL': {
 				type: 'boolean',
 				default: true,
 				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs."),
-				requireTrust: true
+				restricted: true
 			},
 			'http.proxyAuthorization': {
 				type: ['null', 'string'],
 				default: null,
 				markdownDescription: localize('proxyAuthorization', "The value to send as the `Proxy-Authorization` header for every network request."),
-				requireTrust: true
+				restricted: true
 			},
 			'http.proxySupport': {
 				type: 'string',
@@ -112,13 +112,13 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				],
 				default: 'override',
 				description: localize('proxySupport', "Use the proxy support for extensions."),
-				requireTrust: true
+				restricted: true
 			},
 			'http.systemCertificates': {
 				type: 'boolean',
 				default: true,
 				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS, a reload of the window is required after turning this off.)"),
-				requireTrust: true
+				restricted: true
 			}
 		}
 	};

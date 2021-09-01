@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { merge, updateIgnoredSettings, addSetting } from 'vs/platform/userDataSync/common/settingsMerge';
+import { addSetting, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import type { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
 const formattingOptions = { eol: '\n', insertSpaces: false, tabSize: 4 };

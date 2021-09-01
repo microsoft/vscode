@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { dirname, join, normalize, resolve } from 'vs/base/common/path';
-import { joinPath } from 'vs/base/common/resources';
-import { memoize } from 'vs/base/common/decorators';
 import { toLocalISOString } from 'vs/base/common/date';
+import { memoize } from 'vs/base/common/decorators';
 import { FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { dirname, join, normalize, resolve } from 'vs/base/common/path';
 import { env } from 'vs/base/common/process';
+import { joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface INativeEnvironmentPaths {
 
@@ -230,6 +230,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	@memoize
 	get telemetryLogResource(): URI { return URI.file(join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
+
+	@memoize
+	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
 
 	get args(): NativeParsedArgs { return this._args; }
 

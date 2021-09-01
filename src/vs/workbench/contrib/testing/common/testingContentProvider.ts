@@ -8,6 +8,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
@@ -46,12 +47,16 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 
 		let text: string | undefined;
 		switch (parsed.type) {
-			case TestUriType.ResultActualOutput:
-				text = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.actualOutput;
+			case TestUriType.ResultActualOutput: {
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
+				if (message?.type === TestMessageType.Error) { text = message.actual; }
 				break;
-			case TestUriType.ResultExpectedOutput:
-				text = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.expectedOutput;
+			}
+			case TestUriType.ResultExpectedOutput: {
+				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
+				if (message?.type === TestMessageType.Error) { text = message.expected; }
 				break;
+			}
 			case TestUriType.ResultMessage:
 				text = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.message.toString();
 				break;

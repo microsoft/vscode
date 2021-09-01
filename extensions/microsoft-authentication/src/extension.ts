@@ -10,7 +10,7 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
 
 export async function activate(context: vscode.ExtensionContext) {
-	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
+	const { name, version, aiKey } = context.extension.packageJSON as { name: string, version: string, aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
 	const loginService = new AzureActiveDirectoryService(context);
@@ -24,9 +24,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		createSession: async (scopes: string[]) => {
 			try {
 				/* __GDPR__
-					"login" : { }
+					"login" : {
+						"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+					}
 				*/
-				telemetryReporter.sendTelemetryEvent('login');
+				telemetryReporter.sendTelemetryEvent('login', {
+					// Get rid of guids from telemetry.
+					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
+				});
 
 				const session = await loginService.createSession(scopes.sort().join(' '));
 				onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });

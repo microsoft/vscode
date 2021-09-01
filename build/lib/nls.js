@@ -53,8 +53,8 @@ define([], [${wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
  * Returns a stream containing the patched JavaScript and source maps.
  */
 function nls() {
-    const input = event_stream_1.through();
-    const output = input.pipe(event_stream_1.through(function (f) {
+    const input = (0, event_stream_1.through)();
+    const output = input.pipe((0, event_stream_1.through)(function (f) {
         if (!f.sourceMap) {
             return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
         }
@@ -72,7 +72,7 @@ function nls() {
         }
         _nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
     }));
-    return event_stream_1.duplex(input, output);
+    return (0, event_stream_1.duplex)(input, output);
 }
 exports.nls = nls;
 function isImportNode(ts, node) {

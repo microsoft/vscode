@@ -9,9 +9,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -92,9 +89,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.untitled.hint': {
 				'type': 'string',
-				'enum': ['text', 'hidden', 'default'],
-				'default': 'default',
+				'enum': ['text', 'hidden'],
+				'default': 'text',
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
+			},
+			'workbench.editor.untitled.languageDetection': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.untitled.languageDetection', "Experimental. Controls whether the language in an untitled text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can control which languages you want to trigger language detection on."),
+				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -197,9 +200,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'description': localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening textual editors after they have been closed."),
+				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the `#workbench.editor.sharedViewState#` setting to use the last known view state across all editor groups in case no previous view state was found for a editor group."),
 				'default': true,
 				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+			},
+			'workbench.editor.sharedViewState': {
+				'type': 'boolean',
+				'description': localize('sharedViewState', "Preserves the most recent editor view state (e.g. scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
+				'default': false
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
@@ -515,23 +523,3 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		}
 	});
 })();
-
-class ExperimentalCustomHoverConfigContribution implements IWorkbenchContribution {
-	constructor(@ITASExperimentService tasExperimentService: ITASExperimentService) {
-		tasExperimentService.getTreatment<boolean>('customHovers').then(useCustomHoversAsDefault => {
-			registry.registerConfiguration({
-				...workbenchConfigurationNodeBase,
-				'properties': {
-					'workbench.experimental.useCustomHover': {
-						'type': 'boolean',
-						'description': localize('workbench.experimental.useCustomHover', "Enable/disable custom hovers on Activity Bar & Panel. Note this configuration is experimental and subjected to be removed at any time."),
-						'default': !!useCustomHoversAsDefault
-					}
-				}
-			});
-		});
-	}
-}
-
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExperimentalCustomHoverConfigContribution, LifecyclePhase.Starting);

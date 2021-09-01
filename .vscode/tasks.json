@@ -74,7 +74,8 @@
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
-				"group": "buildKillers"
+				"group": "buildKillers",
+				"close": true
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -85,7 +86,8 @@
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
-				"group": "buildKillers"
+				"group": "buildKillers",
+				"close": true
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -198,7 +200,8 @@
 			"command": "node build/lib/preLaunch.js",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
-				"reveal": "silent"
+				"reveal": "silent",
+				"close": true
 			}
 		},
 		{
@@ -214,21 +217,6 @@
 			"group": "build",
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
-		},
-		{
-			"type": "npm",
-			"script": "no-implicit-override-watch",
-			"problemMatcher": [
-				{
-					"base": "$tsc-watch",
-					"applyTo": "allDocuments",
-					"owner": "tsc-no-imp"
-				}
-			],
-			"group": "build",
-			"label": "npm: no-implicit-override-watch",
-			"detail": "tsc --watch -p src/tsconfig.json --noEmit --noImplicitOverride",
-			"isBackground": true
 		}
 	]
 }

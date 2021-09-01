@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
-import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain, IpcMainEvent, RenderProcessGoneDetails } from 'electron';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { BrowserWindow, Event as ElectronEvent, ipcMain, IpcMainEvent, MessagePortMain } from 'electron';
 import { Barrier } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { FileAccess } from 'vs/base/common/network';
-import { browserCodeLoadingCacheStrategy, IProcessEnvironment } from 'vs/base/common/platform';
-import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
-import { WindowError } from 'vs/platform/windows/electron-main/windows';
-import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { assertIsDefined } from 'vs/base/common/types';
+import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { WindowError } from 'vs/platform/windows/electron-main/windows';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -28,7 +27,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private window: BrowserWindow | undefined = undefined;
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
 
-	private readonly _onDidError = this._register(new Emitter<{ type: WindowError, details: string | RenderProcessGoneDetails }>());
+	private readonly _onDidError = this._register(new Emitter<{ type: WindowError, details?: { reason: string, exitCode: number } }>());
 	readonly onDidError = Event.buffer(this._onDidError.event); // buffer until we have a listener!
 
 	constructor(
@@ -139,9 +138,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				// Always wait for first window asking for connection
 				await this.firstWindowConnectionBarrier.wait();
 
-				// Resolve shell environment
-				this.userEnv = { ...this.userEnv, ...(await resolveShellEnv(this.logService, this.environmentMainService.args, process.env)) };
-
 				// Create window for shared process
 				this.createWindow();
 
@@ -170,11 +166,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
-				v8CacheOptions: browserCodeLoadingCacheStrategy,
+				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : undefined,
 				nodeIntegration: true,
 				contextIsolation: false,
 				enableWebSQL: false,
-				enableRemoteModule: false,
 				spellcheck: false,
 				nativeWindowOpen: true,
 				images: false,
@@ -188,7 +183,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			machineId: this.machineId,
 			windowId: this.window.id,
 			appRoot: this.environmentMainService.appRoot,
-			nodeCachedDataDir: this.environmentMainService.nodeCachedDataDir,
+			codeCachePath: this.environmentMainService.codeCachePath,
 			backupWorkspacesPath: this.environmentMainService.backupWorkspacesPath,
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
@@ -224,8 +219,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// We use `onUnexpectedError` explicitly because the error handler
 		// will send the error to the active window to log in devtools too
 		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.CRASHED, details }));
-		this.window.on('unresponsive', () => this._onDidError.fire({ type: WindowError.UNRESPONSIVE, details: 'SharedProcess: detected unresponsive window' }));
-		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this._onDidError.fire({ type: WindowError.LOAD, details: `SharedProcess: failed to load: ${errorDescription}` }));
+		this.window.on('unresponsive', () => this._onDidError.fire({ type: WindowError.UNRESPONSIVE }));
+		this.window.webContents.on('did-fail-load', (event, exitCode, reason) => this._onDidError.fire({ type: WindowError.LOAD, details: { reason, exitCode } }));
 	}
 
 	async connect(): Promise<MessagePortMain> {

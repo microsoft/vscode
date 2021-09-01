@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorInput, EditorResourceAccessor, IEditorInput, IEditorInputFactoryRegistry, SideBySideEditorInput, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -15,220 +16,164 @@ import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/workbench/workbench.web.api';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
-//#region Editors Registry
+//#region Editor Pane Registry
 
-export interface IEditorDescriptor {
+export interface IEditorPaneDescriptor extends ICommonEditorDescriptor<EditorPane> { }
 
-	/**
-	 * The unique identifier of the editor
-	 */
-	getId(): string;
+export interface IEditorPaneRegistry {
 
 	/**
-	 * The display name of the editor
-	 */
-	getName(): string;
-
-	instantiate(instantiationService: IInstantiationService): EditorPane;
-
-	describes(obj: unknown): boolean;
-}
-
-export interface IEditorRegistry {
-
-	/**
-	 * Registers an editor to the platform for the given input type. The second parameter also supports an
+	 * Registers an editor pane to the platform for the given editor type. The second parameter also supports an
 	 * array of input classes to be passed in. If the more than one editor is registered for the same editor
 	 * input, the input itself will be asked which editor it prefers if this method is provided. Otherwise
 	 * the first editor in the list will be returned.
 	 *
-	 * @param inputDescriptors A set of constructor functions that return an instance of EditorInput for which the
+	 * @param editorDescriptors A set of constructor functions that return an instance of `EditorInput` for which the
 	 * registered editor should be used for.
 	 */
-	registerEditor(descriptor: IEditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable;
+	registerEditorPane(editorPaneDescriptor: IEditorPaneDescriptor, editorDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable;
 
 	/**
-	 * Returns the editor descriptor for the given input or `undefined` if none.
+	 * Returns the editor pane descriptor for the given editor or `undefined` if none.
 	 */
-	getEditor(input: EditorInput): IEditorDescriptor | undefined;
-
-	/**
-	 * Returns the editor descriptor for the given identifier or `undefined` if none.
-	 */
-	getEditorById(editorId: string): IEditorDescriptor | undefined;
-
-	/**
-	 * Returns an array of registered editors known to the platform.
-	 */
-	getEditors(): readonly IEditorDescriptor[];
+	getEditorPane(editor: EditorInput): IEditorPaneDescriptor | undefined;
 }
 
 /**
- * A lightweight descriptor of an editor. The descriptor is deferred so that heavy editors
- * can load lazily in the workbench.
+ * A lightweight descriptor of an editor pane. The descriptor is deferred so that heavy editor
+ * panes can load lazily in the workbench.
  */
-export class EditorDescriptor implements IEditorDescriptor {
+export class EditorPaneDescriptor implements IEditorPaneDescriptor {
 
 	static create<Services extends BrandedService[]>(
 		ctor: { new(...services: Services): EditorPane },
-		id: string,
+		typeId: string,
 		name: string
-	): EditorDescriptor {
-		return new EditorDescriptor(ctor as IConstructorSignature0<EditorPane>, id, name);
+	): EditorPaneDescriptor {
+		return new EditorPaneDescriptor(ctor as IConstructorSignature0<EditorPane>, typeId, name);
 	}
 
-	constructor(
+	private constructor(
 		private readonly ctor: IConstructorSignature0<EditorPane>,
-		private readonly id: string,
-		private readonly name: string
+		readonly typeId: string,
+		readonly name: string
 	) { }
 
 	instantiate(instantiationService: IInstantiationService): EditorPane {
 		return instantiationService.createInstance(this.ctor);
 	}
 
-	getId(): string {
-		return this.id;
-	}
-
-	getName(): string {
-		return this.name;
-	}
-
-	describes(obj: unknown): boolean {
-		return obj instanceof EditorPane && obj.getId() === this.id;
+	describes(editorPane: EditorPane): boolean {
+		return editorPane.getId() === this.typeId;
 	}
 }
 
-class EditorRegistry implements IEditorRegistry {
+export class EditorPaneRegistry implements IEditorPaneRegistry {
 
-	private readonly editors: EditorDescriptor[] = [];
-	private readonly mapEditorToInputs = new Map<EditorDescriptor, readonly SyncDescriptor<EditorInput>[]>();
+	private readonly editorPanes: EditorPaneDescriptor[] = [];
+	private readonly mapEditorPanesToEditors = new Map<EditorPaneDescriptor, readonly SyncDescriptor<EditorInput>[]>();
 
-	registerEditor(descriptor: EditorDescriptor, inputDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable {
-		this.mapEditorToInputs.set(descriptor, inputDescriptors);
+	registerEditorPane(editorPaneDescriptor: EditorPaneDescriptor, editorDescriptors: readonly SyncDescriptor<EditorInput>[]): IDisposable {
+		this.mapEditorPanesToEditors.set(editorPaneDescriptor, editorDescriptors);
 
-		const remove = insert(this.editors, descriptor);
+		const remove = insert(this.editorPanes, editorPaneDescriptor);
 
 		return toDisposable(() => {
-			this.mapEditorToInputs.delete(descriptor);
+			this.mapEditorPanesToEditors.delete(editorPaneDescriptor);
 			remove();
 		});
 	}
 
-	getEditor(input: EditorInput): EditorDescriptor | undefined {
-		const findEditorDescriptors = (input: EditorInput, byInstanceOf?: boolean): EditorDescriptor[] => {
-			const matchingDescriptors: EditorDescriptor[] = [];
+	getEditorPane(editor: EditorInput): EditorPaneDescriptor | undefined {
+		const descriptors = this.findEditorPaneDescriptors(editor);
 
-			for (const editor of this.editors) {
-				const inputDescriptors = this.mapEditorToInputs.get(editor) || [];
-				for (const inputDescriptor of inputDescriptors) {
-					const inputClass = inputDescriptor.ctor;
+		if (descriptors.length === 0) {
+			return undefined;
+		}
 
-					// Direct check on constructor type (ignores prototype chain)
-					if (!byInstanceOf && input.constructor === inputClass) {
-						matchingDescriptors.push(editor);
-						break;
-					}
-
-					// Normal instanceof check
-					else if (byInstanceOf && input instanceof inputClass) {
-						matchingDescriptors.push(editor);
-						break;
-					}
-				}
-			}
-
-			// If no descriptors found, continue search using instanceof and prototype chain
-			if (!byInstanceOf && matchingDescriptors.length === 0) {
-				return findEditorDescriptors(input, true);
-			}
-
-			if (byInstanceOf) {
-				return matchingDescriptors;
-			}
-
-			return matchingDescriptors;
-		};
-
-		const descriptors = findEditorDescriptors(input);
-		if (descriptors.length > 0) {
-
-			// Ask the input for its preferred Editor
-			const preferredEditorId = input.getPreferredEditorId(descriptors.map(descriptor => descriptor.getId()));
-			if (preferredEditorId) {
-				return this.getEditorById(preferredEditorId);
-			}
-
-			// Otherwise, first come first serve
+		if (descriptors.length === 1) {
 			return descriptors[0];
 		}
 
-		return undefined;
+		return editor.prefersEditorPane(descriptors);
 	}
 
-	getEditorById(editorId: string): EditorDescriptor | undefined {
-		return this.editors.find(editor => editor.getId() === editorId);
-	}
+	private findEditorPaneDescriptors(editor: EditorInput, byInstanceOf?: boolean): EditorPaneDescriptor[] {
+		const matchingEditorPaneDescriptors: EditorPaneDescriptor[] = [];
 
-	getEditors(): readonly EditorDescriptor[] {
-		return this.editors.slice(0);
-	}
+		for (const editorPane of this.editorPanes) {
+			const editorDescriptors = this.mapEditorPanesToEditors.get(editorPane) || [];
+			for (const editorDescriptor of editorDescriptors) {
+				const editorClass = editorDescriptor.ctor;
 
-	getEditorInputs(): SyncDescriptor<EditorInput>[] {
-		const inputClasses: SyncDescriptor<EditorInput>[] = [];
-		for (const editor of this.editors) {
-			const editorInputDescriptors = this.mapEditorToInputs.get(editor);
-			if (editorInputDescriptors) {
-				inputClasses.push(...editorInputDescriptors.map(descriptor => descriptor.ctor));
+				// Direct check on constructor type (ignores prototype chain)
+				if (!byInstanceOf && editor.constructor === editorClass) {
+					matchingEditorPaneDescriptors.push(editorPane);
+					break;
+				}
+
+				// Normal instanceof check
+				else if (byInstanceOf && editor instanceof editorClass) {
+					matchingEditorPaneDescriptors.push(editorPane);
+					break;
+				}
 			}
 		}
 
-		return inputClasses;
+		// If no descriptors found, continue search using instanceof and prototype chain
+		if (!byInstanceOf && matchingEditorPaneDescriptors.length === 0) {
+			return this.findEditorPaneDescriptors(editor, true);
+		}
+
+		return matchingEditorPaneDescriptors;
 	}
+
+	//#region Used for tests only
+
+	getEditorPaneByType(typeId: string): EditorPaneDescriptor | undefined {
+		return this.editorPanes.find(editor => editor.typeId === typeId);
+	}
+
+	getEditorPanes(): readonly EditorPaneDescriptor[] {
+		return this.editorPanes.slice(0);
+	}
+
+	getEditors(): SyncDescriptor<EditorInput>[] {
+		const editorClasses: SyncDescriptor<EditorInput>[] = [];
+		for (const editorPane of this.editorPanes) {
+			const editorDescriptors = this.mapEditorPanesToEditors.get(editorPane);
+			if (editorDescriptors) {
+				editorClasses.push(...editorDescriptors.map(editorDescriptor => editorDescriptor.ctor));
+			}
+		}
+
+		return editorClasses;
+	}
+
+	//#endregion
 }
 
-Registry.add(EditorExtensions.Editors, new EditorRegistry());
+Registry.add(EditorExtensions.EditorPane, new EditorPaneRegistry());
 
 //#endregion
 
-//#region Text Editor Close Tracker
+//#region Editor Close Tracker
 
-export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[]): Promise<void> {
+export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const workingCopyService = accessor.get(IWorkingCopyService);
-
-	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	return new Promise(resolve => {
 		let remainingResources = [...resources];
 
 		// Observe any editor closing from this moment on
 		const listener = editorService.onDidCloseEditor(async event => {
-			let primaryResource: URI | undefined = undefined;
-			let secondaryResource: URI | undefined = undefined;
-
-			// Resolve the resources from the editor that closed
-			// but only consider file editor inputs, given we
-			// are only tracking text editors.
-			if (event.editor instanceof SideBySideEditorInput) {
-				if (fileEditorInputFactory.isFileEditorInput(event.editor.primary)) {
-					primaryResource = EditorResourceAccessor.getOriginalUri(event.editor.primary);
-				}
-
-				if (fileEditorInputFactory.isFileEditorInput(event.editor.secondary)) {
-					secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor.secondary);
-				}
-			} else {
-				if (fileEditorInputFactory.isFileEditorInput(event.editor)) {
-					primaryResource = EditorResourceAccessor.getOriginalUri(event.editor);
-				}
-			}
+			const primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			const secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
 
 			// Remove from resources to wait for being closed based on the
 			// resources from editors that got closed
@@ -247,10 +192,10 @@ export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[
 				// to close the editor while the save still continues in the background. As such
 				// we have to also check if the editors to track for are dirty and if so wait
 				// for them to get saved.
-				const dirtyResources = resources.filter(resource => workingCopyService.isDirty(resource, NO_TYPE_ID /* only check on text file working copies */));
+				const dirtyResources = resources.filter(resource => workingCopyService.isDirty(resource));
 				if (dirtyResources.length > 0) {
 					await Promises.settled(dirtyResources.map(async resource => await new Promise<void>(resolve => {
-						if (!workingCopyService.isDirty(resource, NO_TYPE_ID /* only check on text file working copies */)) {
+						if (!workingCopyService.isDirty(resource)) {
 							return resolve(); // return early if resource is not dirty
 						}
 
@@ -274,7 +219,6 @@ export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[
 }
 
 //#endregion
-
 
 //#region ARIA
 

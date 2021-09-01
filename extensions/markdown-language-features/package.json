@@ -26,6 +26,7 @@
     "onCommand:markdown.showSource",
     "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
+    "onCommand:markdown.api.reloadPlugins",
     "onWebviewPanel:markdown.preview",
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
@@ -40,11 +41,14 @@
     }
   },
   "contributes": {
-    "notebookMarkdownRenderer": [
+    "notebookRenderer": [
       {
         "id": "markdownItRenderer",
         "displayName": "Markdown it renderer",
-        "entrypoint": "./notebook-out/index.js"
+        "entrypoint": "./notebook-out/index.js",
+        "mimeTypes": [
+          "text/markdown"
+        ]
       }
     ],
     "commands": [
@@ -343,7 +347,7 @@
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
     "build-preview": "npx webpack-cli --mode production",
-    "build-notebook": "npx webpack-cli --config webpack.notebook --mode production",
+    "build-notebook": "node ./esbuild",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
@@ -351,14 +355,14 @@
     "highlight.js": "^10.4.1",
     "markdown-it": "^12.0.3",
     "markdown-it-front-matter": "^0.2.1",
-    "vscode-extension-telemetry": "0.1.7",
-    "vscode-nls": "^4.0.0"
+    "vscode-extension-telemetry": "0.2.8",
+    "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
     "@types/highlight.js": "10.1.0",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "0.0.2",
-    "@types/node": "^12.19.9",
+    "@types/vscode-webview": "^1.57.0",
     "lodash.throttle": "^4.1.1"
   },
   "repository": {

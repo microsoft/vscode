@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -207,7 +207,17 @@ export interface IQuickInput extends IDisposable {
 	hide(): void;
 }
 
-export interface IQuickPickAcceptEvent {
+export interface IQuickPickWillAcceptEvent {
+
+	/**
+	 * Allows to disable the default accept handling
+	 * of the picker. If `veto` is called, the picker
+	 * will not trigger the `onDidAccept` event.
+	 */
+	veto(): void;
+}
+
+export interface IQuickPickDidAcceptEvent {
 
 	/**
 	 * Signals if the picker item is to be accepted
@@ -239,7 +249,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<IQuickPickAcceptEvent>;
+	readonly onWillAccept: Event<IQuickPickWillAcceptEvent>;
+	readonly onDidAccept: Event<IQuickPickDidAcceptEvent>;
 
 	/**
 	 * If enabled, will fire the `onDidAccept` event when

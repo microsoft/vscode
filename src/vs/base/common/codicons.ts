@@ -368,7 +368,7 @@ export namespace Codicon {
 	export const horizontalRule = new Codicon('horizontal-rule', { fontCharacter: '\\eb07' });
 	export const hubot = new Codicon('hubot', { fontCharacter: '\\eb08' });
 	export const inbox = new Codicon('inbox', { fontCharacter: '\\eb09' });
-	export const issueClosed = new Codicon('issue-closed', { fontCharacter: '\\eb0a' });
+	export const issueClosed = new Codicon('issue-closed', { fontCharacter: '\\eba4' });
 	export const issueReopened = new Codicon('issue-reopened', { fontCharacter: '\\eb0b' });
 	export const issues = new Codicon('issues', { fontCharacter: '\\eb0c' });
 	export const italic = new Codicon('italic', { fontCharacter: '\\eb0d' });
@@ -573,6 +573,19 @@ export namespace Codicon {
 	export const filterFilled = new Codicon('filter-filled', { fontCharacter: '\\ebce' });
 	export const wand = new Codicon('wand', { fontCharacter: '\\ebcf' });
 	export const debugLineByLine = new Codicon('debug-line-by-line', { fontCharacter: '\\ebd0' });
+	export const inspect = new Codicon('inspect', { fontCharacter: '\\ebd1' });
+	export const layers = new Codicon('layers', { fontCharacter: '\\ebd2' });
+	export const layersDot = new Codicon('layers-dot', { fontCharacter: '\\ebd3' });
+	export const layersActive = new Codicon('layers-active', { fontCharacter: '\\ebd4' });
+	export const compass = new Codicon('compass', { fontCharacter: '\\ebd5' });
+	export const compassDot = new Codicon('compass-dot', { fontCharacter: '\\ebd6' });
+	export const compassActive = new Codicon('compass-active', { fontCharacter: '\\ebd7' });
+	export const azure = new Codicon('azure', { fontCharacter: '\\ebd8' });
+	export const issueDraft = new Codicon('issue-draft', { fontCharacter: '\\ebd9' });
+	export const gitPullRequestClosed = new Codicon('git-pull-request-closed', { fontCharacter: '\\ebda' });
+	export const gitPullRequestDraft = new Codicon('git-pull-request-draft', { fontCharacter: '\\ebdb' });
+	export const debugAll = new Codicon('debug-all', { fontCharacter: '\\ebdc' });
+	export const debugCoverage = new Codicon('debug-coverage', { fontCharacter: '\\ebdd' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

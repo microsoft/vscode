@@ -33,8 +33,12 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		});
 	}
 
-	protected async getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
+	protected async _getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+		if (!this.debugService.getAdapterManager().hasDebuggers()) {
+			return [];
+		}
+
 		picks.push({ type: 'separator', label: 'launch.json' });
 
 		const configManager = this.debugService.getConfigurationManager();

@@ -27,6 +27,13 @@ export interface IConfigurationResolverService {
 	resolveAnyAsync(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any>;
 
 	/**
+	 * Recursively resolves all variables in the given config.
+	 * Returns a copy of it with substituted values and a map of variables and their resolution.
+	 * Keys in the map will be of the format input:variableName or command:variableName.
+	 */
+	resolveAnyMap(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }>;
+
+	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
 	 * If a "variables" dictionary (with names -> command ids) is given, command variables are first mapped through it before being resolved.
 	 *

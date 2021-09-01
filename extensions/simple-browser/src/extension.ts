@@ -7,7 +7,10 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SimpleBrowserManager } from './simpleBrowserManager';
 
-declare const URL: typeof import('url').URL;
+declare class URL {
+	constructor(input: string, base?: string | URL);
+	hostname: string;
+}
 
 const localize = nls.loadMessageBundle();
 

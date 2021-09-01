@@ -14,8 +14,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { serializeMessage } from 'vs/workbench/api/common/extHostWebview';
-import { deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
+import { serializeWebviewMessage, deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
 export class MainThreadWebviews extends Disposable implements extHostProtocol.MainThreadWebviewsShape {
@@ -74,7 +73,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		disposables.add(webview.onDidClickLink((uri) => this.onDidClickLink(handle, uri)));
 
 		disposables.add(webview.onMessage((message) => {
-			const serialized = serializeMessage(message.message, options);
+			const serialized = serializeWebviewMessage(message.message, options);
 			this._proxy.$onMessage(handle, serialized.message, ...serialized.buffers);
 		}));
 

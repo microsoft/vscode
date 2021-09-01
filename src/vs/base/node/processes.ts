@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import * as fs from 'fs';
-import * as pfs from 'vs/base/node/pfs';
 import * as cp from 'child_process';
-import * as nls from 'vs/nls';
-import * as process from 'vs/base/common/process';
-import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
-import * as Objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
-import * as Platform from 'vs/base/common/platform';
-import { LineDecoder } from 'vs/base/node/decoder';
-import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
 import { FileAccess } from 'vs/base/common/network';
+import * as Objects from 'vs/base/common/objects';
+import * as path from 'vs/base/common/path';
+import * as Platform from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
+import { CommandOptions, Executable, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
+import * as Types from 'vs/base/common/types';
+import { LineDecoder } from 'vs/base/node/decoder';
+import * as pfs from 'vs/base/node/pfs';
+import * as nls from 'vs/nls';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
 export type ValueCallback<T> = (value: T | Promise<T>) => void;
@@ -457,8 +456,8 @@ export namespace win32 {
 		}
 
 		async function fileExists(path: string): Promise<boolean> {
-			if (await pfs.exists(path)) {
-				return !((await fs.promises.stat(path)).isDirectory());
+			if (await pfs.Promises.exists(path)) {
+				return !((await pfs.Promises.stat(path)).isDirectory());
 			}
 			return false;
 		}

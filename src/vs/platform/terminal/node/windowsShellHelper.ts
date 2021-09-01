@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import type * as WindowsProcessTreeType from 'windows-process-tree';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { debounce } from 'vs/base/common/decorators';
 import { timeout } from 'vs/base/common/async';
+import { debounce } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows, platform } from 'vs/base/common/platform';
+import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import type * as WindowsProcessTreeType from 'windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
 	readonly onShellNameChanged: Event<string>;
@@ -38,15 +38,15 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	private _isDisposed: boolean;
 	private _currentRequest: Promise<string> | undefined;
 	private _shellType: TerminalShellType | undefined;
-	public get shellType(): TerminalShellType | undefined { return this._shellType; }
+	get shellType(): TerminalShellType | undefined { return this._shellType; }
 	private _shellTitle: string = '';
-	public get shellTitle(): string { return this._shellTitle; }
+	get shellTitle(): string { return this._shellTitle; }
 	private readonly _onShellNameChanged = new Emitter<string>();
-	public get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
+	get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
 	private readonly _onShellTypeChanged = new Emitter<TerminalShellType>();
-	public get onShellTypeChanged(): Event<TerminalShellType> { return this._onShellTypeChanged.event; }
+	get onShellTypeChanged(): Event<TerminalShellType> { return this._onShellTypeChanged.event; }
 
-	public constructor(
+	constructor(
 		private _rootProcessId: number
 	) {
 		super();
@@ -112,7 +112,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		return this.traverseTree(tree.children[favouriteChild]);
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		this._isDisposed = true;
 		super.dispose();
 	}
@@ -120,7 +120,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	/**
 	 * Returns the innermost shell executable running in the terminal
 	 */
-	public getShellName(): Promise<string> {
+	getShellName(): Promise<string> {
 		if (this._isDisposed) {
 			return Promise.resolve('');
 		}
@@ -141,7 +141,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		return this._currentRequest;
 	}
 
-	public getShellType(executable: string): TerminalShellType {
+	getShellType(executable: string): TerminalShellType {
 		switch (executable.toLowerCase()) {
 			case 'cmd.exe':
 				return WindowsShellType.CommandPrompt;

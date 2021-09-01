@@ -12,6 +12,11 @@
 	color: #0066BF;
 }
 
+.vs .quick-input-widget .monaco-list-row.focused .monaco-highlighted-label .highlight,
+.vs .quick-input-widget .monaco-list-row.focused .monaco-highlighted-label .highlight {
+	color: #9DDDFF;
+}
+
 .vs-dark .quick-input-widget .monaco-highlighted-label .highlight,
 .vs-dark .quick-input-widget .monaco-highlighted-label .highlight {
 	color: #0097fb;

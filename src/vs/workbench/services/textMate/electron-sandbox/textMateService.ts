@@ -22,7 +22,6 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -148,12 +147,11 @@ export class TextMateService extends AbstractTextMateService {
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
 		@IProgressService progressService: IProgressService,
 		@IModelService private readonly _modelService: IModelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService, progressService);
+		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);

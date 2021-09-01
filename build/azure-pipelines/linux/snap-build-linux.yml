@@ -7,12 +7,6 @@ steps:
     inputs:
       versionSpec: "1.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-
   - task: DownloadPipelineArtifact@0
     displayName: "Download Pipeline Artifact"
     inputs:
@@ -50,15 +44,11 @@ steps:
       esac
       (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft prime $SNAPCRAFT_TARGET_ARGS && snap pack prime --compression=lzo --filename="$SNAP_PATH")
 
-      # Publish snap package
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      node build/azure-pipelines/common/createAsset.js "linux-snap-$(VSCODE_ARCH)" package "$SNAP_FILENAME" "$SNAP_PATH"
-
       # Export SNAP_PATH
       echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
+    displayName: Prepare for publish
 
   - publish: $(SNAP_PATH)
-    artifact: vscode-linux-snap-$(VSCODE_ARCH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_snap
     displayName: Publish snap package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

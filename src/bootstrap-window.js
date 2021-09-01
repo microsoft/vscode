@@ -24,7 +24,6 @@
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
-	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	/**
 	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
@@ -52,10 +51,17 @@
 		});
 
 		// Await window configuration from preload
+		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
 		performance.mark('code/willWaitForWindowConfig');
 		/** @type {ISandboxConfiguration} */
 		const configuration = await preloadGlobals.context.resolveConfiguration();
 		performance.mark('code/didWaitForWindowConfig');
+		clearTimeout(timeout);
+
+		// Signal DOM modifications are now OK
+		if (typeof options?.canModifyDOM === 'function') {
+			options.canModifyDOM(configuration);
+		}
 
 		// Developer settings
 		const {
@@ -76,12 +82,9 @@
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Enable ASAR support
-		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
-
-		// Signal DOM modifications are now OK
-		if (typeof options?.canModifyDOM === 'function') {
-			options.canModifyDOM(configuration);
+		// Enable ASAR support (TODO@sandbox non-sandboxed only)
+		if (!safeProcess.sandboxed) {
+			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 		}
 
 		// Get the nls configuration into the process.env as early as possible
@@ -96,11 +99,6 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// Do not advertise AMD to avoid confusing UMD modules loaded with nodejs
-		if (!useCustomProtocol) {
-			window['define'] = undefined;
-		}
-
 		// Replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
 		if (!safeProcess.sandboxed) {
 			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
@@ -109,11 +107,9 @@
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: useCustomProtocol ?
-				`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
-				`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			'vs/nls': nlsConfig,
-			preferScriptTags: useCustomProtocol
+			preferScriptTags: true
 		};
 
 		// use a trusted types policy when loading via script tags
@@ -147,14 +143,6 @@
 			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		// Cached data config
-		if (configuration.nodeCachedDataDir) {
-			loaderConfig.nodeCachedData = {
-				path: configuration.nodeCachedDataDir,
-				seed: modulePaths.join('')
-			};
-		}
-
 		// Signal before require.config()
 		if (typeof options?.beforeLoaderConfig === 'function') {
 			options.beforeLoaderConfig(loaderConfig);
@@ -178,13 +166,6 @@
 		// Actually require the main module as specified
 		require(modulePaths, async result => {
 			try {
-
-				// Wait for process environment being fully resolved
-				performance.mark('code/willWaitForShellEnv');
-				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-					await safeProcess.shellEnv();
-				}
-				performance.mark('code/didWaitForShellEnv');
 
 				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);

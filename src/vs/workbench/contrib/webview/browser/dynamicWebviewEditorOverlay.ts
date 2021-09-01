@@ -5,7 +5,6 @@
 
 import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -67,22 +66,33 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 	override dispose() {
 		this._isDisposed = true;
-		this.container.remove();
+
+		this._container?.remove();
+		this._container = undefined;
+
 		this._onDidDispose.fire();
+
 		super.dispose();
 	}
 
-	@memoize
-	public get container() {
-		const container = document.createElement('div');
-		container.id = `webview-${this.id}`;
-		container.style.visibility = 'hidden';
+	private _container: HTMLElement | undefined;
 
-		// Webviews cannot be reparented in the dom as it will destory their contents.
-		// Mount them to a high level node to avoid this.
-		this._layoutService.container.appendChild(container);
+	public get container(): HTMLElement {
+		if (this._isDisposed) {
+			throw new Error(`DynamicWebviewEditorOverlay has been disposed`);
+		}
 
-		return container;
+		if (!this._container) {
+			this._container = document.createElement('div');
+			this._container.id = `webview-${this.id}`;
+			this._container.style.visibility = 'hidden';
+
+			// Webviews cannot be reparented in the dom as it will destroy their contents.
+			// Mount them to a high level node to avoid this.
+			this._layoutService.container.appendChild(this._container);
+
+		}
+		return this._container;
 	}
 
 	public claim(owner: any, scopedContextKeyService: IContextKeyService | undefined) {
@@ -105,6 +115,8 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			this._findWidgetEnabled?.reset();
 			this._findWidgetEnabled = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED.bindTo(contextKeyService);
 			this._findWidgetEnabled.set(!!this.options.enableFindWidget);
+
+			this._webview.value?.setContextKeyService(this._scopedContextKeyService.value);
 		}
 	}
 
@@ -116,7 +128,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		this._scopedContextKeyService.clear();
 
 		this._owner = undefined;
-		this.container.style.visibility = 'hidden';
+		if (this._container) {
+			this._container.style.visibility = 'hidden';
+		}
 		if (!this._options.retainContextWhenHidden) {
 			this._webview.clear();
 			this._webviewEvents.clear();
@@ -124,20 +138,20 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	}
 
 	public layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension) {
-		if (!this.container || !this.container.parentElement) {
+		if (!this._container || !this._container.parentElement) {
 			return;
 		}
 
 		const frameRect = element.getBoundingClientRect();
-		const containerRect = this.container.parentElement.getBoundingClientRect();
-		const parentBorderTop = (containerRect.height - this.container.parentElement.clientHeight) / 2.0;
-		const parentBorderLeft = (containerRect.width - this.container.parentElement.clientWidth) / 2.0;
-		this.container.style.position = 'absolute';
-		this.container.style.overflow = 'hidden';
-		this.container.style.top = `${frameRect.top - containerRect.top - parentBorderTop}px`;
-		this.container.style.left = `${frameRect.left - containerRect.left - parentBorderLeft}px`;
-		this.container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
-		this.container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
+		const containerRect = this._container.parentElement.getBoundingClientRect();
+		const parentBorderTop = (containerRect.height - this._container.parentElement.clientHeight) / 2.0;
+		const parentBorderLeft = (containerRect.width - this._container.parentElement.clientWidth) / 2.0;
+		this._container.style.position = 'absolute';
+		this._container.style.overflow = 'hidden';
+		this._container.style.top = `${frameRect.top - containerRect.top - parentBorderTop}px`;
+		this._container.style.left = `${frameRect.left - containerRect.left - parentBorderLeft}px`;
+		this._container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
+		this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
 	}
 
 	private show() {
@@ -149,6 +163,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;
 			webview.state = this._state;
+
+			if (this._scopedContextKeyService.value) {
+				this._webview.value.setContextKeyService(this._scopedContextKeyService.value);
+			}
 
 			if (this._html) {
 				webview.html = this._html;
@@ -293,5 +311,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 	windowDidDragEnd() {
 		this._webview.value?.windowDidDragEnd();
+	}
+
+	setContextKeyService(contextKeyService: IContextKeyService) {
+		this._webview.value?.setContextKeyService(contextKeyService);
 	}
 }

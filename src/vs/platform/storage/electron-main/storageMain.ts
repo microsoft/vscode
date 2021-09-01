@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises } from 'fs';
-import { exists, writeFile } from 'vs/base/node/pfs';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
-import { Storage, InMemoryStorageDatabase, StorageHint, IStorage } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
+import { generateUuid } from 'vs/base/common/uuid';
+import { Promises } from 'vs/base/node/pfs';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
+import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IStorageMainOptions {
@@ -270,13 +269,13 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		const workspaceStorageFolderPath = join(this.environmentService.workspaceStorageHome.fsPath, this.workspace.id);
 		const workspaceStorageDatabasePath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_STORAGE_NAME);
 
-		const storageExists = await exists(workspaceStorageFolderPath);
+		const storageExists = await Promises.exists(workspaceStorageFolderPath);
 		if (storageExists) {
 			return { storageFilePath: workspaceStorageDatabasePath, wasCreated: false };
 		}
 
 		// Ensure storage folder exists
-		await promises.mkdir(workspaceStorageFolderPath, { recursive: true });
+		await Promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
 		// Write metadata into folder (but do not await)
 		this.ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath);
@@ -295,9 +294,9 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		if (meta) {
 			try {
 				const workspaceStorageMetaPath = join(workspaceStorageFolderPath, WorkspaceStorageMain.WORKSPACE_META_NAME);
-				const storageExists = await exists(workspaceStorageMetaPath);
+				const storageExists = await Promises.exists(workspaceStorageMetaPath);
 				if (!storageExists) {
-					await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+					await Promises.writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
 				}
 			} catch (error) {
 				this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);

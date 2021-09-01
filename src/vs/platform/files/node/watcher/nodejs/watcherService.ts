@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { SymlinkSupport } from 'vs/base/node/pfs';
-import { realpath } from 'vs/base/node/extpath';
-import { watchFolder, watchFile, CHANGE_BUFFER_DELAY } from 'vs/base/node/watcher';
-import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { join, basename } from 'vs/base/common/path';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { basename, join } from 'vs/base/common/path';
+import { realpath } from 'vs/base/node/extpath';
+import { SymlinkSupport } from 'vs/base/node/pfs';
+import { CHANGE_BUFFER_DELAY, watchFile, watchFolder } from 'vs/base/node/watcher';
+import { FileChangeType } from 'vs/platform/files/common/files';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
 
 export class FileWatcher extends Disposable {
 	private isDisposed: boolean | undefined;
@@ -100,9 +100,9 @@ export class FileWatcher extends Disposable {
 
 			// Logging
 			if (this.verboseLogging) {
-				normalizedFileChanges.forEach(event => {
-					this.onVerbose(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
-				});
+				for (const e of normalizedFileChanges) {
+					this.onVerbose(`>> normalized ${e.type === FileChangeType.ADDED ? '[ADDED]' : e.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${e.path}`);
+				}
 			}
 
 			// Fire

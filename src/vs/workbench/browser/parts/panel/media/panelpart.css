@@ -154,6 +154,7 @@
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	margin-right: 0;
+	padding: 2px;
 }
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label:not(.codicon) {

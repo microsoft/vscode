@@ -506,7 +506,7 @@
 		"statusBar.noFolderBackground": "#705697",
 		"statusBar.debuggingBackground": "#705697",
 		"statusBarItem.remoteBackground": "#4e3c69",
-		"ports.iconRunningProcessforeground": "#749351",
+		"ports.iconRunningProcessForeground": "#749351",
 		"activityBar.background": "#EDEDF5",
 		"activityBar.foreground": "#705697",
 		"activityBarBadge.background": "#705697",

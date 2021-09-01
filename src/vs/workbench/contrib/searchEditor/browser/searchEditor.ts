@@ -17,7 +17,8 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
@@ -33,11 +34,11 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
@@ -49,12 +50,16 @@ import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contri
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IFileService } from 'vs/platform/files/common/files';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Link } from 'vs/platform/opener/browser/link';
-import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -79,8 +84,6 @@ export class SearchEditor extends BaseTextEditor {
 	private runSearchDelayer = new Delayer(0);
 	private pauseSearching: boolean = false;
 	private showingIncludesExcludes: boolean = false;
-	private inSearchEditorContextKey: IContextKey<boolean>;
-	private inputFocusContextKey: IContextKey<boolean>;
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
 	private messageDisposables: DisposableStore;
@@ -99,6 +102,8 @@ export class SearchEditor extends BaseTextEditor {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IOpenerService readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorProgressService readonly progressService: IEditorProgressService,
 		@ITextResourceConfigurationService textResourceService: ITextResourceConfigurationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -109,13 +114,6 @@ export class SearchEditor extends BaseTextEditor {
 		super(SearchEditor.ID, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
 		this.container = DOM.$('.search-editor');
 
-
-		const scopedContextKeyService = contextKeyService.createScoped(this.container);
-		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
-
-		this.inSearchEditorContextKey = InSearchEditor.bindTo(scopedContextKeyService);
-		this.inSearchEditorContextKey.set(true);
-		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(scopedContextKeyService);
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
 		this._register(this.messageDisposables = new DisposableStore());
 
@@ -126,22 +124,32 @@ export class SearchEditor extends BaseTextEditor {
 
 	override createEditor(parent: HTMLElement) {
 		DOM.append(parent, this.container);
+		this.queryEditorContainer = DOM.append(this.container, DOM.$('.query-container'));
+		const searchResultContainer = DOM.append(this.container, DOM.$('.search-results'));
+		super.createEditor(searchResultContainer);
+		this.registerEditorListeners();
 
-		this.createQueryEditor(this.container);
-		this.createResultsEditor(this.container);
+		const scopedContextKeyService = assertIsDefined(this.scopedContextKeyService);
+		InSearchEditor.bindTo(scopedContextKeyService).set(true);
+
+		this.createQueryEditor(
+			this.queryEditorContainer,
+			this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])),
+			InputBoxFocusedKey.bindTo(scopedContextKeyService)
+		);
 	}
 
-	private createQueryEditor(parent: HTMLElement) {
-		this.queryEditorContainer = DOM.append(parent, DOM.$('.query-container'));
-		this.queryEditorWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.queryEditorContainer, { _hideReplaceToggle: true, showContextToggle: true }));
+
+	private createQueryEditor(container: HTMLElement, scopedInstantiationService: IInstantiationService, inputBoxFocusedContextKey: IContextKey<boolean>) {
+		this.queryEditorWidget = this._register(scopedInstantiationService.createInstance(SearchWidget, container, { _hideReplaceToggle: true, showContextToggle: true }));
 		this._register(this.queryEditorWidget.onReplaceToggled(() => this.reLayout()));
 		this._register(this.queryEditorWidget.onDidHeightChange(() => this.reLayout()));
-		this.queryEditorWidget.onSearchSubmit(({ delay }) => this.triggerSearch({ delay }));
-		this.queryEditorWidget.searchInput.onDidOptionChange(() => this.triggerSearch({ resetCursor: false }));
-		this.queryEditorWidget.onDidToggleContext(() => this.triggerSearch({ resetCursor: false }));
+		this._register(this.queryEditorWidget.onSearchSubmit(({ delay }) => this.triggerSearch({ delay })));
+		this._register(this.queryEditorWidget.searchInput.onDidOptionChange(() => this.triggerSearch({ resetCursor: false })));
+		this._register(this.queryEditorWidget.onDidToggleContext(() => this.triggerSearch({ resetCursor: false })));
 
 		// Includes/Excludes Dropdown
-		this.includesExcludesContainer = DOM.append(this.queryEditorContainer, DOM.$('.includes-excludes'));
+		this.includesExcludesContainer = DOM.append(container, DOM.$('.includes-excludes'));
 
 		// Toggle query details button
 		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
@@ -173,7 +181,7 @@ export class SearchEditor extends BaseTextEditor {
 		const folderIncludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.includes'));
 		const filesToIncludeTitle = localize('searchScope.includes', "files to include");
 		DOM.append(folderIncludesList, DOM.$('h4', undefined, filesToIncludeTitle));
-		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
+		this.inputPatternIncludes = this._register(scopedInstantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
 			ariaLabel: localize('label.includes', 'Search Include Patterns'),
 		}));
 		this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
@@ -183,7 +191,7 @@ export class SearchEditor extends BaseTextEditor {
 		const excludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.excludes'));
 		const excludesTitle = localize('searchScope.excludes', "files to exclude");
 		DOM.append(excludesList, DOM.$('h4', undefined, excludesTitle));
-		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
+		this.inputPatternExcludes = this._register(scopedInstantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
 			ariaLabel: localize('label.excludes', 'Search Exclude Patterns'),
 		}));
 		this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
@@ -193,7 +201,13 @@ export class SearchEditor extends BaseTextEditor {
 			this._register(attachInputBoxStyler(input, this.themeService, { inputBorder: searchEditorTextInputBorder })));
 
 		// Messages
-		this.messageBox = DOM.append(this.queryEditorContainer, DOM.$('.messages'));
+		this.messageBox = DOM.append(container, DOM.$('.messages.text-search-provider-messages'));
+
+		[this.queryEditorWidget.searchInputFocusTracker, this.queryEditorWidget.replaceInputFocusTracker, this.inputPatternExcludes.inputFocusTracker, this.inputPatternIncludes.inputFocusTracker]
+			.forEach(tracker => {
+				this._register(tracker.onDidFocus(() => setTimeout(() => inputBoxFocusedContextKey.set(true), 0)));
+				this._register(tracker.onDidBlur(() => inputBoxFocusedContextKey.set(false)));
+			});
 	}
 
 	private toggleRunAgainMessage(show: boolean) {
@@ -209,9 +223,16 @@ export class SearchEditor extends BaseTextEditor {
 		}
 	}
 
-	private createResultsEditor(parent: HTMLElement) {
-		const searchResultContainer = DOM.append(parent, DOM.$('.search-results'));
-		super.createEditor(searchResultContainer);
+	private _getContributions(): IEditorContributionDescription[] {
+		const skipContributions = [UnusualLineTerminatorsDetector.ID];
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+	}
+
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: this._getContributions() });
+	}
+
+	private registerEditorListeners() {
 		this.searchResultEditor = super.getControl() as CodeEditorWidget;
 		this.searchResultEditor.onMouseUp(e => {
 			if (e.event.detail === 2) {
@@ -233,12 +254,6 @@ export class SearchEditor extends BaseTextEditor {
 		this._register(this.onDidBlur(() => this.saveViewState()));
 
 		this._register(this.searchResultEditor.onDidChangeModelContent(() => this.getInput()?.setDirty(true)));
-
-		[this.queryEditorWidget.searchInputFocusTracker, this.queryEditorWidget.replaceInputFocusTracker, this.inputPatternExcludes.inputFocusTracker, this.inputPatternIncludes.inputFocusTracker]
-			.forEach(tracker => {
-				this._register(tracker.onDidFocus(() => setTimeout(() => this.inputFocusContextKey.set(true), 0)));
-				this._register(tracker.onDidBlur(() => this.inputFocusContextKey.set(false)));
-			});
 	}
 
 	override getControl() {
@@ -462,6 +477,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchModel.cancelSearch(true);
 
 		const startInput = this.getInput();
+		if (!startInput) { return; }
 
 		this.searchHistoryDelayer.trigger(() => {
 			this.queryEditorWidget.searchInput.onSearchSubmit();
@@ -511,19 +527,30 @@ export class SearchEditor extends BaseTextEditor {
 
 		this.searchOperation.start(500);
 		this.ongoingOperations++;
-		const exit = await this.searchModel.search(query).finally(() => {
+
+		const { configurationModel } = await startInput.getModels();
+		configurationModel.updateConfig(config);
+
+		startInput.ongoingSearchOperation = this.searchModel.search(query).finally(() => {
 			this.ongoingOperations--;
 			if (this.ongoingOperations === 0) {
 				this.searchOperation.stop();
 			}
 		});
 
+		const searchOperation = await startInput.ongoingSearchOperation;
+		this.onSearchComplete(searchOperation, config, startInput);
+	}
+
+	private async onSearchComplete(searchOperation: ISearchComplete, startConfig: SearchConfiguration, startInput: SearchEditorInput) {
 		const input = this.getInput();
 		if (!input ||
 			input !== startInput ||
-			JSON.stringify(config) !== JSON.stringify(this.readConfigFromWidget())) {
+			JSON.stringify(startConfig) !== JSON.stringify(this.readConfigFromWidget())) {
 			return;
 		}
+
+		input.ongoingSearchOperation = undefined;
 
 		const sortOrder = this.searchConfig.sortOrder;
 		if (sortOrder === SearchSortOrder.Modified) {
@@ -533,43 +560,22 @@ export class SearchEditor extends BaseTextEditor {
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.filesToInclude, config.filesToExclude, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
-		const { body } = await input.getModels();
-		this.modelService.updateModel(body, results.text);
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
+		const { resultsModel } = await input.getModels();
+		this.modelService.updateModel(resultsModel, results.text);
 
-		let warningMessage = '';
-
-		if (exit && exit.limitHit) {
-			warningMessage += localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.");
-		}
-
-		if (exit && exit.messages) {
-			for (const message of exit.messages) {
-				if (message.type === TextSearchCompleteMessageType.Information) {
-					this.addMessage(message.text);
-				}
-				else if (message.type === TextSearchCompleteMessageType.Warning) {
-					warningMessage += (warningMessage ? ' - ' : '') + message.text;
-				}
+		if (searchOperation && searchOperation.messages) {
+			for (const message of searchOperation.messages) {
+				this.addMessage(message);
 			}
 		}
+		this.reLayout();
 
-		if (warningMessage) {
-			this.queryEditorWidget.searchInput.showMessage({
-				content: warningMessage,
-				type: MessageType.WARNING
-			});
-		}
-
-		input.config = config;
-
-		input.setDirty(!input.isUntitled());
+		input.setDirty(!input.hasCapability(EditorInputCapabilities.Untitled));
 		input.setMatchRanges(results.matchRanges);
 	}
 
-	private addMessage(message: string) {
-		const linkedText = parseLinkedText(message);
-
+	private addMessage(message: TextSearchCompleteMessage) {
 		let messageBox: HTMLElement;
 		if (this.messageBox.firstChild) {
 			messageBox = this.messageBox.firstChild as HTMLElement;
@@ -577,20 +583,7 @@ export class SearchEditor extends BaseTextEditor {
 			messageBox = DOM.append(this.messageBox, DOM.$('.message'));
 		}
 
-		if (messageBox.innerText) {
-			DOM.append(messageBox, document.createTextNode(' - '));
-		}
-
-		for (const node of linkedText.nodes) {
-			if (typeof node === 'string') {
-				DOM.append(messageBox, document.createTextNode(node));
-			} else {
-				const link = this.instantiationService.createInstance(Link, node);
-				DOM.append(messageBox, link.el);
-				this.messageDisposables.add(link);
-				this.messageDisposables.add(attachLinkStyler(link, this.themeService));
-			}
-		}
+		DOM.append(messageBox, renderSearchMessage(message, this.instantiationService, this.notificationService, this.openerService, this.commandService, this.messageDisposables, () => this.triggerSearch()));
 	}
 
 	private async retrieveFileStats(searchResult: SearchResult): Promise<void> {
@@ -624,7 +617,9 @@ export class SearchEditor extends BaseTextEditor {
 		return this._input as SearchEditorInput;
 	}
 
+	private priorConfig: Partial<Readonly<SearchConfiguration>> | undefined;
 	setSearchConfig(config: Partial<Readonly<SearchConfiguration>>) {
+		this.priorConfig = config;
 		if (config.query !== undefined) { this.queryEditorWidget.setValue(config.query); }
 		if (config.isCaseSensitive !== undefined) { this.queryEditorWidget.searchInput.setCaseSensitive(config.isCaseSensitive); }
 		if (config.isRegexp !== undefined) { this.queryEditorWidget.searchInput.setRegex(config.isRegexp); }
@@ -637,21 +632,31 @@ export class SearchEditor extends BaseTextEditor {
 		if (config.showIncludesExcludes !== undefined) { this.toggleIncludesExcludes(config.showIncludesExcludes); }
 	}
 
-	override async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(newInput: SearchEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, context, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		const { configurationModel, resultsModel } = await newInput.getModels();
 		if (token.isCancellationRequested) { return; }
 
-		const { body, config } = await newInput.getModels();
-		if (token.isCancellationRequested) { return; }
-
-		this.searchResultEditor.setModel(body);
+		this.searchResultEditor.setModel(resultsModel);
 		this.pauseSearching = true;
 
-		this.toggleRunAgainMessage(body.getLineCount() === 1 && body.getValue() === '' && config.query !== '');
+		this.toggleRunAgainMessage(!newInput.ongoingSearchOperation && resultsModel.getLineCount() === 1 && resultsModel.getValue() === '' && configurationModel.config.query !== '');
 
-		this.setSearchConfig(config);
+		this.setSearchConfig(configurationModel.config);
+
+		this._register(configurationModel.onConfigDidUpdate(newConfig => {
+			if (newConfig !== this.priorConfig) {
+				this.pauseSearching = true;
+				this.setSearchConfig(newConfig);
+				this.pauseSearching = false;
+			}
+		}));
 
 		this.restoreViewState();
 
@@ -660,6 +665,13 @@ export class SearchEditor extends BaseTextEditor {
 		}
 
 		this.pauseSearching = false;
+
+		if (newInput.ongoingSearchOperation) {
+			const existingConfig = this.readConfigFromWidget();
+			newInput.ongoingSearchOperation.then(complete => {
+				this.onSearchComplete(complete, existingConfig, newInput);
+			});
+		}
 	}
 
 	private toggleIncludesExcludes(_shouldShow?: boolean): void {

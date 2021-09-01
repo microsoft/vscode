@@ -20,7 +20,7 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -39,13 +39,13 @@
       "title": "Gulp",
       "properties": {
         "gulp.autoDetect": {
-          "scope": "resource",
+          "scope": "application",
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
+          "default": "off",
           "description": "%config.gulp.autoDetect%"
         }
       }

@@ -210,17 +210,17 @@ export class SimpleFileDialog {
 		return newOptions;
 	}
 
-	private remoteUriFrom(path: string): URI {
+	private remoteUriFrom(path: string, hintUri?: URI): URI {
 		if (!path.startsWith('\\\\')) {
 			path = path.replace(/\\/g, '/');
 		}
-		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		// If the default scheme is file, then we don't care about the remote authority
-		const authority = uri.scheme === Schemas.file ? undefined : this.remoteAuthority;
+		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path, query: hintUri?.query, fragment: hintUri?.fragment });
+		// If the default scheme is file, then we don't care about the remote authority or the hint authority
+		const authority = (uri.scheme === Schemas.file) ? undefined : (this.remoteAuthority ?? hintUri?.authority);
 		return resources.toLocalResource(uri, authority,
 			// If there is a remote authority, then we should use the system's default URI as the local scheme.
 			// If there is *no* remote authority, then we should use the default scheme for this dialog as that is already local.
-			authority ? this.pathService.defaultUriScheme : uri.scheme);
+			this.remoteAuthority ? this.pathService.defaultUriScheme : uri.scheme);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
@@ -450,8 +450,12 @@ export class SimpleFileDialog {
 
 	private constructFullUserPath(): string {
 		const currentFolderPath = this.pathFromUri(this.currentFolder);
-		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment) && equalsIgnoreCase(this.filePickBox.value.substr(0, currentFolderPath.length), currentFolderPath)) {
-			return currentFolderPath;
+		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment)) {
+			if (equalsIgnoreCase(this.filePickBox.value.substr(0, currentFolderPath.length), currentFolderPath)) {
+				return currentFolderPath;
+			} else {
+				return this.userEnteredPathSegment;
+			}
 		} else {
 			return this.pathAppend(this.currentFolder, this.userEnteredPathSegment);
 		}
@@ -459,19 +463,19 @@ export class SimpleFileDialog {
 
 	private filePickBoxValue(): URI {
 		// The file pick box can't render everything, so we use the current folder to create the uri so that it is an existing path.
-		const directUri = this.remoteUriFrom(this.filePickBox.value.trimRight());
+		const directUri = this.remoteUriFrom(this.filePickBox.value.trimRight(), this.currentFolder);
 		const currentPath = this.pathFromUri(this.currentFolder);
 		if (equalsIgnoreCase(this.filePickBox.value, currentPath)) {
 			return this.currentFolder;
 		}
-		const currentDisplayUri = this.remoteUriFrom(currentPath);
+		const currentDisplayUri = this.remoteUriFrom(currentPath, this.currentFolder);
 		const relativePath = resources.relativePath(currentDisplayUri, directUri);
 		const isSameRoot = (this.filePickBox.value.length > 1 && currentPath.length > 1) ? equalsIgnoreCase(this.filePickBox.value.substr(0, 2), currentPath.substr(0, 2)) : false;
 		if (relativePath && isSameRoot) {
 			let path = resources.joinPath(this.currentFolder, relativePath);
 			const directBasename = resources.basename(directUri);
 			if ((directBasename === '.') || (directBasename === '..')) {
-				path = this.remoteUriFrom(this.pathAppend(path, directBasename));
+				path = this.remoteUriFrom(this.pathAppend(path, directBasename), this.currentFolder);
 			}
 			return resources.hasTrailingPathSeparator(directUri) ? resources.addTrailingPathSeparator(path) : path;
 		} else {
@@ -904,20 +908,22 @@ export class SimpleFileDialog {
 		return child.substring(parent.length);
 	}
 
-	private createBackItem(currFolder: URI): FileQuickPickItem | null {
+	private async createBackItem(currFolder: URI): Promise<FileQuickPickItem | undefined> {
 		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file, authority: '' });
 		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
 		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
 			const parentFolder = resources.dirname(currFolder);
-			return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
+			if (await this.fileService.exists(parentFolder)) {
+				return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
+			}
 		}
-		return null;
+		return undefined;
 	}
 
 	private async createItems(folder: IFileStat | undefined, currentFolder: URI, token: CancellationToken): Promise<FileQuickPickItem[]> {
 		const result: FileQuickPickItem[] = [];
 
-		const backDir = this.createBackItem(currentFolder);
+		const backDir = await this.createBackItem(currentFolder);
 		try {
 			if (!folder) {
 				folder = await this.fileService.resolve(currentFolder);

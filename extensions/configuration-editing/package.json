@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "jsonc-parser": "^2.2.1",
-    "vscode-nls": "^4.1.1"
+    "vscode-nls": "^5.0.0"
   },
   "capabilities": {
     "virtualWorkspaces": true,
@@ -139,7 +139,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "repository": {
     "type": "git",

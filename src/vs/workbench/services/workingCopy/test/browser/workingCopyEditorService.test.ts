@@ -6,10 +6,13 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IWorkingCopyEditorHandler, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { createEditorPart, registerTestResourceEditor, TestEditorService, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -52,6 +55,7 @@ suite('WorkingCopyEditorService', () => {
 		const instantiationService = workbenchInstantiationService();
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
+		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 		const editorService = instantiationService.createInstance(EditorService);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
@@ -73,7 +77,7 @@ suite('WorkingCopyEditorService', () => {
 		const editor1 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
 		const editor2 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
 
-		await editorService.openEditors([{ editor: editor1 }, { editor: editor2 }]);
+		await editorService.openEditors([{ editor: editor1, options: { override: EditorResolution.DISABLED } }, { editor: editor2, options: { override: EditorResolution.DISABLED } }]);
 
 		assert.ok(service.findEditor(testWorkingCopy));
 

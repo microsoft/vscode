@@ -21,19 +21,26 @@
 }
 
 .monaco-dropdown-with-primary {
-	display: flex;
+	display: flex !important;
 	flex-direction: row;
 	border-radius: 5px;
 }
 
-.monaco-dropdown-with-primary > .action-label {
+.monaco-dropdown-with-primary > .action-container > .action-label {
 	margin-right: 0;
 }
 
-.monaco-dropdown-with-primary > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
+.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
 	font-size: 12px;
 	padding-left: 0px;
 	padding-right: 0px;
 	line-height: 16px;
-	margin-left: -4px;
+	margin-left: -3px;
+}
+
+.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label {
+	display: block;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }

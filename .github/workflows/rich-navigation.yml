@@ -1,5 +1,6 @@
 name: "Rich Navigation Indexing"
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -19,9 +20,9 @@ jobs:
           key: ${{ runner.os }}-dependencies-${{ hashfiles('yarn.lock') }}
           restore-keys: ${{ runner.os }}-dependencies-
 
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v2
         with:
-          node-version: 10
+          node-version: 14
 
       - name: Install dependencies
         if: steps.caching-stage.outputs.cache-hit != 'true'
@@ -33,5 +34,6 @@ jobs:
         with:
           languages: typescript
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          typescriptVersion: 0.6.0-next.8
+          typescriptVersion: 0.6.0-next.16
+          configFiles: .lsifrc.json
         continue-on-error: true

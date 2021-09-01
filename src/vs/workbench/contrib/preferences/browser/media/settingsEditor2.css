@@ -12,10 +12,6 @@
 	overflow: hidden;
 }
 
-.settings-editor .codicon {
-	color: inherit !important;
-}
-
 .settings-editor:focus {
 	outline: none !important;
 }
@@ -166,17 +162,16 @@
 	display: none !important;
 }
 
-.settings-editor.mid-width > .settings-body > .settings-tree-container .shadow.top {
+.settings-editor.mid-width > .settings-body > .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
 	left: 0;
 	width: calc(100% - 48px);
 	margin-left: 24px;
 }
-
-.settings-editor > .settings-body > .settings-tree-container .shadow.top {
-	left: 50%;
-	max-width: 952px;
-	/* 1000 - 24*2 padding */
-	margin-left: -476px;
+.settings-editor.mid-width > .settings-body > .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top.top-left-corner {
+	width: 24px;
+	margin-left: 0px;
+}
+.settings-editor > .settings-body > .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
 	z-index: 11;
 }
 
@@ -459,6 +454,11 @@
 	font-family: var(--monaco-monospace-font);
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown .monaco-tokenized-source {
+	font-family: var(--monaco-monospace-font);
+	white-space: pre;
+}
+
 .settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown hr {
 	border-bottom-width: 0px;
 	margin: 10px 20px;
@@ -572,4 +572,17 @@
 
 .settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: block;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container {
+	width: 320px;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
+	width: inherit;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .codicon,
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row.focused .codicon,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon {
+	color: inherit !important;
 }

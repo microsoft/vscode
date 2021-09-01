@@ -25,12 +25,16 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
+import { Emitter } from 'vs/base/common/event';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private impl: IContextMenuService;
+
+	private readonly _onDidShowContextMenu = this._register(new Emitter<void>());
+	readonly onDidShowContextMenu = this._onDidShowContextMenu.event;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -56,12 +60,15 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	showContextMenu(delegate: IContextMenuDelegate): void {
 		this.impl.showContextMenu(delegate);
+		this._onDidShowContextMenu.fire();
 	}
 }
 
 class NativeContextMenuService extends Disposable implements IContextMenuService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly onDidShowContextMenu = new Emitter<void>().event;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,

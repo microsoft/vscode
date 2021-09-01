@@ -28,7 +28,7 @@ registry.registerConfiguration({
 			'description': localize('workbench.enableExperiments', "Fetches experiments to run from a Microsoft online service."),
 			'default': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'requireTrust': true,
+			'restricted': true,
 			'tags': ['usesOnlineServices']
 		}
 	}

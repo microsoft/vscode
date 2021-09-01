@@ -75,6 +75,16 @@
 	margin-right: .8em;
 }
 
+.monaco-action-bar .action-item .action-label.separator {
+	width: 1px;
+	height: 16px;
+	margin: 5px 4px !important;
+	cursor: default;
+	min-width: 1px;
+	padding: 0;
+	background-color: #bbb;
+}
+
 .secondary-actions .monaco-action-bar .action-label {
 	margin-left: 6px;
 }

@@ -4,31 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
-export type TestIdWithSrc = Required<TestIdWithMaybeSrc>;
+export const enum TestResultState {
+	Unset = 0,
+	Queued = 1,
+	Running = 2,
+	Passed = 3,
+	Failed = 4,
+	Skipped = 5,
+	Errored = 6
+}
 
-export interface TestIdWithMaybeSrc {
-	testId: string;
-	src?: { controller: string; tree: number };
+export const enum TestRunProfileBitset {
+	Run = 1 << 1,
+	Debug = 1 << 2,
+	Coverage = 1 << 3,
+	HasNonDefaultProfile = 1 << 4,
+	HasConfigurable = 1 << 5,
 }
 
 /**
- * Defines the path to a test, as a list of test IDs. The last element of the
- * array is the test ID, and the predecessors are its parents, in order.
+ * List of all test run profile bitset values.
  */
-export type TestIdPath = string[];
+export const testRunProfileBitsetList = [
+	TestRunProfileBitset.Run,
+	TestRunProfileBitset.Debug,
+	TestRunProfileBitset.Coverage,
+	TestRunProfileBitset.HasNonDefaultProfile,
+];
 
 /**
- * Request to the main thread to run a set of tests.
+ * DTO for a controller's run profiles.
  */
-export interface RunTestsRequest {
-	tests: TestIdWithMaybeSrc[];
+export interface ITestRunProfile {
+	controllerId: string;
+	profileId: number;
+	label: string;
+	group: TestRunProfileBitset;
+	isDefault: boolean;
+	tag: string | null;
+	hasConfigurationHandler: boolean;
+}
+
+/**
+ * A fully-resolved request to run tests, passsed between the main thread
+ * and extension host.
+ */
+export interface ResolvedTestRunRequest {
+	targets: {
+		testIds: string[];
+		controllerId: string;
+		profileGroup: TestRunProfileBitset;
+		profileId: number;
+	}[]
 	exclude?: string[];
-	debug: boolean;
 	isAutoRun?: boolean;
 }
 
@@ -37,20 +70,22 @@ export interface RunTestsRequest {
  */
 export interface ExtensionRunTestsRequest {
 	id: string;
-	tests: string[];
+	include: string[];
 	exclude: string[];
-	debug: boolean;
+	controllerId: string;
+	profile?: { group: TestRunProfileBitset, id: number };
 	persist: boolean;
 }
 
 /**
  * Request from the main thread to run tests for a single controller.
  */
-export interface RunTestForProviderRequest {
+export interface RunTestForControllerRequest {
 	runId: string;
+	controllerId: string;
+	profileId: number;
 	excludeExtIds: string[];
-	tests: TestIdWithSrc[];
-	debug: boolean;
+	testIds: string[];
 }
 
 /**
@@ -61,13 +96,27 @@ export interface IRichLocation {
 	uri: URI;
 }
 
-export interface ITestMessage {
+export const enum TestMessageType {
+	Error,
+	Info
+}
+
+export interface ITestErrorMessage {
 	message: string | IMarkdownString;
-	severity: TestMessageSeverity;
-	expectedOutput: string | undefined;
-	actualOutput: string | undefined;
+	type: TestMessageType.Error;
+	expected: string | undefined;
+	actual: string | undefined;
 	location: IRichLocation | undefined;
 }
+
+export interface ITestOutputMessage {
+	message: string;
+	type: TestMessageType.Info;
+	offset: number;
+	location: IRichLocation | undefined;
+}
+
+export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
 
 export interface ITestTaskState {
 	state: TestResultState;
@@ -81,6 +130,17 @@ export interface ITestRunTask {
 	running: boolean;
 }
 
+export interface ITestTag {
+	id: string;
+	label?: string;
+}
+
+export interface ITestTagDisplayInfo {
+	id: string;
+	displayId: string;
+	label?: string;
+}
+
 /**
  * The TestItem from .d.ts, as a plain object without children.
  */
@@ -88,13 +148,13 @@ export interface ITestItem {
 	/** ID of the test given by the test controller */
 	extId: string;
 	label: string;
+	tags: string[];
+	busy?: boolean;
 	children?: never;
-	uri: URI;
+	uri?: URI;
 	range: IRange | null;
 	description: string | null;
 	error: string | IMarkdownString | null;
-	runnable: boolean;
-	debuggable: boolean;
 }
 
 export const enum TestItemExpandState {
@@ -108,9 +168,13 @@ export const enum TestItemExpandState {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
-	src: { controller: string; tree: number };
+	/** Controller ID from whence this test came */
+	controllerId: string;
+	/** Expandability state */
 	expand: TestItemExpandState;
+	/** Parent ID, if any */
 	parent: string | null;
+	/** Raw test item properties */
 	item: ITestItem;
 }
 
@@ -135,11 +199,7 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 /**
  * Test result item used in the main thread.
  */
-export interface TestResultItem {
-	/** Parent ID, if any */
-	parent: string | null;
-	/** Raw test item properties */
-	item: ITestItem;
+export interface TestResultItem extends InternalTestItem {
 	/** State of this test in various tasks */
 	tasks: ITestTaskState[];
 	/** State of this test as a computation of its tasks */
@@ -148,8 +208,8 @@ export interface TestResultItem {
 	computedState: TestResultState;
 	/** True if the test is outdated */
 	retired: boolean;
-	/** True if the test was directly requested by the run (is not a child or parent) */
-	direct?: boolean;
+	/** Max duration of the item's tasks (if run directly) */
+	ownDuration?: number;
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
@@ -163,12 +223,56 @@ export interface ISerializedTestResults {
 	id: string;
 	/** Time the results were compelted */
 	completedAt: number;
-	/** Raw output, given for tests published by extensiosn */
-	output?: string;
 	/** Subset of test result items */
 	items: SerializedTestResultItem[];
 	/** Tasks involved in the run. */
-	tasks: ITestRunTask[];
+	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage[] }[];
+	/** Human-readable name of the test run. */
+	name: string;
+	/** Test trigger informaton */
+	request: ResolvedTestRunRequest;
+}
+
+export interface ITestCoverage {
+	files: IFileCoverage[];
+}
+
+export interface ICoveredCount {
+	covered: number;
+	total: number;
+}
+
+export interface IFileCoverage {
+	uri: URI;
+	statement: ICoveredCount;
+	branch?: ICoveredCount;
+	function?: ICoveredCount;
+	details?: CoverageDetails[];
+}
+
+export const enum DetailType {
+	Function,
+	Statement,
+}
+
+export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
+
+export interface IBranchCoverage {
+	count: number;
+	location?: IRange | IPosition;
+}
+
+export interface IFunctionCoverage {
+	type: DetailType.Function;
+	count: number;
+	location?: IRange | IPosition;
+}
+
+export interface IStatementCoverage {
+	type: DetailType.Statement;
+	count: number;
+	location: IRange | IPosition;
+	branches?: IBranchCoverage[];
 }
 
 export const enum TestDiffOpType {
@@ -192,10 +296,14 @@ export type TestsDiffOp =
 	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number];
 
 /**
- * Utility function to get a unique string for a subscription to a resource,
- * useful to keep maps of document or workspace folder subscription info.
+ * Context for actions taken in the test explorer view.
  */
-export const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
+export interface ITestItemContext {
+	/** Marshalling marker */
+	$mid: MarshalledId.TestItemContext;
+	/** Tests and parents from the root to the current items */
+	tests: InternalTestItem[];
+}
 
 /**
  * Request from the ext host or main thread to indicate that tests have
@@ -251,7 +359,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	/**
 	 * ID of test root items.
 	 */
-	protected readonly roots = new Set<string>();
+	protected readonly roots = new Set<T>();
 
 	/**
 	 * Number of 'busy' controllers.
@@ -274,8 +382,8 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 				case TestDiffOpType.Add: {
 					const internalTest = op[1];
 					if (!internalTest.parent) {
-						this.roots.add(internalTest.item.extId);
 						const created = this.createItem(internalTest);
+						this.roots.add(created);
 						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
 					} else if (this.items.has(internalTest.parent)) {
@@ -323,7 +431,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						const parent = this.items.get(toRemove.parent)!;
 						parent.children.delete(toRemove.item.extId);
 					} else {
-						this.roots.delete(toRemove.item.extId);
+						this.roots.delete(toRemove);
 					}
 
 					const queue: Iterable<string>[] = [[op[1]]];

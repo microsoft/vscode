@@ -66,12 +66,12 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.7",
-    "vscode-nls": "^4.0.0"
+    "vscode-extension-telemetry": "0.2.8",
+    "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "vscode-codicons": "^0.0.14",
-    "@types/node": "^12.11.7"
+    "@types/vscode-webview": "^1.57.0",
+    "vscode-codicons": "^0.0.14"
   },
   "repository": {
     "type": "git",

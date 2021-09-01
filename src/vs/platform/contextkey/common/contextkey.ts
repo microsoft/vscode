@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { isLinux, isMacintosh, isWeb, isWindows, userAgent } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { userAgent, isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/common/platform';
 
 let _userAgent = userAgent || '';
 const STATIC_VALUES = new Map<string, boolean>();
@@ -21,7 +21,6 @@ STATIC_VALUES.set('isEdge', _userAgent.indexOf('Edg/') >= 0);
 STATIC_VALUES.set('isFirefox', _userAgent.indexOf('Firefox') >= 0);
 STATIC_VALUES.set('isChrome', _userAgent.indexOf('Chrome') >= 0);
 STATIC_VALUES.set('isSafari', _userAgent.indexOf('Safari') >= 0);
-STATIC_VALUES.set('isIPad', _userAgent.indexOf('iPad') >= 0);
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 

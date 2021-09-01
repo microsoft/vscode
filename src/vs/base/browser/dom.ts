@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
-import { domEvent } from 'vs/base/browser/event';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
+import * as platform from 'vs/base/common/platform';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -347,16 +347,7 @@ export function getClientArea(element: HTMLElement): Dimension {
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
 	if (platform.isIOS && window.visualViewport) {
-		const width = window.visualViewport.width;
-		const height = window.visualViewport.height - (
-			browser.isStandalone
-				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
-				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
-				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
-				? (20 + 4) // + 4px for body margin
-				: 0
-		);
-		return new Dimension(width, height);
+		return new Dimension(window.visualViewport.width, window.visualViewport.height);
 	}
 
 	// Try innerWidth / innerHeight
@@ -679,7 +670,7 @@ function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 }
 
 /**
- * Check if `testAncestor` is an ancessor of `testChild`, observing the explicit
+ * Check if `testAncestor` is an ancestor of `testChild`, observing the explicit
  * parents set by `setParentFlowTo`.
  */
 export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): boolean {
@@ -983,8 +974,8 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			}
 		};
 
-		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
-		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
+		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
+		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
 	}
 
 	refreshState() {
@@ -1187,28 +1178,44 @@ export function computeScreenAwareSize(cssPx: number): number {
 }
 
 /**
+ * Open safely a new window. This is the best way to do so, but you cannot tell
+ * if the window was opened or if it was blocked by the browser's popup blocker.
+ * If you want to tell if the browser blocked the new window, use `windowOpenNoOpenerWithSuccess`.
+ *
  * See https://github.com/microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
  * the window.opener should be set to null to prevent the linked site from having access
  * to change the location of the current page.
  * See https://mathiasbynens.github.io/rel-noopener/
  */
-export function windowOpenNoOpener(url: string): boolean {
-	if (browser.isElectron || browser.isEdgeLegacyWebView) {
-		// In VSCode, window.open() always returns null...
-		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
-		// Also call directly window.open in sandboxed Electron (see https://github.com/microsoft/monaco-editor/issues/2220)
-		window.open(url);
+export function windowOpenNoOpener(url: string): void {
+	// By using 'noopener' in the `windowFeatures` argument, the newly created window will
+	// not be able to use `window.opener` to reach back to the current page.
+	// See https://stackoverflow.com/a/46958731
+	// See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
+	// However, this also doesn't allow us to realize if the browser blocked
+	// the creation of the window.
+	window.open(url, '_blank', 'noopener');
+}
+
+/**
+ * Open safely a new window. This technique is not appropriate in certain contexts,
+ * like for example when the JS context is executing inside a sandboxed iframe.
+ * If it is not necessary to know if the browser blocked the new window, use
+ * `windowOpenNoOpener`.
+ *
+ * See https://github.com/microsoft/monaco-editor/issues/601
+ * See https://github.com/microsoft/monaco-editor/issues/2474
+ * See https://mathiasbynens.github.io/rel-noopener/
+ */
+export function windowOpenNoOpenerWithSuccess(url: string): boolean {
+	const newTab = window.open();
+	if (newTab) {
+		(newTab as any).opener = null;
+		newTab.location.href = url;
 		return true;
-	} else {
-		let newTab = window.open();
-		if (newTab) {
-			(newTab as any).opener = null;
-			newTab.location.href = url;
-			return true;
-		}
-		return false;
 	}
+	return false;
 }
 
 export function animate(fn: () => void): IDisposable {
@@ -1266,6 +1273,29 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	setTimeout(() => document.body.removeChild(anchor));
 }
 
+export function triggerUpload(): Promise<FileList | undefined> {
+	return new Promise<FileList | undefined>(resolve => {
+
+		// In order to upload to the browser, create a
+		// input element of type `file` and click it
+		// to gather the selected files
+		const input = document.createElement('input');
+		document.body.appendChild(input);
+		input.type = 'file';
+		input.multiple = true;
+
+		// Resolve once the input event has fired once
+		Event.once(Event.fromDOMEventEmitter(input, 'input'))(() => {
+			resolve(withNullAsUndefined(input.files));
+		});
+
+		input.click();
+
+		// Ensure to remove the element from DOM eventually
+		setTimeout(() => document.body.removeChild(input));
+	});
+}
+
 export enum DetectedFullscreenMode {
 
 	/**
@@ -1275,7 +1305,7 @@ export enum DetectedFullscreenMode {
 	DOCUMENT = 1,
 
 	/**
-	 * The browser is fullsreen, e.g. because the user enabled
+	 * The browser is fullscreen, e.g. because the user enabled
 	 * native window fullscreen for it.
 	 */
 	BROWSER
@@ -1362,7 +1392,7 @@ const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
 export function safeInnerHtml(node: HTMLElement, value: string): void {
 
 	const options = _extInsaneOptions({
-		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+		allowedTags: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 		allowedAttributes: {
 			'a': ['href', 'x-dispatch'],
 			'button': ['data-href', 'x-dispatch'],
@@ -1449,7 +1479,10 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(domEvent(window, 'keydown', true)(e => {
+		this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
+			if (e.defaultPrevented) {
+				return;
+			}
 
 			const event = new StandardKeyboardEvent(e);
 			// If Alt-key keydown event is repeated, ignore it #112347
@@ -1481,9 +1514,13 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(window, 'keyup', true)(e => {
+		this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
 			if (!e.altKey && this._keyStatus.altKey) {
 				this._keyStatus.lastKeyReleased = 'alt';
 			} else if (!e.ctrlKey && this._keyStatus.ctrlKey) {
@@ -1509,23 +1546,23 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 				this._keyStatus.event = e;
 				this.fire(this._keyStatus);
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mousedown', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
 			this._keyStatus.lastKeyPressed = undefined;
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mouseup', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
 			this._keyStatus.lastKeyPressed = undefined;
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(document.body, 'mousemove', true)(e => {
+		this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
-		}));
+		}, true));
 
-		this._subscriptions.add(domEvent(window, 'blur')(e => {
+		this._subscriptions.add(addDisposableListener(window, 'blur', () => {
 			this.resetKeyStatus();
 		}));
 	}
@@ -1573,4 +1610,25 @@ export function getCookieValue(name: string): string | undefined {
 	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
 
 	return match ? match.pop() : undefined;
+}
+
+export function addMatchMediaChangeListener(query: string, callback: () => void): void {
+	const mediaQueryList = window.matchMedia(query);
+	if (typeof mediaQueryList.addEventListener === 'function') {
+		mediaQueryList.addEventListener('change', callback);
+	} else {
+		// Safari 13.x
+		mediaQueryList.addListener(callback);
+	}
+}
+
+export const enum ZIndex {
+	SASH = 35,
+	SuggestWidget = 40,
+	Hover = 50,
+	DragImage = 1000,
+	MenubarMenuItemsHolder = 2000, // quick-input-widget
+	ContextView = 2500,
+	ModalDialog = 2600,
+	PaneDropOverlay = 10000
 }

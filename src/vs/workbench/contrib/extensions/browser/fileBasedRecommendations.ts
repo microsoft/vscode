@@ -20,7 +20,7 @@ import { Schemas } from 'vs/base/common/network';
 import { basename, extname } from 'vs/base/common/resources';
 import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { MIME_UNKNOWN, guessMimeTypes } from 'vs/base/common/mime';
+import { Mimes, guessMimeTypes } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -29,6 +29,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -152,7 +153,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private onModelAdded(model: ITextModel): void {
-		const uri = model.uri;
+		const uri = model.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(model.uri)?.notebook : model.uri;
 		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
 		if (!uri || !supportedSchemes.includes(uri.scheme)) {
 			return;
@@ -193,7 +194,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			if (!extensionIds.length) {
 				continue;
 			}
-			if (!match(pattern, uri.toString())) {
+			if (!match(pattern, uri.with({ fragment: '' }).toString())) {
 				continue;
 			}
 			for (const extensionId of extensionIds) {
@@ -230,7 +231,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		const mimeTypes = guessMimeTypes(uri);
-		if (mimeTypes.length !== 1 || mimeTypes[0] !== MIME_UNKNOWN) {
+		if (mimeTypes.length !== 1 || mimeTypes[0] !== Mimes.unknown) {
 			return;
 		}
 

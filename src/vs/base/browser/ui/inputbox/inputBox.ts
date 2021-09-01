@@ -3,30 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inputBox';
-
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
+import { DomEmitter } from 'vs/base/browser/event';
 import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IAction } from 'vs/base/common/actions';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Color } from 'vs/base/common/color';
-import { mixin } from 'vs/base/common/objects';
-import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { IAction } from 'vs/base/common/actions';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { domEvent } from 'vs/base/browser/event';
+import 'vs/css!./inputBox';
+import * as nls from 'vs/nls';
+
 
 const $ = dom.$;
 
 export interface IInputOptions extends IInputBoxStyles {
 	readonly placeholder?: string;
+	readonly showPlaceholderOnFocus?: boolean;
 	readonly tooltip?: string;
 	readonly ariaLabel?: string;
 	readonly type?: string;
@@ -189,13 +190,14 @@ export class InputBox extends Widget {
 			// from ScrollableElement to DOM
 			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
 
-			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
+			const onSelectionChange = this._register(new DomEmitter(document, 'selectionchange'));
+			const onAnchoredSelectionChange = Event.filter(onSelectionChange.event, () => {
 				const selection = document.getSelection();
 				return selection?.anchorNode === wrapper;
 			});
 
 			// from DOM to ScrollableElement
-			this._register(onSelectionChange(this.updateScrollDimensions, this));
+			this._register(onAnchoredSelectionChange(this.updateScrollDimensions, this));
 			this._register(this.onDidHeightChange(this.updateScrollDimensions, this));
 		} else {
 			this.input.type = this.options.type || 'text';
@@ -206,7 +208,7 @@ export class InputBox extends Widget {
 			this.input.setAttribute('aria-label', this.ariaLabel);
 		}
 
-		if (this.placeholder) {
+		if (this.placeholder && !this.options.showPlaceholderOnFocus) {
 			this.setPlaceHolder(this.placeholder);
 		}
 
@@ -233,10 +235,16 @@ export class InputBox extends Widget {
 
 	private onBlur(): void {
 		this._hideMessage();
+		if (this.options.showPlaceholderOnFocus) {
+			this.input.setAttribute('placeholder', '');
+		}
 	}
 
 	private onFocus(): void {
 		this._showMessage();
+		if (this.options.showPlaceholderOnFocus) {
+			this.input.setAttribute('placeholder', this.placeholder || '');
+		}
 	}
 
 	public setPlaceHolder(placeHolder: string): void {
@@ -538,7 +546,8 @@ export class InputBox extends Widget {
 		const value = this.value;
 		const lastCharCode = value.charCodeAt(value.length - 1);
 		const suffix = lastCharCode === 10 ? ' ' : '';
-		const mirrorTextContent = value + suffix;
+		const mirrorTextContent = (value + suffix)
+			.replace(/\u000c/g, ''); // Don't measure with the form feed character, which messes up sizing
 
 		if (mirrorTextContent) {
 			this.mirror.textContent = value + suffix;

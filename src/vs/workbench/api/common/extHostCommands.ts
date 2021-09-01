@@ -166,12 +166,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			const toArgs = cloneAndChange(args, function (value) {
 				if (value instanceof extHostTypes.Position) {
 					return extHostTypeConverter.Position.from(value);
-				}
-				if (value instanceof extHostTypes.Range) {
+				} else if (value instanceof extHostTypes.Range) {
 					return extHostTypeConverter.Range.from(value);
-				}
-				if (value instanceof extHostTypes.Location) {
+				} else if (value instanceof extHostTypes.Location) {
 					return extHostTypeConverter.location.from(value);
+				} else if (extHostTypes.NotebookRange.isNotebookRange(value)) {
+					return extHostTypeConverter.NotebookRange.from(value);
 				}
 				if (!Array.isArray(value)) {
 					return value;
@@ -369,7 +369,8 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
 
-	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.to);
+	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.from);
+	static readonly TypeHierarchyItem = new ApiCommandArgument('item', 'A type hierarchy item', v => v instanceof extHostTypes.TypeHierarchyItem, extHostTypeConverter.TypeHierarchyItem.from);
 
 	constructor(
 		readonly name: string,

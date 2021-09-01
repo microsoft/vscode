@@ -3,13 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as types from 'vs/base/common/types';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as types from 'vs/base/common/types';
+import * as nls from 'vs/nls';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+
+export enum EditPresentationTypes {
+	Multiline = 'multilineText',
+	Singleline = 'singlelineText'
+}
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -113,10 +118,10 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
 
 	/**
-	 * When enabled, value of this configuration will be read only from trusted sources.
+	 * When restricted, value of this configuration will be read only from trusted sources.
 	 * For eg., If the workspace is not trusted, then the value of this configuration is not read from workspace settings file.
 	 */
-	requireTrust?: boolean;
+	restricted?: boolean;
 
 	included?: boolean;
 
@@ -133,11 +138,17 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	disallowSyncIgnore?: boolean;
 
 	enumItemLabels?: string[];
+
+	/**
+	 * When specified, controls the presentation format of string settings.
+	 * Otherwise, the presentation format defaults to `singleline`.
+	 */
+	editPresentation?: EditPresentationTypes;
 }
 
 export interface IConfigurationExtensionInfo {
 	id: string;
-	requireTrustForConfigurations?: string[];
+	restrictedConfigurations?: string[];
 }
 
 export interface IConfigurationNode {
@@ -329,7 +340,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
-					property.requireTrust = types.isUndefinedOrNull(property.requireTrust) ? !!extensionInfo?.requireTrustForConfigurations?.includes(key) : property.requireTrust;
+					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!extensionInfo?.restrictedConfigurations?.includes(key) : property.restricted;
 				}
 
 				// Add to properties maps

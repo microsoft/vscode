@@ -36,8 +36,11 @@ suite('SuggestController', function () {
 	let editor: ITestCodeEditor;
 	let model: TextModel;
 
-	setup(function () {
+	teardown(function () {
 		disposables.clear();
+	});
+
+	setup(function () {
 
 		const serviceCollection = new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],

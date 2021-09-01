@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 
@@ -46,7 +46,8 @@ class MirrorCell {
 		public language: string,
 		public cellKind: CellKind,
 		public outputs: IOutputDto[],
-		public metadata?: NotebookCellMetadata
+		public metadata?: NotebookCellMetadata,
+		public internalMetadata?: NotebookCellInternalMetadata,
 
 	) { }
 
@@ -70,8 +71,11 @@ class MirrorCell {
 			return this._primaryKey!;
 		}
 
-		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.outputs.map(op => ({
-			outputs: op.outputs,
+		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.internalMetadata, this.outputs.map(op => ({
+			outputs: op.outputs.map(output => ({
+				mime: output.mime,
+				data: Array.from(output.data)
+			})),
 			metadata: op.metadata
 		}))]);
 		return this._hash;
@@ -82,7 +86,7 @@ class MirrorCell {
 			return this._hash;
 		}
 
-		this._hash = hash([hash(this.getValue()), this.language, this.metadata]);
+		this._hash = hash([hash(this.getValue()), this.language, this.metadata, this.internalMetadata]);
 		return this._hash;
 	}
 }
@@ -114,11 +118,14 @@ class MirrorNotebookDocument {
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
 				const cell = this.cells[e.index];
 				cell.metadata = e.metadata;
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellInternalMetadata) {
+				const cell = this.cells[e.index];
+				cell.internalMetadata = e.internalMetadata;
 			}
 		});
 	}
 
-	_spliceNotebookCells(splices: NotebookCellsSplice2[]) {
+	_spliceNotebookCells(splices: NotebookCellTextModelSplice<IMainCellDto>[]) {
 		splices.reverse().forEach(splice => {
 			const cellDtos = splice[2];
 			const newCells = cellDtos.map(cell => {
@@ -169,7 +176,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	dispose(): void {
 	}
 
-	public acceptNewModel(uri: string, data: NotebookDataDto): void {
+	public acceptNewModel(uri: string, data: NotebookData): void {
 		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), data.cells.map(dto => new MirrorCell(
 			(dto as unknown as IMainCellDto).handle,
 			dto.source,

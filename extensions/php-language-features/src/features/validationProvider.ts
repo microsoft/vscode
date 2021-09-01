@@ -14,7 +14,6 @@ let localize = nls.loadMessageBundle();
 
 const enum Setting {
 	Run = 'php.validate.run',
-	CheckedExecutablePath = 'php.validate.checkedExecutablePath',
 	Enable = 'php.validate.enable',
 	ExecutablePath = 'php.validate.executablePath',
 }
@@ -23,7 +22,7 @@ export class LineDecoder {
 	private stringDecoder: StringDecoder;
 	private remaining: string | null;
 
-	constructor(encoding: string = 'utf8') {
+	constructor(encoding: BufferEncoding = 'utf8') {
 		this.stringDecoder = new StringDecoder(encoding);
 		this.remaining = null;
 	}
@@ -99,7 +98,7 @@ export default class PHPValidationProvider {
 	private diagnosticCollection?: vscode.DiagnosticCollection;
 	private delayers?: { [key: string]: ThrottledDelayer<void> };
 
-	constructor(private workspaceStore: vscode.Memento) {
+	constructor() {
 		this.validationEnabled = true;
 		this.pauseValidation = false;
 		this.loadConfigP = this.loadConfiguration();
@@ -115,7 +114,6 @@ export default class PHPValidationProvider {
 			this.diagnosticCollection!.delete(textDocument.uri);
 			delete this.delayers![textDocument.uri.toString()];
 		}, null, subscriptions);
-		subscriptions.push(vscode.commands.registerCommand('php.untrustValidationExecutable', this.untrustValidationExecutable, this));
 	}
 
 	public dispose(): void {
@@ -135,15 +133,6 @@ export default class PHPValidationProvider {
 		this.validationEnabled = section.get<boolean>(Setting.Enable, true);
 
 		this.config = await getConfig();
-
-		if (this.config.executableIsUserDefined !== true && this.workspaceStore.get<string | undefined>(Setting.CheckedExecutablePath, undefined) !== undefined) {
-			vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
-		}
-
-		const trustEnabled = vscode.workspace.getConfiguration().get('security.workspace.trust.enabled');
-		if (trustEnabled) {
-			vscode.workspace.requestWorkspaceTrust();
-		}
 
 		this.delayers = Object.create(null);
 		if (this.pauseValidation) {
@@ -167,19 +156,13 @@ export default class PHPValidationProvider {
 		}
 	}
 
-	private untrustValidationExecutable() {
-		this.workspaceStore.update(Setting.CheckedExecutablePath, undefined);
-		vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', false);
-	}
-
 	private async triggerValidate(textDocument: vscode.TextDocument): Promise<void> {
 		await this.loadConfigP;
 		if (textDocument.languageId !== 'php' || this.pauseValidation || !this.validationEnabled) {
 			return;
 		}
 
-
-		let trigger = () => {
+		if (vscode.workspace.isTrusted) {
 			let key = textDocument.uri.toString();
 			let delayer = this.delayers![key];
 			if (!delayer) {
@@ -187,52 +170,7 @@ export default class PHPValidationProvider {
 				this.delayers![key] = delayer;
 			}
 			delayer.trigger(() => this.doValidate(textDocument));
-		};
-
-		const trustEnabled = vscode.workspace.getConfiguration().get('security.workspace.trust.enabled');
-		if (trustEnabled) {
-			if (vscode.workspace.isTrusted) {
-				trigger();
-			}
-		} else if (this.config!.executableIsUserDefined !== undefined && !this.config!.executableIsUserDefined) {
-			const checkedExecutablePath = this.workspaceStore.get<string | undefined>(Setting.CheckedExecutablePath, undefined);
-			if (!checkedExecutablePath || checkedExecutablePath !== this.config!.executable) {
-				if (await this.showCustomTrustDialog()) {
-					this.workspaceStore.update(Setting.CheckedExecutablePath, this.config!.executable);
-					vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
-				} else {
-					this.pauseValidation = true;
-					return;
-				}
-			}
-
-			trigger();
 		}
-	}
-
-	private async showCustomTrustDialog(): Promise<boolean> {
-		interface MessageItem extends vscode.MessageItem {
-			id: string;
-		}
-
-		const selected = await vscode.window.showInformationMessage<MessageItem>(
-			localize('php.useExecutablePath', 'Do you allow {0} (defined as a workspace setting) to be executed to lint PHP files?', this.config!.executable),
-			{
-				title: localize('php.yes', 'Allow'),
-				id: 'yes'
-			},
-			{
-				title: localize('php.no', 'Disallow'),
-				isCloseAffordance: true,
-				id: 'no'
-			}
-		);
-
-		if (selected && selected.id === 'yes') {
-			return true;
-		}
-
-		return false;
 	}
 
 	private doValidate(textDocument: vscode.TextDocument): Promise<void> {

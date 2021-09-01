@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, IUserDataSyncService, SyncResource, SyncStatus, PREVIEW_DIR_NAME, ISyncData, IResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { joinPath, dirname } from 'vs/base/common/resources';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
+import { IResourcePreview, ISyncData, IUserDataSyncService, IUserDataSyncStoreService, PREVIEW_DIR_NAME, SyncResource, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
+import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 const tsSnippet1 = `{
 

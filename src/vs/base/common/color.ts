@@ -11,7 +11,7 @@ function roundFloat(number: number, decimalPoints: number): number {
 }
 
 export class RGBA {
-	_rgbaBrand: void;
+	_rgbaBrand: void = undefined;
 
 	/**
 	 * Red: integer in [0-255]
@@ -47,7 +47,7 @@ export class RGBA {
 
 export class HSLA {
 
-	_hslaBrand: void;
+	_hslaBrand: void = undefined;
 
 	/**
 	 * Hue: integer in [0, 360]
@@ -160,7 +160,7 @@ export class HSLA {
 
 export class HSVA {
 
-	_hsvaBrand: void;
+	_hsvaBrand: void = undefined;
 
 	/**
 	 * Hue: integer in [0, 360]
@@ -523,7 +523,7 @@ export namespace Color {
 			/**
 			 * The default format will use HEX if opaque and RGBA otherwise.
 			 */
-			export function format(color: Color): string | null {
+			export function format(color: Color): string {
 				if (color.isOpaque()) {
 					return Color.Format.CSS.formatHex(color);
 				}

@@ -15,6 +15,7 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
@@ -156,14 +157,18 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 	const domains = await Promise.race([
 		new Promise<string[][]>(resolve => setTimeout(() => resolve([]), 2000)),
 		Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
-			const path = workspaceUri.path;
-			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-			const exists = await fileService.exists(uri);
-			if (!exists) {
+			try {
+				const path = workspaceUri.path;
+				const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+				const exists = await fileService.exists(uri);
+				if (!exists) {
+					return [];
+				}
+				const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
+				return extractGitHubRemotesFromGitConfig(gitConfig);
+			} catch {
 				return [];
 			}
-			const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
-			return extractGitHubRemotesFromGitConfig(gitConfig);
 		}))]);
 
 	const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
@@ -208,10 +213,12 @@ export async function readAuthenticationTrustedDomains(accessor: ServicesAccesso
 export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {
 	const storageService = accessor.get(IStorageService);
 	const productService = accessor.get(IProductService);
+	const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
-	const defaultTrustedDomains: string[] = productService.linkProtectionTrustedDomains
-		? [...productService.linkProtectionTrustedDomains]
-		: [];
+	const defaultTrustedDomains = [
+		...productService.linkProtectionTrustedDomains ?? [],
+		...environmentService.options?.additionalTrustedDomains ?? []
+	];
 
 	let trustedDomains: string[] = [];
 	try {

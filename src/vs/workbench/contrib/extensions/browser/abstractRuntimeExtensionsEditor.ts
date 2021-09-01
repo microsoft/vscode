@@ -8,13 +8,13 @@ import * as nls from 'vs/nls';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, reset, Dimension, clearNode } from 'vs/base/browser/dom';
+import { append, $, reset, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -22,7 +22,6 @@ import { EnablementState } from 'vs/workbench/services/extensionManagement/commo
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -32,10 +31,12 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { domEvent } from 'vs/base/browser/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 interface IExtensionProfileInformation {
 	/**
@@ -54,7 +55,7 @@ interface IExtensionProfileInformation {
 export interface IRuntimeExtension {
 	originalIndex: number;
 	description: IExtensionDescription;
-	marketplaceInfo: IExtension;
+	marketplaceInfo: IExtension | undefined;
 	status: IExtensionsStatus;
 	profileInfo?: IExtensionProfileInformation;
 	unresponsiveProfile?: IExtensionHostProfile;
@@ -264,9 +265,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 				data.root.classList.toggle('odd', index % 2 === 1);
 
-				const onError = Event.once(domEvent(data.icon, 'error'));
-				onError(() => data.icon.src = element.marketplaceInfo.iconUrlFallback, null, data.elementDisposables);
-				data.icon.src = element.marketplaceInfo.iconUrl;
+				data.elementDisposables.push(addDisposableListener(data.icon, 'error', () => data.icon.src = element.marketplaceInfo?.iconUrlFallback || DefaultIconPath, { once: true }));
+				data.icon.src = element.marketplaceInfo?.iconUrl || DefaultIconPath;
 
 				if (!data.icon.complete) {
 					data.icon.style.visibility = 'hidden';
@@ -274,7 +274,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				} else {
 					data.icon.style.visibility = 'inherit';
 				}
-				data.name.textContent = element.marketplaceInfo.displayName;
+				data.name.textContent = element.marketplaceInfo?.displayName || element.description.identifier.value;
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
@@ -427,8 +427,10 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				actions.push(new Separator());
 			}
 
-			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
-			actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
+			if (e.element!.marketplaceInfo) {
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
+			}
 			actions.push(new Separator());
 
 			const profileAction = this._createProfileAction();
@@ -466,18 +468,18 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	protected abstract _createProfileAction(): Action | null;
 }
 
-export class ShowRuntimeExtensionsAction extends Action {
-	static readonly ID = 'workbench.action.showRuntimeExtensions';
-	static readonly LABEL = nls.localize('showRuntimeExtensions', "Show Running Extensions");
+export class ShowRuntimeExtensionsAction extends Action2 {
 
-	constructor(
-		id: string, label: string,
-		@IEditorService private readonly _editorService: IEditorService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.showRuntimeExtensions',
+			title: { value: nls.localize('showRuntimeExtensions', "Show Running Extensions"), original: 'Show Running Extensions' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
 	}
 
-	public override async run(e?: any): Promise<any> {
-		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IEditorService).openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
 	}
 }

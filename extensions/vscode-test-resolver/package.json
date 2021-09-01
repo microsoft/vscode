@@ -23,11 +23,18 @@
     "onCommand:vscode-testresolver.newWindowWithError",
     "onCommand:vscode-testresolver.showLog",
     "onCommand:vscode-testresolver.openTunnel",
-    "onCommand:vscode-testresolver.startRemoteServer"
+    "onCommand:vscode-testresolver.startRemoteServer",
+    "onCommand:vscode-testresolver.toggleConnectionPause"
   ],
   "main": "./out/extension",
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
   },
   "contributes": {
     "resourceLabelFormatters": [
@@ -38,7 +45,8 @@
           "label": "${path}",
           "separator": "/",
           "tildify": true,
-          "workspaceSuffix": "TestResolver"
+          "workspaceSuffix": "TestResolver",
+          "workspaceTooltip": "Remote running on the same machine"
         }
       }
     ],
@@ -64,9 +72,14 @@
         "command": "vscode-testresolver.openTunnel"
       },
       {
-        "title": "Open Remote Server...",
+        "title": "Open a Remote Port...",
         "category": "Remote-TestResolver",
         "command": "vscode-testresolver.startRemoteServer"
+      },
+      {
+        "title": "Pause Connection (Test Reconnect)",
+        "category": "Remote-TestResolver",
+        "command": "vscode-testresolver.toggleConnectionPause"
       }
     ],
     "menus": {
@@ -78,12 +91,16 @@
         {
           "command": "vscode-testresolver.startRemoteServer",
           "when": "remoteName == test"
+        },
+        {
+          "command": "vscode-testresolver.toggleConnectionPause",
+          "when": "remoteName == test"
         }
       ],
       "statusBar/remoteIndicator": [
         {
           "command": "vscode-testresolver.newWindow",
-          "when": "!remoteName",
+          "when": "!remoteName && !virtualWorkspace",
           "group": "remote_90_test_1_local@2"
         },
         {
@@ -105,6 +122,11 @@
           "command": "vscode-testresolver.startRemoteServer",
           "when": "remoteName == test",
           "group": "remote_90_test_2_more@5"
+        },
+        {
+          "command": "vscode-testresolver.toggleConnectionPause",
+          "when": "remoteName == test",
+          "group": "remote_90_test_2_more@6"
         }
       ]
     },
@@ -117,11 +139,6 @@
         },
         "testresolver.startupError": {
           "description": "If set, the resolver will fail. Use ths setting for testing the failure of a resolver.",
-          "type": "boolean",
-          "default": false
-        },
-        "testresolver.pause": {
-          "description": "If set, connection is paused",
           "type": "boolean",
           "default": false
         },

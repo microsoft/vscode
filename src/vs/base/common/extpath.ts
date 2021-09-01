@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
-import { startsWithIgnoreCase, equalsIgnoreCase, rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { sep, posix, isAbsolute, join, normalize } from 'vs/base/common/path';
+import { isAbsolute, join, normalize, posix, sep } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { equalsIgnoreCase, rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { isNumber } from 'vs/base/common/types';
 
 export function isPathSeparator(code: number) {
@@ -20,6 +20,23 @@ export function isPathSeparator(code: number) {
  */
 export function toSlashes(osPath: string) {
 	return osPath.replace(/[\\/]/g, posix.sep);
+}
+
+/**
+ * Takes a Windows OS path (using backward or forward slashes) and turns it into a posix path:
+ * - turns backward slashes into forward slashes
+ * - makes it absolute if it starts with a drive letter
+ * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
+ * Using it on a Linux or MaxOS path might change it.
+ */
+export function toPosixPath(osPath: string) {
+	if (osPath.indexOf('/') === -1) {
+		osPath = toSlashes(osPath);
+	}
+	if (/^[a-zA-Z]:(\/|$)/.test(osPath)) { // starts with a drive letter
+		osPath = '/' + osPath;
+	}
+	return osPath;
 }
 
 /**

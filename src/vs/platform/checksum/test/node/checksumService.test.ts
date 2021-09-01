@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -15,17 +15,19 @@ import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('Checksum Service', () => {
 
+	let diskFileSystemProvider: DiskFileSystemProvider;
 	let fileService: IFileService;
 
 	setup(() => {
 		const logService = new NullLogService();
 		fileService = new FileService(logService);
 
-		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 	});
 
 	teardown(() => {
+		diskFileSystemProvider.dispose();
 		fileService.dispose();
 	});
 

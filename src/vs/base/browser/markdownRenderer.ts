@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import * as marked from 'vs/base/common/marked/marked';
-import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
-import { parse } from 'vs/base/common/marshalling';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
-import { resolvePath } from 'vs/base/common/resources';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
+import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
+import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
+import * as marked from 'vs/base/common/marked/marked';
+import { parse } from 'vs/base/common/marshalling';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { cloneAndChange } from 'vs/base/common/objects';
+import { resolvePath } from 'vs/base/common/resources';
+import { escape } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -73,15 +73,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			return href; // no uri exists
 		}
 		let uri = URI.revive(data);
-		if (URI.parse(href).toString() === uri.toString()) {
-			return href; // no tranformation performed
-		}
 		if (isDomUri) {
 			// this URI will end up as "src"-attribute of a dom node
 			// and because of that special rewriting needs to be done
 			// so that the URI uses a protocol that's understood by
 			// browsers (like http or https)
 			return FileAccess.asBrowserUri(uri).toString(true);
+		}
+		if (URI.parse(href).toString() === uri.toString()) {
+			return href; // no transformation performed
 		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
@@ -186,7 +186,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	if (options.actionHandler) {
-		options.actionHandler.disposeables.add(Event.any<MouseEvent>(domEvent(element, 'click'), domEvent(element, 'auxclick'))(e => {
+		const onClick = options.actionHandler.disposeables.add(new DomEmitter(element, 'click'));
+		const onAuxClick = options.actionHandler.disposeables.add(new DomEmitter(element, 'auxclick'));
+		options.actionHandler.disposeables.add(Event.any(onClick.event, onAuxClick.event)(e => {
 			const mouseEvent = new StandardMouseEvent(e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
@@ -273,6 +275,7 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 		Schemas.mailto,
 		Schemas.data,
 		Schemas.file,
+		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
 	];
@@ -310,6 +313,14 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 			return true;
 		}
 	};
+}
+
+/**
+ * Strips all markdown from `string`, if it's an IMarkdownString. For example
+ * `# Header` would be output as `Header`. If it's not, the string is returned.
+ */
+export function renderStringAsPlaintext(string: IMarkdownString | string) {
+	return typeof string === 'string' ? string : renderMarkdownAsPlaintext(string);
 }
 
 /**
@@ -386,6 +397,7 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 
 	const unescapeInfo = new Map<string, string>([
 		['&quot;', '"'],
+		['&nbsp;', ' '],
 		['&amp;', '&'],
 		['&#39;', '\''],
 		['&lt;', '<'],

@@ -9,9 +9,9 @@ import * as commands from './commands/index';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
 import MarkdownFoldingProvider from './features/foldingProvider';
-import MarkdownSmartSelect from './features/smartSelect';
 import { MarkdownContentProvider } from './features/previewContentProvider';
 import { MarkdownPreviewManager } from './features/previewManager';
+import MarkdownSmartSelect from './features/smartSelect';
 import MarkdownWorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import { Logger } from './logger';
 import { MarkdownEngine } from './markdownEngine';
@@ -52,12 +52,7 @@ function registerMarkdownLanguageFeatures(
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 
-	const charPattern = '(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})';
-
 	return vscode.Disposable.from(
-		vscode.languages.setLanguageConfiguration('markdown', {
-			wordPattern: new RegExp(`${charPattern}((${charPattern}|[_])?${charPattern})*`, 'ug'),
-		}),
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
 		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()),
 		vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)),
@@ -85,6 +80,7 @@ function registerMarkdownCommands(
 	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
 	commandManager.register(new commands.ToggleLockCommand(previewManager));
 	commandManager.register(new commands.RenderDocument(engine));
+	commandManager.register(new commands.ReloadPlugins(previewManager, engine));
 	return commandManager;
 }
 

@@ -68,6 +68,9 @@
               "default": "UTF-8"
             }
           },
+          "additionalProperties": {
+            "type": "string"
+          },
           "default": {},
           "markdownDescription": "%emmetVariables%"
         },
@@ -78,6 +81,9 @@
         },
         "emmet.excludeLanguages": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [
             "markdown"
           ],
@@ -226,7 +232,11 @@
             },
             "output.selfClosingStyle": {
               "type": "string",
-              "enum": ["html", "xhtml", "xml"],
+              "enum": [
+                "html",
+                "xhtml",
+                "xml"
+              ],
               "default": "html",
               "markdownDescription": "%emmetPreferencesOutputSelfClosingStyle%"
             },
@@ -444,7 +454,7 @@
     "deps": "yarn add vscode-emmet-helper"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "dependencies": {
     "@emmetio/abbreviation": "^2.2.0",

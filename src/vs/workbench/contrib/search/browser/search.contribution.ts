@@ -17,7 +17,7 @@ import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncAct
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyRegexExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -636,6 +636,8 @@ const viewDescriptor: IViewDescriptor = {
 		mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+			// Yes, this is weird. See #116188, #115556, #115511, and now #124146, for examples of what can go wrong here.
+			when: ContextKeyRegexExpr.create('neverMatch', /doesNotMatch/)
 		},
 		order: 1
 	}
@@ -686,10 +688,10 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 // Find in Files by default is the same as View: Show Search, but can be configured to open a search editor instead with the `search.mode` binding
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	description: {
-		description: nls.localize('findInFiles.description', "Open the search viewlet"),
+		description: nls.localize('findInFiles.description', "Open a workspace search"),
 		args: [
 			{
-				name: nls.localize('findInFiles.args', "A set of options for the search viewlet"),
+				name: nls.localize('findInFiles.args', "A set of options for the search"),
 				schema: {
 					type: 'object',
 					properties: {
@@ -703,14 +705,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						isCaseSensitive: { 'type': 'boolean' },
 						matchWholeWord: { 'type': 'boolean' },
 						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
+						onlyOpenEditors: { 'type': 'boolean' },
 					}
 				}
 			},
 		]
 	},
 	id: Constants.FindInFilesActionId,
-	// Give more weightage to this keybinding than of `View: Show Search` keybinding. See #116188, #115556, #115511
-	weight: KeybindingWeight.WorkbenchContrib + 1,
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
 	handler: FindInFilesCommand
@@ -921,6 +923,11 @@ configurationRegistry.registerConfiguration({
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
 			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. You can drag the search icon to a new location instead.")
+		},
+		'search.maxResults': {
+			type: ['number', 'null'],
+			default: 20000,
+			markdownDescription: nls.localize('search.maxResults', "Controls the maximum number of search results, this can be set to `null` (empty) to return unlimited results.")
 		},
 		'search.collapseResults': {
 			type: 'string',

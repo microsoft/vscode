@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as assert from 'assert';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import * as assert from 'assert';
 
 suite('ContextKeyService', () => {
 	test('updateParent', () => {

@@ -12,6 +12,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { basename } from 'vs/base/common/resources';
 
 const ignoreUnusualLineTerminators = 'ignoreUnusualLineTerminators';
 
@@ -23,7 +24,7 @@ function readIgnoreState(codeEditorService: ICodeEditorService, model: ITextMode
 	return codeEditorService.getModelProperty(model.uri, ignoreUnusualLineTerminators);
 }
 
-class UnusualLineTerminatorsDetector extends Disposable implements IEditorContribution {
+export class UnusualLineTerminatorsDetector extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.unusualLineTerminatorsDetector';
 
@@ -87,9 +88,9 @@ class UnusualLineTerminatorsDetector extends Disposable implements IEditorContri
 		const result = await this._dialogService.confirm({
 			title: nls.localize('unusualLineTerminators.title', "Unusual Line Terminators"),
 			message: nls.localize('unusualLineTerminators.message', "Detected unusual line terminators"),
-			detail: nls.localize('unusualLineTerminators.detail', "This file contains one or more unusual line terminator characters, like Line Separator (LS) or Paragraph Separator (PS).\n\nIt is recommended to remove them from the file. This can be configured via `editor.unusualLineTerminators`."),
-			primaryButton: nls.localize('unusualLineTerminators.fix', "Fix this file"),
-			secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore problem for this file")
+			detail: nls.localize('unusualLineTerminators.detail', "The file '{0}' contains one or more unusual line terminator characters, like Line Separator (LS) or Paragraph Separator (PS).\n\nIt is recommended to remove them from the file. This can be configured via `editor.unusualLineTerminators`.", basename(model.uri)),
+			primaryButton: nls.localize('unusualLineTerminators.fix', "Remove Unusual Line Terminators"),
+			secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore")
 		});
 
 		if (!result.confirmed) {

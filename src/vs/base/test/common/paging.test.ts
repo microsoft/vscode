@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IPager, PagedModel } from 'vs/base/common/paging';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError, canceled } from 'vs/base/common/errors';
+import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { IPager, PagedModel } from 'vs/base/common/paging';
 
 function getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<number[]> {
 	if (cancellationToken.isCancellationRequested) {

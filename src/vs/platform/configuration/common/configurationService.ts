@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
-import { DefaultConfigurationModel, Configuration, ConfigurationModel, ConfigurationChangeEvent, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { Configuration, ConfigurationChangeEvent, ConfigurationModel, DefaultConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IFileService } from 'vs/platform/files/common/files';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 

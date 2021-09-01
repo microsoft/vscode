@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNoRpcFromEntry, assertNoRpc, disposeAll } from '../utils';
 import * as vscode from 'vscode';
+import { assertNoRpc, assertNoRpcFromEntry, disposeAll } from '../utils';
 
 suite('vscode', function () {
 
@@ -63,7 +63,6 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createCommentController(...)', function () {
-		this.skip();
 		const item = vscode.comments.createCommentController('foo', 'Hello');
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'CommentController']);
@@ -90,8 +89,14 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createNotebookEditorDecorationType(...)', function () {
-		const item = vscode.notebook.createNotebookEditorDecorationType({ top: {} });
+		const item = vscode.notebooks.createNotebookEditorDecorationType({ top: {} });
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'NotebookEditorDecorationType']);
+	});
+
+	test('no rpc, createNotebookController(...)', function () {
+		const ctrl = vscode.notebooks.createNotebookController('foo', 'bar', '');
+		dispo.push(ctrl);
+		assertNoRpcFromEntry([ctrl, 'NotebookController']);
 	});
 });

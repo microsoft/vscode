@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream, listenStream, prefixedReadable, prefixedStream } from 'vs/base/common/stream';
 import { timeout } from 'vs/base/common/async';
+import { consumeReadable, consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from 'vs/base/common/stream';
 
 suite('Stream', () => {
 
@@ -91,7 +91,7 @@ suite('Stream', () => {
 	});
 
 	test('WriteableStream - end with error works', async () => {
-		const reducer = (errors: Error[]) => errors.length > 0 ? errors[0] : null as unknown as Error;
+		const reducer = (errors: Error[]) => errors[0];
 		const stream = newWriteableStream<Error>(reducer);
 		stream.end(new Error('error'));
 

@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { homedir } from 'os';
-import { existsSync, statSync, unlinkSync, chmodSync, truncateSync, readFileSync } from 'fs';
-import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { ChildProcess, spawn, SpawnOptions } from 'child_process';
+import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
+import { homedir, platform, tmpdir } from 'os';
+import type { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { isAbsolute, join, resolve } from 'vs/base/common/path';
+import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { randomPort } from 'vs/base/common/ports';
+import { isString } from 'vs/base/common/types';
+import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
+import { findFreePort } from 'vs/base/node/ports';
+import { CliVerboseLogger } from 'vs/code/node/cliVerboseLogger';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { parseCLIProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
+import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
-import { isAbsolute, join } from 'vs/base/common/path';
-import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
-import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { isWindows, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
-import type { ProfilingSession, Target } from 'v8-inspect-profiler';
-import { isString } from 'vs/base/common/types';
-import { hasStdinWithoutTty, stdinDataListener, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -26,6 +28,10 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['uninstall-extension']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
+}
+
+function createFileName(dir: string, prefix: string): string {
+	return join(dir, prefix + '-' + Math.random().toString(16).slice(-4));
 }
 
 interface IMainCli {
@@ -55,7 +61,7 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
+		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));
 		await cli.main(args);
 
 		return;
@@ -208,12 +214,12 @@ export async function main(argv: string[]): Promise<any> {
 			const portRenderer = await findFreePort(portMain + 1, 10, 3000);
 			const portExthost = await findFreePort(portRenderer + 1, 10, 3000);
 
-			// fail the operation when one of the ports couldn't be accquired.
+			// fail the operation when one of the ports couldn't be acquired.
 			if (portMain * portRenderer * portExthost === 0) {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = join(homedir(), 'prof-' + Math.random().toString(16).slice(-4));
+			const filenamePrefix = createFileName(homedir(), 'prof');
 
 			addArg(argv, `--inspect-brk=${portMain}`);
 			addArg(argv, `--remote-debugging-port=${portRenderer}`);
@@ -318,27 +324,61 @@ export async function main(argv: string[]): Promise<any> {
 			options['stdio'] = 'ignore';
 		}
 
-		if (isLinux) {
-			addArg(argv, '--no-sandbox'); // Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox
-		}
+		let child: ChildProcess;
+		if (platform() !== 'darwin') {
+			child = spawn(process.execPath, argv.slice(2), options);
 
-		const child = spawn(process.execPath, argv.slice(2), options);
+			if (args.wait && waitMarkerFilePath) {
+				return new Promise<void>(resolve => {
 
-		if (args.wait && waitMarkerFilePath) {
-			return new Promise<void>(resolve => {
+					// Complete when process exits
+					child.once('exit', () => resolve(undefined));
 
-				// Complete when process exits
-				child.once('exit', () => resolve(undefined));
+					// Complete when wait marker file is deleted
+					whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
+				}).then(() => {
 
-				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
-			}).then(() => {
+					// Make sure to delete the tmp stdin file if we have any
+					if (stdinFilePath) {
+						unlinkSync(stdinFilePath);
+					}
+				});
+			}
+		} else {
+			const requiresWait = verbose || hasReadStdinArg;
+			const openArgs: string[] = ['-n'];
 
-				// Make sure to delete the tmp stdin file if we have any
-				if (stdinFilePath) {
-					unlinkSync(stdinFilePath);
-				}
-			});
+			let tmpStdoutLogger: CliVerboseLogger | undefined;
+			let tmpStderrLogger: CliVerboseLogger | undefined;
+			if (requiresWait) {
+				const tmpStdoutName = createFileName(tmpdir(), 'code-stdout');
+				const tmpStderrName = createFileName(tmpdir(), 'code-stderr');
+				tmpStdoutLogger = new CliVerboseLogger(tmpStdoutName);
+				tmpStderrLogger = new CliVerboseLogger(tmpStderrName);
+				openArgs.push('-W');
+				openArgs.push('--stdout', tmpStdoutName);
+				openArgs.push('--stderr', tmpStderrName);
+			}
+			const argsArr: string[] = [];
+			const isDev = env['NODE_ENV'] === 'development';
+			// When we're in development mode, call the OSS app rather than the OSS app's Electron
+			const execPathToUse = isDev ? resolve(join(process.execPath, '../../..')) : process.execPath;
+			argsArr.push('-a', execPathToUse);
+			argsArr.push(...openArgs, '--args', ...argv.slice(2));
+			if (isDev) {
+				// If we're in development mode, replace the . arg with the
+				// vscode source arg. Because the OSS app isn't bundled,
+				// it needs the vscode source arg to launch properly.
+				const launchDirIndex = argsArr.indexOf('.');
+				argsArr[launchDirIndex] = resolve(join(execPathToUse, '../../..'));
+			}
+			child = spawn('open', argsArr, options);
+
+			if (requiresWait) {
+				const stdoutPromise = tmpStdoutLogger!.track();
+				const stderrPromise = tmpStderrLogger!.track();
+				processCallbacks.push(stdoutPromise, stderrPromise);
+			}
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));

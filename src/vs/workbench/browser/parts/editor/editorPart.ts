@@ -211,11 +211,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private whenRestoredResolve: (() => void) | undefined;
 	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
-	private restored = false;
-
-	isRestored(): boolean {
-		return this.restored;
-	}
 
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
@@ -255,7 +250,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this.groupViews.get(identifier);
 	}
 
-	findGroup(scope: IFindGroupScope, source: IEditorGroupView | GroupIdentifier = this.activeGroup, wrap?: boolean): IEditorGroupView {
+	findGroup(scope: IFindGroupScope, source: IEditorGroupView | GroupIdentifier = this.activeGroup, wrap?: boolean): IEditorGroupView | undefined {
 
 		// by direction
 		if (typeof scope.direction === 'number') {
@@ -270,7 +265,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		throw new Error('invalid arguments');
 	}
 
-	private doFindGroupByDirection(direction: GroupDirection, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView {
+	private doFindGroupByDirection(direction: GroupDirection, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
 		const sourceGroupView = this.assertGroupView(source);
 
 		// Find neighbours and sort by our MRU list
@@ -280,7 +275,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return neighbours[0];
 	}
 
-	private doFindGroupByLocation(location: GroupLocation, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView {
+	private doFindGroupByLocation(location: GroupLocation, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
 		const sourceGroupView = this.assertGroupView(source);
 		const groups = this.getGroups(GroupsOrder.GRID_APPEARANCE);
 		const index = groups.indexOf(sourceGroupView);
@@ -291,14 +286,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			case GroupLocation.LAST:
 				return groups[groups.length - 1];
 			case GroupLocation.NEXT:
-				let nextGroup = groups[index + 1];
+				let nextGroup: IEditorGroupView | undefined = groups[index + 1];
 				if (!nextGroup && wrap) {
 					nextGroup = this.doFindGroupByLocation(GroupLocation.FIRST, source);
 				}
 
 				return nextGroup;
 			case GroupLocation.PREVIOUS:
-				let previousGroup = groups[index - 1];
+				let previousGroup: IEditorGroupView | undefined = groups[index - 1];
 				if (!previousGroup && wrap) {
 					previousGroup = this.doFindGroupByLocation(GroupLocation.LAST, source);
 				}
@@ -845,7 +840,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
-			this.restored = true;
 			this.whenRestoredResolve?.();
 		});
 

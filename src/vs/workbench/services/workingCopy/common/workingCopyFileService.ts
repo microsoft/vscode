@@ -5,8 +5,8 @@
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event } from 'vs/base/common/event';
-import { AsyncEmitter, IWaitUntil, Promises } from 'vs/base/common/async';
+import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { Promises } from 'vs/base/common/async';
 import { insert } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -17,6 +17,10 @@ import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCo
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { SaveReason } from 'vs/workbench/common/editor';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { StoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopySaveParticipant';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 
 export const IWorkingCopyFileService = createDecorator<IWorkingCopyFileService>('workingCopyFileService');
 
@@ -76,6 +80,20 @@ export interface IWorkingCopyFileOperationParticipant {
 		operation: FileOperation,
 		undoInfo: IFileOperationUndoRedoInfo | undefined,
 		timeout: number,
+		token: CancellationToken
+	): Promise<void>;
+}
+
+export interface IStoredFileWorkingCopySaveParticipant {
+
+	/**
+	 * Participate in a save operation of file stored working copies.
+	 * Allows to make changes before content is being saved to disk.
+	 */
+	participate(
+		workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>,
+		context: { reason: SaveReason },
+		progress: IProgress<IProgressStep>,
 		token: CancellationToken
 	): Promise<void>;
 }
@@ -154,6 +172,26 @@ export interface IWorkingCopyFileService {
 	 * Adds a participant for file operations on working copies.
 	 */
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable;
+
+	//#endregion
+
+
+	//#region Stored File Working Copy save participants
+
+	/**
+	 * Whether save participants are present for stored file working copies.
+	 */
+	get hasSaveParticipants(): boolean;
+
+	/**
+	 * Adds a participant for save operations on stored file working copies.
+	 */
+	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable;
+
+	/**
+	 * Runs all available save participants for stored file working copies.
+	 */
+	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>;
 
 	//#endregion
 
@@ -440,6 +478,22 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	private runFileOperationParticipants(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken): Promise<void> {
 		return this.fileOperationParticipants.participate(files, operation, undoInfo, token);
+	}
+
+	//#endregion
+
+	//#region Save participants (stored file working copies only)
+
+	private readonly saveParticipants = this._register(this.instantiationService.createInstance(StoredFileWorkingCopySaveParticipant));
+
+	get hasSaveParticipants(): boolean { return this.saveParticipants.length > 0; }
+
+	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable {
+		return this.saveParticipants.addSaveParticipant(participant);
+	}
+
+	runSaveParticipants(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+		return this.saveParticipants.participate(workingCopy, context, token);
 	}
 
 	//#endregion

@@ -271,3 +271,16 @@
 .monaco-workbench .notebook-text-diff-editor .output-view-container pre {
 	margin: 4px 0;
 }
+
+.monaco-workbench .notebook-text-diff-edito .monaco-list:focus-within .monaco-list-row.focused .codicon,
+.monaco-workbench .notebook-text-diff-editor .monaco-list:focus-within .monaco-list-row.selected .codicon {
+	color: inherit;
+}
+
+/* Diff decorations */
+
+.notebook-text-diff-editor .cell-body .codicon-diff-remove,
+.notebook-text-diff-editor .cell-body .codicon-diff-insert {
+	left: 4px !important;
+	width: 15px !important;
+}

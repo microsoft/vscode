@@ -17,6 +17,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { LogLevelToString } from 'vs/platform/log/common/log';
 import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { isUndefined } from 'vs/base/common/types';
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
@@ -44,8 +45,7 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 					return [{
 						fileUri: fileUri.with({ path: pathColumnAware.path }),
-						lineNumber: pathColumnAware.line,
-						columnNumber: pathColumnAware.column
+						selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
 					}];
 				}
 
@@ -226,25 +226,17 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
-	private get webviewEndpoint(): string {
-		// TODO@matt: get fallback from product service
-		return this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
-	}
+	get enableExtensions() { return this.options.enabledExtensions; }
 
 	@memoize
 	get webviewExternalEndpoint(): string {
-		return (this.webviewEndpoint).replace('{{commit}}', this.productService.commit || '23a2409675bc1bde94f3532bc7c5826a6e99e4b6');
-	}
+		const endpoint = this.options.webviewEndpoint
+			|| this.productService.webviewContentExternalBaseUrlTemplate
+			|| 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
 
-	@memoize
-	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
-	}
-
-	@memoize
-	get webviewCspSource(): string {
-		const uri = URI.parse(this.webviewEndpoint.replace('{{uuid}}', '*'));
-		return `${uri.scheme}://${uri.authority}`;
+		return endpoint
+			.replace('{{commit}}', this.payload?.get('webviewExternalEndpointCommit') ?? this.productService.commit ?? 'a81fff00c9dab105800118fcf8b044cd84620419')
+			.replace('{{quality}}', this.productService.quality || 'insider');
 	}
 
 	@memoize
@@ -255,6 +247,10 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
 	get skipReleaseNotes(): boolean { return false; }
+	get skipWelcome(): boolean { return this.payload?.get('skipWelcome') === 'true'; }
+
+	@memoize
+	get disableWorkspaceTrust(): boolean { return true; }
 
 	private payload: Map<string, string> | undefined;
 
@@ -282,16 +278,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 			extensionDevelopmentLocationURI: undefined,
 			extensionDevelopmentKind: undefined
 		};
-		const developmentOptions = this.options.developmentOptions;
-		if (developmentOptions) {
-			if (developmentOptions.extensions?.length) {
-				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e.extensionLocation));
-				extensionHostDebugEnvironment.isExtensionDevelopment = true;
-			}
-			if (developmentOptions) {
-				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
-			}
-		}
 
 		// Fill in selected extra environmental properties
 		if (this.payload) {
@@ -327,6 +313,17 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
 						break;
 				}
+			}
+		}
+
+		const developmentOptions = this.options.developmentOptions;
+		if (developmentOptions && !extensionHostDebugEnvironment.isExtensionDevelopment) {
+			if (developmentOptions.extensions?.length) {
+				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
+				extensionHostDebugEnvironment.isExtensionDevelopment = true;
+			}
+			if (developmentOptions.extensionTestsPath) {
+				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
 			}
 		}
 

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ToggleAutoSaveAction, FocusFilesExplorer, GlobalCompareResourcesAction, ShowActiveFileInExplorer, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, ShowOpenedFileInNewWindow } from 'vs/workbench/contrib/files/browser/fileActions';
+import { ToggleAutoSaveAction, FocusFilesExplorer, GlobalCompareResourcesAction, ShowActiveFileInExplorer, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler, cutFileHandler, DOWNLOAD_COMMAND_ID, openFilePreserveFocusHandler, DOWNLOAD_LABEL, ShowOpenedFileInNewWindow, UPLOAD_COMMAND_ID, UPLOAD_LABEL } from 'vs/workbench/contrib/files/browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -26,7 +26,7 @@ import { DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, HasWebFileSyst
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorCanRevertContext, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
@@ -112,7 +112,7 @@ const CUT_FILE_ID = 'filesExplorer.cut';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CUT_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 	handler: cutFileHandler,
 });
@@ -460,7 +460,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: CUT_FILE_ID,
 		title: nls.localize('cut', "Cut")
 	},
-	when: ExplorerRootContext.toNegated()
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -485,8 +485,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
-	group: '5_cutcopypaste',
-	order: 30,
+	group: '5b_importexport',
+	order: 10,
 	command: {
 		id: DOWNLOAD_COMMAND_ID,
 		title: DOWNLOAD_LABEL,
@@ -501,16 +501,33 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 	)
 }));
 
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
+	group: '5b_importexport',
+	order: 20,
+	command: {
+		id: UPLOAD_COMMAND_ID,
+		title: UPLOAD_LABEL,
+	},
+	when: ContextKeyExpr.and(
+		// only in web
+		IsWebContext,
+		// only on folders
+		ExplorerFolderContext,
+		// only on editable folders
+		ExplorerResourceNotReadonlyContext
+	)
+}));
+
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '6_copypath',
-	order: 30,
+	order: 10,
 	command: copyPathCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '6_copypath',
-	order: 30,
+	order: 20,
 	command: copyRelativePathCommand,
 	when: ResourceContextKey.IsFileSystemResource
 });
@@ -671,7 +688,12 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"),
-		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(
+			// Active editor can revert
+			ContextKeyExpr.and(ActiveEditorCanRevertContext),
+			// Explorer focused but not on untitled
+			ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled), ExplorerViewletVisibleContext, SidebarFocusContext)
+		),
 	},
 	order: 1
 });

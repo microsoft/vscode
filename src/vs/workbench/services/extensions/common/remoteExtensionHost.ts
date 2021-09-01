@@ -230,14 +230,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				isExtensionDevelopmentDebug,
 				appRoot: remoteInitData.appRoot,
 				appName: this._productService.nameLong,
+				embedderIdentifier: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
-				workspaceStorageHome: remoteInitData.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
+				workspaceStorageHome: remoteInitData.workspaceStorageHome
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,

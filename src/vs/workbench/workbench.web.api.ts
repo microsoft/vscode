@@ -30,6 +30,12 @@ interface IStaticExtension {
 	isBuiltin?: boolean;
 }
 
+/**
+ * The identifier of an extension in the format: `PUBLISHER.NAME`.
+ * For example: `vscode.csharp`
+ */
+type ExtensionId = string;
+
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
 }
@@ -72,9 +78,11 @@ interface ITunnelOptions {
 	label?: string;
 
 	public?: boolean;
+
+	protocol?: string;
 }
 
-export interface TunnelCreationOptions {
+interface TunnelCreationOptions {
 
 	/**
 	 * True when the local operating system will require elevation to use the requested local port.
@@ -92,6 +100,11 @@ interface ITunnel {
 	localAddress: string;
 
 	public?: boolean;
+
+	/**
+	 * If protocol is not provided, it is assumed to be http, regardless of the localAddress
+	 */
+	protocol?: string;
 
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
@@ -147,7 +160,7 @@ interface IWindowIndicator {
 	/**
 	 * Triggering this event will cause the window indicator to update.
 	 */
-	onDidChange: Event<void>;
+	readonly onDidChange?: Event<void>;
 
 	/**
 	 * Label of the window indicator may include octicons
@@ -179,20 +192,39 @@ interface IInitialColorTheme {
 	/**
 	 * Initial color theme type.
 	 */
-	themeType: ColorScheme;
+	readonly themeType: ColorScheme;
 
 	/**
 	 * A list of workbench colors to apply initially.
 	 */
-	colors?: { [colorId: string]: string };
+	readonly colors?: { [colorId: string]: string };
 }
 
 interface IDefaultView {
 	readonly id: string;
 }
 
+interface IPosition {
+	readonly line: number;
+	readonly column: number;
+}
+
+interface IRange {
+
+	/**
+	 * The start position. It is before or equal to end position.
+	 */
+	readonly start: IPosition;
+
+	/**
+	 * The end position. It is after or equal to start position.
+	 */
+	readonly end: IPosition;
+}
+
 interface IDefaultEditor {
 	readonly uri: UriComponents;
+	readonly selection?: IRange;
 	readonly openOnlyIfExists?: boolean;
 	readonly openWith?: string;
 }
@@ -200,7 +232,11 @@ interface IDefaultEditor {
 interface IDefaultLayout {
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
-	/** Forces this layout to be applied even if this isn't the first time the workspace has been opened */
+
+	/**
+	 * Forces this layout to be applied even if this isn't
+	 * the first time the workspace has been opened
+	 */
 	readonly force?: boolean;
 }
 
@@ -258,8 +294,16 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * An URL pointing to the web worker extension host <iframe> src.
+	 * @deprecated. This will be removed soon.
 	 */
 	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Use an unique origin for the web worker extension host.
+	 * Defaults to false.
+	 */
+	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
 	/**
 	 * A factory for web sockets.
@@ -298,15 +342,6 @@ interface IWorkbenchConstructionOptions {
 	readonly workspaceProvider?: IWorkspaceProvider;
 
 	/**
-	 * Enables Settings Sync by default.
-	 *
-	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
-	 *
-	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
-	 */
-	readonly enableSyncByDefault?: boolean;
-
-	/**
 	 * Settings sync options
 	 */
 	readonly settingsSyncOptions?: ISettingsSyncOptions;
@@ -318,8 +353,23 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
+	 * @deprecated. Use `additionalBuiltinExtensions` instead.
 	 */
 	readonly staticExtensions?: readonly IStaticExtension[];
+
+	/**
+	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * It can be one of the following:
+	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
+	 * 	- `UriComponents`: location of the extension where it is hosted.
+	 */
+	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
+
+	/**
+	 * List of extensions to be enabled if they are installed.
+	 * Note: This will not install extensions if not installed.
+	 */
+	readonly enabledExtensions?: readonly ExtensionId[];
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -327,6 +377,12 @@ interface IWorkbenchConstructionOptions {
 	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
+
+	/**
+	 * Additional domains allowed to open from the workbench without the
+	 * link protection popup.
+	 */
+	readonly additionalTrustedDomains?: string[];
 
 	/**
 	 * Support for URL callbacks.
@@ -426,7 +482,7 @@ interface IDevelopmentOptions {
 	/**
 	 * Add extensions under development.
 	 */
-	readonly extensions?: readonly IStaticExtension[];
+	readonly extensions?: readonly UriComponents[];
 
 	/**
 	 * Whether to enable the smoke test driver.
@@ -450,6 +506,7 @@ interface IPerformanceMark {
 interface IWorkbench {
 
 	commands: {
+
 		/**
 		 * @see [executeCommand](#commands.executeCommand)
 		 */
@@ -457,10 +514,21 @@ interface IWorkbench {
 	}
 
 	env: {
+
+		/**
+		 * @see [getUriScheme](#env.getUriScheme)
+		 */
+		readonly uriScheme: string;
+
 		/**
 		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+
+		/**
+		 * @see [openUri](#env.openUri)
+		 */
+		openUri(target: URI): Promise<boolean>;
 	}
 
 	/**
@@ -560,6 +628,26 @@ namespace env {
 
 		return workbench.env.retrievePerformanceMarks();
 	}
+
+	/**
+	 * @returns the scheme to use for opening the associated desktop
+	 * experience via protocol handler.
+	 */
+	export async function getUriScheme(): Promise<string> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.uriScheme;
+	}
+
+	/**
+	 * Allows to open a `URI` with the standard opener service of the
+	 * workbench.
+	 */
+	export async function openUri(target: URI): Promise<boolean> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.openUri(target);
+	}
 }
 
 export {
@@ -638,6 +726,8 @@ export {
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
+	IPosition,
+	IRange as ISelection,
 
 	// Env
 	IPerformanceMark,

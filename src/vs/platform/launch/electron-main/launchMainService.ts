@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { app, BrowserWindow, Event as IpcEvent, ipcMain } from 'electron';
+import { coalesce } from 'vs/base/common/arrays';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { assertIsDefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { whenDeleted } from 'vs/base/node/pfs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { whenDeleted } from 'vs/base/node/pfs';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
-import { coalesce } from 'vs/base/common/arrays';
-import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { ICodeWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { assertIsDefined } from 'vs/base/common/types';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);

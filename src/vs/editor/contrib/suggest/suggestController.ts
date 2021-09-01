@@ -61,7 +61,7 @@ class LineSuffix {
 			const end = _model.getPositionAt(offset + 1);
 			this._marker = _model.deltaDecorations([], [{
 				range: Range.fromPositions(_position, end),
-				options: { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+				options: { description: 'suggest-line-suffix', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
 			}]);
 		}
 	}
@@ -586,6 +586,18 @@ export class SuggestController implements IEditorContribution {
 
 	resetWidgetSize(): void {
 		this.widget.value.resetPersistedSize();
+	}
+
+	forceRenderingAbove() {
+		this.widget.value.forceRenderingAbove();
+	}
+
+	stopForceRenderingAbove() {
+		if (!this.widget.isInitialized) {
+			// This method has no effect if the widget is not initialized yet.
+			return;
+		}
+		this.widget.value.stopForceRenderingAbove();
 	}
 }
 

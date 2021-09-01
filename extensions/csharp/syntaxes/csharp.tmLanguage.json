@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/4d14854c9bfc9d84cce625d2bfebaac9741b9db8",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/5f62efed7a0319dc41ee2ed227577633b52312a2",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -89,6 +89,9 @@
 				},
 				{
 					"include": "#interface-declaration"
+				},
+				{
+					"include": "#record-declaration"
 				},
 				{
 					"include": "#struct-declaration"
@@ -242,6 +245,15 @@
 				},
 				{
 					"include": "#labeled-statement"
+				},
+				{
+					"include": "#object-creation-expression"
+				},
+				{
+					"include": "#array-creation-expression"
+				},
+				{
+					"include": "#anonymous-object-creation-expression"
 				},
 				{
 					"include": "#local-declaration"
@@ -803,6 +815,63 @@
 				}
 			]
 		},
+		"record-declaration": {
+			"begin": "(?=\\brecord\\b)",
+			"end": "(?<=\\})",
+			"patterns": [
+				{
+					"begin": "(?x)\n(record)\\b\\s+\n(@?[_[:alpha:]][_[:alnum:]]*)",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.other.record.cs"
+						},
+						"2": {
+							"name": "entity.name.type.record.cs"
+						}
+					},
+					"end": "(?=\\{)",
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#type-parameter-list"
+						},
+						{
+							"include": "#base-types"
+						},
+						{
+							"include": "#generic-constraints"
+						}
+					]
+				},
+				{
+					"begin": "\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.open.cs"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.curlybrace.close.cs"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#class-or-struct-members"
+						}
+					]
+				},
+				{
+					"include": "#preprocessor"
+				},
+				{
+					"include": "#comment"
+				}
+			]
+		},
 		"struct-declaration": {
 			"begin": "(?=\\bstruct\\b)",
 			"end": "(?<=\\})",
@@ -1162,6 +1231,10 @@
 				{
 					"name": "keyword.other.set.cs",
 					"match": "\\b(set)\\b"
+				},
+				{
+					"name": "keyword.other.init.cs",
+					"match": "\\b(init)\\b"
 				},
 				{
 					"include": "#comment"
@@ -2749,32 +2822,160 @@
 			"match": "(?<!\\.)\\bnull\\b"
 		},
 		"numeric-literal": {
-			"patterns": [
-				{
-					"name": "constant.numeric.hex.cs",
-					"match": "\\b0(x|X)[0-9a-fA-F_]+(U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?\\b"
-				},
-				{
-					"name": "constant.numeric.binary.cs",
-					"match": "\\b0(b|B)[01_]+(U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?\\b"
-				},
-				{
-					"name": "constant.numeric.decimal.cs",
-					"match": "\\b([0-9_]+)?\\.[0-9_]+((e|E)[0-9]+)?(F|f|D|d|M|m)?\\b"
-				},
-				{
-					"name": "constant.numeric.decimal.cs",
-					"match": "\\b[0-9_]+(e|E)[0-9_]+(F|f|D|d|M|m)?\\b"
-				},
-				{
-					"name": "constant.numeric.decimal.cs",
-					"match": "\\b[0-9_]+(F|f|D|d|M|m)\\b"
-				},
-				{
-					"name": "constant.numeric.decimal.cs",
-					"match": "\\b[0-9_]+(U|u|L|l|UL|Ul|uL|ul|LU|Lu|lU|lu)?\\b"
+			"match": "(?<!\\w)\\.?\\d(?:(?:[0-9a-zA-Z_\\.]|_)|(?<=[eE])[+-])*",
+			"captures": {
+				"0": {
+					"patterns": [
+						{
+							"begin": "(?=.)",
+							"end": "$",
+							"patterns": [
+								{
+									"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)?((?:(?<=[0-9])|\\.(?=[0-9])))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)?((?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?([fFdDmM](?!\\w))?$",
+									"captures": {
+										"2": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"3": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"4": {
+											"name": "constant.numeric.other.separator.decimals.cs"
+										},
+										"5": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"6": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"8": {
+											"name": "constant.numeric.other.exponent.cs"
+										},
+										"9": {
+											"name": "keyword.operator.arithmetic.cs"
+										},
+										"10": {
+											"name": "keyword.operator.arithmetic.cs"
+										},
+										"11": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"12": {
+											"name": "constant.numeric.other.suffix.cs"
+										}
+									}
+								},
+								{
+									"match": "(\\G0[bB])([01_](?:[01_]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captures": {
+										"1": {
+											"name": "constant.numeric.other.preffix.binary.cs"
+										},
+										"2": {
+											"name": "constant.numeric.binary.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"3": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"4": {
+											"name": "constant.numeric.other.suffix.cs"
+										}
+									}
+								},
+								{
+									"match": "(\\G0[xX])([0-9a-fA-F](?:[0-9a-fA-F]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captures": {
+										"1": {
+											"name": "constant.numeric.other.preffix.hex.cs"
+										},
+										"2": {
+											"name": "constant.numeric.hex.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"3": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"4": {
+											"name": "constant.numeric.other.suffix.cs"
+										}
+									}
+								},
+								{
+									"match": "(\\G(?=[0-9.])(?!0[xXbB]))([0-9](?:[0-9]|((?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)((?<!_)([eE])(\\+?)(\\-?)((?:[0-9](?:[0-9]|(?:(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])))*)))?((?:(?:(?:(?:(?:[uU]|[uU]l)|[uU]L)|l[uU]?)|L[uU]?)|[fFdDmM])(?!\\w))?$",
+									"captures": {
+										"2": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"3": {
+											"name": "constant.numeric.other.separator.thousands.cs"
+										},
+										"5": {
+											"name": "constant.numeric.other.exponent.cs"
+										},
+										"6": {
+											"name": "keyword.operator.arithmetic.cs"
+										},
+										"7": {
+											"name": "keyword.operator.arithmetic.cs"
+										},
+										"8": {
+											"name": "constant.numeric.decimal.cs",
+											"patterns": [
+												{
+													"match": "(?<=[0-9a-fA-F])_(?=[0-9a-fA-F])",
+													"name": "constant.numeric.other.separator.thousands.cs"
+												}
+											]
+										},
+										"9": {
+											"name": "constant.numeric.other.suffix.cs"
+										}
+									}
+								},
+								{
+									"match": "(?:(?:[0-9a-zA-Z_\\.]|_)|(?<=[eE])[+-])+",
+									"name": "invalid.illegal.constant.numeric.cs"
+								}
+							]
+						}
+					]
 				}
-			]
+			}
 		},
 		"char-literal": {
 			"name": "string.quoted.single.cs",

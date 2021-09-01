@@ -47,6 +47,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/typeHierarchy",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/codeActions",
 			"project": "vscode-workbench"
 		},
@@ -92,6 +96,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/issue",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/interactive",
 			"project": "vscode-workbench"
 		},
 		{
@@ -244,6 +252,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/views",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/languageDetection",
 			"project": "vscode-workbench"
 		},
 		{
