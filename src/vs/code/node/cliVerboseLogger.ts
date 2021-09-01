@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess } from 'child_process';
-import { watch, writeFileSync } from 'fs';
+import { watch, writeFileSync, unlinkSync } from 'fs';
 import { Promises } from 'vs/base/node/pfs';
 
 /**
@@ -42,6 +42,7 @@ export class CliVerboseLogger {
 			}).finally(() => {
 				Promises.close(fileHandle);
 				watcher.close();
+				unlinkSync(this.filename);
 			});
 		};
 	}
