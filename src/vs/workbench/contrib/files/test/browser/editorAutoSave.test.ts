@@ -19,6 +19,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 suite('EditorAutoSave', () => {
 
@@ -78,7 +79,7 @@ suite('EditorAutoSave', () => {
 		const accessor = await createEditorAutoSave({ autoSave: 'onFocusChange' });
 
 		const resource = toResource.call(this, '/path/index.txt');
-		await accessor.editorService.openEditor({ resource, forceFile: true });
+		await accessor.editorService.openEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } });
 
 		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
 		model.textEditorModel.setValue('Super Good');
