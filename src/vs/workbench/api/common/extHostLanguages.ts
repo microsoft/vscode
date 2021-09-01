@@ -101,7 +101,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 					source: extension.displayName ?? extension.name,
 					selector: data.selector,
 					label: data.text,
-					detail: data.detail,
+					detail: data.detail ?? '',
 					needsAttention: data.needsAttention,
 					command: data.command && this._commands.toInternal(data.command, commandDisposables),
 					accessibilityInfo: data.accessibilityInformation
