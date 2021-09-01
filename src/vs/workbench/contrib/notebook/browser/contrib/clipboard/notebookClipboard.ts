@@ -81,21 +81,20 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 	if (!editor.hasModel()) {
 		return false;
 	}
-	const viewModel = editor._getViewModel();
 	const textModel = editor.textModel;
 
-	if (viewModel.options.isReadOnly) {
+	if (editor.isReadOnly) {
 		return false;
 	}
 
 	const originalState: ISelectionState = {
 		kind: SelectionStateType.Index,
-		focus: viewModel.getFocus(),
-		selections: viewModel.getSelections()
+		focus: editor.getFocus(),
+		selections: editor.getSelections()
 	};
 
 	if (activeCell) {
-		const currCellIndex = viewModel.getCellIndex(activeCell);
+		const currCellIndex = editor.getCellIndex(activeCell);
 		const newFocusIndex = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
 		textModel.applyEdits([
 			{
@@ -143,11 +142,10 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 
 	const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 	const notebookService = accessor.get<INotebookService>(INotebookService);
-	const viewModel = editor._getViewModel();
-	const selections = viewModel.getSelections();
+	const selections = editor.getSelections();
 
 	if (targetCell) {
-		const targetCellIndex = viewModel.getCellIndex(targetCell);
+		const targetCellIndex = editor.getCellIndex(targetCell);
 		const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
 
 		if (!containingSelection) {
@@ -157,7 +155,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 		}
 	}
 
-	const selectionRanges = expandCellRangesWithHiddenCells(editor, viewModel.getSelections());
+	const selectionRanges = expandCellRangesWithHiddenCells(editor, editor.getSelections());
 	const selectedCells = cellRangeToViewCells(editor, selectionRanges);
 
 	if (!selectedCells.length) {

@@ -51,7 +51,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			return;
 		}
 
-		const viewModel = this._notebookEditor.viewModel;
+		const viewModel = this._notebookEditor._getViewModel();
 
 		for (let i = 0; i < this._notebookEditor.getLength(); i++) {
 			const cell = viewModel.viewCells[i];

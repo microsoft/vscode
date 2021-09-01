@@ -46,7 +46,7 @@ abstract class InsertCellCommand extends NotebookAction {
 		} else {
 			const focusRange = context.notebookEditor.getFocus();
 			const next = focusRange.end - 1;
-			newCell = context.notebookEditor.insertNotebookCell(context.notebookEditor.viewModel.viewCells[next], this.kind, this.direction, undefined, true);
+			newCell = context.notebookEditor.insertNotebookCell(context.notebookEditor.cellAt(next), this.kind, this.direction, undefined, true);
 		}
 
 		if (newCell) {
