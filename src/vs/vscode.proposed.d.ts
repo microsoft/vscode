@@ -2849,7 +2849,7 @@ declare module 'vscode' {
 		needsAttention?: boolean;
 		name?: string;
 		text: string;
-		detail: string;
+		detail?: string;
 		command: Command | undefined;
 		accessibilityInformation?: AccessibilityInformation;
 		dispose(): void;
