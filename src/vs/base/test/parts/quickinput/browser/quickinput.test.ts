@@ -82,7 +82,7 @@ suite('QuickInput', () => {
 		}
 	});
 
-	test('resetScrollPosition works with activeItems', async () => {
+	test('keepScrollPosition works with activeItems', async () => {
 		quickpick = controller.createQuickPick();
 
 		const items = [];
@@ -98,16 +98,16 @@ suite('QuickInput', () => {
 
 		assert.notStrictEqual(cursorTop, 0);
 
-		quickpick.resetScrollPosition = false;
+		quickpick.keepScrollPosition = true;
 		quickpick.activeItems = [items[0]];
 		assert.strictEqual(cursorTop, getScrollTop());
 
-		quickpick.resetScrollPosition = true;
+		quickpick.keepScrollPosition = false;
 		quickpick.activeItems = [items[0]];
 		assert.strictEqual(getScrollTop(), 0);
 	});
 
-	test('resetScrollPosition works with items', async () => {
+	test('keepScrollPosition works with items', async () => {
 		quickpick = controller.createQuickPick();
 
 		const items = [];
@@ -122,11 +122,11 @@ suite('QuickInput', () => {
 		let cursorTop = getScrollTop();
 		assert.notStrictEqual(cursorTop, 0);
 
-		quickpick.resetScrollPosition = false;
+		quickpick.keepScrollPosition = true;
 		quickpick.items = items;
 		assert.strictEqual(cursorTop, getScrollTop());
 
-		quickpick.resetScrollPosition = true;
+		quickpick.keepScrollPosition = false;
 		quickpick.items = items;
 		assert.strictEqual(getScrollTop(), 0);
 	});
