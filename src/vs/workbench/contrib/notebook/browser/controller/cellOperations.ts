@@ -7,7 +7,7 @@ import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/brow
 import { Range } from 'vs/editor/common/core/range';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, CellKind, ICellEditOperation, ICellReplaceEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -118,9 +118,10 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 	}
 }
 
-export function runDeleteAction(viewModel: NotebookViewModel, cell: ICellViewModel) {
-	const selections = viewModel.getSelections();
-	const targetCellIndex = viewModel.getCellIndex(cell);
+export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewModel) {
+	const textModel = editor.textModel;
+	const selections = editor.getSelections();
+	const targetCellIndex = editor.getCellIndex(cell);
 	const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
 
 	if (containingSelection) {
@@ -128,15 +129,15 @@ export function runDeleteAction(viewModel: NotebookViewModel, cell: ICellViewMod
 			editType: CellEditType.Replace, index: selection.start, count: selection.end - selection.start, cells: []
 		}));
 
-		const nextCellAfterContainingSelection = viewModel.cellAt(containingSelection.end);
+		const nextCellAfterContainingSelection = editor.cellAt(containingSelection.end);
 
-		viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => {
+		textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => {
 			if (nextCellAfterContainingSelection) {
-				const cellIndex = viewModel.notebookDocument.cells.findIndex(cell => cell.handle === nextCellAfterContainingSelection.handle);
+				const cellIndex = textModel.cells.findIndex(cell => cell.handle === nextCellAfterContainingSelection.handle);
 				return { kind: SelectionStateType.Index, focus: { start: cellIndex, end: cellIndex + 1 }, selections: [{ start: cellIndex, end: cellIndex + 1 }] };
 			} else {
-				if (viewModel.notebookDocument.length) {
-					const lastCellIndex = viewModel.notebookDocument.length - 1;
+				if (textModel.length) {
+					const lastCellIndex = textModel.length - 1;
 					return { kind: SelectionStateType.Index, focus: { start: lastCellIndex, end: lastCellIndex + 1 }, selections: [{ start: lastCellIndex, end: lastCellIndex + 1 }] };
 
 				} else {
@@ -145,7 +146,7 @@ export function runDeleteAction(viewModel: NotebookViewModel, cell: ICellViewMod
 			}
 		}, undefined);
 	} else {
-		const focus = viewModel.getFocus();
+		const focus = editor.getFocus();
 		const edits: ICellReplaceEdit[] = [{
 			editType: CellEditType.Replace, index: targetCellIndex, count: 1, cells: []
 		}];
@@ -163,18 +164,18 @@ export function runDeleteAction(viewModel: NotebookViewModel, cell: ICellViewMod
 			}
 		}
 
-		if (viewModel.cellAt(focus.start) === cell) {
+		if (editor.cellAt(focus.start) === cell) {
 			// focus is the target, focus is also not part of any selection
-			const newFocus = focus.end === viewModel.length ? { start: focus.start - 1, end: focus.end - 1 } : focus;
+			const newFocus = focus.end === textModel.length ? { start: focus.start - 1, end: focus.end - 1 } : focus;
 
-			viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => ({
+			textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({
 				kind: SelectionStateType.Index, focus: newFocus, selections: finalSelections
 			}), undefined);
 		} else {
 			// users decide to delete a cell out of current focus/selection
 			const newFocus = focus.start > targetCellIndex ? { start: focus.start - 1, end: focus.end - 1 } : focus;
 
-			viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => ({
+			textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({
 				kind: SelectionStateType.Index, focus: newFocus, selections: finalSelections
 			}), undefined);
 		}

@@ -2501,6 +2501,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._overlayContainer.classList.remove(className);
 	}
 
+	cellAt(index: number): ICellViewModel | undefined {
+		return this.viewModel?.cellAt(index);
+	}
+
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel {
 		const { cellHandle } = cellInfo;
 		return this.viewModel?.viewCells.find(vc => vc.handle === cellHandle) as CodeCellViewModel;

@@ -168,7 +168,7 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 			return;
 		}
 
-		runDeleteAction(viewModel, context.cell);
+		runDeleteAction(context.notebookEditor, context.cell);
 	}
 });
 

@@ -380,6 +380,7 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 	_getViewModel(): NotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
+	cellAt(index: number): ICellViewModel;
 	getCellIndex(cell: ICellViewModel): number;
 	getCellIndexByHandle(handle: number): number;
 }
@@ -711,7 +712,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
-
+	cellAt(index: number): ICellViewModel | undefined;
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
 	getCellById(cellId: string): ICellViewModel | undefined;
 	getCellByHandle(handle: number): ICellViewModel | undefined;
