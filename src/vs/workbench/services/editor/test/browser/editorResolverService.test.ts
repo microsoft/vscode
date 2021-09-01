@@ -173,4 +173,168 @@ suite('EditorResolverService', () => {
 		}
 		registeredEditor.dispose();
 	});
+
+	test('Diff editor Resolve - Different Types', async () => {
+		const [part, service, accessor] = await createEditorResolverService();
+		let diffOneCounter = 0;
+		let diffTwoCounter = 0;
+		let defaultDiffCounter = 0;
+		const registeredEditor = service.registerEditor('*.test-diff',
+			{
+				id: 'TEST_EDITOR',
+				label: 'Test Editor Label',
+				detail: 'Test Editor Details',
+				priority: RegisteredEditorPriority.default
+			},
+			{ canHandleDiff: true },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			undefined,
+			({ modified, original, options }, group) => {
+				diffOneCounter++;
+				return {
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
+						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
+						undefined)
+				};
+			}
+		);
+
+		const secondRegisteredEditor = service.registerEditor('*.test-secondDiff',
+			{
+				id: 'TEST_EDITOR_2',
+				label: 'Test Editor Label',
+				detail: 'Test Editor Details',
+				priority: RegisteredEditorPriority.default
+			},
+			{ canHandleDiff: true },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			undefined,
+			({ modified, original, options }, group) => {
+				diffTwoCounter++;
+				return {
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
+						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
+						undefined)
+				};
+			}
+		);
+
+		const defaultRegisteredEditor = service.registerEditor('*',
+			{
+				id: 'default',
+				label: 'Test Editor Label',
+				detail: 'Test Editor Details',
+				priority: RegisteredEditorPriority.option
+			},
+			{ canHandleDiff: true },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			undefined,
+			({ modified, original, options }, group) => {
+				defaultDiffCounter++;
+				return {
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
+						new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
+						undefined)
+				};
+			}
+		);
+
+		let resultingResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource-basics.test-diff') },
+			modified: { resource: URI.file('my://resource-basics.test-diff') }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(diffOneCounter, 1);
+			assert.strictEqual(diffTwoCounter, 0);
+			assert.strictEqual(defaultDiffCounter, 0);
+			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		resultingResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource-basics.test-secondDiff') },
+			modified: { resource: URI.file('my://resource-basics.test-secondDiff') }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(diffOneCounter, 1);
+			assert.strictEqual(diffTwoCounter, 1);
+			assert.strictEqual(defaultDiffCounter, 0);
+			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		resultingResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource-basics.test-secondDiff') },
+			modified: { resource: URI.file('my://resource-basics.test-diff') }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(diffOneCounter, 1);
+			assert.strictEqual(diffTwoCounter, 1);
+			assert.strictEqual(defaultDiffCounter, 1);
+			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		resultingResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource-basics.test-diff') },
+			modified: { resource: URI.file('my://resource-basics.test-secondDiff') }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(diffOneCounter, 1);
+			assert.strictEqual(diffTwoCounter, 1);
+			assert.strictEqual(defaultDiffCounter, 2);
+			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		resultingResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource-basics.test-secondDiff') },
+			modified: { resource: URI.file('my://resource-basics.test-diff') },
+			options: { override: 'TEST_EDITOR' }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(diffOneCounter, 2);
+			assert.strictEqual(diffTwoCounter, 1);
+			assert.strictEqual(defaultDiffCounter, 2);
+			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+
+		registeredEditor.dispose();
+		secondRegisteredEditor.dispose();
+		defaultRegisteredEditor.dispose();
+	});
+
 });
