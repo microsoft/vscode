@@ -185,7 +185,7 @@
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
-    "playwright": "1.12.3",
+    "playwright": "1.14.1",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
