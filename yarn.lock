@@ -546,10 +546,10 @@
   resolved "https://registry.yarnpkg.com/@types/minimatch/-/minimatch-3.0.5.tgz#1001cc5e6a3704b83c236027e77f2f58ea010f40"
   integrity sha512-Klz949h02Gz2uZCMGwDUSDS1YBlTdDDgbWHi+81l29tQALUtvz4rAYi5uoVhE5Lagoq6DeqAUlbrHvW/mXDgdQ==
 
-"@types/minimist@^1.2.1":
-  version "1.2.1"
-  resolved "https://registry.yarnpkg.com/@types/minimist/-/minimist-1.2.1.tgz#283f669ff76d7b8260df8ab7a4262cc83d988256"
-  integrity sha512-fZQQafSREFyuZcdWFAExYjBiCL7AUCdgsk80iO0q4yihYYdcIiH28CcuPTGFgLOCC8RlW49GSQxdHwZP+I7CNg==
+"@types/minimist@^1.2.2":
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/@types/minimist/-/minimist-1.2.2.tgz#ee771e2ba4b3dc5b372935d549fd9617bf345b8c"
+  integrity sha512-jhuKLIRrhvCPLqwPcx6INqmKeiA5EWrsCOPhrlFSrbrmU4ZMPjj5Ul/oLCMDO98XRUIwVm78xICz4EPCektzeQ==
 
 "@types/mocha@^9.0.0":
   version "9.0.0"
@@ -4630,20 +4630,7 @@ gulp-untar@^0.0.7:
     through2 "~2.0.3"
     vinyl "^1.2.0"
 
-gulp-vinyl-zip@^2.1.2:
-  version "2.1.2"
-  resolved "https://registry.yarnpkg.com/gulp-vinyl-zip/-/gulp-vinyl-zip-2.1.2.tgz#b79cc1a0e2c3b158ffee294590ade1e9caaf5e7b"
-  integrity sha512-wJn09jsb8PyvUeyFF7y7ImEJqJwYy40BqL9GKfJs6UGpaGW9A+N68Q+ajsIpb9AeR6lAdjMbIdDPclIGo1/b7Q==
-  dependencies:
-    event-stream "3.3.4"
-    queue "^4.2.1"
-    through2 "^2.0.3"
-    vinyl "^2.0.2"
-    vinyl-fs "^3.0.3"
-    yauzl "^2.2.1"
-    yazl "^2.2.1"
-
-gulp-vinyl-zip@^2.5.0:
+gulp-vinyl-zip@^2.1.2, gulp-vinyl-zip@^2.5.0:
   version "2.5.0"
   resolved "https://registry.yarnpkg.com/gulp-vinyl-zip/-/gulp-vinyl-zip-2.5.0.tgz#73eef9c067b8775b1ad07a34a41384e1c7b0041a"
   integrity sha512-KPi5/2SUmkXXDvKU4L2U1dkPOP03SbhONTOgNZlL23l9Yopt+euJ1bBXwWrSMbsyh3JLW/TYuC8CI4c4Kq4qrw==
