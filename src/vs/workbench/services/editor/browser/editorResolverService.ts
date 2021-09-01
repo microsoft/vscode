@@ -173,7 +173,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				resource2 = URI.from({ scheme: Schemas.untitled });
 			}
 			const { editor: selectedEditor2 } = this.getEditor(resource2, undefined);
-			if (selectedEditor2 && selectedEditor.editorInfo.id !== selectedEditor2.editorInfo.id) {
+			if (!selectedEditor2 || selectedEditor.editorInfo.id !== selectedEditor2.editorInfo.id) {
 				const { editor: selectedDiff, conflictingDefault: conflictingDefaultDiff } = this.getEditor(resource, DEFAULT_EDITOR_ASSOCIATION.id);
 				selectedEditor = selectedDiff;
 				conflictingDefault = conflictingDefaultDiff;
