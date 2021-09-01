@@ -97,7 +97,7 @@
     "@types/chokidar": "2.1.3",
     "@types/cookie": "^0.4.1",
     "@types/copy-webpack-plugin": "^8.0.1",
-    "@types/cssnano": "^4.0.0",
+    "@types/cssnano": "^4.0.1",
     "@types/debug": "4.1.7",
     "@types/graceful-fs": "4.1.5",
     "@types/gulp-postcss": "^8.0.1",
