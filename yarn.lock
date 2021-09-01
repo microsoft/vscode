@@ -423,11 +423,6 @@
     minimatch "^3.0.4"
     mkdirp "^1.0.4"
 
-"@types/anymatch@*":
-  version "1.3.1"
-  resolved "https://registry.yarnpkg.com/@types/anymatch/-/anymatch-1.3.1.tgz#336badc1beecb9dacc38bea2cf32adf627a8421a"
-  integrity sha512-/+CRPXpBDpo2RK9C68N3b2cOvO0Cf5B9aPijHsoDQTHivnGSObdOF2BRQOYjojWTDy6nQvMjmqRXIxH55VjxxA==
-
 "@types/applicationinsights@0.20.0":
   version "0.20.0"
   resolved "https://registry.yarnpkg.com/@types/applicationinsights/-/applicationinsights-0.20.0.tgz#fa7b36dc954f635fa9037cad27c378446b1048fb"
@@ -591,16 +586,6 @@
   resolved "https://registry.yarnpkg.com/@types/sinon/-/sinon-1.16.36.tgz#74bb6ed7928597c1b3fb1b009005e94dc6eae357"
   integrity sha1-dLtu15KFl8Gz+xsAkAXpTcbq41c=
 
-"@types/source-list-map@*":
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/@types/source-list-map/-/source-list-map-0.1.2.tgz#0078836063ffaf17412349bba364087e0ac02ec9"
-  integrity sha512-K5K+yml8LTo9bWJI/rECfIPrGgxdpeNbj+d53lwN4QjW1MCwlkhUms+gtdzigTeUyBr09+u8BwOIY3MXvHdcsA==
-
-"@types/tapable@*":
-  version "1.0.4"
-  resolved "https://registry.yarnpkg.com/@types/tapable/-/tapable-1.0.4.tgz#b4ffc7dc97b498c969b360a41eee247f82616370"
-  integrity sha512-78AdXtlhpCHT0K3EytMpn4JNxaf5tbqbLcbIRoQIHzpTIyjpxLQKRoxU55ujBXAtg3Nl2h/XWvfDa9dsMOd0pQ==
-
 "@types/trusted-types@^2.0.2":
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/@types/trusted-types/-/trusted-types-2.0.2.tgz#fc25ad9943bcac11cceb8168db4f275e0e72e756"
@@ -612,13 +597,6 @@
   integrity sha512-AOqu6bQu5MSWwYvehMXLukFHnupHrpZ8nvgae5Ggie9UwzDR1CCwoXgSSWNZJuyOlCdfdsWMA5F2LlmvyoTv8A==
   dependencies:
     "@types/node" "*"
-
-"@types/uglify-js@*":
-  version "3.0.3"
-  resolved "https://registry.yarnpkg.com/@types/uglify-js/-/uglify-js-3.0.3.tgz#801a5ca1dc642861f47c46d14b700ed2d610840b"
-  integrity sha512-MAT0BW2ruO0LhQKjvlipLGCF/Yx0y/cj+tT67tK3QIQDrM2+9R78HgJ54VlrE8AbfjYJJBCQCEPM5ZblPVTuww==
-  dependencies:
-    source-map "^0.6.1"
 
 "@types/vinyl@*", "@types/vinyl@^2.0.4":
   version "2.0.5"
@@ -633,26 +611,14 @@
   resolved "https://registry.yarnpkg.com/@types/vscode-windows-registry/-/vscode-windows-registry-1.0.0.tgz#333eea7fd5743fa4c99dff13af16de2c08a586d0"
   integrity sha512-gyq9tIMbxry5GL2gY7J30E6R3EUx0cAin/k3wfsQez4C5uDWVJmJw142x6KFXtYX7xYQL/IXmm4cRqi4ghg05A==
 
-"@types/webpack-sources@*":
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/@types/webpack-sources/-/webpack-sources-2.1.0.tgz#8882b0bd62d1e0ce62f183d0d01b72e6e82e8c10"
-  integrity sha512-LXn/oYIpBeucgP1EIJbKQ2/4ZmpvRl+dlrFdX7+94SKRUV3Evy3FsfMZY318vGhkWUS5MPhtOM3w1/hCOAOXcg==
+"@types/webpack@^5.28.0":
+  version "5.28.0"
+  resolved "https://registry.yarnpkg.com/@types/webpack/-/webpack-5.28.0.tgz#78dde06212f038d77e54116cfe69e88ae9ed2c03"
+  integrity sha512-8cP0CzcxUiFuA9xGJkfeVpqmWTk9nx6CWwamRGCj95ph1SmlRRk9KlCZ6avhCbZd4L68LvYT6l1kpdEnQXrF8w==
   dependencies:
     "@types/node" "*"
-    "@types/source-list-map" "*"
-    source-map "^0.7.3"
-
-"@types/webpack@^4.41.25":
-  version "4.41.25"
-  resolved "https://registry.yarnpkg.com/@types/webpack/-/webpack-4.41.25.tgz#4d3b5aecc4e44117b376280fbfd2dc36697968c4"
-  integrity sha512-cr6kZ+4m9lp86ytQc1jPOJXgINQyz3kLLunZ57jznW+WIAL0JqZbGubQk4GlD42MuQL5JGOABrxdpqqWeovlVQ==
-  dependencies:
-    "@types/anymatch" "*"
-    "@types/node" "*"
-    "@types/tapable" "*"
-    "@types/uglify-js" "*"
-    "@types/webpack-sources" "*"
-    source-map "^0.6.0"
+    tapable "^2.2.0"
+    webpack "^5"
 
 "@types/wicg-file-system-access@^2020.9.2":
   version "2020.9.2"
@@ -8372,7 +8338,7 @@ source-map@0.1.32:
   dependencies:
     amdefine ">=0.0.4"
 
-source-map@0.7.3, source-map@^0.7.3, source-map@~0.7.2:
+source-map@0.7.3, source-map@~0.7.2:
   version "0.7.3"
   resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.7.3.tgz#5302f8169031735226544092e64981f751750383"
   integrity sha512-CkCj6giN3S+n9qrYiBTX5gystlENnRW5jZeNLHpe6aue+SrHcG5VYwujhW9s4dY31mEGsxBDrHR6oI69fTXsaQ==
@@ -9763,7 +9729,7 @@ webpack@^4.26.1:
     watchpack "^1.7.4"
     webpack-sources "^1.4.1"
 
-webpack@^5.1.0, webpack@^5.50.0:
+webpack@^5, webpack@^5.1.0, webpack@^5.50.0:
   version "5.51.1"
   resolved "https://registry.yarnpkg.com/webpack/-/webpack-5.51.1.tgz#41bebf38dccab9a89487b16dbe95c22e147aac57"
   integrity sha512-xsn3lwqEKoFvqn4JQggPSRxE4dhsRcysWTqYABAZlmavcoTmwlOb9b1N36Inbt/eIispSkuHa80/FJkDTPos1A==
