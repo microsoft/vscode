@@ -301,6 +301,19 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	readonly resource: URI | undefined;
 }
 
+export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput {
+
+	/**
+	 * The left hand side editor to open inside a side-by-side editor.
+	 */
+	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The right hand side editor to open inside a side-by-side editor.
+	 */
+	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+}
+
 export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 
 	/**
@@ -332,6 +345,16 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 	const candidate = editor as IResourceDiffEditorInput | undefined;
 
 	return candidate?.original !== undefined && candidate.modified !== undefined;
+}
+
+export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceSideBySideEditorInput | undefined;
+
+	return candidate?.primary !== undefined && candidate.secondary !== undefined;
 }
 
 export function isUntitledResourceEditorInput(editor: unknown): editor is IUntitledTextResourceEditorInput {
@@ -458,7 +481,7 @@ export const enum EditorInputCapabilities {
 	CanSplitInGroup = 1 << 5
 }
 
-export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
 
 export interface IEditorInput extends IDisposable {
 
@@ -699,6 +722,25 @@ export function isSideBySideEditorInput(editor: unknown): editor is ISideBySideE
 	const candidate = editor as ISideBySideEditorInput | undefined;
 
 	return isEditorInput(candidate?.primary) && isEditorInput(candidate?.secondary);
+}
+
+export interface IDiffEditorInput extends IEditorInput {
+
+	/**
+	 * The modified (primary) editor input is shown on the right hand side.
+	 */
+	modified: IEditorInput;
+
+	/**
+	 * The original (secondary) editor input is shown on the left hand side.
+	 */
+	original: IEditorInput;
+}
+
+export function isDiffEditorInput(editor: unknown): editor is IDiffEditorInput {
+	const candidate = editor as IDiffEditorInput | undefined;
+
+	return isEditorInput(candidate?.modified) && isEditorInput(candidate?.original);
 }
 
 export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
@@ -945,20 +987,21 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Optionally support side-by-side editors
-		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modified : undefined;
-		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.original : undefined;
-		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
-			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
-				return {
-					primary: this.getOriginalUri(primaryEditor, { filterByScheme: options.filterByScheme }),
-					secondary: this.getOriginalUri(secondaryEditor, { filterByScheme: options.filterByScheme })
-				};
-			}
+		if (options?.supportSideBySide) {
+			const { primary, secondary } = this.getSideEditors(editor);
+			if (primary && secondary) {
+				if (options?.supportSideBySide === SideBySideEditor.BOTH) {
+					return {
+						primary: this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }),
+						secondary: this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme })
+					};
+				}
 
-			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primaryEditor : secondaryEditor;
+				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
+			}
 		}
 
-		if (isResourceDiffEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
 			return;
 		}
 
@@ -969,6 +1012,18 @@ class EditorResourceAccessorImpl {
 		}
 
 		return this.filterUri(originalResource, options.filterByScheme);
+	}
+
+	private getSideEditors(editor: IEditorInput | IUntypedEditorInput): { primary: IEditorInput | IUntypedEditorInput | undefined, secondary: IEditorInput | IUntypedEditorInput | undefined } {
+		if (isSideBySideEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
+			return { primary: editor.primary, secondary: editor.secondary };
+		}
+
+		if (isDiffEditorInput(editor) || isResourceDiffEditorInput(editor)) {
+			return { primary: editor.modified, secondary: editor.original };
+		}
+
+		return { primary: undefined, secondary: undefined };
 	}
 
 	/**
@@ -993,20 +1048,21 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Optionally support side-by-side editors
-		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modified : undefined;
-		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.original : undefined;
-		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
-			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
-				return {
-					primary: this.getCanonicalUri(primaryEditor, { filterByScheme: options.filterByScheme }),
-					secondary: this.getCanonicalUri(secondaryEditor, { filterByScheme: options.filterByScheme })
-				};
-			}
+		if (options?.supportSideBySide) {
+			const { primary, secondary } = this.getSideEditors(editor);
+			if (primary && secondary) {
+				if (options?.supportSideBySide === SideBySideEditor.BOTH) {
+					return {
+						primary: this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }),
+						secondary: this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme })
+					};
+				}
 
-			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primaryEditor : secondaryEditor;
+				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
+			}
 		}
 
-		if (isResourceDiffEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
 			return;
 		}
 

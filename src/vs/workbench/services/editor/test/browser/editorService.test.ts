@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorsOrder, IEditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, isResourceDiffEditorInput, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorsOrder, IEditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, IResourceSideBySideEditorInput, isEditorInputWithOptions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestEditorWithOptions, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -1681,8 +1681,8 @@ suite('EditorService', () => {
 
 		// Untyped Input (diff)
 		const resourceDiffInput = {
-			original: { resource: toResource.call(this, '/primary.html') },
-			modified: { resource: toResource.call(this, '/secondary.html') }
+			modified: { resource: toResource.call(this, '/modified.html') },
+			original: { resource: toResource.call(this, '/original.html') }
 		};
 		assert.strictEqual(isResourceDiffEditorInput(resourceDiffInput), true);
 		input = service.createEditorInput(resourceDiffInput);
@@ -1692,6 +1692,20 @@ suite('EditorService', () => {
 		const untypedDiffInput = input.toUntyped() as IResourceDiffEditorInput;
 		assert.strictEqual(untypedDiffInput.original.resource?.toString(), resourceDiffInput.original.resource.toString());
 		assert.strictEqual(untypedDiffInput.modified.resource?.toString(), resourceDiffInput.modified.resource.toString());
+
+		// Untyped Input (side by side)
+		const sideBySideResourceInput = {
+			primary: { resource: toResource.call(this, '/primary.html') },
+			secondary: { resource: toResource.call(this, '/secondary.html') }
+		};
+		assert.strictEqual(isResourceSideBySideEditorInput(sideBySideResourceInput), true);
+		input = service.createEditorInput(sideBySideResourceInput);
+		assert(input instanceof SideBySideEditorInput);
+		assert.strictEqual(input.primary.resource?.toString(), sideBySideResourceInput.primary.resource.toString());
+		assert.strictEqual(input.secondary.resource?.toString(), sideBySideResourceInput.secondary.resource.toString());
+		const untypedSideBySideInput = input.toUntyped() as IResourceSideBySideEditorInput;
+		assert.strictEqual(untypedSideBySideInput.primary.resource?.toString(), sideBySideResourceInput.primary.resource.toString());
+		assert.strictEqual(untypedSideBySideInput.secondary.resource?.toString(), sideBySideResourceInput.secondary.resource.toString());
 	});
 
 	test('close editor does not dispose when editor opened in other group', async () => {

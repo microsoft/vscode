@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IResourceDiffEditorInput, IResourceSideBySideEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -91,10 +91,14 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		return this._cachedModel;
 	}
 
-	override toUntyped(): IResourceDiffEditorInput {
+	override toUntyped(): IResourceDiffEditorInput & IResourceSideBySideEditorInput {
+		const original = { resource: this.original.resource };
+		const modified = { resource: this.resource };
 		return {
-			original: { resource: this.original.resource },
-			modified: { resource: this.resource },
+			original,
+			modified,
+			primary: modified,
+			secondary: original,
 			options: {
 				override: this.viewType
 			}

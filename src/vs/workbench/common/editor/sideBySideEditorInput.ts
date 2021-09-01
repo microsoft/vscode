@@ -8,9 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+
 /**
  * Side by side editor inputs that have a primary and secondary side.
  */
@@ -131,12 +132,41 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return this.primary.revert(group, options);
 	}
 
+	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceSideBySideEditorInput | undefined {
+		const primaryResourceEditorInput = this.primary.toUntyped(options);
+		const secondaryResourceEditorInput = this.secondary.toUntyped(options);
+
+		// Prevent nested side by side editors which are unsupported
+		if (
+			primaryResourceEditorInput && secondaryResourceEditorInput &&
+			!isResourceDiffEditorInput(primaryResourceEditorInput) && !isResourceDiffEditorInput(secondaryResourceEditorInput) &&
+			!isResourceSideBySideEditorInput(primaryResourceEditorInput) && !isResourceSideBySideEditorInput(secondaryResourceEditorInput)
+		) {
+			return {
+				label: this.name,
+				description: this.description,
+				primary: primaryResourceEditorInput,
+				secondary: secondaryResourceEditorInput
+			};
+		}
+
+		return undefined;
+	}
+
 	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (this === otherInput) {
 			return true;
 		}
 
+		if (isDiffEditorInput(otherInput) || isResourceDiffEditorInput(otherInput)) {
+			return false; // prevent subclass from matching
+		}
+
 		if (otherInput instanceof SideBySideEditorInput) {
+			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
+		}
+
+		if (isResourceSideBySideEditorInput(otherInput)) {
 			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
 		}
 
