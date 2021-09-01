@@ -2850,6 +2850,7 @@ declare module 'vscode' {
 	interface LanguageStatusItem {
 		readonly id: string;
 		selector: DocumentSelector;
+		// todo@jrieken replace with boolean ala needsAttention
 		severity: LanguageStatusSeverity;
 		name: string | undefined;
 		text: string;
