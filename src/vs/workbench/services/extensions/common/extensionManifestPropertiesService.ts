@@ -292,7 +292,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		result = manifest.extensionKind;
 		if (typeof result !== 'undefined') {
 			result = this.toArray(result);
-			return result.filter(r => ALL_EXTENSION_KINDS.includes(r));
+			return result.filter(r => ['ui', 'workspace'].includes(r));
 		}
 
 		return null;
