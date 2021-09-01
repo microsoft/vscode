@@ -72,11 +72,20 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 	}
 
 	private _handlePool: number = 0;
+	private _ids = new Set<string>();
 
 	createLanguageStatusItem(extension: IExtensionDescription, id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
 
 		const handle = this._handlePool++;
 		const proxy = this._proxy;
+		const ids = this._ids;
+
+		// enforce extension unique identifier
+		const fullyQualifiedId = `${extension.identifier.value}/${id}`;
+		if (ids.has(fullyQualifiedId)) {
+			throw new Error(`LanguageStatusItem with id '${id}' ALREADY exists`);
+		}
+		ids.add(fullyQualifiedId);
 
 		const data: Omit<vscode.LanguageStatusItem, 'dispose'> = {
 			selector,
@@ -92,11 +101,9 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 		const updateAsync = () => {
 			soonHandle?.dispose();
 			soonHandle = disposableTimeout(() => {
-
 				commandDisposables.clear();
-
 				this._proxy.$setLanguageStatus(handle, {
-					id: `${extension.identifier.value}/${id}`,
+					id: fullyQualifiedId,
 					name: data.name ?? extension.displayName ?? extension.name,
 					source: extension.displayName ?? extension.name,
 					selector: data.selector,
@@ -114,6 +121,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 				commandDisposables.dispose();
 				soonHandle?.dispose();
 				proxy.$removeLanguageStatus(handle);
+				ids.delete(fullyQualifiedId);
 			},
 			get id() {
 				return data.id;
