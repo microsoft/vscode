@@ -175,16 +175,16 @@ suite('ExtHost Testing', () => {
 		test('manages tags correctly', () => {
 			single.expand(single.root.id, Infinity);
 			single.collectDiff();
-			const tag1 = new TestTag('tag1', 'Tag 1');
-			const tag2 = new TestTag('tag2', 'Tag 2');
+			const tag1 = new TestTag('tag1');
+			const tag2 = new TestTag('tag2');
 			const tag3 = new TestTag('tag3');
 			const child = new TestItemImpl('ctrlId', 'id-ac', 'c', undefined);
 			child.tags = [tag1, tag2];
 			single.root.children.get('id-a')!.children.add(child);
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag1', label: 'Tag 1' }],
-				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag2', label: 'Tag 2' }],
+				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag1' }],
+				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag2' }],
 				[TestDiffOpType.Add, {
 					controllerId: 'ctrlId',
 					parent: new TestId(['ctrlId', 'id-a']).toString(),

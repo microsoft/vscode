@@ -1889,23 +1889,16 @@ declare module 'vscode' {
 	 */
 	export class TestTag {
 		/**
-		 * Unique ID of the test tag.
+		 * ID of the test tag. `TestTag` instances with the same ID are considered
+		 * to be identical.
 		 */
 		readonly id: string;
 
 		/**
-		 * Human-readable name of the tag. If present, the tag will be visible as
-		 * a filter option in the UI.
-		 */
-		readonly label?: string;
-
-		/**
 		 * Creates a new TestTag instance.
-		 * @param id Unique ID of the test tag.
-		 * @param label Human-readable name of the tag.  If present, the tag will
-		 * be visible as a filter option in the UI.
+		 * @param id ID of the test tag.
 		 */
-		constructor(id: string, label?: string);
+		constructor(id: string);
 	}
 
 	export interface TestRunProfile {

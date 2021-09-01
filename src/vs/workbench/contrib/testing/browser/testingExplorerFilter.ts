@@ -10,159 +10,21 @@ import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Action, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { splitGlobAware } from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
+import { CompletionItem } from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
 import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-
-export interface ITestExplorerFilterState {
-	_serviceBrand: undefined;
-	readonly text: IObservableValue<string>;
-
-	/** Test ID the user wants to reveal in the explorer */
-	readonly reveal: MutableObservableValue<string | undefined>;
-
-	readonly onDidRequestInputFocus: Event<void>;
-
-	/**
-	 * Glob list to filter for based on the {@link text}
-	 */
-	readonly globList: readonly { include: boolean; text: string }[];
-
-	/**
-	 * The user requested to filter for only the specified tags.
-	 */
-	readonly onlyTags: ReadonlySet<string>;
-
-	/**
-	 * Focuses the filter input in the test explorer view.
-	 */
-	focusInput(): void;
-
-	/**
-	 * Replaces the filter {@link text}.
-	 */
-	setText(text: string): void;
-
-	/**
-	 * Sets whether the {@link text} is filtering for a special term.
-	 */
-	isFilteringFor(term: TestFilterTerm): boolean;
-
-	/**
-	 * Sets whether the {@link text} includes a special filter term.
-	 */
-	toggleFilteringFor(term: TestFilterTerm, shouldFilter?: boolean): void;
-}
-
-export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState>('testingFilterState');
-
-const tagRe = /@([^ ,]*)/g;
-const testTagRe = /^@(.+?):(.+)$/;
-const trimExtraWhitespace = (str: string) => str.replace(/\s\s+/g, ' ').trim();
-
-export class TestExplorerFilterState implements ITestExplorerFilterState {
-	declare _serviceBrand: undefined;
-	private readonly focusEmitter = new Emitter<void>();
-	/**
-	 * Mapping of terms to whether they're included in the text.
-	 */
-	private termFilterState: { [K in TestFilterTerm]?: true } = {};
-
-	/** @inheritdoc */
-	public globList: { include: boolean; text: string }[] = [];
-
-	/** @inheritdoc */
-	public onlyTags = new Set<string>();
-
-	/** @inheritdoc */
-	public readonly text = new MutableObservableValue('');
-
-	public readonly reveal = new MutableObservableValue</* test ID */string | undefined>(undefined);
-
-	public readonly onDidRequestInputFocus = this.focusEmitter.event;
-
-	/** @inheritdoc */
-	public focusInput() {
-		this.focusEmitter.fire();
-	}
-
-	/** @inheritdoc */
-	public setText(text: string) {
-		if (text === this.text.value) {
-			return;
-		}
-
-		this.termFilterState = {};
-		this.globList = [];
-		this.onlyTags.clear();
-
-		let globText = '';
-		let lastIndex = 0;
-		for (const match of text.matchAll(tagRe)) {
-			globText += text.slice(lastIndex, match.index);
-			lastIndex = match.index! + match[0].length;
-
-			const tag = match[0];
-			if (allTestFilterTerms.includes(tag as TestFilterTerm)) {
-				this.termFilterState[tag as TestFilterTerm] = true;
-			}
-
-			const tagMatch = testTagRe.exec(tag);
-			if (tagMatch) {
-				this.onlyTags.add(TestTag.namespace(tagMatch[1], tagMatch[2]));
-			}
-		}
-
-		globText += text.slice(lastIndex).trim();
-
-		if (globText.length) {
-			for (const filter of splitGlobAware(globText, ',').map(s => s.trim()).filter(s => !!s.length)) {
-				if (filter.startsWith('!')) {
-					this.globList.push({ include: false, text: filter.slice(1).toLowerCase() });
-				} else {
-					this.globList.push({ include: true, text: filter.toLowerCase() });
-				}
-			}
-		}
-
-		this.text.value = text; // purposely afterwards so everything is updated when the change event happen
-	}
-
-	/** @inheritdoc */
-	public isFilteringFor(term: TestFilterTerm) {
-		return !!this.termFilterState[term];
-	}
-
-	/** @inheritdoc */
-	public toggleFilteringFor(term: TestFilterTerm, shouldFilter?: boolean) {
-		const text = this.text.value.trim();
-		if (shouldFilter !== false && !this.termFilterState[term]) {
-			this.setText(text ? `${text} ${term}` : term);
-		} else if (shouldFilter !== true && this.termFilterState[term]) {
-			this.setText(trimExtraWhitespace(text.replace(term, '')));
-		}
-	}
-}
-
-export const enum TestFilterTerm {
-	Failed = '@failed',
-	Executed = '@executed',
-	CurrentDoc = '@doc',
-	Hidden = '@hidden',
-}
 
 const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 	[TestFilterTerm.Failed]: localize('testing.filters.showOnlyFailed', "Show Only Failed Tests"),
@@ -170,8 +32,6 @@ const testFilterDescriptions: { [K in TestFilterTerm]: string } = {
 	[TestFilterTerm.CurrentDoc]: localize('testing.filters.currentFile', "Show in Active File Only"),
 	[TestFilterTerm.Hidden]: localize('testing.filters.showExcludedTests', "Show Hidden Tests"),
 };
-
-export const allTestFilterTerms = Object.keys(testFilterDescriptions) as readonly TestFilterTerm[];
 
 export class TestingExplorerFilter extends BaseActionViewItem {
 	private input!: SuggestEnabledInputWithHistory;
@@ -216,9 +76,11 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 					...Object.entries(testFilterDescriptions).map(([label, detail]) => ({ label, detail })),
 					...Iterable.map(this.testService.collection.tags.values(), tag => {
 						const { ctrlId, tagId } = TestTag.denamespace(tag.id);
+						const insertText = `@${ctrlId}:${tagId}`;
 						return ({
 							label: `@${ctrlId}:${tagId}`,
-							detail: tag.label ? `${tag.ctrlLabel} › ${tag.label}` : tag.ctrlLabel,
+							detail: tag.ctrlLabel,
+							insertText: tagId.includes(' ') ? `@${ctrlId}:"${tagId.replace(/(["\\])/g, '\\$1')}"` : insertText,
 						});
 					}),
 				].filter(r => !this.state.text.value.includes(r.label)),
