@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -395,7 +395,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	override toUntyped(options?: { preserveViewState: GroupIdentifier }): ITextResourceEditorInput {
-		const untypedInput: ITextResourceEditorInput & { options: ITextEditorOptions } = {
+		const untypedInput: IUntypedFileEditorInput = {
 			resource: this.preferredResource,
 			forceFile: true,
 			options: {
@@ -415,7 +415,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				return undefined;
 			})();
 
-			untypedInput.options.viewState = this.getViewStateFor(options.preserveViewState);
+			untypedInput.options = {
+				...untypedInput.options,
+				viewState: this.getViewStateFor(options.preserveViewState)
+			};
 		}
 
 		return untypedInput;

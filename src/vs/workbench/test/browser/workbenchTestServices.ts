@@ -843,7 +843,7 @@ export class TestEditorService implements EditorServiceImpl {
 	isOpened(_editor: IResourceEditorInputIdentifier): boolean { return false; }
 	isVisible(_editor: IEditorInput): boolean { return false; }
 	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
-	createEditorInput(_input: IResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput): EditorInput { throw new Error('not implemented'); }
+	createEditorInput(_input: any): any { throw new Error('not implemented'); }
 	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
