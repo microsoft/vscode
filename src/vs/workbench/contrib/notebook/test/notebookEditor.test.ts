@@ -58,11 +58,12 @@ suite('ListViewInfoAccessor', () => {
 				const notebookEditor = new class extends mock<INotebookEditor>() {
 					override getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
 					override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
+					override cellAt(index: number) { return viewModel.cellAt(index); }
 				};
 
-				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, viewModel, [{ start: 0, end: 1 }]), [{ start: 0, end: 2 }]);
-				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, viewModel, [{ start: 2, end: 3 }]), [{ start: 2, end: 5 }]);
-				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, viewModel, [{ start: 0, end: 1 }, { start: 2, end: 3 }]), [{ start: 0, end: 5 }]);
+				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }]), [{ start: 0, end: 2 }]);
+				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 2, end: 3 }]), [{ start: 2, end: 5 }]);
+				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }, { start: 2, end: 3 }]), [{ start: 0, end: 5 }]);
 			});
 	});
 });

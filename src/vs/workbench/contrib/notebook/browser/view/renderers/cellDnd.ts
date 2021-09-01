@@ -185,7 +185,7 @@ export class CellDragAndDropController extends Disposable {
 
 	private getCellRangeAroundDragTarget(draggedCellIndex: number) {
 		const selections = this.notebookEditor.getSelections();
-		const modelRanges = expandCellRangesWithHiddenCells(this.notebookEditor, this.notebookEditor.viewModel!, selections);
+		const modelRanges = expandCellRangesWithHiddenCells(this.notebookEditor, selections);
 		const nearestRange = modelRanges.find(range => range.start <= draggedCellIndex && draggedCellIndex < range.end);
 
 		if (nearestRange) {

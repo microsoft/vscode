@@ -169,7 +169,7 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
-				const ret = await joinNotebookCells(viewModel, { start: 3, end: 4 }, 'below');
+				const ret = await joinNotebookCells(editor, { start: 3, end: 4 }, 'below');
 				assert.strictEqual(ret?.edits.length, 2);
 				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(3)!.uri, {
 					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(4)!.textBuffer.getEOL() + 'var c = 3;'
@@ -196,7 +196,7 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
-				const ret = await joinNotebookCells(viewModel, { start: 4, end: 5 }, 'above');
+				const ret = await joinNotebookCells(editor, { start: 4, end: 5 }, 'above');
 				assert.strictEqual(ret?.edits.length, 2);
 				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(3)!.uri, {
 					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(4)!.textBuffer.getEOL() + 'var c = 3;'
@@ -221,7 +221,7 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				const ret = await joinNotebookCells(viewModel, { start: 0, end: 2 }, 'below');
+				const ret = await joinNotebookCells(editor, { start: 0, end: 2 }, 'below');
 				assert.strictEqual(ret?.edits.length, 2);
 				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(0)!.uri, {
 					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(1)!.textBuffer.getEOL() + 'var b = 2;' + viewModel.cellAt(2)!.textBuffer.getEOL() + 'var c = 3;'
@@ -246,7 +246,7 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel, accessor) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 1, end: 3 }] });
-				const ret = await joinNotebookCells(viewModel, { start: 1, end: 3 }, 'above');
+				const ret = await joinNotebookCells(editor, { start: 1, end: 3 }, 'above');
 				assert.strictEqual(ret?.edits.length, 2);
 				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(0)!.uri, {
 					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(1)!.textBuffer.getEOL() + 'var b = 2;' + viewModel.cellAt(2)!.textBuffer.getEOL() + 'var c = 3;'

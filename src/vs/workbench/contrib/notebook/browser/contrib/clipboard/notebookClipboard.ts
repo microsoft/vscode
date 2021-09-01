@@ -157,7 +157,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 		}
 	}
 
-	const selectionRanges = expandCellRangesWithHiddenCells(editor, viewModel, viewModel.getSelections());
+	const selectionRanges = expandCellRangesWithHiddenCells(editor, viewModel.getSelections());
 	const selectedCells = cellRangeToViewCells(viewModel, selectionRanges);
 
 	if (!selectedCells.length) {
@@ -223,7 +223,7 @@ export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor,
 		return true;
 	}
 
-	const selectionRanges = expandCellRangesWithHiddenCells(editor, viewModel, viewModel.getSelections());
+	const selectionRanges = expandCellRangesWithHiddenCells(editor, viewModel.getSelections());
 	const selectedCells = cellRangeToViewCells(viewModel, selectionRanges);
 
 	if (!selectedCells.length) {

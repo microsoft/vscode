@@ -249,6 +249,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override cellAt(index: number) { return viewModel.cellAt(index)!; }
 		override getCellIndex(cell: ICellViewModel) { return viewModel.getCellIndex(cell); }
 		override getCellIndexByHandle(handle: number) { return viewModel.getCellIndexByHandle(handle); }
+		override getCellsInRange(range?: ICellRange) { return viewModel.getCells(range); }
 	};
 
 	return { editor: notebookEditor, viewModel };

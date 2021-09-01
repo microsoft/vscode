@@ -182,6 +182,10 @@ export class ListViewInfoAccessor extends Disposable {
 		return this.list.viewModel.getCells(range);
 	}
 
+	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
+		return this.list.viewModel?.getCells(range) ?? [];
+	}
+
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
 		this.list.setCellSelection(cell, range);
 	}
@@ -281,6 +285,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	get textModel() {
 		return this._notebookViewModel?.notebookDocument;
+	}
+
+	get isReadOnly() {
+		return this._notebookViewModel?.options.isReadOnly ?? false;
 	}
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
@@ -1806,6 +1814,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._listViewInfoAccessor.getCellsFromViewRange(startIndex, endIndex);
 	}
 
+	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
+		return this._listViewInfoAccessor.getCellsInRange(range);
+	}
+
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
 		this._listViewInfoAccessor.setCellEditorSelection(cell, range);
 	}
@@ -2219,7 +2231,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const selectedIndex = this._list.getViewIndex(selectedCell)!;
 		const previousIndex = this._list.getViewIndex(previousSelection)!;
 
-		const cellsInSelectionRange = this.getCellsInRange(selectedIndex, previousIndex);
+		const cellsInSelectionRange = this.getCellsInViewRange(selectedIndex, previousIndex);
 		if (isSelected) {
 			// Deselect
 			this._list.selectElements(currentSelections.filter(current => !cellsInSelectionRange.includes(current)));
@@ -2230,7 +2242,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	private getCellsInRange(fromInclusive: number, toInclusive: number): ICellViewModel[] {
+	private getCellsInViewRange(fromInclusive: number, toInclusive: number): ICellViewModel[] {
 		const selectedCellsInRange: ICellViewModel[] = [];
 		for (let index = 0; index < this._list.length; ++index) {
 			const cell = this._list.element(index);
