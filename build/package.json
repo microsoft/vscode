@@ -21,7 +21,7 @@
     "@types/gulp-sourcemaps": "^0.0.32",
     "@types/mime": "0.0.29",
     "@types/minimatch": "^3.0.5",
-    "@types/minimist": "^1.2.1",
+    "@types/minimist": "^1.2.2",
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^8.2.0",
     "@types/node": "^14.14.37",
