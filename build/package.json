@@ -29,7 +29,7 @@
     "@types/plist": "^3.0.2",
     "@types/pump": "^1.0.1",
     "@types/request": "^2.47.0",
-    "@types/rimraf": "^2.0.4",
+    "@types/rimraf": "^2.0.5",
     "@types/through": "^0.0.29",
     "@types/through2": "^2.0.34",
     "@types/underscore": "^1.8.9",
