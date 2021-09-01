@@ -96,7 +96,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			if (untypedEditor) {
 				// Preserve original options: specifically it is
 				// possible that a `override` was defined from
-				// the outside and we do not want to loose it.
+				// the outside and we do not want to lose it.
 				untypedEditor.options = { ...untypedEditor.options, ...editor.options };
 			}
 		}
@@ -161,12 +161,29 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		// Resolved the editor ID as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
-		const { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
+		let { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, untypedEditor.options?.override as (string | EditorResolution.EXCLUSIVE_ONLY | undefined));
 		if (!selectedEditor) {
 			return ResolvedStatus.NONE;
 		}
 
-		// If no override we take the selected editor id so that matches workes with the isActive check
+		// In the special case of diff editors we do some more work to determine the correct editor for both sides
+		if (isResourceDiffEditorInput(untypedEditor) && untypedEditor.options?.override === undefined) {
+			let resource2 = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.SECONDARY });
+			if (!resource2) {
+				resource2 = URI.from({ scheme: Schemas.untitled });
+			}
+			const { editor: selectedEditor2 } = this.getEditor(resource2, undefined);
+			if (selectedEditor2 && selectedEditor.editorInfo.id !== selectedEditor2.editorInfo.id) {
+				const { editor: selectedDiff, conflictingDefault: conflictingDefaultDiff } = this.getEditor(resource, DEFAULT_EDITOR_ASSOCIATION.id);
+				selectedEditor = selectedDiff;
+				conflictingDefault = conflictingDefaultDiff;
+			}
+			if (!selectedEditor) {
+				return ResolvedStatus.NONE;
+			}
+		}
+
+		// If no override we take the selected editor id so that matches works with the isActive check
 		untypedEditor.options = { override: selectedEditor.editorInfo.id, ...untypedEditor.options };
 
 		const handlesDiff = typeof selectedEditor.options?.canHandleDiff === 'function' ? selectedEditor.options.canHandleDiff() : selectedEditor.options?.canHandleDiff;
