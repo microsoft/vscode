@@ -654,10 +654,10 @@ aws4@^1.8.0:
   resolved "https://registry.yarnpkg.com/aws4/-/aws4-1.11.0.tgz#d61f46d83b2519250e2784daf5b09479a8b41c59"
   integrity sha512-xh1Rl34h6Fi1DC2WWKfxUTVqRsNnr6LsKz2+hfwDxQJWmrx8+c7ylaqBMcHfl1U1r2dsifOvKX3LQuLNZ+XSvA==
 
-azure-storage@^2.1.0:
-  version "2.10.3"
-  resolved "https://registry.yarnpkg.com/azure-storage/-/azure-storage-2.10.3.tgz#c5966bf929d87587d78f6847040ea9a4b1d4a50a"
-  integrity sha512-IGLs5Xj6kO8Ii90KerQrrwuJKexLgSwYC4oLWmc11mzKe7Jt2E5IVg+ZQ8K53YWZACtVTMBNO3iGuA+4ipjJxQ==
+azure-storage@^2.10.4:
+  version "2.10.4"
+  resolved "https://registry.yarnpkg.com/azure-storage/-/azure-storage-2.10.4.tgz#c481d207eabc05f57f019b209f7faa8737435104"
+  integrity sha512-zlfRPl4js92JC6+79C2EUmNGYjSknRl8pOiHQF78zy+pbOFOHtlBF6BU/OxPeHQX3gaa6NdEZnVydFxhhndkEw==
   dependencies:
     browserify-mime "~1.2.9"
     extend "^3.0.2"
@@ -665,7 +665,7 @@ azure-storage@^2.1.0:
     md5.js "1.3.4"
     readable-stream "~2.0.0"
     request "^2.86.0"
-    underscore "~1.8.3"
+    underscore "^1.12.1"
     uuid "^3.0.0"
     validator "~9.4.1"
     xml2js "0.2.8"
@@ -1991,10 +1991,15 @@ uc.micro@^1.0.1, uc.micro@^1.0.5:
   resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.5.tgz#0c65f15f815aa08b560a61ce8b4db7ffc3f45376"
   integrity sha512-JoLI4g5zv5qNyT09f4YAvEZIIV1oOjqnewYg5D38dkQljIzpPT296dbIGvKro3digYI1bkb7W6EP1y4uDlmzLg==
 
-underscore@1.8.3, underscore@~1.8.3:
+underscore@1.8.3:
   version "1.8.3"
   resolved "https://registry.yarnpkg.com/underscore/-/underscore-1.8.3.tgz#4f3fb53b106e6097fcf9cb4109f2a5e9bdfa5022"
   integrity sha1-Tz+1OxBuYJf8+ctBCfKl6b36UCI=
+
+underscore@^1.12.1:
+  version "1.13.1"
+  resolved "https://registry.yarnpkg.com/underscore/-/underscore-1.13.1.tgz#0c1c6bd2df54b6b69f2314066d65b6cde6fcf9d1"
+  integrity sha512-hzSoAVtJF+3ZtiFX0VgfFPHEDRm7Y/QPjGyNo4TVdnDTdft3tr8hEkD25a1jC+TjTuE7tkHGKkhwCgs9dgBB2g==
 
 underscore@^1.8.3:
   version "1.9.1"
