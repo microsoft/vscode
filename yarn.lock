@@ -659,10 +659,12 @@
   resolved "https://registry.yarnpkg.com/@types/wicg-file-system-access/-/wicg-file-system-access-2020.9.2.tgz#6433e5a1d7cfdc58558e15f69276e4f0034088c6"
   integrity sha512-8ni2EyWi01DBuVqekudo2I+RTfq4Jq93iHmlzq0+eKPkG1uebQA9OUxIDRzOevvw9wF922XYRo4bqP0a6DBF5g==
 
-"@types/windows-foreground-love@^0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@types/windows-foreground-love/-/windows-foreground-love-0.3.0.tgz#26bc230b2568aa7ab7c56d35bb5653c0a6965a42"
-  integrity sha512-tFUVA/fiofNqOh6lZlymvQiQYPY+cZXZPR9mn9wN6/KS8uwx0zgH4Ij/jmFyRYr+x+DGZWEIeknS2BMi7FZJAQ==
+"@types/windows-foreground-love@^0.3.1":
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/@types/windows-foreground-love/-/windows-foreground-love-0.3.1.tgz#a9a96f33877a429a5eab14c026570c64ef4886ed"
+  integrity sha512-aN6wdcro6KOUinabIbY8EeWnk4BzXLbUTcS3YGUDIh5lmHYif0z3gsaqi3Dg2Nk7GpRIjqVutwPMeAdn/YfChA==
+  dependencies:
+    windows-foreground-love "*"
 
 "@types/windows-mutex@^0.4.0":
   version "0.4.0"
@@ -9826,6 +9828,11 @@ wide-align@1.1.3, wide-align@^1.1.0:
   integrity sha512-QGkOQc8XL6Bt5PwnsExKBPuMKBxnGxWWW3fU55Xt4feHozMUhdUMaBCk290qpm/wG5u/RSKzwdAC4i51YigihA==
   dependencies:
     string-width "^1.0.2 || 2"
+
+windows-foreground-love@*:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.4.0.tgz#79b628ba0ffc0436fa8066da8f85db042e431976"
+  integrity sha512-IPv60/Z6pJE8AQEBLzYWFfCVh6Z5G6qCrysbJzXYCKFkQY3XivsePdbZ0C0wqRNqsFjpVr06vnIdKfIcZFgDXQ==
 
 windows-foreground-love@0.2.0:
   version "0.2.0"

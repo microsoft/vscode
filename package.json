@@ -111,7 +111,7 @@
     "@types/vscode-windows-registry": "^1.0.0",
     "@types/webpack": "^4.41.25",
     "@types/wicg-file-system-access": "^2020.9.2",
-    "@types/windows-foreground-love": "^0.3.0",
+    "@types/windows-foreground-love": "^0.3.1",
     "@types/windows-mutex": "^0.4.0",
     "@types/windows-process-tree": "^0.3.1",
     "@types/winreg": "^1.2.31",
