@@ -30,7 +30,7 @@
   "devDependencies": {
     "@types/minimatch": "^3.0.5",
     "@types/node": "^12.20.19",
-    "@types/which": "^2.0.0"
+    "@types/which": "^2.0.1"
   },
   "resolutions": {
     "which-pm/load-yaml-file/**/argparse": "1.0.9"

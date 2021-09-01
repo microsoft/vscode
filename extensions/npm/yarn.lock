@@ -12,10 +12,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-12.20.19.tgz#538e61fc220f77ae4a4663c3d8c3cb391365c209"
   integrity sha512-niAuZrwrjKck4+XhoCw6AAVQBENHftpXw9F4ryk66fTgYaKQ53R4FI7c9vUGGw5vQis1HKBHDR1gcYI/Bq1xvw==
 
-"@types/which@^2.0.0":
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/@types/which/-/which-2.0.0.tgz#446d35586611dee657120de8e0457382a658fc25"
-  integrity sha512-JHTNOEpZnACQdsTojWggn+SQ8IucfqEhtz7g8Z0G67WdSj4x3F0X5I2c/CVcl8z/QukGrIHeQ/N49v1au74XFQ==
+"@types/which@^2.0.1":
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/@types/which/-/which-2.0.1.tgz#27ecd67f915b7c3d6ba552135bb1eecd66e63501"
+  integrity sha512-Jjakcv8Roqtio6w1gr0D7y6twbhx6gGgFGF5BLwajPpnOIOxFkakFhCq+LmyyeAz7BX6ULrjBOxdKaCDy+4+dQ==
 
 agent-base@4:
   version "4.2.0"
