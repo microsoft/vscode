@@ -516,10 +516,10 @@
   dependencies:
     "@types/node" "*"
 
-"@types/gulp-postcss@^8.0.0":
-  version "8.0.0"
-  resolved "https://registry.yarnpkg.com/@types/gulp-postcss/-/gulp-postcss-8.0.0.tgz#f7e86d45e4999fd43e6d8c55b00504c88a67ad61"
-  integrity sha512-AVgjA03bpkYONKZpzuJviB9PzaNbDzrovYPbenj8/XxivUc35C/dIzJanyaQv7CFqfLLPLsqSalmtP3GLq6iag==
+"@types/gulp-postcss@^8.0.1":
+  version "8.0.1"
+  resolved "https://registry.yarnpkg.com/@types/gulp-postcss/-/gulp-postcss-8.0.1.tgz#4130aba289384e890039c9a605ab3da8bc3766d1"
+  integrity sha512-aYbolMshYIEVcEuVOV39RW6che6oF6l2XacnrXeES0sL0BuY25+uz/Q+0jj/Tr9NX4SjdtJmeS5gXJ6G0fTP6g==
   dependencies:
     "@types/node" "*"
     "@types/vinyl" "*"
@@ -4630,20 +4630,7 @@ gulp-untar@^0.0.7:
     through2 "~2.0.3"
     vinyl "^1.2.0"
 
-gulp-vinyl-zip@^2.1.2:
-  version "2.1.2"
-  resolved "https://registry.yarnpkg.com/gulp-vinyl-zip/-/gulp-vinyl-zip-2.1.2.tgz#b79cc1a0e2c3b158ffee294590ade1e9caaf5e7b"
-  integrity sha512-wJn09jsb8PyvUeyFF7y7ImEJqJwYy40BqL9GKfJs6UGpaGW9A+N68Q+ajsIpb9AeR6lAdjMbIdDPclIGo1/b7Q==
-  dependencies:
-    event-stream "3.3.4"
-    queue "^4.2.1"
-    through2 "^2.0.3"
-    vinyl "^2.0.2"
-    vinyl-fs "^3.0.3"
-    yauzl "^2.2.1"
-    yazl "^2.2.1"
-
-gulp-vinyl-zip@^2.5.0:
+gulp-vinyl-zip@^2.1.2, gulp-vinyl-zip@^2.5.0:
   version "2.5.0"
   resolved "https://registry.yarnpkg.com/gulp-vinyl-zip/-/gulp-vinyl-zip-2.5.0.tgz#73eef9c067b8775b1ad07a34a41384e1c7b0041a"
   integrity sha512-KPi5/2SUmkXXDvKU4L2U1dkPOP03SbhONTOgNZlL23l9Yopt+euJ1bBXwWrSMbsyh3JLW/TYuC8CI4c4Kq4qrw==
