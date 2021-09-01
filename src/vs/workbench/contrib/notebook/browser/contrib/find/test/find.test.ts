@@ -33,7 +33,8 @@ suite('Notebook Find', () => {
 				deltaDecorations: (oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]) => {
 					const ret: ICellModelDecorations[] = [];
 					newDecorations.forEach(dec => {
-						const cell = editor.viewModel.viewCells.find(cell => cell.handle === dec.ownerId);
+						const viewModel = editor._getViewModel();
+						const cell = viewModel.viewCells.find(cell => cell.handle === dec.ownerId);
 						const decorations = cell?.deltaModelDecorations([], dec.decorations) ?? [];
 
 						if (decorations.length > 0) {

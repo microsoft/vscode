@@ -204,6 +204,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override hasModel(): this is IActiveNotebookEditor {
 			return !!this.viewModel;
 		}
+		override getLength() { return viewModel.length; }
 		override getFocus() { return viewModel.getFocus(); }
 		override getSelections() { return viewModel.getSelections(); }
 		override setFocus(focus: ICellRange) {

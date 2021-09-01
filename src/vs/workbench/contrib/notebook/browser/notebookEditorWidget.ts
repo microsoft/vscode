@@ -482,6 +482,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel;
 	}
 
+	getLength() {
+		return this.viewModel?.length ?? 0;
+	}
+
 	getSelections() {
 		return this.viewModel?.getSelections() ?? [];
 	}

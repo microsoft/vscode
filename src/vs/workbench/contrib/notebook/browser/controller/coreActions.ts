@@ -240,7 +240,7 @@ export abstract class NotebookMultiCellAction extends Action2 {
 			return this.runWithContext(accessor, {
 				ui: false,
 				notebookEditor: editor,
-				selectedCells: cellRangeToViewCells(editor.viewModel, editor.getSelections())
+				selectedCells: cellRangeToViewCells(editor, editor.getSelections())
 			});
 		}
 	}

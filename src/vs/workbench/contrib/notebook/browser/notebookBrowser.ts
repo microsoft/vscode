@@ -428,6 +428,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	// from the old IEditor
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
+	getLength(): number;
 	getSelections(): ICellRange[];
 	setSelections(selections: ICellRange[]): void;
 	getFocus(): ICellRange;
@@ -1059,10 +1060,10 @@ export function getRanges(cells: ICellViewModel[], included: (cell: ICellViewMod
 	return ranges;
 }
 
-export function cellRangeToViewCells(viewModel: NotebookViewModel, ranges: ICellRange[]) {
+export function cellRangeToViewCells(editor: IActiveNotebookEditor, ranges: ICellRange[]) {
 	const cells: ICellViewModel[] = [];
 	ranges.forEach(range => {
-		cells.push(...viewModel.getCells(range));
+		cells.push(...editor.getCellsInRange(range));
 	});
 
 	return cells;
