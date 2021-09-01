@@ -157,7 +157,7 @@
     "gulp-sourcemaps": "^3.0.0",
     "gulp-tsb": "4.0.6",
     "gulp-untar": "^0.0.7",
-    "gulp-vinyl-zip": "^2.1.2",
+    "gulp-vinyl-zip": "^2.5.0",
     "husky": "^0.13.1",
     "innosetup": "6.0.5",
     "is": "^3.1.0",
