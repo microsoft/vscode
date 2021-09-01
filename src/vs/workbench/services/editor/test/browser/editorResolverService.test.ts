@@ -8,6 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, ResolvedStatus, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -92,7 +93,84 @@ suite('EditorResolverService', () => {
 			resultingResolution.editor.dispose();
 		}
 
+		registeredEditor.dispose();
+	});
 
+	test('Side by side Resolve', async () => {
+		const [part, service] = await createEditorResolverService();
+		const registeredEditorPrimary = service.registerEditor('*.test-primary',
+			{
+				id: 'TEST_EDITOR_PRIMARY',
+				label: 'Test Editor Label Primary',
+				detail: 'Test Editor Details Primary',
+				priority: RegisteredEditorPriority.default
+			},
+			{ canHandleDiff: false },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+		);
+
+		const registeredEditorSecondary = service.registerEditor('*.test-secondary',
+			{
+				id: 'TEST_EDITOR_SECONDARY',
+				label: 'Test Editor Label Secondary',
+				detail: 'Test Editor Details Secondary',
+				priority: RegisteredEditorPriority.default
+			},
+			{ canHandleDiff: false },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+		);
+
+		const resultingResolution = await service.resolveEditor({
+			primary: { resource: URI.file('my://resource-basics.test-primary') },
+			secondary: { resource: URI.file('my://resource-basics.test-secondary') }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editorinputs.sidebysideEditorInput');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
+		registeredEditorPrimary.dispose();
+		registeredEditorSecondary.dispose();
+	});
+
+	test('Diff editor Resolve', async () => {
+		const [part, service, accessor] = await createEditorResolverService();
+		const registeredEditor = service.registerEditor('*.test-diff',
+			{
+				id: 'TEST_EDITOR',
+				label: 'Test Editor Label',
+				detail: 'Test Editor Details',
+				priority: RegisteredEditorPriority.default
+			},
+			{ canHandleDiff: true },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			undefined,
+			({ modified, original, options }, group) => ({
+				editor: accessor.instantiationService.createInstance(
+					DiffEditorInput,
+					'name',
+					'description',
+					new TestFileEditorInput(URI.parse(original.toString()), TEST_EDITOR_INPUT_ID),
+					new TestFileEditorInput(URI.parse(modified.toString()), TEST_EDITOR_INPUT_ID),
+					undefined)
+			})
+		);
+
+		const resultingResolution = await service.resolveEditor({
+			original: { resource: URI.file('my://resource-basics.test-diff') },
+			modified: { resource: URI.file('my://resource-basics.test-diff') }
+		}, part.activeGroup);
+		assert.ok(resultingResolution);
+		assert.notStrictEqual(typeof resultingResolution, 'number');
+		if (resultingResolution !== ResolvedStatus.ABORT && resultingResolution !== ResolvedStatus.NONE) {
+			assert.strictEqual(resultingResolution.editor.typeId, 'workbench.editors.diffEditorInput');
+			resultingResolution.editor.dispose();
+		} else {
+			assert.fail();
+		}
 		registeredEditor.dispose();
 	});
 });
