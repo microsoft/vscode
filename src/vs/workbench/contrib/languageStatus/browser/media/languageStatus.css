@@ -14,7 +14,7 @@
 	border-bottom: 1px solid var(--code-notifications-border);
 }
 
-.monaco-workbench .hover-language-status-element > .left > .label::after {
+.monaco-workbench .hover-language-status-element > .left > .detail:not(:empty)::before {
 	content: '–';
 	padding: 0 4px;
 	opacity: 0.6;

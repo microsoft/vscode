@@ -14,11 +14,9 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-
 export interface ILanguageStatus {
 	readonly id: string;
 	readonly name: string;
-
 	readonly selector: LanguageSelector;
 	readonly needsAttention: boolean | undefined;
 	readonly label: string;
