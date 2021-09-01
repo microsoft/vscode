@@ -34,7 +34,7 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IBaseResourceEditorInput {
+export interface IBaseUntypedEditorInput {
 
 	/**
 	 * Optional options to use when opening the input.
@@ -50,6 +50,9 @@ export interface IBaseResourceEditorInput {
 	 * Description to show for the input.
 	 */
 	readonly description?: string;
+}
+
+export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
 
 	/**
 	 * Hint to indicate that this input should be treated as a
