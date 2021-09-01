@@ -1520,12 +1520,14 @@ declare module 'vscode' {
 		provides: string[];
 
 		/**
-		 * URI for the file to preload
+		 * URI of the JavaScript module to preload.
+		 *
+		 * This module must export an `activate` function that takes a context object that contains the notebook API.
 		 */
 		uri: Uri;
 
 		/**
-		 * @param uri URI for the file to preload
+		 * @param uri URI of the JavaScript module to preload
 		 * @param provides Value for the `provides` property
 		 */
 		constructor(uri: Uri, provides?: string | string[]);
