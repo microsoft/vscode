@@ -894,16 +894,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
-			const original = this.createEditorInput({ ...input.original, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
-			const modified = this.createEditorInput({ ...input.modified, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
+			const original = this.createEditorInput({ ...input.original });
+			const modified = this.createEditorInput({ ...input.modified });
 
 			return this.instantiationService.createInstance(DiffEditorInput, input.label, input.description, original, modified, undefined);
 		}
 
 		// Side by Side Editor Support
 		if (isResourceSideBySideEditorInput(input)) {
-			const primary = this.createEditorInput({ ...input.primary, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
-			const secondary = this.createEditorInput({ ...input.secondary, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
+			const primary = this.createEditorInput({ ...input.primary });
+			const secondary = this.createEditorInput({ ...input.secondary });
 
 			return new SideBySideEditorInput(input.label, input.description, secondary, primary);
 		}

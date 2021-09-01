@@ -7025,6 +7025,18 @@ declare module 'vscode' {
 		SymbolicLink = 64
 	}
 
+	export enum FilePermission {
+		/**
+		 * The file is readonly.
+		 *
+		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered with
+		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
+		 * is set. As a consequence, it is not possible to have a readonly file system provider
+		 * registered where some `FileStat` are not readonly.
+		 */
+		Readonly = 1
+	}
+
 	/**
 	 * The `FileStat`-type represents metadata about a file
 	 */
@@ -7056,6 +7068,12 @@ declare module 'vscode' {
 		 * example.
 		 */
 		size: number;
+		/**
+		 * The permissions of the file, e.g. whether the file is readonly.
+		 *
+		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
+		 */
+		permissions?: FilePermission;
 	}
 
 	/**
