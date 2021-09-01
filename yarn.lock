@@ -9613,10 +9613,10 @@ vscode-regexpp@^3.1.0:
   resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"
   integrity sha512-pqtN65VC1jRLawfluX4Y80MMG0DHJydWhe5ZwMHewZD6sys4LbU6lHwFAHxeuaVE6Y6+xZOtAw+9hvq7/0ejkg==
 
-vscode-ripgrep@^1.11.2, vscode-ripgrep@^1.11.3:
-  version "1.11.3"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.11.3.tgz#a997f4f4535dfeb9d775f04053c1247454d7a37a"
-  integrity sha512-fdD+BciXiEO1iWTrV/S3sAthlK/tHRBjHF+aJIZDxUMD/q9wpNq+YPFEiLCrW+8epahfR19241DeVHHgX/I4Ww==
+vscode-ripgrep@^1.11.2, vscode-ripgrep@^1.12.0:
+  version "1.12.0"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.12.0.tgz#8fee3f892349f2bf1c7ef9743e3bbccb108ad9d7"
+  integrity sha512-tn+bM7RbVElyuIGjIFyuSZZSuqodDjPNVQeHdo9w7EOIFEOuNtXuZ82s/Sy59lG/gJyMEkXjXjKunbUNNa5kOw==
   dependencies:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"
