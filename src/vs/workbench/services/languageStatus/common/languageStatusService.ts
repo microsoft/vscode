@@ -11,6 +11,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Command } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { LanguageSelector } from 'vs/editor/common/modes/languageSelector';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -25,6 +26,7 @@ export interface ILanguageStatus {
 	readonly detail: string;
 	readonly source: string;
 	readonly command: Command | undefined;
+	readonly accessibilityInfo: IAccessibilityInformation | undefined;
 }
 
 export interface ILanguageStatusProvider {

@@ -2856,7 +2856,7 @@ declare module 'vscode' {
 		text: string;
 		detail: string;
 		command: Command | undefined;
-		// accessibilityInformation?: AccessibilityInformation; TODO@API
+		accessibilityInformation?: AccessibilityInformation;
 		dispose(): void;
 	}
 

@@ -105,7 +105,8 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 					label: data.text,
 					detail: data.detail,
 					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info,
-					command: data.command && this._commands.toInternal(data.command, commandDisposables)
+					command: data.command && this._commands.toInternal(data.command, commandDisposables),
+					accessibilityInfo: data.accessibilityInformation
 				});
 			}, 0);
 		};
@@ -152,6 +153,13 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			},
 			set severity(value) {
 				data.severity = value;
+				updateAsync();
+			},
+			get accessibilityInformation() {
+				return data.accessibilityInformation;
+			},
+			set accessibilityInformation(value) {
+				data.accessibilityInformation = value;
 				updateAsync();
 			},
 			get command() {

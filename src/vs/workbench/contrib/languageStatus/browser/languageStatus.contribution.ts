@@ -270,7 +270,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		return {
 			name: item.name,
 			text: item.label,
-			ariaLabel: item.label,
+			ariaLabel: item.accessibilityInfo?.label ?? item.label,
+			role: item.accessibilityInfo?.role,
 			tooltip: new MarkdownString(item.detail, true),
 			command: item.command
 		};
