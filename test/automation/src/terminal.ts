@@ -6,7 +6,7 @@
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 
-const PANEL_SELECTOR = 'div[id="workbench.panel.terminal"]';
+const PANEL_SELECTOR = 'div[id="workbench.parts.panel"]';
 const XTERM_SELECTOR = `${PANEL_SELECTOR} .terminal-wrapper`;
 const XTERM_TEXTAREA = `${XTERM_SELECTOR} textarea.xterm-helper-textarea`;
 

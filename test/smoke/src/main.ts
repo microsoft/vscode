@@ -27,6 +27,8 @@ import { setup as setupDataExtensionTests } from './areas/extensions/extensions.
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
+import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
+import { setup as setupDataTerminalTests } from './areas/terminal/terminal.test';
 
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
@@ -343,12 +345,14 @@ if (!opts.web && opts['build'] && !opts['remote']) {
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	if (!opts.web) { setupDataLossTests(opts); }
 	if (!opts.web) { setupDataPreferencesTests(opts); }
+	setupDataExplorerTests(opts);
 	setupDataSearchTests(opts);
 	setupDataNotebookTests(opts);
 	setupDataLanguagesTests(opts);
 	setupDataEditorTests(opts);
 	setupDataStatusbarTests(opts);
 	setupDataExtensionTests(opts);
+	setupDataTerminalTests(opts);
 	if (!opts.web) { setupDataMultirootTests(opts); }
 	if (!opts.web) { setupDataLocalizationTests(opts); }
 	if (!opts.web) { setupLaunchTests(); }

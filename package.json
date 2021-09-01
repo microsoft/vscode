@@ -36,7 +36,6 @@
     "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "cd test/smoke && yarn compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
-    "smoketest-gitpod": "cd test/smoke && node test/index.js --web --verbose --test-repo /workspace/vscode-smoketest-express --headless --screenshots /workspace/screenshots --electronArgs=\"--disable-dev-shm-usage --use-gl=swiftshader\"",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
