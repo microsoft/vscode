@@ -246,12 +246,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		for (const [group, entries] of editorsToReplace) {
 			this.editorService.replaceEditors(entries.map(editor => {
-				let replacement: IEditorInput;
+				let replacement: IEditorInput | IResourceEditorInput;
 				if (possibleEditors.defaultEditor) {
 					const viewType = possibleEditors.defaultEditor.id;
 					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType!, group);
 				} else {
-					replacement = this.editorService.createEditorInput({ resource: newResource });
+					replacement = { resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
 				}
 
 				return {
