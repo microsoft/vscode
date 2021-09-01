@@ -160,7 +160,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			activityHoverOptions: this.getActivityHoverOptions(),
 			preventLoopNavigation: true,
-			openComposite: compositeId => this.viewsService.openViewContainer(compositeId, true),
+			openComposite: (compositeId, preserveFocus) => this.viewsService.openViewContainer(compositeId, !preserveFocus),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: compositeId => toAction({ id: compositeId, label: '', run: async () => this.viewsService.isViewContainerVisible(compositeId) ? this.viewsService.closeViewContainer(compositeId) : this.viewsService.openViewContainer(compositeId) }),
