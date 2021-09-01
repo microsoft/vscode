@@ -338,9 +338,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
 				this.updateConfig();
-				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
-				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
-				// supported.
 				this.setVisible(this._isVisible);
 			}
 			const layoutSettings: string[] = [
