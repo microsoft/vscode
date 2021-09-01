@@ -160,7 +160,7 @@
     "gulp-vinyl-zip": "^2.5.0",
     "husky": "^0.13.1",
     "innosetup": "6.0.5",
-    "is": "^3.1.0",
+    "is": "^3.3.0",
     "istanbul-lib-coverage": "^3.0.0",
     "istanbul-lib-instrument": "^4.0.3",
     "istanbul-lib-report": "^3.0.0",
