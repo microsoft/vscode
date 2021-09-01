@@ -24,8 +24,12 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 
 	override get capabilities(): EditorInputCapabilities {
 
-		// Use primary capabilities as main capabilities
+		// Use primary capabilities as main capabilities...
 		let capabilities = this._primary.capabilities;
+
+		// ...with the exception of `CanSplitInGroup` which
+		// is only relevant to single editors.
+		capabilities &= ~EditorInputCapabilities.CanSplitInGroup;
 
 		// Trust: should be considered for both sides
 		if (this._secondary.hasCapability(EditorInputCapabilities.RequiresTrust)) {

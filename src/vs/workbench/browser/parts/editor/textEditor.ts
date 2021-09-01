@@ -209,6 +209,14 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		editorControl.focus();
 	}
 
+	override hasFocus(): boolean {
+		if (this.editorControl?.hasTextFocus()) {
+			return true;
+		}
+
+		return super.hasFocus();
+	}
+
 	layout(dimension: Dimension): void {
 
 		// Pass on to Editor
