@@ -1461,7 +1461,7 @@ class TreeActionsProvider {
 					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
 					Codicon.listTree.classNames,
 					undefined,
-					() => this.commandService.executeCommand('vscode.revealTestInExplorer', extId),
+					() => this.commandService.executeCommand('_revealTestInExplorer', extId),
 				));
 
 				if (capabilities & TestRunProfileBitset.Run) {

@@ -28,7 +28,7 @@ import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbenc
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
@@ -117,9 +117,9 @@ registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekCo
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
 
 CommandsRegistry.registerCommand({
-	id: 'vscode.revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, testId: string, focus?: boolean) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = testId;
+	id: '_revealTestInExplorer',
+	handler: async (accessor: ServicesAccessor, testId: string | ITestItem, focus?: boolean) => {
+		accessor.get(ITestExplorerFilterState).reveal.value = typeof testId === 'string' ? testId : testId.extId;
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
 	}
 });

@@ -599,7 +599,7 @@ abstract class RunTestDecoration extends Disposable {
 		}
 
 		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
-			() => this.commandService.executeCommand('vscode.revealTestInExplorer', test.item.extId)));
+			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
 
 		const contributed = this.getContributedTestActions(test, capabilities);
 		return { object: Separator.join(testActions, contributed.object), dispose: contributed.dispose };
