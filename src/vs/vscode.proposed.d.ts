@@ -1063,7 +1063,7 @@ declare module 'vscode' {
 		 */
 		group?: string;
 
-		/** 
+		/**
 		 * Controls whether the terminal is closed after executing the task.
 		 */
 		close?: boolean;
@@ -1101,6 +1101,11 @@ declare module 'vscode' {
 		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
 		 */
 		sortByLabel: boolean;
+
+		/*
+		 * An optional flag that can be set to true to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
+		 */
+		keepScrollPosition?: boolean;
 	}
 
 	//#endregion
