@@ -2467,7 +2467,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorI
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
-					description: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
+					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
 			}
 		);
