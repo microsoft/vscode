@@ -42,7 +42,7 @@ import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID,
 	CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_PINNED_EDITOR_COMMAND_ID, CLOSE_SAVED_EDITORS_COMMAND_ID, GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, KEEP_EDITOR_COMMAND_ID,
 	PIN_EDITOR_COMMAND_ID, SHOW_EDITORS_IN_GROUP, SPLIT_EDITOR_DOWN, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-	TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID, TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP
+	TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID, TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_LEFT_SIDE_EDITOR, FOCUS_RIGHT_SIDE_EDITOR
 } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -710,8 +710,29 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 });
 
 // Switch Editor
+
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '1_any',
+	group: '1_sideBySide',
+	command: {
+		id: FOCUS_LEFT_SIDE_EDITOR,
+		title: localize({ key: 'miLeftSideEditor', comment: ['&& denotes a mnemonic'] }, "&&Left Side in Editor")
+	},
+	when: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+	group: '1_sideBySide',
+	command: {
+		id: FOCUS_RIGHT_SIDE_EDITOR,
+		title: localize({ key: 'miRightSideEditor', comment: ['&& denotes a mnemonic'] }, "&&Right Side in Editor")
+	},
+	when: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
+	group: '2_any',
 	command: {
 		id: 'workbench.action.nextEditor',
 		title: localize({ key: 'miNextEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Editor")
@@ -720,7 +741,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '1_any',
+	group: '2_any',
 	command: {
 		id: 'workbench.action.previousEditor',
 		title: localize({ key: 'miPreviousEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor")
@@ -729,7 +750,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '2_any_used',
+	group: '3_any_used',
 	command: {
 		id: 'workbench.action.openNextRecentlyUsedEditor',
 		title: localize({ key: 'miNextRecentlyUsedEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor")
@@ -738,7 +759,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '2_any_used',
+	group: '3_any_used',
 	command: {
 		id: 'workbench.action.openPreviousRecentlyUsedEditor',
 		title: localize({ key: 'miPreviousRecentlyUsedEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor")
@@ -747,7 +768,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '3_group',
+	group: '4_group',
 	command: {
 		id: 'workbench.action.nextEditorInGroup',
 		title: localize({ key: 'miNextEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Editor in Group")
@@ -756,7 +777,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '3_group',
+	group: '4_group',
 	command: {
 		id: 'workbench.action.previousEditorInGroup',
 		title: localize({ key: 'miPreviousEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor in Group")
@@ -765,7 +786,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '4_group_used',
+	group: '5_group_used',
 	command: {
 		id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
 		title: localize({ key: 'miNextUsedEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor in Group")
@@ -774,7 +795,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
-	group: '4_group_used',
+	group: '5_group_used',
 	command: {
 		id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
 		title: localize({ key: 'miPreviousUsedEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor in Group")
