@@ -232,7 +232,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			debugUI: options.debugUI,
 			compoundRoot: parentSession?.compoundRoot
 		};
-		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
+		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, !options.suppressSaveBeforeStart).then(success => {
 			return success;
 		}, err => {
 			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));
