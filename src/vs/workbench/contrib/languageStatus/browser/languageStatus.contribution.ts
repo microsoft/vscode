@@ -21,14 +21,13 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { equals } from 'vs/base/common/arrays';
+import { URI } from 'vs/base/common/uri';
 
 class LanguageStatusViewModel {
 
@@ -62,7 +61,6 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		_storageService.onDidChangeValue(this._handleStorageChange, this, this._disposables);
@@ -222,31 +220,31 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		right.classList.add('right');
 		node.appendChild(right);
 
+		// -- command (if available)
 		const { command } = status;
 		if (command) {
-			const btn = new Button(right, { title: command.tooltip });
-			btn.label = command.title;
-			btn.onDidClick(_e => {
-				if (command.arguments) {
-					this._commandService.executeCommand(command.id, ...command.arguments);
-				} else {
-					this._commandService.executeCommand(command.id);
-				}
-			});
-			store.add(btn);
+			const link = new Link({
+				label: command.title,
+				title: command.tooltip,
+				href: URI.from({
+					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
+				}).toString()
+			}, undefined, this._openerService);
+			store.add(link);
+			dom.append(right, link.el);
 		}
 
 		// -- pin
+		const actionBar = new ActionBar(right, {});
+		store.add(actionBar);
 		const action = new Action('pin', localize('pin', "Pin to Status Bar"), Codicon.pin.classNames, true, () => {
 			this._dedicated.add(status.id);
 			this._statusBarService.updateEntryVisibility(status.id, true);
 			this._update();
 			this._storeState();
 		});
-		const actionBar = new ActionBar(right, {});
 		actionBar.push(action, { icon: true, label: false });
 		store.add(action);
-		store.add(actionBar);
 
 		return node;
 	}
