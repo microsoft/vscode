@@ -195,7 +195,7 @@ suite('ExtHost Testing', () => {
 
 			child.tags = [tag2, tag3];
 			assert.deepStrictEqual(single.collectDiff(), [
-				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag3', label: undefined }],
+				[TestDiffOpType.AddTag, { ctrlLabel: 'root', id: 'ctrlId\0tag3' }],
 				[TestDiffOpType.Update, {
 					extId: new TestId(['ctrlId', 'id-a', 'id-ac']).toString(),
 					item: { tags: ['ctrlId\0tag2', 'ctrlId\0tag3'] }
