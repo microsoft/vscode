@@ -209,10 +209,7 @@ async function handleRoot(req: http.IncomingMessage, resp: http.ServerResponse, 
 		return serveError(req, resp, 400, 'Bad request.');
 	}
 
-	const host = req.headers.host;
-
 	const workbenchConfig = {
-		remoteAuthority: host,
 		developmentOptions: {
 			enableSmokeTestDriver: environmentService.driverHandle === 'web' ? true : undefined
 		}
@@ -582,8 +579,6 @@ export async function main(options: IServerOptions): Promise<void> {
 
 		const requestService = accessor.get(IRequestService);
 		channelServer.registerChannel('request', new RequestChannel(requestService));
-
-		const environmentService = accessor.get(INativeEnvironmentService);
 
 		// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 		bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, bufferLogService.getLevel());

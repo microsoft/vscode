@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { request } from 'vs/base/parts/request/browser/request';
 import { localize } from 'vs/nls';
 import { parseLogLevel } from 'vs/platform/log/common/log';
@@ -299,11 +299,7 @@ class WindowIndicator implements IWindowIndicator {
 	// Find config by checking for DOM
 	const configElement = document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
-	if (!configElement || !configElementAttribute) {
-		throw new Error('Missing web configuration element');
-	}
-
-	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
+	const config: IWorkbenchConstructionOptions = configElementAttribute ? JSON.parse(configElementAttribute) : {};
 
 	// Find workspace to open and payload
 	let workspace: IWorkspace;
