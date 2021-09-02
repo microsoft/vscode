@@ -26,7 +26,7 @@ import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -220,7 +220,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		}
 
 		// Replace this editor with the binary one
-		this.editorService.replaceEditors([{
+		(this.group ?? this.editorGroupService.activeGroup).replaceEditors([{
 			editor: input,
 			replacement: binaryDiffInput,
 			options: {
@@ -233,7 +233,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 				pinned: this.group?.isPinned(input),
 				sticky: this.group?.isSticky(input)
 			}
-		}], this.group || ACTIVE_GROUP);
+		}]);
 	}
 
 	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
