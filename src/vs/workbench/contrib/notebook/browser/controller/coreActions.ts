@@ -335,7 +335,7 @@ export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args:
 		}
 
 		const ranges = firstArg.ranges;
-		const selectedCells = flatten(ranges.map(range => editor.viewModel.getCells(range).slice(0)));
+		const selectedCells = flatten(ranges.map(range => editor.getCellsInRange(range).slice(0)));
 		const autoReveal = firstArg.autoReveal;
 		return {
 			ui: false,
@@ -357,7 +357,7 @@ export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args:
 		return {
 			ui: false,
 			notebookEditor: editor,
-			selectedCells: editor.viewModel.getCells(firstArg)
+			selectedCells: editor.getCellsInRange(firstArg)
 		};
 	}
 

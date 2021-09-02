@@ -67,7 +67,7 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 		}
 		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
 		if (context.autoReveal) {
-			const cellIndex = context.notebookEditor.viewModel.getCellIndex(context.cell);
+			const cellIndex = context.notebookEditor.getCellIndex(context.cell);
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}
 	} else if (context.selectedCells) {
@@ -75,7 +75,7 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 		const firstCell = context.selectedCells[0];
 
 		if (firstCell && context.autoReveal) {
-			const cellIndex = context.notebookEditor.viewModel.getCellIndex(firstCell);
+			const cellIndex = context.notebookEditor.getCellIndex(firstCell);
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}
 	}
@@ -144,7 +144,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).find(
-			editor => editor.editor instanceof NotebookEditorInput && editor.editor.viewType === context.notebookEditor.viewModel.viewType && editor.editor.resource.toString() === context.notebookEditor.viewModel.uri.toString());
+			editor => editor.editor instanceof NotebookEditorInput && editor.editor.viewType === context.notebookEditor.textModel.viewType && editor.editor.resource.toString() === context.notebookEditor.textModel.uri.toString());
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		if (editor) {
@@ -225,14 +225,14 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		let endCellIdx: number | undefined = undefined;
 		if (context.ui) {
-			endCellIdx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+			endCellIdx = context.notebookEditor.getCellIndex(context.cell);
 		} else {
-			endCellIdx = maxIndex(context.selectedCells, cell => context.notebookEditor.viewModel.getCellIndex(cell));
+			endCellIdx = maxIndex(context.selectedCells, cell => context.notebookEditor.getCellIndex(cell));
 		}
 
 		if (typeof endCellIdx === 'number') {
 			const range = { start: 0, end: endCellIdx };
-			const cells = context.notebookEditor.viewModel.getCells(range);
+			const cells = context.notebookEditor.getCellsInRange(range);
 			context.notebookEditor.executeNotebookCells(cells);
 		}
 	}
@@ -271,14 +271,14 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		let startCellIdx: number | undefined = undefined;
 		if (context.ui) {
-			startCellIdx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+			startCellIdx = context.notebookEditor.getCellIndex(context.cell);
 		} else {
-			startCellIdx = minIndex(context.selectedCells, cell => context.notebookEditor.viewModel.getCellIndex(cell));
+			startCellIdx = minIndex(context.selectedCells, cell => context.notebookEditor.getCellIndex(cell));
 		}
 
 		if (typeof startCellIdx === 'number') {
-			const range = { start: startCellIdx, end: context.notebookEditor.viewModel.viewCells.length };
-			const cells = context.notebookEditor.viewModel.getCells(range);
+			const range = { start: startCellIdx, end: context.notebookEditor.getLength() };
+			const cells = context.notebookEditor.getCellsInRange(range);
 			context.notebookEditor.executeNotebookCells(cells);
 		}
 	}
@@ -401,13 +401,13 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		const idx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+		const idx = context.notebookEditor.getCellIndex(context.cell);
 		if (typeof idx !== 'number') {
 			return;
 		}
 
 		if (context.cell.cellKind === CellKind.Markup) {
-			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			const nextCell = context.notebookEditor.cellAt(idx + 1);
 			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_SELECT_BELOW);
 			if (nextCell) {
 				context.notebookEditor.focusNotebookCell(nextCell, 'container');
@@ -420,7 +420,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			return;
 		} else {
 			// Try to select below, fall back on inserting
-			const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
+			const nextCell = context.notebookEditor.cellAt(idx + 1);
 			if (nextCell) {
 				context.notebookEditor.focusNotebookCell(nextCell, 'container');
 			} else {
