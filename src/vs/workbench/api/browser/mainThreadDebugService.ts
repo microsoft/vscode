@@ -233,7 +233,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			compoundRoot: parentSession?.compoundRoot
 		};
 		try {
-			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, !options.suppressSaveBeforeStart);
+			const saveBeforeStart = typeof options.suppressSaveBeforeStart === 'boolean' ? !options.suppressSaveBeforeStart : undefined;
+			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, saveBeforeStart);
 		} catch (err) {
 			throw new Error(err && err.message ? err.message : 'cannot start debugging');
 		}
