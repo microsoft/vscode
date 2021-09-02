@@ -465,8 +465,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	_getViewModel(): NotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
-
-	getId(): string;
 	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 	getSelectionViewModels(): ICellViewModel[];
