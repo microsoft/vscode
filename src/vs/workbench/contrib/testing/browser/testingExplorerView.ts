@@ -936,6 +936,11 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 			return (a instanceof TestTreeErrorMessage ? -1 : 0) + (b instanceof TestTreeErrorMessage ? 1 : 0);
 		}
 
+		const durationDelta = (b.duration || 0) - (a.duration || 0);
+		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByDuration && durationDelta !== 0) {
+			return durationDelta;
+		}
+
 		const stateDelta = cmpPriority(a.state, b.state);
 		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByStatus && stateDelta !== 0) {
 			return stateDelta;
