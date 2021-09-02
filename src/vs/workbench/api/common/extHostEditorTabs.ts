@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { IEditorTabDto, IExtHostEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ViewColumn } from 'vs/workbench/api/common/extHostTypes';
@@ -13,8 +13,9 @@ import { ViewColumn } from 'vs/workbench/api/common/extHostTypes';
 export interface IEditorTab {
 	label: string;
 	viewColumn: ViewColumn;
-	resource?: vscode.Uri
-	isActive: boolean
+	resource?: vscode.Uri | { primary?: vscode.Uri, secondary?: vscode.Uri };
+	editorId?: string;
+	isActive: boolean;
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -53,10 +54,24 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			if (dto.isActive) {
 				activeIndex = index;
 			}
+			// Resolve resource into the right shape for either normal or side by side
+			let resource = undefined;
+			if (dto.resource) {
+				const resourceAsSidebySide = dto.resource as ({ primary?: UriComponents, secondary?: UriComponents });
+				if (resourceAsSidebySide.primary || resourceAsSidebySide.secondary) {
+					resource = {
+						primary: URI.revive(resourceAsSidebySide.primary),
+						secondary: URI.revive(resourceAsSidebySide.secondary)
+					};
+				} else {
+					resource = URI.revive(dto.resource as UriComponents | undefined);
+				}
+			}
 			return Object.freeze({
 				label: dto.label,
 				viewColumn: dto.viewColumn,
-				resource: URI.revive(dto.resource),
+				resource,
+				editorId: dto.editorId,
 				isActive: dto.isActive
 			});
 		});

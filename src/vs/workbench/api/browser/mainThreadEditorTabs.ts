@@ -6,7 +6,8 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -44,7 +45,8 @@ export class MainThreadEditorTabs {
 				tabs.push({
 					viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 					label: editor.getName(),
-					resource: EditorResourceAccessor.getCanonicalUri(editor),
+					resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) : EditorResourceAccessor.getCanonicalUri(editor),
+					editorId: editor.editorId,
 					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
 				});
 			}

@@ -2312,9 +2312,19 @@ declare module 'vscode' {
 
 		/**
 		 * The resource represented by the tab if availble.
+		 * If the tab contains more than one resource then primary will represent the left resource, and secondary the right one.
 		 * Note: Not all editor types have a resource associated with them
 		 */
-		readonly resource?: Uri;
+		readonly resource?: Uri | { primary?: Uri, secondary?: Uri };
+
+		/**
+		 * The identifier of the editor which the tab should contain, because
+		 * not all tabs represent editors this may be undefined.
+		 * This is equivalent to `viewType` for custom editors and notebooks.
+		 * The built-in text editor has an id of 'default' for all configurations.
+		 * Note: Tabs are not guaranteed to contain editors but this id represents what editor the tab will resolve if available
+		 */
+		readonly editorId?: string;
 
 		/**
 		 * Whether or not the tab is currently active
