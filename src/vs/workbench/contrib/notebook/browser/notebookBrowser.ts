@@ -468,7 +468,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	getId(): string;
 	getDomNode(): HTMLElement;
-	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 	getSelectionViewModels(): ICellViewModel[];
 
@@ -509,26 +508,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * Split a given cell into multiple cells of the same type using the selection start positions.
 	 */
 	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
-
-	/**
-	 * Delete a cell from the notebook
-	 */
-	deleteNotebookCell(cell: ICellViewModel): Promise<boolean>;
-
-	/**
-	 * Move a cell up one spot
-	 */
-	moveCellUp(cell: ICellViewModel): Promise<ICellViewModel | null>;
-
-	/**
-	 * Move a cell down one spot
-	 */
-	moveCellDown(cell: ICellViewModel): Promise<ICellViewModel | null>;
-
-	/**
-	 * Move a cell to a specific position
-	 */
-	moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null>;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
