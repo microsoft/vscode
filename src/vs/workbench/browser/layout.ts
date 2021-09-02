@@ -961,8 +961,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return !this.state.fullscreen;
 				}
 
+				const isPWA = isWeb && window.matchMedia('(display-mode: standalone)').matches;
+
 				// non-fullscreen native must show the title bar
-				if (isNative && !this.state.fullscreen) {
+				if ((isNative || isPWA) && !this.state.fullscreen) {
 					return true;
 				}
 
@@ -978,7 +980,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					case 'visible':
 						return true;
 					default:
-						return isWeb ? false : !this.state.fullscreen || this.state.menuBar.toggled;
+						return (isWeb && !isPWA) ? false : !this.state.fullscreen || this.state.menuBar.toggled;
 				}
 			case Parts.SIDEBAR_PART:
 				return !this.state.sideBar.hidden;
