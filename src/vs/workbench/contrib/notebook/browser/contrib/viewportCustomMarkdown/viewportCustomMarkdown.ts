@@ -48,14 +48,18 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 	}
 
 	private _warmupDocumentNow() {
-		this._notebookEditor._getViewModel()?.viewCells.forEach(cell => {
-			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
-				// TODO@rebornix currently we disable markdown cell rendering in webview for accessibility
-				// this._notebookEditor.createMarkupPreview(cell);
-			} else if (cell?.cellKind === CellKind.Code) {
-				this._renderCell((cell as CodeCellViewModel));
+		if (this._notebookEditor.hasModel()) {
+			for (let i = 0; i < this._notebookEditor.getLength(); i++) {
+				const cell = this._notebookEditor.cellAt(i);
+
+				if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
+					// TODO@rebornix currently we disable markdown cell rendering in webview for accessibility
+					// this._notebookEditor.createMarkupPreview(cell);
+				} else if (cell?.cellKind === CellKind.Code) {
+					this._renderCell((cell as CodeCellViewModel));
+				}
 			}
-		});
+		}
 	}
 
 	private _warmupViewportNow() {
@@ -69,7 +73,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 
 		const visibleRanges = this._notebookEditor.getVisibleRangesPlusViewportBelow();
 		cellRangesToIndexes(visibleRanges).forEach(index => {
-			const cell = this._notebookEditor._getViewModel()?.viewCells[index];
+			const cell = this._notebookEditor.cellAt(index);
 
 			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
 				this._notebookEditor.createMarkupPreview(cell);
@@ -104,7 +108,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
 				const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
 				if (renderer?.getType() === RenderOutputType.Html) {
-					const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType)[0], DOM.$(''), this._notebookEditor._getViewModel().uri) as IInsetRenderOutput;
+					const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType)[0], DOM.$(''), this._notebookEditor.textModel.uri) as IInsetRenderOutput;
 					this._notebookEditor.createOutput(viewCell, renderResult, 0);
 				}
 				return;

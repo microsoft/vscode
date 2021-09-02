@@ -122,9 +122,9 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const viewModel = editor._getViewModel();
-		viewModel.viewCells.forEach(cell => {
+		for (let i = 0; i < editor.getLength(); i++) {
+			const cell = editor.cellAt(i);
 			console.log(`cell#${cell.handle}`, cell.layoutInfo);
-		});
+		}
 	}
 });

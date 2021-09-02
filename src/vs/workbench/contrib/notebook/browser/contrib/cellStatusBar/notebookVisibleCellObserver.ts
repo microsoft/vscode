@@ -52,25 +52,24 @@ export class NotebookVisibleCellObserver extends Disposable {
 	}
 
 	private _updateVisibleCells(): void {
-		const vm = this._notebookEditor._getViewModel();
-		if (!vm) {
+		if (!this._notebookEditor.hasModel()) {
 			return;
 		}
 
 		const rangesWithEnd = this._notebookEditor.visibleRanges
 			.map(range => ({ start: range.start, end: range.end + 1 }));
 		const newVisibleCells = cellRangesToIndexes(rangesWithEnd)
-			.map(index => vm.cellAt(index))
+			.map(index => this._notebookEditor.cellAt(index) as CellViewModel)
 			.filter(isDefined);
 		const newVisibleHandles = new Set(newVisibleCells.map(cell => cell.handle));
 		const oldVisibleHandles = new Set(this._visibleCells.map(cell => cell.handle));
 		const diff = diffSets(oldVisibleHandles, newVisibleHandles);
 
 		const added = diff.added
-			.map(handle => vm.getCellByHandle(handle))
+			.map(handle => this._notebookEditor.getCellByHandle(handle) as CellViewModel)
 			.filter(isDefined);
 		const removed = diff.removed
-			.map(handle => vm.getCellByHandle(handle))
+			.map(handle => this._notebookEditor.getCellByHandle(handle) as CellViewModel)
 			.filter(isDefined);
 
 		this._visibleCells = newVisibleCells;
