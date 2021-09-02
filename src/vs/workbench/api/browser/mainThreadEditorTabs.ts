@@ -4,17 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { EditorResourceAccessor, Verbosity } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export interface ITabInfo {
-	name: string;
-	resource: URI;
-}
 
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
 export class MainThreadEditorTabs {
@@ -42,13 +38,13 @@ export class MainThreadEditorTabs {
 		const tabs: IEditorTabDto[] = [];
 		for (const group of this._editorGroupsService.groups) {
 			for (const editor of group.editors) {
-				if (editor.isDisposed() || !editor.resource) {
+				if (editor.isDisposed()) {
 					continue;
 				}
 				tabs.push({
-					group: group.id,
-					name: editor.getTitle(Verbosity.SHORT) ?? '',
-					resource: EditorResourceAccessor.getOriginalUri(editor) ?? editor.resource,
+					viewColumn: editorGroupToColumn(this._editorGroupsService, group),
+					label: editor.getName(),
+					resource: EditorResourceAccessor.getCanonicalUri(editor),
 					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
 				});
 			}
