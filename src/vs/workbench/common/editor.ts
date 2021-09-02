@@ -288,6 +288,15 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	readonly resource: URI | undefined;
 }
 
+/**
+ * A resource side by side editor input shows 2 editors side by side but
+ * without highlighting any differences.
+ *
+ * Note: both sides will be resolved as editor individually. As such, it is
+ * possible to show 2 different editors side by side.
+ *
+ * @see {@link IResourceDiffEditorInput} for a variant that compares 2 editors.
+ */
 export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput {
 
 	/**
@@ -301,6 +310,13 @@ export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput 
 	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+/**
+ * A resource diff editor input compares 2 editors side by side
+ * highlighting the differences.
+ *
+ * Note: both sides must be resolvable to the same editor, or
+ * a text based presentation will be used as fallback.
+ */
 export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 
 	/**
