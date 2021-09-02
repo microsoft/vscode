@@ -49,12 +49,10 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	$acceptEditorTabs(tabs: IEditorTabDto[]): void {
 		let activeIndex = -1;
-		let currentIndex = 0;
-		this._tabs = tabs.map(dto => {
+		this._tabs = tabs.map((dto, index) => {
 			if (dto.isActive) {
-				activeIndex = currentIndex;
+				activeIndex = index;
 			}
-			currentIndex++;
 			return Object.freeze({
 				label: dto.label,
 				viewColumn: dto.viewColumn,
