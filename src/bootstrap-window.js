@@ -128,20 +128,22 @@
 		// This will enable to load these modules via <script> tags instead of
 		// using a fallback such as node.js require which does not exist in sandbox
 		loaderConfig.paths = {
-			'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
-			'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
-			'xterm': `../node_modules/xterm/lib/xterm.js`,
-			'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
-			'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-			'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
-			'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
-			'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
+			'vscode-textmate': '../node_modules/vscode-textmate/release/main.js',
+			'vscode-oniguruma': '../node_modules/vscode-oniguruma/release/main.js',
+			'xterm': '../node_modules/xterm/lib/xterm.js',
+			'xterm-addon-search': '../node_modules/xterm-addon-search/lib/xterm-addon-search.js',
+			'xterm-addon-unicode11': '../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js',
+			'xterm-addon-webgl': '../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js',
+			'iconv-lite-umd': '../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js',
+			'jschardet': '../node_modules/jschardet/dist/jschardet.min.js',
+			'@vscode/vscode-languagedetection': '../node_modules/@vscode/vscode-languagedetection/dist/lib/index.js',
+			'tas-client-umd': '../node_modules/tas-client-umd/lib/tas-client-umd.js'
 		};
 
 		// For priviledged renderers, allow to load built-in and other node.js
 		// modules via AMD which has a fallback to using node.js `require`
 		if (!safeProcess.sandboxed) {
-			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^iconv-lite-umd$)|(^jschardet$)/;
+			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^tas-client-umd$)/;
 		}
 
 		// Signal before require.config()
