@@ -5,11 +5,11 @@
 
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
-import { homedir, platform, tmpdir } from 'os';
+import { homedir, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
 import { isAbsolute, join, resolve } from 'vs/base/common/path';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
@@ -343,7 +343,8 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		let child: ChildProcess;
-		if (platform() !== 'darwin') {
+		if (!isMacintosh) {
+			// We spawn process.execPath directly
 			child = spawn(process.execPath, argv.slice(2), options);
 
 			if (args.wait && waitMarkerFilePath) {
@@ -355,7 +356,6 @@ export async function main(argv: string[]): Promise<any> {
 					// Complete when wait marker file is deleted
 					whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
 				}).then(() => {
-
 					// Make sure to delete the tmp stdin file if we have any
 					if (stdinFilePath) {
 						unlinkSync(stdinFilePath);
@@ -363,16 +363,23 @@ export async function main(argv: string[]): Promise<any> {
 				});
 			}
 		} else {
+			// On mac, we spawn using the open command to obtain behavior
+			// similar to if the app was launched from the dock
+			// https://github.com/microsoft/vscode/issues/102975
 			const requiresWait = verbose || hasReadStdinArg;
 			const openArgs: string[] = ['-n'];
 
 			let tmpStdoutLogger: CliVerboseLogger | undefined;
 			let tmpStderrLogger: CliVerboseLogger | undefined;
+			let tmpStdoutName: string | undefined;
+			let tmpStderrName: string | undefined;
 			if (requiresWait) {
-				const tmpStdoutName = createFileName(tmpdir(), 'code-stdout');
-				const tmpStderrName = createFileName(tmpdir(), 'code-stderr');
-				tmpStdoutLogger = new CliVerboseLogger(tmpStdoutName);
-				tmpStderrLogger = new CliVerboseLogger(tmpStderrName);
+				tmpStdoutName = createFileName(tmpdir(), 'code-stdout');
+				tmpStderrName = createFileName(tmpdir(), 'code-stderr');
+				tmpStdoutLogger = new CliVerboseLogger();
+				tmpStderrLogger = new CliVerboseLogger();
+				writeFileSync(tmpStdoutName, '');
+				writeFileSync(tmpStderrName, '');
 				openArgs.push('-W');
 				openArgs.push('--stdout', tmpStdoutName);
 				openArgs.push('--stderr', tmpStderrName);
@@ -393,8 +400,14 @@ export async function main(argv: string[]): Promise<any> {
 			child = spawn('open', argsArr, options);
 
 			if (requiresWait) {
-				const stdoutPromise = tmpStdoutLogger!.track();
-				const stderrPromise = tmpStderrLogger!.track();
+				function createLoggerPromise(logger: CliVerboseLogger, filename: string): (child: ChildProcess) => Promise<void> {
+					return async (child: ChildProcess) => {
+						await logger.track(child, filename);
+						unlinkSync(filename);
+					};
+				}
+				const stdoutPromise = createLoggerPromise(tmpStdoutLogger!, tmpStdoutName!);
+				const stderrPromise = createLoggerPromise(tmpStderrLogger!, tmpStderrName!);
 				processCallbacks.push(stdoutPromise, stderrPromise);
 			}
 		}
