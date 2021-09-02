@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, spawn, SpawnOptions } from 'child_process';
+ { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, platform, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
