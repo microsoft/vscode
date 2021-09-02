@@ -403,7 +403,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		};
 
 		if (isEditorInput(location.editor)) {
-			return this.editorService.openEditor(location.editor, options);
+			return this.editorGroupService.activeGroup.openEditor(location.editor, options);
 		}
 
 		return this.editorService.openEditor({
@@ -1198,7 +1198,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 				this.navigatingInRecentlyUsedEditorsInGroupStack = true;
 			}
 
-			this.editorService.openEditor(editorIdentifier.editor, undefined, editorIdentifier.groupId).finally(() => {
+			const group = this.editorGroupService.getGroup(editorIdentifier.groupId) ?? this.editorGroupService.activeGroup;
+			group.openEditor(editorIdentifier.editor).finally(() => {
 				if (acrossGroups) {
 					this.navigatingInRecentlyUsedEditorsStack = false;
 				} else {

@@ -965,11 +965,11 @@ function registerSplitEditorInGroupCommands(): void {
 				return;
 			}
 
-			await editorService.replaceEditors([{
+			await activeEditorPane.group.replaceEditors([{
 				editor: activeEditorPane.input,
 				replacement: new SideBySideEditorInput(undefined, undefined, activeEditorPane.input, activeEditorPane.input),
 				forceReplaceDirty: true
-			}], activeEditorPane.group);
+			}]);
 		}
 	});
 
@@ -999,11 +999,11 @@ function registerSplitEditorInGroupCommands(): void {
 				}
 			}
 
-			await editorService.replaceEditors([{
+			await activeEditorPane.group.replaceEditors([{
 				editor: activeEditorPane.input,
 				replacement: activeEditorPane.input.primary,
 				options
-			}], activeEditorPane.group);
+			}]);
 		}
 	});
 
