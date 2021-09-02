@@ -763,7 +763,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 
 			const clickedOnInput = e.offsetY < (cell.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
-			const viewModel = this.notebookEditor.viewModel;
 			const textModel = this.notebookEditor.textModel;
 			const metadata: Partial<NotebookCellMetadata> = clickedOnInput ?
 				{ inputCollapsed: !cell.metadata.inputCollapsed } :
@@ -771,7 +770,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			textModel.applyEdits([
 				{
 					editType: CellEditType.PartialMetadata,
-					index: viewModel.getCellIndex(cell),
+					index: this.notebookEditor.getCellIndex(cell),
 					metadata
 				}
 			], true, undefined, () => undefined, undefined);
@@ -786,13 +785,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			const metadata: Partial<NotebookCellMetadata> = cell.metadata.inputCollapsed ?
 				{ inputCollapsed: false } :
 				{ outputCollapsed: false };
-			const viewModel = this.notebookEditor.viewModel;
 			const textModel = this.notebookEditor.textModel;
 
 			textModel.applyEdits([
 				{
 					editType: CellEditType.PartialMetadata,
-					index: viewModel.getCellIndex(cell),
+					index: this.notebookEditor.getCellIndex(cell),
 					metadata
 				}
 			], true, undefined, () => undefined, undefined);
@@ -808,12 +806,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			if (element && element.classList && element.classList.contains('expandInputIcon')) {
 				// clicked on the expand icon
-				const viewModel = this.notebookEditor.viewModel;
 				const textModel = this.notebookEditor.textModel;
 				textModel.applyEdits([
 					{
 						editType: CellEditType.PartialMetadata,
-						index: viewModel.getCellIndex(cell),
+						index: this.notebookEditor.getCellIndex(cell),
 						metadata: {
 							inputCollapsed: false
 						}
@@ -1123,7 +1120,7 @@ export class ListTopCellToolbar extends Disposable {
 		this._register(this.notebookEditor.onDidChangeModel(() => {
 			this._modelDisposables.clear();
 
-			if (this.notebookEditor.viewModel) {
+			if (this.notebookEditor.hasModel()) {
 				this._modelDisposables.add(this.notebookEditor.viewModel.onDidChangeViewCells(() => {
 					this.updateClass();
 				}));
@@ -1141,7 +1138,7 @@ export class ListTopCellToolbar extends Disposable {
 	}
 
 	private updateClass() {
-		if (this.notebookEditor.viewModel?.length === 0) {
+		if (this.notebookEditor.getLength() === 0) {
 			this.topCellToolbar.classList.add('emptyNotebook');
 		} else {
 			this.topCellToolbar.classList.remove('emptyNotebook');

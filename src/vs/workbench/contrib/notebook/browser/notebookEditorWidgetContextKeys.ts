@@ -98,8 +98,8 @@ export class NotebookEditorContextKeys {
 		const recomputeOutputsExistence = () => {
 			let hasOutputs = false;
 			if (this._editor.hasModel()) {
-				for (let i = 0; i < this._editor.viewModel.viewCells.length; i++) {
-					if (this._editor.viewModel.viewCells[i].outputsViewModels.length > 0) {
+				for (let i = 0; i < this._editor.getLength(); i++) {
+					if (this._editor.cellAt(i).outputsViewModels.length > 0) {
 						hasOutputs = true;
 						break;
 					}
@@ -132,7 +132,7 @@ export class NotebookEditorContextKeys {
 				dispose(deletedCellOutputStates);
 			});
 		}));
-		this._viewType.set(this._editor.viewModel.viewType);
+		this._viewType.set(this._editor.textModel.viewType);
 	}
 
 	private async _updateForInstalledExtension(): Promise<void> {
@@ -140,7 +140,7 @@ export class NotebookEditorContextKeys {
 			return;
 		}
 
-		const viewType = this._editor.viewModel.viewType;
+		const viewType = this._editor.textModel.viewType;
 		const kernelExtensionId = KERNEL_EXTENSIONS.get(viewType);
 		this._missingKernelExtension.set(
 			!!kernelExtensionId && !(await this._extensionService.getExtension(kernelExtensionId)));
