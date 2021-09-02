@@ -115,7 +115,8 @@ export class NotebookEditorContextKeys {
 			});
 		};
 
-		for (const cell of this._editor.viewModel.viewCells) {
+		for (let i = 0; i < this._editor.getLength(); i++) {
+			const cell = this._editor.cellAt(i);
 			this._cellStateListeners.push(addCellStateListener(cell));
 			this._cellOutputsListeners.push(addCellOutputsListener(cell));
 		}

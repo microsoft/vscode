@@ -43,11 +43,13 @@ export const executeThisCellCondition = ContextKeyExpr.and(
 	NOTEBOOK_CELL_EXECUTING.toNegated());
 
 function renderAllMarkdownCells(context: INotebookActionContext): void {
-	context.notebookEditor.viewModel.viewCells.forEach(cell => {
+	for (let i = 0; i < context.notebookEditor.getLength(); i++) {
+		const cell = context.notebookEditor.cellAt(i);
+
 		if (cell.cellKind === CellKind.Markup) {
 			cell.updateEditState(CellEditState.Preview, 'renderAllMarkdownCells');
 		}
-	});
+	}
 }
 
 async function runCell(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
