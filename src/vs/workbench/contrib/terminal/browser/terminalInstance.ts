@@ -54,7 +54,7 @@ import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isIOS, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { CodeDataTransfers, containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
@@ -68,6 +68,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { isSafari } from 'vs/base/browser/browser';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1511,7 +1512,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('customGlyphs', config.customGlyphs);
 		const suggestedRendererType = TerminalInstance._suggestedRendererType;
 		// @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
-		if ((!isIOS && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
+		if ((!isSafari && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
