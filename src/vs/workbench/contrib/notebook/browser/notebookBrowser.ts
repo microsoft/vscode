@@ -383,6 +383,7 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 	cellAt(index: number): ICellViewModel;
 	getCellIndex(cell: ICellViewModel): number;
 	getCellIndexByHandle(handle: number): number;
+	getNextVisibleCellIndex(index: number): number;
 }
 
 export enum NotebookViewEventType {
@@ -721,6 +722,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getCellIndexByHandle(handle: number): number | undefined;
+	getNextVisibleCellIndex(index: number): number | undefined;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 }
 

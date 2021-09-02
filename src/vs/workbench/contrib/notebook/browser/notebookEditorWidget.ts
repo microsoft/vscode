@@ -2542,6 +2542,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.getCellIndexByHandle(handle);
 	}
 
+	getNextVisibleCellIndex(index: number): number | undefined {
+		return this.viewModel?.getNextVisibleCellIndex(index);
+	}
+
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean, source?: string): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {

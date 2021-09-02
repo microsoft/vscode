@@ -216,14 +216,13 @@ export class CellDragAndDropController extends Disposable {
 		const textModel = this.notebookEditor.textModel;
 
 		if (isCopy) {
-			const viewModel = this.notebookEditor.viewModel;
-			const draggedCellIndex = viewModel.getCellIndex(draggedCell);
+			const draggedCellIndex = this.notebookEditor.getCellIndex(draggedCell);
 			const range = this.getCellRangeAroundDragTarget(draggedCellIndex);
 
-			let originalToIdx = viewModel.getCellIndex(draggedOverCell);
+			let originalToIdx = this.notebookEditor.getCellIndex(draggedOverCell);
 			if (dropDirection === 'below') {
-				const relativeToIndex = viewModel.getCellIndex(draggedOverCell);
-				const newIdx = viewModel.getNextVisibleCellIndex(relativeToIndex);
+				const relativeToIndex = this.notebookEditor.getCellIndex(draggedOverCell);
+				const newIdx = this.notebookEditor.getNextVisibleCellIndex(relativeToIndex);
 				originalToIdx = newIdx;
 			}
 
@@ -244,18 +243,17 @@ export class CellDragAndDropController extends Disposable {
 					editType: CellEditType.Replace,
 					index: originalToIdx,
 					count: 0,
-					cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model))
+					cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(this.notebookEditor.cellAt(index)!.model))
 				}
-			], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
+			], true, { kind: SelectionStateType.Index, focus: this.notebookEditor.getFocus(), selections: this.notebookEditor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
 			this.notebookEditor.revealCellRangeInView(finalSelection);
 		} else {
-			const viewModel = this.notebookEditor.viewModel;
-			const draggedCellIndex = viewModel.getCellIndex(draggedCell);
+			const draggedCellIndex = this.notebookEditor.getCellIndex(draggedCell);
 			const range = this.getCellRangeAroundDragTarget(draggedCellIndex);
-			let originalToIdx = viewModel.getCellIndex(draggedOverCell);
+			let originalToIdx = this.notebookEditor.getCellIndex(draggedOverCell);
 			if (dropDirection === 'below') {
-				const relativeToIndex = viewModel.getCellIndex(draggedOverCell);
-				const newIdx = viewModel.getNextVisibleCellIndex(relativeToIndex);
+				const relativeToIndex = this.notebookEditor.getCellIndex(draggedOverCell);
+				const newIdx = this.notebookEditor.getNextVisibleCellIndex(relativeToIndex);
 				originalToIdx = newIdx;
 			}
 
@@ -282,7 +280,7 @@ export class CellDragAndDropController extends Disposable {
 					length: range.end - range.start,
 					newIdx: originalToIdx <= range.start ? originalToIdx : (originalToIdx - (range.end - range.start))
 				}
-			], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
+			], true, { kind: SelectionStateType.Index, focus: this.notebookEditor.getFocus(), selections: this.notebookEditor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
 			this.notebookEditor.revealCellRangeInView(finalSelection);
 		}
 	}
