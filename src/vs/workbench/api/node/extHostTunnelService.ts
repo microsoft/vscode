@@ -297,7 +297,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				this._forwardPortProvider = provider.tunnelFactory;
 				this._proxy.$setTunnelProvider(provider.tunnelFeatures ?? {
 					elevation: false,
-					public: false
+					public: false,
+					privacyOptions: []
 				});
 			}
 		} else {

@@ -759,7 +759,7 @@ export class TunnelPanel extends ViewPane {
 			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService, this.commandService,
 			this.configurationService, this.hoverService);
 		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
-		if (this.tunnelService.canMakePublic) {
+		if (this.tunnelService.canChangePrivacy) {
 			columns.push(new PrivacyColumn());
 		}
 		columns.push(new OriginColumn());
@@ -780,7 +780,7 @@ export class TunnelPanel extends ViewPane {
 				accessibilityProvider: {
 					getAriaLabel: (item: ITunnelItem) => {
 						if (item instanceof TunnelItem) {
-							return `${item.tooltipPostfix} ${item.portTooltip} ${item.iconTooltip} ${item.processTooltip} ${item.originTooltip} ${this.tunnelService.canMakePublic ? item.privacyTooltip : ''}`;
+							return `${item.tooltipPostfix} ${item.portTooltip} ${item.iconTooltip} ${item.processTooltip} ${item.originTooltip} ${this.tunnelService.canChangePrivacy ? item.privacyTooltip : ''}`;
 						} else {
 							return item.label;
 						}

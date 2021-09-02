@@ -41,9 +41,16 @@ export interface TunnelCreationOptions {
 	elevationRequired?: boolean;
 }
 
+export interface TunnelPrivacy {
+	themeIcon: string;
+	id: string;
+	label: string;
+}
+
 export interface TunnelProviderFeatures {
 	elevation: boolean;
 	public: boolean;
+	privacyOptions: TunnelPrivacy[];
 }
 
 export interface ITunnelProvider {
@@ -92,7 +99,8 @@ export interface ITunnelService {
 	readonly _serviceBrand: undefined;
 
 	readonly tunnels: Promise<readonly RemoteTunnel[]>;
-	readonly canMakePublic: boolean;
+	readonly canChangePrivacy: boolean;
+	readonly privacyOptions: TunnelPrivacy[];
 	readonly onTunnelOpened: Event<RemoteTunnel>;
 	readonly onTunnelClosed: Event<{ host: string, port: number; }>;
 	readonly canElevate: boolean;
@@ -149,7 +157,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	protected readonly _tunnels = new Map</*host*/ string, Map</* port */ number, { refcount: number, readonly value: Promise<RemoteTunnel | undefined>; }>>();
 	protected _tunnelProvider: ITunnelProvider | undefined;
 	protected _canElevate: boolean = false;
-	private _canMakePublic: boolean = false;
+	private _privacyOptions: TunnelPrivacy[] = [];
 
 	public constructor(
 		@ILogService protected readonly logService: ILogService
@@ -164,20 +172,20 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		if (!provider) {
 			// clear features
 			this._canElevate = false;
-			this._canMakePublic = false;
+			this._privacyOptions = [];
 			this._onAddedTunnelProvider.fire();
 			return {
 				dispose: () => { }
 			};
 		}
 		this._canElevate = features.elevation;
-		this._canMakePublic = features.public;
+		this._privacyOptions = features.privacyOptions;
 		this._onAddedTunnelProvider.fire();
 		return {
 			dispose: () => {
 				this._tunnelProvider = undefined;
 				this._canElevate = false;
-				this._canMakePublic = false;
+				this._privacyOptions = [];
 			}
 		};
 	}
@@ -186,8 +194,12 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return this._canElevate;
 	}
 
-	public get canMakePublic() {
-		return this._canMakePublic;
+	public get canChangePrivacy() {
+		return this._privacyOptions.length > 0;
+	}
+
+	public get privacyOptions() {
+		return this._privacyOptions;
 	}
 
 	public get tunnels(): Promise<readonly RemoteTunnel[]> {

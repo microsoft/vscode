@@ -527,7 +527,7 @@ export class TunnelModel extends Disposable {
 	}
 
 	private makeTunnelPrivacy(isPublic: boolean) {
-		return isPublic ? TunnelPrivacy.Public : this.tunnelService.canMakePublic ? TunnelPrivacy.Private : TunnelPrivacy.ConstantPrivate;
+		return isPublic ? TunnelPrivacy.Public : this.tunnelService.canChangePrivacy ? TunnelPrivacy.Private : TunnelPrivacy.ConstantPrivate;
 	}
 
 	private async getStorageKey(): Promise<string> {
