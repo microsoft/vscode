@@ -124,8 +124,7 @@ export class NotebookEditorContextKeys {
 		recomputeOutputsExistence();
 		this._updateForInstalledExtension();
 
-		const vm = this._editor._getViewModel();
-		this._viewModelDisposables.add(vm.onDidChangeViewCells(e => {
+		this._viewModelDisposables.add(this._editor.onDidChangeViewCells(e => {
 			e.splices.reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCellStates = this._cellStateListeners.splice(start, deleted, ...newCells.map(addCellStateListener));

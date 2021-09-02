@@ -254,6 +254,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		getControl() { return this; }
 		override get onDidChangeSelection() { return viewModel.onDidChangeSelection as Event<any>; }
 		override get onDidChangeOptions() { return viewModel.onDidChangeOptions; }
+		override get onDidChangeViewCells() { return viewModel.onDidChangeViewCells; }
+
 	};
 
 	return { editor: notebookEditor, viewModel };

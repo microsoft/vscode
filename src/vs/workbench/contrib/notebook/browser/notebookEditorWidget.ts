@@ -52,7 +52,7 @@ import { CodeCellRenderer, ListTopCellToolbar, MarkupCellRenderer, NotebookCellL
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -219,6 +219,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#region Eventing
 	private readonly _onDidChangeCellState = this._register(new Emitter<NotebookCellStateChangedEvent>());
 	readonly onDidChangeCellState = this._onDidChangeCellState.event;
+
+	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
+	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent> = this._onDidChangeViewCells.event;
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;
@@ -1283,6 +1286,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 		}
+
+		this._localStore.add(this.viewModel.onDidChangeViewCells(e => {
+			this._onDidChangeViewCells.fire(e);
+		}));
 
 		this._localStore.add(this.viewModel.onDidChangeSelection(() => {
 			this._onDidChangeSelection.fire();

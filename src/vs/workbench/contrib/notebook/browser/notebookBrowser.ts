@@ -19,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, IModelDecorationsChangeAccessor, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -422,13 +422,15 @@ export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataCha
 
 export interface INotebookEditor extends ICommonNotebookEditor {
 	//#region Eventing
-	onDidChangeCellState: Event<NotebookCellStateChangedEvent>;
-	onDidChangeOptions: Event<void>;
+	readonly onDidChangeCellState: Event<NotebookCellStateChangedEvent>;
+	readonly onDidChangeOptions: Event<void>;
+	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
+	readonly onDidChangeVisibleRanges: Event<void>;
+	readonly onDidChangeSelection: Event<void>;
+
 	//#endregion
 
 	// from the old IEditor
-	readonly onDidChangeVisibleRanges: Event<void>;
-	readonly onDidChangeSelection: Event<void>;
 	getLength(): number;
 	getSelections(): ICellRange[];
 	setSelections(selections: ICellRange[]): void;
