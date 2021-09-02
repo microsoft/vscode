@@ -1349,13 +1349,11 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalItem.value) {
-				if (e.originalItem.value.data.toString() in template.context.defaultValue) {
-					// delete a default by overriding it
-					newValue[e.originalItem.value.data.toString()] = false;
-				} else {
-					delete newValue[e.originalItem.value.data.toString()];
-				}
+			if (e.originalItem.value.data.toString() in template.context.defaultValue) {
+				// delete a default by overriding it
+				newValue[e.originalItem.value.data.toString()] = false;
+			} else {
+				delete newValue[e.originalItem.value.data.toString()];
 			}
 
 			// then add the new or updated entry, if present
