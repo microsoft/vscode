@@ -166,11 +166,11 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editor = context.notebookEditor;
-		if (!editor.viewModel || !editor.getLength()) {
+		if (!editor.hasModel() || !editor.getLength()) {
 			return;
 		}
 
-		const firstCell = editor.viewModel.cellAt(editor.getLength() - 1);
+		const firstCell = editor.cellAt(editor.getLength() - 1);
 		if (firstCell) {
 			editor.focusNotebookCell(firstCell, 'container');
 		}

@@ -160,7 +160,7 @@ export class FindModel extends Disposable {
 
 		if (oldCurrMatchCellIndex < 0) {
 			// the cell containing the active match is deleted
-			const focusedCell = this._notebookEditor.viewModel!.viewCells[this._notebookEditor.viewModel!.getFocus().start];
+			const focusedCell = this._notebookEditor.cellAt(this._notebookEditor.getFocus().start);
 
 			if (!focusedCell) {
 				this.set(findMatches, false);
@@ -173,7 +173,7 @@ export class FindModel extends Disposable {
 		}
 
 		// the cell still exist
-		const cell = this._notebookEditor.viewModel!.viewCells[oldCurrMatchCellIndex];
+		const cell = this._notebookEditor.cellAt(oldCurrMatchCellIndex);
 		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
 			// find the nearest match above this cell
 			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
