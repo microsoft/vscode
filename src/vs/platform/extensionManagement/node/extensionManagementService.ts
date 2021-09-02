@@ -231,11 +231,8 @@ abstract class AbstractInstallExtensionTask extends AbstractExtensionTask<ILocal
 	}
 
 	private async extract({ zipPath, identifierWithVersion, metadata }: InstallableExtension, token: CancellationToken): Promise<ILocalExtension> {
-		let local = await this.extensionsScanner.extractUserExtension(identifierWithVersion, zipPath, token);
+		let local = await this.extensionsScanner.extractUserExtension(identifierWithVersion, zipPath, metadata, token);
 		this.logService.info('Extracting completed.', identifierWithVersion.id);
-		if (metadata) {
-			local = await this.extensionsScanner.saveMetadataForLocalExtension(local, metadata);
-		}
 		return local;
 	}
 
@@ -315,10 +312,10 @@ class InstallVSIXTask extends AbstractInstallExtensionTask {
 		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
 		const metadata = await this.getMetadata(this.identifier.id, token);
+		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
+		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
 
 		if (existing) {
-			metadata.isMachineScoped = this.options.isMachineScoped || existing.isMachineScoped;
-			metadata.isBuiltin = this.options.isBuiltin || existing.isBuiltin;
 			this._operation = InstallOperation.Update;
 			if (identifierWithVersion.equals(new ExtensionIdentifierWithVersion(existing.identifier, existing.manifest.version))) {
 				try {
