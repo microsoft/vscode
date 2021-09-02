@@ -154,8 +154,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		if (!notebookEditor.hasModel()) {
 			return;
 		}
-		const viewModel = notebookEditor.viewModel;
-		const cell = viewModel.cellAt(range.start);
+		const cell = notebookEditor.cellAt(range.start);
 		if (!cell) {
 			return;
 		}

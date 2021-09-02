@@ -401,10 +401,10 @@ export class InteractiveEditor extends EditorPane {
 	 */
 	#registerExecutionScrollListener(widget: NotebookEditorWidget & IActiveNotebookEditor) {
 		this.#widgetDisposableStore.add(widget.textModel.onWillAddRemoveCells(e => {
-			const lastViewCell = widget.viewModel.viewCells[widget.viewModel.viewCells.length - 1];
+			const lastViewCell = widget.cellAt(widget.getLength() - 1);
 
 			// check if the last cell is at the bottom
-			if (this.#cellAtBottom(widget, lastViewCell)) {
+			if (lastViewCell && this.#cellAtBottom(widget, lastViewCell)) {
 				this.#state = ScrollingState.StickyToBottom;
 			} else {
 				this.#state = ScrollingState.Initial;
@@ -412,10 +412,10 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this.#widgetDisposableStore.add(widget.onDidScroll(() => {
-			const lastViewCell = widget.viewModel.viewCells[widget.viewModel.viewCells.length - 1];
+			const lastViewCell = widget.cellAt(widget.getLength() - 1);
 
 			// check if the last cell is at the bottom
-			if (this.#cellAtBottom(widget, lastViewCell)) {
+			if (lastViewCell && this.#cellAtBottom(widget, lastViewCell)) {
 				this.#state = ScrollingState.StickyToBottom;
 			} else {
 				this.#state = ScrollingState.Initial;
@@ -426,8 +426,8 @@ export class InteractiveEditor extends EditorPane {
 			for (let i = 0; i < e.rawEvents.length; i++) {
 				const event = e.rawEvents[i];
 
-				if (event.kind === NotebookCellsChangeType.ModelChange && this.#notebookWidget.value?.viewModel) {
-					const lastViewCell = this.#notebookWidget.value.viewModel.viewCells[this.#notebookWidget.value.viewModel.viewCells.length - 1];
+				if (event.kind === NotebookCellsChangeType.ModelChange && this.#notebookWidget.value?.hasModel()) {
+					const lastViewCell = this.#notebookWidget.value.cellAt(this.#notebookWidget.value.getLength() - 1);
 					if (lastViewCell !== this.#lastCell) {
 						this.#lastCellDisposable.clear();
 						this.#lastCell = lastViewCell;
