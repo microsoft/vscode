@@ -5,7 +5,7 @@
 
 import { clearNode, createCSSRule, createStyleSheet } from 'vs/base/browser/dom';
 
-export const enum ZIndex {
+export enum ZIndex {
 	Base = 0,
 	Sash = 35,
 	SuggestWidget = 40,
@@ -17,6 +17,16 @@ export const enum ZIndex {
 	PaneDropOverlay = 10000
 }
 
+const ZIndexValues = Object.keys(ZIndex).filter(key => !isNaN(Number(key))).map(key => Number(key)).sort((a, b) => b - a);
+function findBase(z: number) {
+	for (const zi of ZIndexValues) {
+		if (z >= zi) {
+			return zi;
+		}
+	}
+
+	return -1;
+}
 
 export interface IZIndexRegistry {
 	registerZIndex(z: number, name: string, relativeLayer?: ZIndex): string;
@@ -34,7 +44,12 @@ class ZIndexRegistry implements IZIndexRegistry {
 			throw new Error(`z-index with name ${name} has already been registered.`);
 		}
 
-		this.zIndexMap.set(name, relativeLayer + z);
+		const proposedZValue = relativeLayer + z;
+		if (findBase(proposedZValue) !== relativeLayer) {
+			throw new Error(`Relative layer: ${relativeLayer} + z-index: ${z} exceeds next layer ${proposedZValue}.`);
+		}
+
+		this.zIndexMap.set(name, proposedZValue);
 		this.updateStyleElement();
 		return this.getVarName(name);
 	}
