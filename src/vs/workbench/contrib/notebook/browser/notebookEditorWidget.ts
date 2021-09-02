@@ -219,9 +219,32 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#region Eventing
 	private readonly _onDidChangeCellState = this._register(new Emitter<NotebookCellStateChangedEvent>());
 	readonly onDidChangeCellState = this._onDidChangeCellState.event;
-
 	private readonly _onDidChangeViewCells = this._register(new Emitter<INotebookViewCellsUpdateEvent>());
-	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent> = this._onDidChangeViewCells.event;
+	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent> = this._onDidChangeViewCells.event;
+	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
+	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
+	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
+	readonly onDidChangeOptions: Event<void> = this._onDidChangeOptions.event;
+	private readonly _onDidScroll = this._register(new Emitter<void>());
+	readonly onDidScroll: Event<void> = this._onDidScroll.event;
+	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
+	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
+	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
+	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
+	private readonly _onDidChangeVisibleRanges = this._register(new Emitter<void>());
+	readonly onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
+	private readonly _onDidFocusEditorWidget = this._register(new Emitter<void>());
+	readonly onDidFocusEditorWidget = this._onDidFocusEditorWidget.event;
+	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocusEmitter.event;
+	private readonly _onDidBlurEmitter = this._register(new Emitter<void>());
+	readonly onDidBlur = this._onDidBlurEmitter.event;
+	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
+	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
+	private readonly _onMouseUp: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
+	readonly onMouseUp: Event<INotebookEditorMouseEvent> = this._onMouseUp.event;
+	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
+	readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;
@@ -254,10 +277,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _outputRenderer: OutputRenderer;
 	protected readonly _contributions = new Map<string, INotebookEditorContribution>();
 	private _scrollBeyondLastLine: boolean;
-	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
-	public readonly onDidFocus = this._onDidFocusEmitter.event;
-	private readonly _onDidBlurEmitter = this._register(new Emitter<void>());
-	public readonly onDidBlur = this._onDidBlurEmitter.event;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 	private _kernelManger: NotebookEditorKernelManager;
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
@@ -270,12 +289,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	get isDisposed() {
 		return this._isDisposed;
 	}
-
-	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
-	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
-
-	private readonly _onDidFocusEditorWidget = this._register(new Emitter<void>());
-	readonly onDidFocusEditorWidget = this._onDidFocusEditorWidget.event;
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
 		this._notebookViewModel = newModel;
@@ -294,9 +307,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._notebookViewModel?.options.isReadOnly ?? false;
 	}
 
-	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
-	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
-
 	get activeCodeEditor(): IEditor | undefined {
 		if (this._isDisposed) {
 			return;
@@ -306,10 +316,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._renderedEditors.get(focused);
 	}
 
-	private readonly _onDidScroll = this._register(new Emitter<void>());
-	readonly onDidScroll: Event<void> = this._onDidScroll.event;
-	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
-	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
 	private _cursorNavigationMode: boolean = false;
 	get cursorNavigationMode(): boolean {
 		return this._cursorNavigationMode;
@@ -319,11 +325,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._cursorNavigationMode = v;
 	}
 
-	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
-	get onDidChangeSelection(): Event<void> { return this._onDidChangeSelection.event; }
-
-	private readonly _onDidChangeVisibleRanges = this._register(new Emitter<void>());
-	onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
 
 	get visibleRanges() {
 		return this._list.visibleRanges || [];
@@ -339,9 +340,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	get notebookOptions() {
 		return this._notebookOptions;
 	}
-
-	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
-	get onDidChangeOptions(): Event<void> { return this._onDidChangeOptions.event; }
 
 	constructor(
 		readonly creationOptions: INotebookEditorCreationOptions,
@@ -1923,15 +1921,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
 		return this.viewModel?.changeModelDecorations<T>(callback) || null;
 	}
-
-	//#endregion
-
-	//#region Mouse Events
-	private readonly _onMouseUp: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
-	public readonly onMouseUp: Event<INotebookEditorMouseEvent> = this._onMouseUp.event;
-
-	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
-	public readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
 
 	//#endregion
 

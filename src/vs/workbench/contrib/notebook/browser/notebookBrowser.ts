@@ -427,6 +427,16 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
+	/**
+	 * An event emitted when the model of this editor has changed.
+	 * @event
+	 */
+	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
+	readonly onDidFocusEditorWidget: Event<void>;
+	readonly onDidScroll: Event<void>;
+	readonly onDidChangeActiveCell: Event<void>;
+	readonly onMouseUp: Event<INotebookEditorMouseEvent>;
+	readonly onMouseDown: Event<INotebookEditorMouseEvent>;
 
 	//#endregion
 
@@ -449,16 +459,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	_getViewModel(): NotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
-
-	/**
-	 * An event emitted when the model of this editor has changed.
-	 * @event
-	 */
-	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
-	readonly onDidFocusEditorWidget: Event<void>;
-	readonly onDidScroll: Event<void>;
-
-	readonly onDidChangeActiveCell: Event<void>;
 	readonly notebookOptions: NotebookOptions;
 	isDisposed: boolean;
 	dispose(): void;
@@ -694,18 +694,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	setEditorDecorations(key: string, range: ICellRange): void;
 	removeEditorDecorations(key: string): void;
-
-	/**
-	 * An event emitted on a "mouseup".
-	 * @event
-	 */
-	onMouseUp(listener: (e: INotebookEditorMouseEvent) => void): IDisposable;
-
-	/**
-	 * An event emitted on a "mousedown".
-	 * @event
-	 */
-	onMouseDown(listener: (e: INotebookEditorMouseEvent) => void): IDisposable;
 
 	/**
 	 * Get a contribution of this editor.
