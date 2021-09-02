@@ -173,10 +173,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	interface KernelPreloadContext {
-		getState(): { [key: string]: unknown; };
-		setState(data: { [key: string]: unknown; }): void;
-		postMessage(msg: unknown): void;
-
 		readonly onDidReceiveKernelMessage: Event<unknown>;
 		postKernelMessage(data: unknown): void;
 	}
@@ -186,12 +182,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	function createKernelContext(): KernelPreloadContext {
-		const vscodeApi = acquireVsCodeApi();
 		return {
-			getState: vscodeApi.getState,
-			setState: vscodeApi.setState,
-			postMessage: vscodeApi.postMessage,
-
 			onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
 			postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
 		};
