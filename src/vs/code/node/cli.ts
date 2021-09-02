@@ -361,16 +361,16 @@ export async function main(argv: string[]): Promise<any> {
 			}
 			const argsArr: string[] = [];
 			const isDev = env['VSCODE_DEV'];
-			// When we're in development mode, call the OSS app rather than the OSS app's Electron
-			const execPathToUse = isDev ? resolve(join(process.execPath, '../../..')) : process.execPath;
+			const execPathToUse = process.execPath;
 			argsArr.push('-a', execPathToUse);
 			argsArr.push(...openArgs, '--args', ...argv.slice(2));
 			if (isDev) {
 				// If we're in development mode, replace the . arg with the
 				// vscode source arg. Because the OSS app isn't bundled,
 				// it needs the vscode source arg to launch properly.
-				const launchDirIndex = argsArr.indexOf('.');
-				argsArr[launchDirIndex] = resolve(join(execPathToUse, '../../..'));
+				const curdir = '.';
+				const launchDirIndex = argsArr.indexOf(curdir);
+				argsArr[launchDirIndex] = resolve(curdir);
 			}
 			child = spawn('open', argsArr, options);
 
