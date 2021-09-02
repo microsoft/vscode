@@ -48,8 +48,13 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	}
 
 	$acceptEditorTabs(tabs: IEditorTabDto[]): void {
-		this._activeTab = undefined;
+		let activeIndex = -1;
+		let currentIndex = 0;
 		this._tabs = tabs.map(dto => {
+			if (dto.isActive) {
+				activeIndex = currentIndex;
+			}
+			currentIndex++;
 			return Object.freeze({
 				label: dto.label,
 				viewColumn: dto.viewColumn,
@@ -57,7 +62,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				isActive: dto.isActive
 			});
 		});
-		this._activeTab = this._tabs.find(t => t.isActive);
+		this._activeTab = activeIndex === -1 ? undefined : this._tabs[activeIndex];
 		this._onDidChangeActiveTab.fire(this._activeTab);
 		this._onDidChangeTabs.fire(this._tabs);
 	}
