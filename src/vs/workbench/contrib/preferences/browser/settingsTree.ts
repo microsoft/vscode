@@ -590,7 +590,6 @@ function addChildrenToTabOrder(node: Element): void {
 
 export interface HeightChangeParams {
 	element: SettingsTreeElement;
-	height: number;
 }
 
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
@@ -871,10 +870,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				disposables: disposeables
 			},
 			asyncRenderCallback: () => {
-				const height = container.clientHeight;
-				if (height) {
-					this._onDidChangeSettingHeight.fire({ element, height });
-				}
+				this._onDidChangeSettingHeight.fire({ element });
 			},
 		});
 		disposeables.add(renderedMarkdown);
@@ -1353,7 +1349,7 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalItem.value.data) {
+			if (e.originalItem.value) {
 				if (e.originalItem.value.data.toString() in template.context.defaultValue) {
 					// delete a default by overriding it
 					newValue[e.originalItem.value.data.toString()] = false;
@@ -1495,16 +1491,10 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 		};
 		super.renderValue(dataElement, template, onChangeOverride);
 		template.elementDisposables.add(
-			template.inputBox.onDidHeightChange(e => {
-				const height = template.containerElement.clientHeight;
-				// Don't fire event if height is reported as 0,
-				// which sometimes happens when clicking onto a new setting.
-				if (height) {
-					this._onDidChangeSettingHeight.fire({
-						element: dataElement,
-						height: template.containerElement.clientHeight
-					});
-				}
+			template.inputBox.onDidHeightChange(() => {
+				this._onDidChangeSettingHeight.fire({
+					element: dataElement,
+				});
 			})
 		);
 		template.inputBox.layout();
@@ -1569,12 +1559,10 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const disposables = new DisposableStore();
 		template.toDispose.add(disposables);
 
-		const defaultOrEmptyString = dataElement.defaultValue ?? '';
-
 		let createdDefault = false;
-		if (!settingEnum.includes(defaultOrEmptyString)) {
+		if (!settingEnum.includes(dataElement.defaultValue)) {
 			// Add a new potentially blank default setting
-			settingEnum.unshift(defaultOrEmptyString);
+			settingEnum.unshift(dataElement.defaultValue);
 			enumDescriptions.unshift('');
 			enumItemLabels.unshift('');
 			createdDefault = true;
@@ -1604,7 +1592,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 
 		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
-			idx = settingEnum.indexOf(defaultOrEmptyString);
+			idx = 0;
 		}
 
 		template.onChange = undefined;

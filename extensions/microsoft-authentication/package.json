@@ -24,8 +24,7 @@
   },
   "extensionKind": [
     "ui",
-    "workspace",
-    "web"
+    "workspace"
   ],
   "contributes": {
     "authentication": [

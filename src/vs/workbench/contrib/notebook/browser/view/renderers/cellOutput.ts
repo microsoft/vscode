@@ -211,7 +211,7 @@ export class CellOutputElement extends Disposable {
 			return undefined;
 		}
 
-		const notebookTextModel = this.notebookEditor.viewModel.notebookDocument;
+		const notebookTextModel = this.notebookEditor.textModel;
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.preloadProvides);
 
@@ -800,7 +800,7 @@ export class CellOutputContainer extends Disposable {
 			actionHandler: {
 				callback: (content) => {
 					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.viewModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
+						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.textModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
 					}
 
 					return;

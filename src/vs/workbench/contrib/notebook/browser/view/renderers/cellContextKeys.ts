@@ -118,7 +118,7 @@ export class CellContextKeyManager extends Disposable {
 
 	private updateForInternalMetadata() {
 		const internalMetadata = this.element.internalMetadata;
-		this.cellEditable.set(!this.notebookEditor.viewModel?.options.isReadOnly);
+		this.cellEditable.set(!this.notebookEditor.isReadOnly);
 
 		const runState = internalMetadata.runState;
 		if (this.element instanceof MarkupCellViewModel) {

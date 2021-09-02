@@ -19,6 +19,15 @@
 	padding: 0 6px 0 10px;
 }
 
+.monaco-workbench .part.banner .icon-container.custom-icon {
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-size: 16px;
+	width: 16px;
+	padding: 0;
+	margin: 0 6px 0 10px;
+}
+
 .monaco-workbench .part.banner .message-container {
 	line-height: 26px;
 	text-overflow: ellipsis;

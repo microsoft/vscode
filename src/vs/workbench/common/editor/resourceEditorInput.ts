@@ -17,7 +17,7 @@ import { dirname, isEqual } from 'vs/base/common/resources';
 export abstract class AbstractResourceEditorInput extends EditorInput implements IEditorInputWithPreferredResource {
 
 	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.None;
+		let capabilities = EditorInputCapabilities.CanSplitInGroup;
 
 		if (this.fileService.canHandleResource(this.resource)) {
 			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {

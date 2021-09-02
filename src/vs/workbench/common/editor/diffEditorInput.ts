@@ -6,7 +6,7 @@
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceDiffEditorInput, IDiffEditorInput, IResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
  * and the modified version.
  */
-export class DiffEditorInput extends SideBySideEditorInput {
+export class DiffEditorInput extends SideBySideEditorInput implements IDiffEditorInput {
 
 	static override readonly ID: string = 'workbench.editors.diffEditorInput';
 
@@ -137,16 +137,13 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceDiffEditorInput | undefined {
-		const originalResourceEditorInput = this.secondary.toUntyped(options);
-		const modifiedResourceEditorInput = this.primary.toUntyped(options);
-
-		if (originalResourceEditorInput && modifiedResourceEditorInput && !isResourceDiffEditorInput(originalResourceEditorInput) && !isResourceDiffEditorInput(modifiedResourceEditorInput)) {
+	override toUntyped(options?: { preserveViewState: GroupIdentifier }): (IResourceDiffEditorInput & IResourceSideBySideEditorInput) | undefined {
+		const untyped = super.toUntyped(options);
+		if (untyped) {
 			return {
-				label: this.name,
-				description: this.description,
-				original: originalResourceEditorInput,
-				modified: modifiedResourceEditorInput
+				...untyped,
+				modified: untyped.primary,
+				original: untyped.secondary
 			};
 		}
 

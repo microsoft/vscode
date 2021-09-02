@@ -612,7 +612,11 @@ export class DefaultSettings extends Disposable {
 			const prop = settingsObject[key];
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				const description = (prop.description || prop.markdownDescription || '').split('\n');
+				let description = (prop.description || prop.markdownDescription || '');
+				if (typeof description !== 'string') {
+					description = '';
+				}
+				const descriptionLines = description.split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
 				let listItemType: string | undefined;
 				if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type) {
@@ -646,7 +650,7 @@ export class DefaultSettings extends Disposable {
 				result.push({
 					key,
 					value,
-					description,
+					description: descriptionLines,
 					descriptionIsMarkdown: !prop.description,
 					range: nullRange,
 					keyRange: nullRange,

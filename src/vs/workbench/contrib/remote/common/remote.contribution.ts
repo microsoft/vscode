@@ -97,13 +97,11 @@ const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
-		'workspace',
-		'web'
+		'workspace'
 	],
 	enumDescriptions: [
 		localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
-		localize('web', "Web worker extension kind. Such an extension can execute in a web worker extension host.")
+		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
 	],
 };
 
@@ -154,7 +152,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				patternProperties: {
 					'(^\\d+(\\-\\d+)?$)|(.+)': {
 						type: 'object',
-						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
+						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), host and port (ex. \"db:1234\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
 						properties: {
 							'onAutoForward': {
 								type: 'string',

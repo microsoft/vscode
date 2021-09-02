@@ -1034,7 +1034,7 @@ declare module 'vscode' {
 		 * The type for tree elements is text/treeitem.
 		 * For example, you can reconstruct the your tree elements:
 		 * ```ts
-		 * JSON.parse(await (items.get('text/treeitems')!.asString()))
+		 * JSON.parse(await (items.get('text/treeitem')!.asString()))
 		 * ```
 		 */
 		items: { get: (mimeType: string) => TreeDataTransferItem | undefined };
@@ -1043,7 +1043,19 @@ declare module 'vscode' {
 	export interface DragAndDropController<T> extends Disposable {
 		readonly supportedTypes: string[];
 
-		// todo@API maybe
+		/**
+		 * todo@API maybe
+		 *
+		 * When the user drops an item from this DragAndDropController on **another tree item** in **the same tree**,
+		 * `onWillDrop` will be called with the dropped tree item. This is the DragAndDropController's opportunity to
+		 * package the data from the dropped tree item into whatever format they want the target tree item to receive.
+		 *
+		 * The returned `TreeDataTransfer` will be merged with the original`TreeDataTransfer` for the operation.
+		 *
+		 * Note for implementation later: This means that the `text/treeItem` mime type will go away.
+		 *
+		 * @param source
+		 */
 		// onWillDrop?(source: T): Thenable<TreeDataTransfer>;
 
 		/**
@@ -1062,6 +1074,11 @@ declare module 'vscode' {
 		 * Controls whether the task is executed in a specific terminal group using split panes.
 		 */
 		group?: string;
+
+		/**
+		 * Controls whether the terminal is closed after executing the task.
+		 */
+		close?: boolean;
 	}
 	//#endregion
 
@@ -1096,6 +1113,11 @@ declare module 'vscode' {
 		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
 		 */
 		sortByLabel: boolean;
+
+		/*
+		 * An optional flag that can be set to true to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
+		 */
+		keepScrollPosition?: boolean;
 	}
 
 	//#endregion
@@ -1879,23 +1901,16 @@ declare module 'vscode' {
 	 */
 	export class TestTag {
 		/**
-		 * Unique ID of the test tag.
+		 * ID of the test tag. `TestTag` instances with the same ID are considered
+		 * to be identical.
 		 */
 		readonly id: string;
 
 		/**
-		 * Human-readable name of the tag. If present, the tag will be visible as
-		 * a filter option in the UI.
-		 */
-		readonly label?: string;
-
-		/**
 		 * Creates a new TestTag instance.
-		 * @param id Unique ID of the test tag.
-		 * @param label Human-readable name of the tag.  If present, the tag will
-		 * be visible as a filter option in the UI.
+		 * @param id ID of the test tag.
 		 */
-		constructor(id: string, label?: string);
+		constructor(id: string);
 	}
 
 	export interface TestRunProfile {
@@ -2545,35 +2560,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region FileSystemProvider stat readonly - https://github.com/microsoft/vscode/issues/73122
-
-	export enum FilePermission {
-		/**
-		 * The file is readonly.
-		 *
-		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered with
-		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
-		 * is set. As a consequence, it is not possible to have a readonly file system provider
-		 * registered where some `FileStat` are not readonly.
-		 */
-		Readonly = 1
-	}
-
-	/**
-	 * The `FileStat`-type represents metadata about a file
-	 */
-	export interface FileStat {
-
-		/**
-		 * The permissions of the file, e.g. whether the file is readonly.
-		 *
-		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
-		 */
-		permissions?: FilePermission;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/126280 @mjbvz
 
 	export interface NotebookCellData {
@@ -2917,12 +2903,13 @@ declare module 'vscode' {
 	interface LanguageStatusItem {
 		readonly id: string;
 		selector: DocumentSelector;
+		// todo@jrieken replace with boolean ala needsAttention
 		severity: LanguageStatusSeverity;
 		name: string | undefined;
 		text: string;
-		detail: string;
+		detail?: string;
 		command: Command | undefined;
-		// accessibilityInformation?: AccessibilityInformation; TODO@API
+		accessibilityInformation?: AccessibilityInformation;
 		dispose(): void;
 	}
 

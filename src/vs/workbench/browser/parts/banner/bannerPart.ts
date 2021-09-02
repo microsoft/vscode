@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/bannerpart';
 import { localize } from 'vs/nls';
-import { $, addDisposableListener, append, clearNode, EventType } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -26,6 +26,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { URI } from 'vs/base/common/uri';
 
 
 // Icons
@@ -228,7 +229,13 @@ export class BannerPart extends Part implements IBannerService {
 		// Icon
 		const iconContainer = append(this.element, $('div.icon-container'));
 		iconContainer.setAttribute('aria-hidden', 'true');
-		iconContainer.appendChild($(`div${item.icon.cssSelector}`));
+
+		if (item.icon instanceof Codicon) {
+			iconContainer.appendChild($(`div${item.icon.cssSelector}`));
+		} else if (URI.isUri(item.icon)) {
+			iconContainer.classList.add('custom-icon');
+			iconContainer.style.backgroundImage = asCSSUrl(item.icon);
+		}
 
 		// Message
 		const messageContainer = append(this.element, $('div.message-container'));

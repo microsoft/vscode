@@ -38,7 +38,7 @@ import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeg
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, INotebookEditorOptions, NotebookCellStateChangedEvent, NotebookLayoutChangedEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/notebookEditorDecorations';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
@@ -50,7 +50,7 @@ import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
 import { CodeCellRenderer, ListTopCellToolbar, MarkupCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -182,6 +182,10 @@ export class ListViewInfoAccessor extends Disposable {
 		return this.list.viewModel.getCells(range);
 	}
 
+	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
+		return this.list.viewModel?.getCells(range) ?? [];
+	}
+
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
 		this.list.setCellSelection(cell, range);
 	}
@@ -212,6 +216,11 @@ export function getDefaultNotebookCreationOptions() {
 }
 
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
+	//#region Eventing
+	private readonly _onDidChangeCellState = this._register(new Emitter<NotebookCellStateChangedEvent>());
+	readonly onDidChangeCellState = this._onDidChangeCellState.event;
+
+	//#endregion
 	private _overlayContainer!: HTMLElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorToolbar;
@@ -276,6 +285,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	get textModel() {
 		return this._notebookViewModel?.notebookDocument;
+	}
+
+	get isReadOnly() {
+		return this._notebookViewModel?.options.isReadOnly ?? false;
 	}
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
@@ -346,6 +359,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.configurationService);
 		this._register(this._notebookOptions);
 		this._viewContext = new ViewContext(this._notebookOptions, new NotebookEventDispatcher());
+		this._register(this._viewContext.eventDispatcher.onDidChangeCellState(e => {
+			this._onDidChangeCellState.fire(e);
+		}));
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
@@ -460,6 +476,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	 */
 	public getId(): string {
 		return this._uuid;
+	}
+
+	_getViewModel(): NotebookViewModel | undefined {
+		return this.viewModel;
+	}
+
+	getLength() {
+		return this.viewModel?.length ?? 0;
 	}
 
 	getSelections() {
@@ -1794,6 +1818,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._listViewInfoAccessor.getCellsFromViewRange(startIndex, endIndex);
 	}
 
+	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
+		return this._listViewInfoAccessor.getCellsInRange(range);
+	}
+
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
 		this._listViewInfoAccessor.setCellEditorSelection(cell, range);
 	}
@@ -2207,7 +2235,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const selectedIndex = this._list.getViewIndex(selectedCell)!;
 		const previousIndex = this._list.getViewIndex(previousSelection)!;
 
-		const cellsInSelectionRange = this.getCellsInRange(selectedIndex, previousIndex);
+		const cellsInSelectionRange = this.getCellsInViewRange(selectedIndex, previousIndex);
 		if (isSelected) {
 			// Deselect
 			this._list.selectElements(currentSelections.filter(current => !cellsInSelectionRange.includes(current)));
@@ -2218,7 +2246,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	private getCellsInRange(fromInclusive: number, toInclusive: number): ICellViewModel[] {
+	private getCellsInViewRange(fromInclusive: number, toInclusive: number): ICellViewModel[] {
 		const selectedCellsInRange: ICellViewModel[] = [];
 		for (let index = 0; index < this._list.length; ++index) {
 			const cell = this._list.element(index);
@@ -2489,6 +2517,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._overlayContainer.classList.remove(className);
 	}
 
+	cellAt(index: number): ICellViewModel | undefined {
+		return this.viewModel?.cellAt(index);
+	}
+
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel {
 		const { cellHandle } = cellInfo;
 		return this.viewModel?.viewCells.find(vc => vc.handle === cellHandle) as CodeCellViewModel;
@@ -2496,6 +2528,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	getCellById(cellId: string): ICellViewModel | undefined {
 		return this.viewModel?.viewCells.find(vc => vc.id === cellId);
+	}
+
+	getCellByHandle(handle: number): ICellViewModel | undefined {
+		return this.viewModel?.getCellByHandle(handle);
+	}
+
+	getCellIndex(cell: ICellViewModel) {
+		return this.getCellIndexByHandle(cell.handle);
+	}
+
+	getCellIndexByHandle(handle: number): number | undefined {
+		return this.viewModel?.getCellIndexByHandle(handle);
 	}
 
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean, source?: string): void {

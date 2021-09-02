@@ -84,7 +84,7 @@ export class CodeCell extends Disposable {
 		});
 
 		const updateForFocusMode = () => {
-			if (this.notebookEditor.getFocus().start !== this.notebookEditor.viewModel.getCellIndex(viewCell)) {
+			if (this.notebookEditor.getFocus().start !== this.notebookEditor.getCellIndex(viewCell)) {
 				templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 			}
 
@@ -101,7 +101,7 @@ export class CodeCell extends Disposable {
 		}));
 		updateForFocusMode();
 
-		const updateEditorOptions = () => templateData.editor?.updateOptions({ readOnly: notebookEditor.viewModel.options.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
+		const updateEditorOptions = () => templateData.editor?.updateOptions({ readOnly: notebookEditor.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
 		updateEditorOptions();
 		this._register(viewCell.onDidChangeState((e) => {
 			if (e.metadataChanged || e.internalMetadataChanged) {

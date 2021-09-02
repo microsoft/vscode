@@ -16,14 +16,12 @@ import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Mimes } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Emitter } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
@@ -367,11 +365,10 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 					editor.options = {
 						...editor.options,
 						viewState: (() => {
-							for (const textEditorControl of editorService.visibleTextEditorControls) {
-								if (isCodeEditor(textEditorControl)) {
-									const model = textEditorControl.getModel();
-									if (isEqual(model?.uri, resource)) {
-										return withNullAsUndefined(textEditorControl.saveViewState());
+							for (const visibleEditorPane of editorService.visibleEditorPanes) {
+								if (isEqual(visibleEditorPane.input.resource, resource)) {
+									if (typeof visibleEditorPane.getViewState === 'function') {
+										return visibleEditorPane.getViewState?.();
 									}
 								}
 							}

@@ -72,7 +72,7 @@ export class DialogMainService implements IDialogMainService {
 	}
 
 	pickWorkspace(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
-		const title = localize('openWorkspaceTitle', "Open Workspace");
+		const title = localize('openWorkspaceTitle', "Open Workspace from File");
 		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
 		const filters = WORKSPACE_FILTER;
 

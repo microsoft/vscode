@@ -23,6 +23,7 @@ const NOTEBOOK_FOCUS_PREVIOUS_EDITOR = 'notebook.focusPreviousEditor';
 const NOTEBOOK_FOCUS_NEXT_EDITOR = 'notebook.focusNextEditor';
 const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
 const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
+const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
 
 registerAction2(class extends NotebookCellAction {
@@ -57,12 +58,12 @@ registerAction2(class extends NotebookCellAction {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
-		const idx = editor.viewModel.getCellIndex(activeCell);
+		const idx = editor.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
 
-		const newCell = editor.viewModel.cellAt(idx + 1);
+		const newCell = editor.cellAt(idx + 1);
 
 		if (!newCell) {
 			return;
@@ -99,7 +100,7 @@ registerAction2(class extends NotebookCellAction {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
-		const idx = editor.viewModel.getCellIndex(activeCell);
+		const idx = editor.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
@@ -109,7 +110,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		const newCell = editor.viewModel.cellAt(idx - 1);
+		const newCell = editor.cellAt(idx - 1);
 
 		if (!newCell) {
 			return;
@@ -138,11 +139,11 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editor = context.notebookEditor;
-		if (!editor.viewModel || !editor.viewModel.length) {
+		if (!editor.getLength()) {
 			return;
 		}
 
-		const firstCell = editor.viewModel.cellAt(0);
+		const firstCell = editor.cellAt(0);
 		if (firstCell) {
 			editor.focusNotebookCell(firstCell, 'container');
 		}
@@ -165,11 +166,11 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editor = context.notebookEditor;
-		if (!editor.viewModel || !editor.viewModel.length) {
+		if (!editor.hasModel() || !editor.getLength()) {
 			return;
 		}
 
-		const firstCell = editor.viewModel.cellAt(editor.viewModel.length - 1);
+		const firstCell = editor.cellAt(editor.getLength() - 1);
 		if (firstCell) {
 			editor.focusNotebookCell(firstCell, 'container');
 		}
@@ -216,6 +217,27 @@ registerAction2(class extends NotebookCellAction {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 		editor.focusNotebookCell(activeCell, 'editor');
+	}
+});
+
+registerAction2(class CenterActiveCellAction extends NotebookCellAction {
+	constructor() {
+		super({
+			id: CENTER_ACTIVE_CELL,
+			title: localize('notebookActions.centerActiveCell', "Center Active Cell"),
+			keybinding: {
+				when: NOTEBOOK_EDITOR_FOCUSED,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_L,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyCode.KEY_L,
+				},
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		return context.notebookEditor.revealInCenter(context.cell);
 	}
 });
 

@@ -18,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IEditorInput, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IEditorInput, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -246,12 +246,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		for (const [group, entries] of editorsToReplace) {
 			this.editorService.replaceEditors(entries.map(editor => {
-				let replacement: IEditorInput;
+				let replacement: IEditorInput | IResourceEditorInput;
 				if (possibleEditors.defaultEditor) {
 					const viewType = possibleEditors.defaultEditor.id;
 					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType!, group);
 				} else {
-					replacement = this.editorService.createEditorInput({ resource: newResource });
+					replacement = { resource: newResource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
 				}
 
 				return {

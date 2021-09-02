@@ -55,11 +55,11 @@ registerAction2(class extends Action2 {
 		const bulkEditService = accessor.get(IBulkEditService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor || !editor.viewModel) {
+		if (!editor || !editor.hasModel()) {
 			return;
 		}
 
-		const notebook = editor.viewModel.notebookDocument;
+		const notebook = editor.textModel;
 		const disposable = new DisposableStore();
 		try {
 			const allCellEdits = await Promise.all(notebook.cells.map(async cell => {

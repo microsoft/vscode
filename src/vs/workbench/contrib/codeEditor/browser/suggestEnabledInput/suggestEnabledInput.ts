@@ -46,7 +46,7 @@ export interface SuggestResultsProvider {
 	 *
 	 * @param query the full text of the input.
 	 */
-	provideResults: (query: string) => (modes.CompletionItemLabel | string)[];
+	provideResults: (query: string) => (Partial<modes.CompletionItem> & ({ label: string }) | string)[];
 
 	/**
 	 * Trigger characters for this input. Suggestions will appear when one of these is typed,

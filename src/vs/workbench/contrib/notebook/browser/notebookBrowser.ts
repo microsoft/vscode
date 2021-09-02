@@ -21,7 +21,7 @@ import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/c
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -377,15 +377,58 @@ export interface INotebookEditorCreationOptions {
 
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
+	_getViewModel(): NotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
+	cellAt(index: number): ICellViewModel;
+	getCellIndex(cell: ICellViewModel): number;
+	getCellIndexByHandle(handle: number): number;
 }
 
+export enum NotebookViewEventType {
+	LayoutChanged = 1,
+	MetadataChanged = 2,
+	CellStateChanged = 3
+}
+
+export class NotebookLayoutChangedEvent {
+	public readonly type = NotebookViewEventType.LayoutChanged;
+
+	constructor(readonly source: NotebookLayoutChangeEvent, readonly value: NotebookLayoutInfo) {
+
+	}
+}
+
+
+export class NotebookMetadataChangedEvent {
+	public readonly type = NotebookViewEventType.MetadataChanged;
+
+	constructor(readonly source: NotebookDocumentMetadata) {
+
+	}
+}
+
+export class NotebookCellStateChangedEvent {
+	public readonly type = NotebookViewEventType.CellStateChanged;
+
+	constructor(readonly source: CellViewModelStateChangeEvent, readonly cell: ICellViewModel) {
+
+	}
+}
+
+
+export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataChangedEvent | NotebookCellStateChangedEvent;
+
+
 export interface INotebookEditor extends ICommonNotebookEditor {
+	//#region Eventing
+	onDidChangeCellState: Event<NotebookCellStateChangedEvent>;
+	//#endregion
 
 	// from the old IEditor
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
+	getLength(): number;
 	getSelections(): ICellRange[];
 	setSelections(selections: ICellRange[]): void;
 	getFocus(): ICellRange;
@@ -397,6 +440,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly creationOptions: INotebookEditorCreationOptions;
 
 	isEmbedded: boolean;
+	isReadOnly: boolean;
 
 	cursorNavigationMode: boolean;
 
@@ -404,6 +448,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * Notebook view model attached to the current editor
 	 */
 	viewModel: NotebookViewModel | undefined;
+	_getViewModel(): NotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 
 	/**
@@ -669,9 +714,13 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
-
+	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel>;
+	cellAt(index: number): ICellViewModel | undefined;
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
 	getCellById(cellId: string): ICellViewModel | undefined;
+	getCellByHandle(handle: number): ICellViewModel | undefined;
+	getCellIndex(cell: ICellViewModel): number | undefined;
+	getCellIndexByHandle(handle: number): number | undefined;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 }
 
@@ -961,12 +1010,12 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
  * ranges: model selections
  * this will convert model selections to view indexes first, and then include the hidden ranges in the list view
  */
-export function expandCellRangesWithHiddenCells(editor: INotebookEditor, viewModel: NotebookViewModel, ranges: ICellRange[]) {
+export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges: ICellRange[]) {
 	// assuming ranges are sorted and no overlap
 	const indexes = cellRangesToIndexes(ranges);
 	let modelRanges: ICellRange[] = [];
 	indexes.forEach(index => {
-		const viewCell = viewModel.viewCells[index];
+		const viewCell = editor.cellAt(index);
 
 		if (!viewCell) {
 			return;
@@ -1011,10 +1060,10 @@ export function getRanges(cells: ICellViewModel[], included: (cell: ICellViewMod
 	return ranges;
 }
 
-export function cellRangeToViewCells(viewModel: NotebookViewModel, ranges: ICellRange[]) {
+export function cellRangeToViewCells(editor: IActiveNotebookEditor, ranges: ICellRange[]) {
 	const cells: ICellViewModel[] = [];
 	ranges.forEach(range => {
-		cells.push(...viewModel.getCells(range));
+		cells.push(...editor.getCellsInRange(range));
 	});
 
 	return cells;

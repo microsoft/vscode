@@ -281,11 +281,10 @@ export class SingleUseTestCollection extends Disposable {
 		if (existing) {
 			existing.refCount++;
 		} else {
-			this.tags.set(tag.id, { label: tag.label, refCount: 1 });
+			this.tags.set(tag.id, { refCount: 1 });
 			this.pushDiff([TestDiffOpType.AddTag, {
 				id: Convert.TestTag.namespace(this.controllerId, tag.id),
 				ctrlLabel: this.root.label,
-				label: tag.label,
 			}]);
 		}
 	}
