@@ -28,18 +28,14 @@ function findBase(z: number) {
 	return -1;
 }
 
-export interface IZIndexRegistry {
-	registerZIndex(z: number, name: string, relativeLayer?: ZIndex): string;
-}
-
-class ZIndexRegistry implements IZIndexRegistry {
+class ZIndexRegistry {
 	private styleSheet: HTMLStyleElement;
 	private zIndexMap: Map<string, number>;
 	constructor() {
 		this.styleSheet = createStyleSheet();
 		this.zIndexMap = new Map<string, number>();
 	}
-	registerZIndex(z: number, name: string, relativeLayer: ZIndex = ZIndex.Base): string {
+	registerZIndex(relativeLayer: ZIndex, z: number, name: string): string {
 		if (this.zIndexMap.get(name)) {
 			throw new Error(`z-index with name ${name} has already been registered.`);
 		}
@@ -70,6 +66,6 @@ class ZIndexRegistry implements IZIndexRegistry {
 
 const zIndexRegistry = new ZIndexRegistry();
 
-export function registerZIndex(z: number, name: string, relativeLayer?: ZIndex): string {
-	return zIndexRegistry.registerZIndex(z, name, relativeLayer);
+export function registerZIndex(relativeLayer: ZIndex, z: number, name: string): string {
+	return zIndexRegistry.registerZIndex(relativeLayer, z, name);
 }

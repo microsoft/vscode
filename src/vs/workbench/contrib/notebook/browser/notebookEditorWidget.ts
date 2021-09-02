@@ -2709,19 +2709,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 }
 
-registerZIndex(5, 'notebook-progress-bar', ZIndex.Base);
-registerZIndex(10, 'notebook-list-insertion-indicator', ZIndex.Base);
-registerZIndex(20, 'notebook-cell-editor-outline', ZIndex.Base);
-registerZIndex(25, 'notebook-scrollbar', ZIndex.Base);
-registerZIndex(26, 'notebook-cell-status', ZIndex.Base);
-registerZIndex(26, 'notebook-cell-drag-handle', ZIndex.Base);
-registerZIndex(26, 'notebook-folding-indicator', ZIndex.Base);
-registerZIndex(27, 'notebook-output', ZIndex.Base);
-registerZIndex(28, 'notebook-cell-bottom-toolbar-container', ZIndex.Base);
-registerZIndex(29, 'notebook-run-button-container', ZIndex.Base);
-registerZIndex(29, 'notebook-input-collapse-condicon', ZIndex.Base);
-registerZIndex(30, 'notebook-cell-output-toolbar', ZIndex.Base);
-registerZIndex(1, 'notebook-cell-toolbar', ZIndex.Sash);
+registerZIndex(ZIndex.Base, 5, 'notebook-progress-bar',);
+registerZIndex(ZIndex.Base, 10, 'notebook-list-insertion-indicator');
+registerZIndex(ZIndex.Base, 20, 'notebook-cell-editor-outline');
+registerZIndex(ZIndex.Base, 25, 'notebook-scrollbar');
+registerZIndex(ZIndex.Base, 26, 'notebook-cell-status');
+registerZIndex(ZIndex.Base, 26, 'notebook-cell-drag-handle');
+registerZIndex(ZIndex.Base, 26, 'notebook-folding-indicator');
+registerZIndex(ZIndex.Base, 27, 'notebook-output');
+registerZIndex(ZIndex.Base, 28, 'notebook-cell-bottom-toolbar-container');
+registerZIndex(ZIndex.Base, 29, 'notebook-run-button-container');
+registerZIndex(ZIndex.Base, 29, 'notebook-input-collapse-condicon');
+registerZIndex(ZIndex.Base, 30, 'notebook-cell-output-toolbar');
+registerZIndex(ZIndex.Sash, 1, 'notebook-cell-toolbar');
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(listInactiveSelectionBackground, 1),
