@@ -1121,7 +1121,8 @@ export class ListTopCellToolbar extends Disposable {
 			this._modelDisposables.clear();
 
 			if (this.notebookEditor.hasModel()) {
-				this._modelDisposables.add(this.notebookEditor.viewModel.onDidChangeViewCells(() => {
+				const vm = this.notebookEditor._getViewModel();
+				this._modelDisposables.add(vm.onDidChangeViewCells(() => {
 					this.updateClass();
 				}));
 

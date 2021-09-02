@@ -38,7 +38,7 @@ export class NotebookVisibleCellObserver extends Disposable {
 
 	private _onModelChange() {
 		this._viewModelDisposables.clear();
-		const vm = this._notebookEditor.viewModel;
+		const vm = this._notebookEditor._getViewModel();
 		if (vm) {
 			this._viewModelDisposables.add(vm.onDidChangeViewCells(() => this.updateEverything()));
 		}
@@ -53,7 +53,7 @@ export class NotebookVisibleCellObserver extends Disposable {
 	}
 
 	private _updateVisibleCells(): void {
-		const vm = this._notebookEditor.viewModel;
+		const vm = this._notebookEditor._getViewModel();
 		if (!vm) {
 			return;
 		}

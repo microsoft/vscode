@@ -196,13 +196,12 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		}
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
-		override get viewModel() { return viewModel; }
 		override _getViewModel(): NotebookViewModel {
 			return viewModel;
 		}
 		override get textModel() { return viewModel.notebookDocument; }
 		override hasModel(): this is IActiveNotebookEditor {
-			return !!this.viewModel;
+			return !!viewModel;
 		}
 		override getLength() { return viewModel.length; }
 		override getFocus() { return viewModel.getFocus(); }
@@ -254,6 +253,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override getNextVisibleCellIndex(index: number) { return viewModel.getNextVisibleCellIndex(index); }
 		getControl() { return this; }
 		override get onDidChangeSelection() { return viewModel.onDidChangeSelection as Event<any>; }
+		override get onDidChangeOptions() { return viewModel.onDidChangeOptions; }
 	};
 
 	return { editor: notebookEditor, viewModel };

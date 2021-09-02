@@ -48,7 +48,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 
 			this._foldingModel = new FoldingModel();
 			this._localStore.add(this._foldingModel);
-			this._foldingModel.attachViewModel(this._notebookEditor.viewModel);
+			this._foldingModel.attachViewModel(this._notebookEditor._getViewModel());
 
 			this._localStore.add(this._foldingModel.onDidFoldingRegionChanged(() => {
 				this._updateEditorFoldingRanges();
@@ -98,8 +98,14 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			return;
 		}
 
-		this._notebookEditor.viewModel!.updateFoldingRanges(this._foldingModel.regions);
-		const hiddenRanges = this._notebookEditor.viewModel!.getHiddenRanges();
+		if (!this._notebookEditor.hasModel()) {
+			return;
+		}
+
+		const vm = this._notebookEditor._getViewModel();
+
+		vm.updateFoldingRanges(this._foldingModel.regions);
+		const hiddenRanges = vm.getHiddenRanges();
 		this._notebookEditor.setHiddenAreas(hiddenRanges);
 	}
 
@@ -108,12 +114,11 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			return;
 		}
 
-		const viewModel = this._notebookEditor.viewModel;
-
-		if (!viewModel) {
+		if (!this._notebookEditor.hasModel()) {
 			return;
 		}
 
+		const viewModel = this._notebookEditor._getViewModel();
 		const target = e.event.target as HTMLElement;
 
 		if (target.classList.contains('codicon-notebook-collapsed') || target.classList.contains('codicon-notebook-expanded')) {
@@ -217,12 +222,12 @@ registerAction2(class extends Action2 {
 			if (!activeCell) {
 				return;
 			}
-			index = editor.viewModel?.viewCells.indexOf(activeCell);
+			index = editor.getCellIndex(activeCell);
 		}
 
 		const controller = editor.getContribution<FoldingController>(FoldingController.id);
 		if (index !== undefined) {
-			const targetCell = editor.viewModel?.viewCells[index];
+			const targetCell = editor.cellAt(index);
 			if (targetCell?.cellKind === CellKind.Code && direction === 'down') {
 				return;
 			}
@@ -233,8 +238,8 @@ registerAction2(class extends Action2 {
 				controller.setFoldingStateDown(index, CellFoldingState.Collapsed, levels);
 			}
 
-			const viewIndex = editor.viewModel!.getNearestVisibleCellIndexUpwards(index);
-			editor.focusElement(editor.viewModel!.viewCells[viewIndex]);
+			const viewIndex = editor._getViewModel()!.getNearestVisibleCellIndexUpwards(index);
+			editor.focusElement(editor.cellAt(viewIndex)!);
 		}
 	}
 });
@@ -283,7 +288,7 @@ registerAction2(class extends Action2 {
 			if (!activeCell) {
 				return;
 			}
-			index = editor.viewModel?.viewCells.indexOf(activeCell);
+			index = editor.getCellIndex(activeCell);
 		}
 
 		const controller = editor.getContribution<FoldingController>(FoldingController.id);

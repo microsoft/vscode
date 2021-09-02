@@ -376,7 +376,6 @@ export interface INotebookEditorCreationOptions {
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
-	viewModel: NotebookViewModel;
 	_getViewModel(): NotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
@@ -424,6 +423,7 @@ export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataCha
 export interface INotebookEditor extends ICommonNotebookEditor {
 	//#region Eventing
 	onDidChangeCellState: Event<NotebookCellStateChangedEvent>;
+	onDidChangeOptions: Event<void>;
 	//#endregion
 
 	// from the old IEditor
@@ -445,10 +445,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	cursorNavigationMode: boolean;
 
-	/**
-	 * Notebook view model attached to the current editor
-	 */
-	viewModel: NotebookViewModel | undefined;
 	_getViewModel(): NotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 

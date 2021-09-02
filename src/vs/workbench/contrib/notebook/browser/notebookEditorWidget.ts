@@ -337,6 +337,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._notebookOptions;
 	}
 
+	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
+	get onDidChangeOptions(): Event<void> { return this._onDidChangeOptions.event; }
+
 	constructor(
 		readonly creationOptions: INotebookEditorCreationOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -491,7 +494,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	setSelections(selections: ICellRange[]) {
-		if (!this.hasModel()) {
+		if (!this.viewModel) {
 			return;
 		}
 
@@ -508,7 +511,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	setFocus(focus: ICellRange) {
-		if (!this.hasModel()) {
+		if (!this.viewModel) {
 			return;
 		}
 
@@ -1112,7 +1115,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._readOnly = options?.isReadOnly;
 		}
 
-		if (!this.hasModel()) {
+		if (!this.viewModel) {
 			return;
 		}
 
@@ -1170,6 +1173,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._updateForOptions();
+		this._onDidChangeOptions.fire();
 	}
 
 	private _detachModel() {
@@ -1187,7 +1191,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 
 	private _updateForOptions(): void {
-		if (!this.hasModel()) {
+		if (!this.viewModel) {
 			return;
 		}
 
@@ -1942,7 +1946,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
-		if (!this.hasModel()) {
+		if (!this.viewModel || !this.hasModel()) {
 			return;
 		}
 		if (!cells) {
@@ -1952,7 +1956,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
-		if (!this.hasModel()) {
+		if (!this.viewModel || !this.hasModel()) {
 			return;
 		}
 		if (!cells) {

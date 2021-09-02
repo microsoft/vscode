@@ -69,7 +69,7 @@ export class CellEditorOptions extends Disposable {
 			this._localDisposableStore.clear();
 
 			if (this.notebookEditor.hasModel()) {
-				this._localDisposableStore.add(this.notebookEditor.viewModel.onDidChangeOptions(() => {
+				this._localDisposableStore.add(this.notebookEditor.onDidChangeOptions(() => {
 					this._recomputeOptions();
 				}));
 
@@ -78,7 +78,7 @@ export class CellEditorOptions extends Disposable {
 		}));
 
 		if (this.notebookEditor.hasModel()) {
-			this._localDisposableStore.add(this.notebookEditor.viewModel.onDidChangeOptions(() => {
+			this._localDisposableStore.add(this.notebookEditor.onDidChangeOptions(() => {
 				this._recomputeOptions();
 			}));
 		}
@@ -109,7 +109,7 @@ export class CellEditorOptions extends Disposable {
 			... { lineNumbers, folding: lineNumbers === 'on' },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
-			readOnly: this.notebookEditor.viewModel?.options.isReadOnly ?? false
+			readOnly: this.notebookEditor.isReadOnly
 		};
 
 		return computed;

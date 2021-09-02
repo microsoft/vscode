@@ -257,7 +257,13 @@ export class FindModel extends Disposable {
 			return null;
 		}
 
-		const findMatches = this._notebookEditor.viewModel!.find(val, options).filter(match => match.matches.length > 0);
+		if (!this._notebookEditor.hasModel()) {
+			return null;
+		}
+
+		const vm = this._notebookEditor._getViewModel();
+
+		const findMatches = vm.find(val, options).filter(match => match.matches.length > 0);
 		return findMatches;
 	}
 
