@@ -7,12 +7,13 @@ import 'vs/css!./media/languageStatus';
 import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { NOTIFICATIONS_BORDER, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -28,7 +29,6 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { equals } from 'vs/base/common/arrays';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 class LanguageStatusViewModel {
 
@@ -159,11 +159,11 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		} else {
 			const [first] = model.combined;
-			let text: string = '$(check-all)';
-			let backgroundColor: ThemeColor | undefined;
-			if (first.needsAttention) {
+			let text: string = '$(info)';
+			if (first.severity === Severity.Error) {
 				text = '$(error)';
-				backgroundColor = themeColorFromId(LANGUAGE_STATUS_ITEM_ERROR_ITEM_BACKGROUND);
+			} else if (first.severity === Severity.Warning) {
+				text = '$(warning)';
 			}
 			const element = document.createElement('div');
 			for (const status of model.combined) {
@@ -173,7 +173,6 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				name: localize('status.editor.status', "Editor Language Status"),
 				ariaLabel: localize('status.editor.status', "Editor Language Status"),
 				tooltip: element,
-				backgroundColor,
 				text,
 			};
 			if (!this._combinedEntry) {
@@ -274,19 +273,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
 			tooltip: new MarkdownString(item.detail, true),
-			command: item.command,
-			backgroundColor: item.needsAttention ? themeColorFromId(LANGUAGE_STATUS_ITEM_ERROR_ITEM_BACKGROUND) : undefined
+			command: item.command
 		};
 	}
 }
-
-
-const LANGUAGE_STATUS_ITEM_ERROR_ITEM_BACKGROUND = registerColor('languageStatusItem.errorBackground', {
-	dark: STATUS_BAR_ERROR_ITEM_BACKGROUND,
-	light: STATUS_BAR_ERROR_ITEM_BACKGROUND,
-	hc: STATUS_BAR_ERROR_ITEM_BACKGROUND,
-}, localize('languageStatusItemErrorItemBackground', "Language status item error background color."));
-
 
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`:root {

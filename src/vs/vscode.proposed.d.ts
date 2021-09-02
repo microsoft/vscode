@@ -2844,13 +2844,18 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/129037
 
-
+	enum LanguageStatusSeverity {
+		Information = 0,
+		Warning = 1,
+		Error = 2
+	}
 
 	interface LanguageStatusItem {
 		readonly id: string;
 		selector: DocumentSelector;
-		needsAttention?: boolean;
-		name?: string;
+		// todo@jrieken replace with boolean ala needsAttention
+		severity: LanguageStatusSeverity;
+		name: string | undefined;
 		text: string;
 		detail?: string;
 		command: Command | undefined;
