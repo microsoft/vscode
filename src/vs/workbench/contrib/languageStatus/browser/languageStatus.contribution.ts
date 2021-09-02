@@ -163,13 +163,15 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			} else if (first.severity === Severity.Warning) {
 				text = '$(warning)';
 			}
+			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
 				element.appendChild(this._renderStatus(status, this._renderDisposables));
+				ariaLabels.push(this._asAriaLabel(status));
 			}
 			const props: IStatusbarEntry = {
-				name: localize('status.editor.status', "Editor Language Status"),
-				ariaLabel: localize('status.editor.status', "Editor Language Status"),
+				name: localize('langStatus.name', "Editor Language Status"),
+				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
 				tooltip: element,
 				text,
 			};
@@ -259,6 +261,16 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				store.add(link);
 				dom.append(target, link.el);
 			}
+		}
+	}
+
+	private _asAriaLabel(status: ILanguageStatus): string {
+		if (status.accessibilityInfo) {
+			return status.accessibilityInfo.label;
+		} else if (status.detail) {
+			return localize('aria.1', '{0}, {1}', status.label, status.detail);
+		} else {
+			return localize('aria.2', '{0}', status.label);
 		}
 	}
 
