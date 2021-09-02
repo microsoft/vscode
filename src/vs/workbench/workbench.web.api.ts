@@ -70,7 +70,12 @@ interface ITunnelOptions {
 
 	label?: string;
 
+	/**
+	 * @deprecated
+	 */
 	public?: boolean;
+
+	privacy?: string;
 
 	protocol?: string;
 }
@@ -92,7 +97,12 @@ interface ITunnel {
 	 */
 	localAddress: string;
 
+	/**
+	 * @deprecated
+	 */
 	public?: boolean;
+
+	privacy?: string;
 
 	/**
 	 * If protocol is not provided, it is assumed to be http, regardless of the localAddress

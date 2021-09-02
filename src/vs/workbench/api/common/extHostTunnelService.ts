@@ -6,7 +6,7 @@
 import { ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as vscode from 'vscode';
-import { ProvidedPortAttributes, RemoteTunnel, TunnelCreationOptions, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { ProvidedPortAttributes, RemoteTunnel, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -17,12 +17,19 @@ export interface TunnelDto {
 	remoteAddress: { port: number, host: string };
 	localAddress: { port: number, host: string } | string;
 	public: boolean;
+	privacy: string;
 	protocol: string | undefined;
 }
 
 export namespace TunnelDto {
 	export function fromApiTunnel(tunnel: vscode.Tunnel): TunnelDto {
-		return { remoteAddress: tunnel.remoteAddress, localAddress: tunnel.localAddress, public: !!tunnel.public, protocol: tunnel.protocol };
+		return {
+			remoteAddress: tunnel.remoteAddress,
+			localAddress: tunnel.localAddress,
+			public: !!tunnel.public,
+			privacy: tunnel.privacy ?? TunnelPrivacyId.Private,
+			protocol: tunnel.protocol
+		};
 	}
 	export function fromServiceTunnel(tunnel: RemoteTunnel): TunnelDto {
 		return {
@@ -32,6 +39,7 @@ export namespace TunnelDto {
 			},
 			localAddress: tunnel.localAddress,
 			public: tunnel.public,
+			privacy: tunnel.privacy,
 			protocol: tunnel.protocol
 		};
 	}

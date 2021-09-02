@@ -20,6 +20,7 @@ export interface RemoteTunnel {
 	readonly tunnelLocalPort?: number;
 	readonly localAddress: string;
 	readonly public: boolean;
+	readonly privacy: string;
 	readonly protocol?: string;
 	dispose(silent?: boolean): Promise<void>;
 }
@@ -35,6 +36,12 @@ export interface TunnelOptions {
 export enum TunnelProtocol {
 	Http = 'http',
 	Https = 'https'
+}
+
+export enum TunnelPrivacyId {
+	ConstantPrivate = 'ConstantPrivate', // private, and changing is unsupported
+	Private = 'Private',
+	Public = 'Public'
 }
 
 export interface TunnelCreationOptions {
@@ -84,6 +91,8 @@ export interface ITunnel {
 	localAddress: string;
 
 	public?: boolean;
+
+	privacy?: string;
 
 	protocol?: string;
 
@@ -268,6 +277,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			tunnelLocalPort: tunnel.tunnelLocalPort,
 			localAddress: tunnel.localAddress,
 			public: tunnel.public,
+			privacy: tunnel.privacy,
 			protocol: tunnel.protocol,
 			dispose: async () => {
 				this.logService.trace(`ForwardedPorts: (TunnelService) dispose request for ${tunnel.tunnelRemoteHost}:${tunnel.tunnelRemotePort} `);

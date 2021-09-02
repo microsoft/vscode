@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
+import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -44,12 +44,6 @@ export enum TunnelType {
 	Add = 'Add'
 }
 
-export enum TunnelPrivacy {
-	ConstantPrivate = 'ConstantPrivate', // private, and changing is unsupported
-	Private = 'Private',
-	Public = 'Public'
-}
-
 export interface ITunnelItem {
 	tunnelType: TunnelType;
 	remoteHost: string;
@@ -64,7 +58,7 @@ export interface ITunnelItem {
 		source: TunnelSource,
 		description: string
 	};
-	privacy?: TunnelPrivacy;
+	privacy?: TunnelPrivacyId;
 	processDescription?: string;
 	readonly icon?: ThemeIcon;
 	readonly label: string;
@@ -113,7 +107,7 @@ export interface Tunnel {
 	localPort?: number;
 	name?: string;
 	closeable?: boolean;
-	privacy: TunnelPrivacy;
+	privacy: TunnelPrivacyId;
 	runningProcess: string | undefined;
 	hasRunningProcess?: boolean;
 	pid: number | undefined;
@@ -527,7 +521,7 @@ export class TunnelModel extends Disposable {
 	}
 
 	private makeTunnelPrivacy(isPublic: boolean) {
-		return isPublic ? TunnelPrivacy.Public : this.tunnelService.canChangePrivacy ? TunnelPrivacy.Private : TunnelPrivacy.ConstantPrivate;
+		return isPublic ? TunnelPrivacyId.Public : this.tunnelService.canChangePrivacy ? TunnelPrivacyId.Private : TunnelPrivacyId.ConstantPrivate;
 	}
 
 	private async getStorageKey(): Promise<string> {
@@ -559,7 +553,7 @@ export class TunnelModel extends Disposable {
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
 							local: tunnel.localPort,
 							name: tunnel.name,
-							isPublic: tunnel.privacy === TunnelPrivacy.Public
+							isPublic: tunnel.privacy === TunnelPrivacyId.Public
 						});
 					}
 				}
@@ -710,7 +704,7 @@ export class TunnelModel extends Disposable {
 					runningProcess: matchingCandidate?.detail,
 					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
-					privacy: TunnelPrivacy.ConstantPrivate,
+					privacy: TunnelPrivacyId.ConstantPrivate,
 					source: {
 						source: TunnelSource.Extension,
 						description: nls.localize('tunnel.staticallyForwarded', "Statically Forwarded")
