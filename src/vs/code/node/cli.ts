@@ -346,60 +346,27 @@ export async function main(argv: string[]): Promise<any> {
 		if (!isMacintosh) {
 			// We spawn process.execPath directly
 			child = spawn(process.execPath, argv.slice(2), options);
-
-			if (args.wait && waitMarkerFilePath) {
-				return new Promise<void>(resolve => {
-
-					// Complete when process exits
-					child.once('exit', () => resolve(undefined));
-
-					// Complete when wait marker file is deleted
-					whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
-				}).then(() => {
-					// Make sure to delete the tmp stdin file if we have any
-					if (stdinFilePath) {
-						unlinkSync(stdinFilePath);
-					}
-				});
-			}
 		} else {
 			// On mac, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
 			// https://github.com/microsoft/vscode/issues/102975
-			const requiresWait = verbose || hasReadStdinArg;
 			const openArgs: string[] = ['-n'];
 
-			let tmpStdoutLogger: CliVerboseLogger | undefined;
-			let tmpStderrLogger: CliVerboseLogger | undefined;
-			let tmpStdoutName: string | undefined;
-			let tmpStderrName: string | undefined;
-			if (requiresWait) {
-				tmpStdoutName = createFileName(tmpdir(), 'code-stdout');
-				tmpStderrName = createFileName(tmpdir(), 'code-stderr');
-				tmpStdoutLogger = new CliVerboseLogger();
-				tmpStderrLogger = new CliVerboseLogger();
+			if (verbose || hasReadStdinArg || args.wait) {
+				openArgs.push('-W');
+			}
+
+			if (verbose) {
+				// Set up arguments to pass to open
+				const tmpStdoutName = createFileName(tmpdir(), 'code-stdout');
+				const tmpStderrName = createFileName(tmpdir(), 'code-stderr');
+				const tmpStdoutLogger = new CliVerboseLogger();
+				const tmpStderrLogger = new CliVerboseLogger();
 				writeFileSync(tmpStdoutName, '');
 				writeFileSync(tmpStderrName, '');
-				openArgs.push('-W');
 				openArgs.push('--stdout', tmpStdoutName);
 				openArgs.push('--stderr', tmpStderrName);
-			}
-			const argsArr: string[] = [];
-			const isDev = env['VSCODE_DEV'];
-			const execPathToUse = process.execPath;
-			argsArr.push('-a', execPathToUse);
-			argsArr.push(...openArgs, '--args', ...argv.slice(2));
-			if (isDev) {
-				// If we're in development mode, replace the . arg with the
-				// vscode source arg. Because the OSS app isn't bundled,
-				// it needs the vscode source arg to launch properly.
-				const curdir = '.';
-				const launchDirIndex = argsArr.indexOf(curdir);
-				argsArr[launchDirIndex] = resolve(curdir);
-			}
-			child = spawn('open', argsArr, options);
 
-			if (requiresWait) {
 				function createLoggerPromise(logger: CliVerboseLogger, filename: string): (child: ChildProcess) => Promise<void> {
 					return async (child: ChildProcess) => {
 						await logger.track(child, filename);
@@ -410,6 +377,35 @@ export async function main(argv: string[]): Promise<any> {
 				const stderrPromise = createLoggerPromise(tmpStderrLogger!, tmpStderrName!);
 				processCallbacks.push(stdoutPromise, stderrPromise);
 			}
+			const argsArr: string[] = [];
+			const execPathToUse = process.execPath;
+			argsArr.push('-a', execPathToUse);
+			argsArr.push(...openArgs, '--args', ...argv.slice(2));
+			if (env['VSCODE_DEV']) {
+				// If we're in development mode, replace the . arg with the
+				// vscode source arg. Because the OSS app isn't bundled,
+				// it needs the full vscode source arg to launch properly.
+				const curdir = '.';
+				const launchDirIndex = argsArr.indexOf(curdir);
+				argsArr[launchDirIndex] = resolve(curdir);
+			}
+			child = spawn('open', argsArr, options);
+		}
+
+		if (args.wait && waitMarkerFilePath) {
+			const waitPromise = (child: ChildProcess) => new Promise<void>(resolve => {
+				// Complete when process exits
+				child.once('exit', () => resolve(undefined));
+
+				// Or, complete when wait marker file is deleted
+				whenDeleted(waitMarkerFilePath!).finally(resolve);
+			}).then(() => {
+				// Make sure to delete the tmp stdin file if we have any
+				if (stdinFilePath) {
+					unlinkSync(stdinFilePath);
+				}
+			});
+			processCallbacks.push(waitPromise);
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
