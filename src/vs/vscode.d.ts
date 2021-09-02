@@ -14293,6 +14293,12 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
+		 * Optional sortText to sort the test items by. If sort text exists on a
+		 * {@link TestItem} then it is used instead of {@link TestItem.label}.
+		 */
+		sortText?: string;
+
+		/**
 		 * Location of the test item in its {@link uri}.
 		 *
 		 * This is only meaningful if the `uri` points to a file.

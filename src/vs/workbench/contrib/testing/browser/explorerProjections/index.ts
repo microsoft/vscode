@@ -115,6 +115,10 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 		return this.test.item.description;
 	}
 
+	public get sortText() {
+		return this.test.item.sortText;
+	}
+
 	/**
 	 * Whether the node's test result is 'retired' -- from an outdated test run.
 	 */

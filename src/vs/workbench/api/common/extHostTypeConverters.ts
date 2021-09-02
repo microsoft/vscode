@@ -1685,6 +1685,7 @@ export namespace TestItem {
 			tags: item.tags.map(t => TestTag.namespace(ctrlId, t.id)),
 			range: Range.from(item.range) || null,
 			description: item.description || null,
+			sortText: item.sortText || null,
 			error: item.error ? (MarkdownString.fromStrict(item.error) || null) : null,
 		};
 	}
@@ -1703,6 +1704,7 @@ export namespace TestItem {
 			canResolveChildren: false,
 			busy: false,
 			description: item.description || undefined,
+			sortText: item.sortText || undefined,
 		};
 	}
 
@@ -1711,6 +1713,7 @@ export namespace TestItem {
 		const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri));
 		testItem.range = Range.to(item.range || undefined);
 		testItem.description = item.description || undefined;
+		testItem.sortText = item.sortText || undefined;
 		return testItem;
 	}
 
