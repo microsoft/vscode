@@ -440,27 +440,30 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	//#endregion
 
+	//#region readonly properties
+	readonly visibleRanges: ICellRange[];
+	readonly textModel?: NotebookTextModel;
+	readonly creationOptions: INotebookEditorCreationOptions;
+	readonly isEmbedded: boolean;
+	readonly isReadOnly: boolean;
+	readonly notebookOptions: NotebookOptions;
+	readonly isDisposed: boolean;
+	readonly activeKernel: INotebookKernel | undefined;
+	//#endregion
+
 	// from the old IEditor
 	getLength(): number;
 	getSelections(): ICellRange[];
 	setSelections(selections: ICellRange[]): void;
 	getFocus(): ICellRange;
 	setFocus(focus: ICellRange): void;
-	visibleRanges: ICellRange[];
-	textModel?: NotebookTextModel;
 	getId(): string;
 	hasEditorFocus(): boolean;
-	readonly creationOptions: INotebookEditorCreationOptions;
-
-	isEmbedded: boolean;
-	isReadOnly: boolean;
 
 	cursorNavigationMode: boolean;
 
 	_getViewModel(): NotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
-	readonly notebookOptions: NotebookOptions;
-	isDisposed: boolean;
 	dispose(): void;
 
 	getId(): string;
@@ -534,8 +537,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
-	readonly activeKernel: INotebookKernel | undefined;
-
 	/**
 	 * Execute the given notebook cells
 	 */
@@ -575,8 +576,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	hideInset(output: IDisplayOutputViewModel): void;
 
-
-	onDidReceiveMessage: Event<INotebookWebviewMessage>;
+	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 
 	/**
 	 * Send message to the webview for outputs.

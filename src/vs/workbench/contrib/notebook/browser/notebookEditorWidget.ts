@@ -245,6 +245,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	readonly onMouseUp: Event<INotebookEditorMouseEvent> = this._onMouseUp.event;
 	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
 	readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
+	private readonly _onDidReceiveMessage = this._register(new Emitter<INotebookWebviewMessage>());
+	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;
@@ -2496,11 +2498,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	//#region --- webview IPC ----
-
-	private readonly _onDidReceiveMessage = this._register(new Emitter<INotebookWebviewMessage>());
-
-	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
-
 	postMessage(message: any) {
 		if (this._webview?.isResolved()) {
 			this._webview.postKernelMessage(message);
