@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorMemento, ITextEditorPane, IEditorCloseEvent, IEditorInput, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorMemento, IEditorCloseEvent, IEditorInput, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
@@ -40,7 +40,7 @@ export interface IEditorConfiguration {
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
  * be subclassed and not instantiated.
  */
-export abstract class BaseTextEditor extends EditorPane implements ITextEditorPane {
+export abstract class BaseTextEditor extends EditorPane {
 
 	static readonly TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 

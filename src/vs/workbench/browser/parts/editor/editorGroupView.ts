@@ -33,7 +33,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction } from 'vs/base/common/actions';
@@ -487,7 +487,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Determine editor options
 		let options: IEditorOptions;
 		if (from instanceof EditorGroupView) {
-			options = getActiveTextEditorOptions(from); // if we copy from another group, ensure to copy its active editor viewstate
+			options = fillActiveEditorViewState(from); // if we copy from another group, ensure to copy its active editor viewstate
 		} else {
 			options = Object.create(null);
 		}
@@ -1307,7 +1307,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// When moving/copying an editor, try to preserve as much view state as possible
 		// by checking for the editor to be a text editor and creating the options accordingly
 		// if so
-		const options = getActiveTextEditorOptions(this, editor, {
+		const options = fillActiveEditorViewState(this, editor, {
 			...openOptions,
 			pinned: true, 										// always pin moved editor
 			sticky: !keepCopy && this.model.isSticky(editor)	// preserve sticky state only if editor is moved (https://github.com/microsoft/vscode/issues/99035)

@@ -34,7 +34,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { top } from 'vs/base/common/arrays';
 import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
@@ -143,7 +143,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		async restoreEditorViewState(): Promise<void> {
 			if (this.editorViewState) {
-				const options: ITextEditorOptions = {
+				const options: IEditorOptions = {
 					viewState: this.editorViewState.state,
 					preserveFocus: true /* import to not close the picker as a result */
 				};

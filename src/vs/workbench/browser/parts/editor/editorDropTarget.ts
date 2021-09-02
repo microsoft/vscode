@@ -6,7 +6,7 @@
 import 'vs/css!./media/editordroptarget';
 import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -281,7 +281,7 @@ class DropOverlay extends Themable {
 					}
 
 					// Open in target group
-					const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, {
+					const options = fillActiveEditorViewState(sourceGroup, draggedEditor.editor, {
 						pinned: true,										// always pin dropped editor
 						sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
 					});

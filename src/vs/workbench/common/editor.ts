@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -160,6 +160,15 @@ export interface IEditorPane extends IComposite {
 	getControl(): IEditorControl | undefined;
 
 	/**
+	 * Returns the current view state of the editor if any.
+	 *
+	 * This method is optional to implement for the editor pane
+	 * and should only be implemented when the pane can deal with
+	 * `IEditorOptions.viewState` to be applied when opening.
+	 */
+	getViewState?(): object | undefined;
+
+	/**
 	 * Finds out if this editor is visible or not.
 	 */
 	isVisible(): boolean;
@@ -171,28 +180,6 @@ export interface IEditorPane extends IComposite {
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: IEditorInput;
 	readonly group: IEditorGroup;
-}
-
-/**
- * The text editor pane is the container for workbench text editors.
- */
-export interface ITextEditorPane extends IEditorPane {
-
-	/**
-	 * Returns the underlying text editor widget of this editor.
-	 */
-	getControl(): IEditor | undefined;
-
-	/**
-	 * Returns the current view state of the text editor if any.
-	 */
-	getViewState(): IEditorViewState | undefined;
-}
-
-export function isTextEditorPane(pane: IEditorPane | undefined): pane is ITextEditorPane {
-	const candidate = pane as ITextEditorPane | undefined;
-
-	return typeof candidate?.getViewState === 'function';
 }
 
 /**

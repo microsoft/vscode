@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorContext, ActiveEditorCanSplitInGroupContext, isTextEditorPane } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorContext, ActiveEditorCanSplitInGroupContext } from 'vs/workbench/common/editor';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -26,7 +26,7 @@ import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/acti
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorResolution, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -991,10 +991,10 @@ function registerSplitEditorInGroupCommands(): void {
 				return;
 			}
 
-			let options: ITextEditorOptions | undefined = undefined;
+			let options: IEditorOptions | undefined = undefined;
 			for (const pane of [activeEditorPane.getPrimaryEditorPane(), activeEditorPane.getSecondaryEditorPane()]) {
-				if (pane?.hasFocus() && isTextEditorPane(pane)) {
-					options = { viewState: pane.getViewState() };
+				if (pane?.hasFocus()) {
+					options = { viewState: pane.getViewState?.() };
 					break;
 				}
 			}

@@ -11,10 +11,9 @@ import { Event } from 'vs/base/common/event';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
-import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isObject, withNullAsUndefined } from 'vs/base/common/types';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { isObject } from 'vs/base/common/types';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export interface IEditorPartCreationOptions {
 	restorePreviousState: boolean;
@@ -146,17 +145,14 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	relayout(): void;
 }
 
-export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: IEditorOptions): ITextEditorOptions {
-	const activeGroupCodeEditor = group.activeEditorPane ? getIEditor(group.activeEditorPane.getControl()) : undefined;
-	if (activeGroupCodeEditor) {
-		if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
-			const textOptions: ITextEditorOptions = {
-				...presetOptions,
-				viewState: withNullAsUndefined(activeGroupCodeEditor.saveViewState())
-			};
+export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: IEditorOptions): IEditorOptions {
+	if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
+		const options: IEditorOptions = {
+			...presetOptions,
+			viewState: group.activeEditorPane?.getViewState?.()
+		};
 
-			return textOptions;
-		}
+		return options;
 	}
 
 	return presetOptions || Object.create(null);
