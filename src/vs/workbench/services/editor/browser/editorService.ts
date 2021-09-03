@@ -922,8 +922,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// current one.
 			if (!result.matches(editor)) {
 				const targetGroups = editor.hasCapability(EditorInputCapabilities.Untitled) ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [groupId];
-				for (const group of targetGroups) {
-					await this.replaceEditors([{ editor, replacement: result, options: editorOptions }], group);
+				for (const targetGroup of targetGroups) {
+					const group = this.editorGroupService.getGroup(targetGroup);
+					await group?.replaceEditors([{ editor, replacement: result, options: editorOptions }]);
 				}
 			}
 		}

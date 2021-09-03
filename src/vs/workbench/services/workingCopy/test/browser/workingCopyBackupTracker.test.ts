@@ -55,9 +55,10 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			@ILifecycleService lifecycleService: ILifecycleService,
 			@ILogService logService: ILogService,
 			@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
-			@IEditorService editorService: IEditorService
+			@IEditorService editorService: IEditorService,
+			@IEditorGroupsService editorGroupService: IEditorGroupsService
 		) {
-			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, logService, workingCopyEditorService, editorService);
+			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, logService, workingCopyEditorService, editorService, editorGroupService);
 		}
 
 		protected override getBackupScheduleDelay(): number {
