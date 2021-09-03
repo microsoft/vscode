@@ -139,13 +139,11 @@ export interface ITestRunTask {
 
 export interface ITestTag {
 	id: string;
-	label?: string;
 }
 
 export interface ITestTagDisplayInfo {
 	id: string;
 	ctrlLabel: string;
-	label?: string;
 }
 
 /**

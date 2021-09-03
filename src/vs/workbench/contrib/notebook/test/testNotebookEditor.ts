@@ -196,11 +196,14 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		}
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
-		override get viewModel() { return viewModel; }
+		override _getViewModel(): NotebookViewModel {
+			return viewModel;
+		}
 		override get textModel() { return viewModel.notebookDocument; }
 		override hasModel(): this is IActiveNotebookEditor {
-			return !!this.viewModel;
+			return !!viewModel;
 		}
+		override getLength() { return viewModel.length; }
 		override getFocus() { return viewModel.getFocus(); }
 		override getSelections() { return viewModel.getSelections(); }
 		override setFocus(focus: ICellRange) {
@@ -242,6 +245,17 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override getOutputRenderer() { return new OutputRenderer(notebookEditor, instantiationService); }
 		override async layoutNotebookCell() { }
 		override async removeInset() { }
+		override async focusNotebookCell() { }
+		override cellAt(index: number) { return viewModel.cellAt(index)!; }
+		override getCellIndex(cell: ICellViewModel) { return viewModel.getCellIndex(cell); }
+		override getCellIndexByHandle(handle: number) { return viewModel.getCellIndexByHandle(handle); }
+		override getCellsInRange(range?: ICellRange) { return viewModel.getCells(range); }
+		override getNextVisibleCellIndex(index: number) { return viewModel.getNextVisibleCellIndex(index); }
+		getControl() { return this; }
+		override get onDidChangeSelection() { return viewModel.onDidChangeSelection as Event<any>; }
+		override get onDidChangeOptions() { return viewModel.onDidChangeOptions; }
+		override get onDidChangeViewCells() { return viewModel.onDidChangeViewCells; }
+
 	};
 
 	return { editor: notebookEditor, viewModel };

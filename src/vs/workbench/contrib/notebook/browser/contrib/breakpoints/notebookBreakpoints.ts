@@ -70,12 +70,12 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 				}
 
 				const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-				if (!editor || !editor.hasModel() || editor.viewModel.uri.toString() !== parsed.notebook.toString()) {
+				if (!editor || !editor.hasModel() || editor.textModel.uri.toString() !== parsed.notebook.toString()) {
 					return;
 				}
 
 
-				const cell = editor.viewModel.getCellByHandle(parsed.handle);
+				const cell = editor.getCellByHandle(parsed.handle);
 				if (!cell) {
 					return;
 				}

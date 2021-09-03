@@ -7025,6 +7025,18 @@ declare module 'vscode' {
 		SymbolicLink = 64
 	}
 
+	export enum FilePermission {
+		/**
+		 * The file is readonly.
+		 *
+		 * *Note:* All `FileStat` from a `FileSystemProvider` that is registered with
+		 * the option `isReadonly: true` will be implicitly handled as if `FilePermission.Readonly`
+		 * is set. As a consequence, it is not possible to have a readonly file system provider
+		 * registered where some `FileStat` are not readonly.
+		 */
+		Readonly = 1
+	}
+
 	/**
 	 * The `FileStat`-type represents metadata about a file
 	 */
@@ -7056,6 +7068,12 @@ declare module 'vscode' {
 		 * example.
 		 */
 		size: number;
+		/**
+		 * The permissions of the file, e.g. whether the file is readonly.
+		 *
+		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
+		 */
+		permissions?: FilePermission;
 	}
 
 	/**
@@ -7407,6 +7425,14 @@ declare module 'vscode' {
 		 * Defaults to false (scripts-disabled).
 		 */
 		readonly enableScripts?: boolean;
+
+		/**
+		 * Controls whether forms are enabled in the webview content or not.
+		 *
+		 * Defaults to true if {@link enableScripts scripts are enabled}. Otherwise defaults to false.
+		 * Explicitly setting this property to either true or false overrides the default.
+		 */
+		readonly enableForms?: boolean;
 
 		/**
 		 * Controls whether command uris are enabled in webview content or not.
@@ -9266,7 +9292,7 @@ declare module 'vscode' {
 		 * Get {@link TreeItem} representation of the `element`
 		 *
 		 * @param element The element for which {@link TreeItem} representation is asked for.
-		 * @return {@link TreeItem} representation of the element
+		 * @return TreeItem representation of the element.
 		 */
 		getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
 
@@ -10948,7 +10974,7 @@ declare module 'vscode' {
 		 * @param scope A scope for which the configuration is asked for.
 		 * @return The full configuration or a subset.
 		 */
-		export function getConfiguration(section?: string | undefined, scope?: ConfigurationScope | null): WorkspaceConfiguration;
+		export function getConfiguration(section?: string, scope?: ConfigurationScope | null): WorkspaceConfiguration;
 
 		/**
 		 * An event that is emitted when the {@link WorkspaceConfiguration configuration} changed.
@@ -11568,7 +11594,7 @@ declare module 'vscode' {
 		/**
 		 * The metadata of this cell. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: { [key: string]: any }
+		readonly metadata: { [key: string]: any };
 
 		/**
 		 * The outputs of this cell.

@@ -23,6 +23,8 @@ import { URI } from 'vs/base/common/uri';
 
 declare function postMessage(data: any, transferables?: Transferable[]): void;
 
+declare type _Fetch = typeof fetch;
+
 declare namespace self {
 	let close: any;
 	let postMessage: any;
@@ -32,6 +34,8 @@ declare namespace self {
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
 	let importScripts: any;
+	let fetch: _Fetch;
+	let XMLHttpRequest: any;
 }
 
 const nativeClose = self.close.bind(self);
@@ -39,6 +43,27 @@ self.close = () => console.trace(`'close' has been blocked`);
 
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
+
+const nativeFetch = fetch.bind(self);
+self.fetch = function (input, init) {
+	if (input instanceof Request) {
+		// Request object - massage not supported
+		return nativeFetch(input, init);
+	}
+	if (/^file:/i.test(String(input))) {
+		input = FileAccess.asBrowserUri(URI.parse(String(input))).toString(true);
+	}
+	return nativeFetch(input, init);
+};
+
+self.XMLHttpRequest = class extends XMLHttpRequest {
+	override open(method: string, url: string | URL, async?: boolean, username?: string | null, password?: string | null): void {
+		if (/^file:/i.test(url.toString())) {
+			url = FileAccess.asBrowserUri(URI.parse(url.toString())).toString(true);
+		}
+		return super.open(method, url, async ?? true, username, password);
+	}
+};
 
 self.importScripts = () => { throw new Error(`'importScripts' has been blocked`); };
 

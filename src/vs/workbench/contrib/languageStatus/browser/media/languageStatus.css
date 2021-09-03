@@ -14,7 +14,7 @@
 	border-bottom: 1px solid var(--code-notifications-border);
 }
 
-.monaco-workbench .hover-language-status-element > .left > .label::after {
+.monaco-workbench .hover-language-status-element > .left > .detail:not(:empty)::before {
 	content: '–';
 	padding: 0 4px;
 	opacity: 0.6;
@@ -22,6 +22,10 @@
 
 .monaco-workbench .hover-language-status-element > .left > .label:empty {
 	display: none;
+}
+
+.monaco-workbench .hover-language-status-element .left {
+	margin: auto 0;
 }
 
 .monaco-workbench .hover-language-status-element .right {
@@ -33,9 +37,8 @@
 	padding-left: 16px;
 }
 
-.monaco-workbench .hover-language-status-element .right .monaco-button.monaco-text-button {
-	font-size: smaller;
-	padding: 2px 6px
+.monaco-workbench .hover-language-status-element .right .monaco-link {
+	margin: auto 0;
 }
 
 .monaco-workbench .hover-language-status-element .right .monaco-action-bar:not(:first-child) {

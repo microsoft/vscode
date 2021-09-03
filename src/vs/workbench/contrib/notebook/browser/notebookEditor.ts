@@ -21,7 +21,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInputCapabilities, IEditorInput, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -31,9 +31,10 @@ import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/noteboo
 import { IFileService } from 'vs/platform/files/common/files';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -97,8 +98,8 @@ export class NotebookEditor extends EditorPane {
 		}
 	}
 
-	get viewModel(): NotebookViewModel | undefined {
-		return this._widget.value?.viewModel;
+	get textModel(): NotebookTextModel | undefined {
+		return this._widget.value?.textModel;
 	}
 
 	override get minimumWidth(): number { return 375; }
@@ -348,7 +349,7 @@ export class NotebookEditor extends EditorPane {
 			return;
 		}
 
-		if (this._input.resource.toString() !== this._widget.value.viewModel?.uri.toString() && this._widget.value?.viewModel) {
+		if (this._input.resource.toString() !== this._widget.value.textModel?.uri.toString() && this._widget.value?.hasModel()) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document

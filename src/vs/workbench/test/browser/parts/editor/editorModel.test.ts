@@ -29,7 +29,7 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Mimes } from 'vs/base/common/mime';
 import { LanguageDetectionService } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestAccessibilityService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('EditorModel', () => {
 
@@ -88,7 +88,7 @@ suite('EditorModel', () => {
 	test('BaseTextEditorModel', async () => {
 		let modelService = stubModelService(instantiationService);
 
-		const model = new MyTextEditorModel(modelService, modeService, instantiationService.createInstance(LanguageDetectionService));
+		const model = new MyTextEditorModel(modelService, modeService, instantiationService.createInstance(LanguageDetectionService), instantiationService.createInstance(TestAccessibilityService));
 		await model.resolve();
 
 		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolution, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolution, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IUntypedFileEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -89,9 +89,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		this.registerListeners();
 
-		// Register the default editor to the override service
-		// so that it shows up in the editors picker
-		this.registerDefaultOverride();
+		// Register the default editor to the editor resolver
+		// service so that it shows up in the editors picker
+		this.registerDefaultEditor();
 	}
 
 	private registerListeners(): void {
@@ -118,7 +118,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
 	}
 
-	private registerDefaultOverride(): void {
+	private registerDefaultEditor(): void {
 		this._register(this.editorResolverService.registerEditor(
 			'*',
 			{
@@ -256,7 +256,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region File Changes: Move & Deletes to move or close opend editors
 
-	private onDidRunFileOperation(e: FileOperationEvent): void {
+	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
 
 		// Handle moves specially when file is opened
 		if (e.isOperation(FileOperation.MOVE)) {
@@ -275,7 +275,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private handleMovedFile(source: URI, target: URI): void {
+	private async handleMovedFile(source: URI, target: URI): Promise<void> {
 		for (const group of this.editorGroupService.groups) {
 			let replacements: (IUntypedEditorReplacement | IEditorReplacement)[] = [];
 
@@ -295,7 +295,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				// Delegate rename() to editor instance
-				const moveResult = editor.rename(group.id, targetResource);
+				const moveResult = await editor.rename(group.id, targetResource);
 				if (!moveResult) {
 					return; // not target - ignore
 				}
@@ -531,7 +531,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<ITextEditorPane | undefined>;
+	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined>;
 	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined> {
@@ -885,7 +885,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
 
-	createEditorInput(input: IEditorInput | IUntypedEditorInput): EditorInput {
+	createEditorInput(input: IEditorInput | IUntypedEditorInput): EditorInput;
+	createEditorInput(input: IUntypedFileEditorInput): IFileEditorInput;
+	createEditorInput(input: IEditorInput | IUntypedEditorInput | IUntypedFileEditorInput): EditorInput | IFileEditorInput {
 
 		// Typed Editor Input Support (EditorInput)
 		if (input instanceof EditorInput) {
@@ -894,16 +896,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
-			const original = this.createEditorInput({ ...input.original, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
-			const modified = this.createEditorInput({ ...input.modified, forceFile: input.forceFile, forceUntitled: input.forceUntitled });
+			const original = this.createEditorInput({ ...input.original });
+			const modified = this.createEditorInput({ ...input.modified });
 
-			return this.instantiationService.createInstance(DiffEditorInput,
-				input.label,
-				input.description,
-				original,
-				modified,
-				undefined
-			);
+			return this.instantiationService.createInstance(DiffEditorInput, input.label, input.description, original, modified, undefined);
+		}
+
+		// Side by Side Editor Support
+		if (isResourceSideBySideEditorInput(input)) {
+			const primary = this.createEditorInput({ ...input.primary });
+			const secondary = this.createEditorInput({ ...input.secondary });
+
+			return new SideBySideEditorInput(input.label, input.description, secondary, primary);
 		}
 
 		// Untitled file support
@@ -942,8 +946,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}) as EditorInput;
 		}
 
-		// Text Resource Editor Support
-		const textResourceEditorInput = input as ITextResourceEditorInput;
+		// Text File/Resource Editor Support
+		const textResourceEditorInput = input as IUntypedFileEditorInput;
 		if (textResourceEditorInput.resource instanceof URI) {
 
 			// Derive the label from the path if not provided explicitly
@@ -1099,9 +1103,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// is untitled or we "Save As". This also allows the user to review
 			// the contents of the editor before making a decision.
 			const editorPane = await this.openEditor(editor, groupId);
-			const editorOptions: ITextEditorOptions = {
+			const editorOptions: IEditorOptions = {
 				pinned: true,
-				viewState: isTextEditorPane(editorPane) ? editorPane.getViewState() : undefined
+				viewState: editorPane?.getViewState?.()
 			};
 
 			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);

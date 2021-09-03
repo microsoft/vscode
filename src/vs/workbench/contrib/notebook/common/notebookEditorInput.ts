@@ -193,7 +193,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	// called when users rename a notebook document
-	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
 		if (this._editorModelReference) {
 			const contributedNotebookProviders = this._notebookService.getContributedNotebookTypes(target);
 

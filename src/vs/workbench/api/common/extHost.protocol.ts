@@ -46,7 +46,7 @@ import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/works
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { DebugConfigurationProviderTriggerKind, ViewColumn } from 'vs/workbench/api/common/extHostTypes';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -423,7 +423,6 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
-	$getLanguages(): Promise<string[]>;
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: modes.StandardTokenType, range: IRange }>;
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
@@ -641,9 +640,10 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 }
 
 export interface IEditorTabDto {
-	group: number;
-	name: string;
-	resource: UriComponents;
+	viewColumn: ViewColumn;
+	label: string;
+	resource?: UriComponents | { primary?: UriComponents, secondary?: UriComponents };
+	editorId?: string;
 	isActive: boolean;
 }
 
@@ -682,6 +682,7 @@ export interface IWebviewPortMapping {
 
 export interface IWebviewOptions {
 	readonly enableScripts?: boolean;
+	readonly enableForms?: boolean;
 	readonly enableCommandUris?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
 	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
@@ -1115,6 +1116,7 @@ export interface IStartDebuggingOptions {
 	debugUI?: {
 		simple?: boolean;
 	};
+	suppressSaveBeforeStart?: boolean;
 }
 
 export interface MainThreadDebugServiceShape extends IDisposable {
@@ -1372,6 +1374,10 @@ export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
 	$onWillRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[], timeout: number, token: CancellationToken): Promise<IWillRunFileOperationParticipation | undefined>;
 	$onDidRunFileOperation(operation: files.FileOperation, files: readonly SourceTargetPair[]): void;
+}
+
+export interface ExtHostLanguagesShape {
+	$acceptLanguageIds(ids: string[]): void;
 }
 
 export interface ObjectIdentifier {
@@ -2252,6 +2258,7 @@ export const ExtHostContext = {
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemInfo: createExtId<ExtHostFileSystemInfoShape>('ExtHostFileSystemInfo'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
+	ExtHostLanguages: createExtId<ExtHostLanguagesShape>('ExtHostLanguages'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),

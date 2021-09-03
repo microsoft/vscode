@@ -106,31 +106,19 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	override setOptions(options: IEditorOptions | undefined): void {
-		if (this.primaryEditorPane) {
-			this.primaryEditorPane.setOptions(options);
-		}
+		this.primaryEditorPane?.setOptions(options);
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		if (this.primaryEditorPane) {
-			this.primaryEditorPane.setVisible(visible, group);
-		}
-
-		if (this.secondaryEditorPane) {
-			this.secondaryEditorPane.setVisible(visible, group);
-		}
+		this.primaryEditorPane?.setVisible(visible, group);
+		this.secondaryEditorPane?.setVisible(visible, group);
 
 		super.setEditorVisible(visible, group);
 	}
 
 	override clearInput(): void {
-		if (this.primaryEditorPane) {
-			this.primaryEditorPane.clearInput();
-		}
-
-		if (this.secondaryEditorPane) {
-			this.secondaryEditorPane.clearInput();
-		}
+		this.primaryEditorPane?.clearInput();
+		this.secondaryEditorPane?.clearInput();
 
 		this.disposeEditors();
 
@@ -138,9 +126,7 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	override focus(): void {
-		if (this.primaryEditorPane) {
-			this.primaryEditorPane.focus();
-		}
+		this.primaryEditorPane?.focus();
 	}
 
 	layout(dimension: Dimension): void {
@@ -151,11 +137,7 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	override getControl(): IEditorControl | undefined {
-		if (this.primaryEditorPane) {
-			return this.primaryEditorPane.getControl();
-		}
-
-		return undefined;
+		return this.primaryEditorPane?.getControl();
 	}
 
 	getPrimaryEditorPane(): IEditorPane | undefined {
@@ -226,15 +208,11 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	private disposeEditors(): void {
-		if (this.secondaryEditorPane) {
-			this.secondaryEditorPane.dispose();
-			this.secondaryEditorPane = undefined;
-		}
+		this.secondaryEditorPane?.dispose();
+		this.secondaryEditorPane = undefined;
 
-		if (this.primaryEditorPane) {
-			this.primaryEditorPane.dispose();
-			this.primaryEditorPane = undefined;
-		}
+		this.primaryEditorPane?.dispose();
+		this.primaryEditorPane = undefined;
 
 		if (this.secondaryEditorContainer) {
 			clearNode(this.secondaryEditorContainer);

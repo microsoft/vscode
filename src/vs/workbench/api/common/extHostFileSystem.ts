@@ -115,7 +115,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
 	private readonly _registeredSchemes = new Set<string>();
 	private readonly _watches = new Map<number, IDisposable>();
-	private readonly _enableProposedApi = new Map<number, boolean>();
 
 	private _linkProviderRegistration?: IDisposable;
 	private _handlePool: number = 0;
@@ -134,7 +133,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		}
 	}
 
-	registerFileSystemProvider(extension: ExtensionIdentifier, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}, enableProposedApi?: boolean) {
+	registerFileSystemProvider(extension: ExtensionIdentifier, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
 
 		if (this._registeredSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -147,7 +146,6 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		this._linkProvider.add(scheme);
 		this._registeredSchemes.add(scheme);
 		this._fsProvider.set(handle, provider);
-		this._enableProposedApi.set(handle, enableProposedApi ?? false);
 
 		let capabilities = files.FileSystemProviderCapabilities.FileReadWrite;
 		if (options.isCaseSensitive) {
@@ -202,22 +200,17 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			this._linkProvider.delete(scheme);
 			this._registeredSchemes.delete(scheme);
 			this._fsProvider.delete(handle);
-			this._enableProposedApi.delete(handle);
 			this._proxy.$unregisterProvider(handle);
 		});
 	}
 
-	private static _asIStat(stat: vscode.FileStat, enableProposedApi: boolean): files.IStat {
+	private static _asIStat(stat: vscode.FileStat): files.IStat {
 		const { type, ctime, mtime, size, permissions } = stat;
-		if (enableProposedApi) {
-			return { type, ctime, mtime, size, permissions };
-		} else {
-			return { type, ctime, mtime, size };
-		}
+		return { type, ctime, mtime, size, permissions };
 	}
 
 	$stat(handle: number, resource: UriComponents): Promise<files.IStat> {
-		return Promise.resolve(this._getFsProvider(handle).stat(URI.revive(resource))).then(stat => ExtHostFileSystem._asIStat(stat, this._enableProposedApi.get(handle) ?? false));
+		return Promise.resolve(this._getFsProvider(handle).stat(URI.revive(resource))).then(stat => ExtHostFileSystem._asIStat(stat));
 	}
 
 	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]> {

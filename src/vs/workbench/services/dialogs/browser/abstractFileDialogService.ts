@@ -208,7 +208,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected async pickWorkspaceAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {
-		const title = nls.localize('openWorkspace.title', 'Open Workspace');
+		const title = nls.localize('openWorkspace.title', 'Open Workspace from File');
 		const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
 		const availableFileSystems = this.addFileSchemaIfNeeded(schema, true);
 

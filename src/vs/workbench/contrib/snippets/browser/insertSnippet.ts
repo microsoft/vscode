@@ -207,6 +207,7 @@ class InsertSnippetAction extends EditorAction {
 		picker.placeholder = nls.localize('pick.placeholder', "Select a snippet");
 		picker.matchOnDetail = true;
 		picker.ignoreFocusOut = false;
+		picker.keepScrollPosition = true;
 		picker.onDidTriggerItemButton(ctx => {
 			const isEnabled = snippetService.isEnabled(ctx.item.snippet);
 			snippetService.updateEnablement(ctx.item.snippet, !isEnabled);

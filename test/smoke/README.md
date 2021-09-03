@@ -27,7 +27,7 @@ example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.
 # Build (Web - read instructions below)
 yarn smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
-# Remote (Electron)
+# Remote (Electron - Must be run on distro)
 yarn smoketest --build <path to latest version> --remote
 ```
 

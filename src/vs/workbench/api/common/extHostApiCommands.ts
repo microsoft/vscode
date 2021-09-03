@@ -422,6 +422,12 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.TypeHierarchyItem],
 		new ApiCommandResult<ITypeHierarchyItemDto[], types.TypeHierarchyItem[]>('A TypeHierarchyItem or undefined', v => v.map(typeConverters.TypeHierarchyItem.to))
 	),
+	// --- testing
+	new ApiCommand(
+		'vscode.revealTestInExplorer', '_revealTestInExplorer', 'Reveals a test instance in the explorer',
+		[ApiCommandArgument.TestItem],
+		ApiCommandResult.Void
+	)
 ];
 
 //#endregion

@@ -21,14 +21,13 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { equals } from 'vs/base/common/arrays';
+import { URI } from 'vs/base/common/uri';
 
 class LanguageStatusViewModel {
 
@@ -62,7 +61,6 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		_storageService.onDidChangeValue(this._handleStorageChange, this, this._disposables);
@@ -165,13 +163,15 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			} else if (first.severity === Severity.Warning) {
 				text = '$(warning)';
 			}
+			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
 				element.appendChild(this._renderStatus(status, this._renderDisposables));
+				ariaLabels.push(this._asAriaLabel(status));
 			}
 			const props: IStatusbarEntry = {
-				name: localize('status.editor.status', "Editor Language Status"),
-				ariaLabel: localize('status.editor.status', "Editor Language Status"),
+				name: localize('langStatus.name', "Editor Language Status"),
+				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
 				tooltip: element,
 				text,
 			};
@@ -222,31 +222,31 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		right.classList.add('right');
 		node.appendChild(right);
 
+		// -- command (if available)
 		const { command } = status;
 		if (command) {
-			const btn = new Button(right, { title: command.tooltip });
-			btn.label = command.title;
-			btn.onDidClick(_e => {
-				if (command.arguments) {
-					this._commandService.executeCommand(command.id, ...command.arguments);
-				} else {
-					this._commandService.executeCommand(command.id);
-				}
-			});
-			store.add(btn);
+			const link = new Link({
+				label: command.title,
+				title: command.tooltip,
+				href: URI.from({
+					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
+				}).toString()
+			}, undefined, this._openerService);
+			store.add(link);
+			dom.append(right, link.el);
 		}
 
 		// -- pin
+		const actionBar = new ActionBar(right, {});
+		store.add(actionBar);
 		const action = new Action('pin', localize('pin', "Pin to Status Bar"), Codicon.pin.classNames, true, () => {
 			this._dedicated.add(status.id);
 			this._statusBarService.updateEntryVisibility(status.id, true);
 			this._update();
 			this._storeState();
 		});
-		const actionBar = new ActionBar(right, {});
 		actionBar.push(action, { icon: true, label: false });
 		store.add(action);
-		store.add(actionBar);
 
 		return node;
 	}
@@ -264,13 +264,24 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		}
 	}
 
+	private _asAriaLabel(status: ILanguageStatus): string {
+		if (status.accessibilityInfo) {
+			return status.accessibilityInfo.label;
+		} else if (status.detail) {
+			return localize('aria.1', '{0}, {1}', status.label, status.detail);
+		} else {
+			return localize('aria.2', '{0}', status.label);
+		}
+	}
+
 	// ---
 
 	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
 		return {
 			name: item.name,
 			text: item.label,
-			ariaLabel: item.label,
+			ariaLabel: item.accessibilityInfo?.label ?? item.label,
+			role: item.accessibilityInfo?.role,
 			tooltip: new MarkdownString(item.detail, true),
 			command: item.command
 		};

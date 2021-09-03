@@ -18,6 +18,7 @@ export interface IAccessibilityService {
 	isScreenReaderOptimized(): boolean;
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
+	alert(message: string): void;
 }
 
 export const enum AccessibilitySupport {

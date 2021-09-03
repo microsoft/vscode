@@ -21,7 +21,6 @@ import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsR
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
-import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestingOutputPeekController, TestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
@@ -29,7 +28,8 @@ import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbenc
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
@@ -117,9 +117,9 @@ registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekCo
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
 
 CommandsRegistry.registerCommand({
-	id: 'vscode.revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, testId: string, focus?: boolean) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = testId;
+	id: '_revealTestInExplorer',
+	handler: async (accessor: ServicesAccessor, testId: string | ITestItem, focus?: boolean) => {
+		accessor.get(ITestExplorerFilterState).reveal.value = typeof testId === 'string' ? testId : testId.extId;
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
 	}
 });

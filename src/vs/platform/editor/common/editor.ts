@@ -34,7 +34,7 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IBaseResourceEditorInput {
+export interface IBaseUntypedEditorInput {
 
 	/**
 	 * Optional options to use when opening the input.
@@ -50,6 +50,9 @@ export interface IBaseResourceEditorInput {
 	 * Description to show for the input.
 	 */
 	readonly description?: string;
+}
+
+export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
 
 	/**
 	 * Hint to indicate that this input should be treated as a
@@ -63,15 +66,6 @@ export interface IBaseResourceEditorInput {
 	 * be used as associated path when saving the untitled file.
 	 */
 	readonly forceUntitled?: boolean;
-
-	/**
-	 * @deprecated internal hint that the editor should be resolved
-	 * into a `FileEditorInput` even if the resource cannot be handled
-	 * by any file system provider.
-	 *
-	 * See https://github.com/microsoft/vscode/issues/128209
-	 */
-	readonly forceFile?: boolean;
 }
 
 export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
@@ -292,6 +286,12 @@ export interface IEditorOptions {
 	 * not as a modal dialog.
 	 */
 	context?: EditorOpenContext;
+
+	/**
+	 * An optional property to signal that certain view state should be
+	 * applied when opening the editor. 
+	 */
+	viewState?: object;
 }
 
 export interface ITextEditorSelection {
@@ -330,11 +330,6 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Text editor selection.
 	 */
 	selection?: ITextEditorSelection;
-
-	/**
-	 * Text editor view state.
-	 */
-	viewState?: object;
 
 	/**
 	 * Option to control the text editor selection reveal type.

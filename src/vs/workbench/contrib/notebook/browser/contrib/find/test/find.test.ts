@@ -13,7 +13,7 @@ import { IConfigurationService, IConfigurationValue } from 'vs/platform/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ICellModelDecorations, ICellModelDeltaDecorations } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ICellModelDecorations, ICellModelDeltaDecorations, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
@@ -27,13 +27,13 @@ suite('Notebook Find', () => {
 		}
 	}();
 
-	const setupEditorForTest = (editor: IActiveNotebookEditor) => {
+	const setupEditorForTest = (editor: IActiveNotebookEditor, viewModel: NotebookViewModel) => {
 		editor.changeModelDecorations = (callback) => {
 			return callback({
 				deltaDecorations: (oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]) => {
 					const ret: ICellModelDecorations[] = [];
 					newDecorations.forEach(dec => {
-						const cell = editor.viewModel.viewCells.find(cell => cell.handle === dec.ownerId);
+						const cell = viewModel.viewCells.find(cell => cell.handle === dec.ownerId);
 						const decorations = cell?.deltaModelDecorations([], dec.decorations) ?? [];
 
 						if (decorations.length > 0) {
@@ -73,7 +73,7 @@ suite('Notebook Find', () => {
 
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 3, count: 0, cells: [
-						new TestCell(editor.viewModel.viewType, 3, '# next paragraph 1', 'markdown', CellKind.Code, [], accessor.get(IModeService)),
+						new TestCell(viewModel.viewType, 3, '# next paragraph 1', 'markdown', CellKind.Code, [], accessor.get(IModeService)),
 					]
 				}], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(editor.textModel.length, 4);
@@ -92,7 +92,7 @@ suite('Notebook Find', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, viewModel, accessor) => {
-				setupEditorForTest(editor);
+				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
@@ -135,7 +135,7 @@ suite('Notebook Find', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, viewModel, accessor) => {
-				setupEditorForTest(editor);
+				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
@@ -171,7 +171,7 @@ suite('Notebook Find', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, viewModel, accessor) => {
-				setupEditorForTest(editor);
+				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
@@ -184,7 +184,7 @@ suite('Notebook Find', () => {
 				model.find(false);
 				model.find(false);
 				assert.strictEqual(model.currentMatch, 2);
-				(editor.viewModel.viewCells[1].textBuffer as ITextBuffer).applyEdits([
+				(viewModel.viewCells[1].textBuffer as ITextBuffer).applyEdits([
 					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 14), '', false, false, false)
 				], false, true);
 				// cell content updates, recompute

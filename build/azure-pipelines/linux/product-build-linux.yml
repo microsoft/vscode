@@ -212,7 +212,7 @@ steps:
   - script: |
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots .build/logs/smoke-tests
+      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
     timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -221,7 +221,7 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots .build/logs/smoke-tests
+      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
     timeoutInMinutes: 5
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))

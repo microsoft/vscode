@@ -41,7 +41,7 @@ export function loaderConfig() {
 
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 
-function loader(src: string, bundledFileHeader: string, bundleLoader: boolean): NodeJS.ReadWriteStream {
+function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, externalLoaderInfo?: any): NodeJS.ReadWriteStream {
 	let sources = [
 		`${src}/vs/loader.js`
 	];
@@ -68,6 +68,15 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean): 
 				} else {
 					this.emit('data', data);
 				}
+			}, function () {
+				if (externalLoaderInfo !== undefined) {
+					this.emit('data', new VinylFile({
+						path: 'fake2',
+						base: '.',
+						contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
+					}));
+				}
+				this.emit('end');
 			}))
 			.pipe(concat('vs/loader.js'))
 	);

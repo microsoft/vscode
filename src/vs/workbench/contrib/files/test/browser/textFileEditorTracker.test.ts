@@ -174,7 +174,7 @@ suite('Files - TextFileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		await accessor.editorService.openEditor(accessor.editorService.createEditorInput({ resource, forceFile: true }));
+		await accessor.editorService.openEditor(accessor.editorService.createEditorInput({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }));
 
 		accessor.hostService.setFocus(false);
 		accessor.hostService.setFocus(true);

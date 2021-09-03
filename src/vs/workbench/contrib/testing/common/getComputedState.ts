@@ -36,8 +36,12 @@ export const getComputedState = <T>(accessor: IComputedStateAccessor<T>, node: T
 	let computed = accessor.getCurrentComputedState(node);
 	if (computed === undefined || force) {
 		computed = accessor.getOwnState(node) ?? TestResultState.Unset;
+
 		for (const child of accessor.getChildren(node)) {
-			computed = maxPriority(computed, getComputedState(accessor, child));
+			const childComputed = getComputedState(accessor, child);
+			// If all children are skipped, make the current state skipped too if unset (#131537)
+			computed = childComputed === TestResultState.Skipped && computed === TestResultState.Unset
+				? TestResultState.Skipped : maxPriority(computed, childComputed);
 		}
 
 		accessor.setComputedState(node, computed);
