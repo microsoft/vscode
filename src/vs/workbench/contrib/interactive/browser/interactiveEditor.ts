@@ -22,7 +22,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { IActiveNotebookEditor, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -383,7 +383,7 @@ export class InteractiveEditor extends EditorPane {
 	#lastCellDisposable = new DisposableStore();
 	#state: ScrollingState = ScrollingState.Initial;
 
-	#cellAtBottom(widget: NotebookEditorWidget & IActiveNotebookEditor, cell: ICellViewModel): boolean {
+	#cellAtBottom(widget: IActiveNotebookEditorDelegate, cell: ICellViewModel): boolean {
 		const visibleRanges = widget.visibleRanges;
 		const cellIndex = widget.getCellIndex(cell);
 		if (cellIndex === Math.max(...visibleRanges.map(range => range.end))) {
@@ -399,7 +399,7 @@ export class InteractiveEditor extends EditorPane {
 	 * - receive a scroll event (scroll even already happened). If the last cell is at bottom, false, 0, true, state 1
 	 * - height change of the last cell, if state 0, do nothing, if state 1, scroll the last cell fully into view
 	 */
-	#registerExecutionScrollListener(widget: NotebookEditorWidget & IActiveNotebookEditor) {
+	#registerExecutionScrollListener(widget: IActiveNotebookEditorDelegate) {
 		this.#widgetDisposableStore.add(widget.textModel.onWillAddRemoveCells(e => {
 			const lastViewCell = widget.cellAt(widget.getLength() - 1);
 

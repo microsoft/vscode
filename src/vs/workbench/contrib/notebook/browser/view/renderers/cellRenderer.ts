@@ -37,7 +37,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import { BaseCellRenderTemplate, CodeCellLayoutInfo, CodeCellRenderTemplate, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CodeCellLayoutInfo, CodeCellRenderTemplate, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate, isCodeCellRenderTemplate, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
@@ -87,7 +87,7 @@ abstract class AbstractCellRenderer {
 
 	constructor(
 		protected readonly instantiationService: IInstantiationService,
-		protected readonly notebookEditor: INotebookEditor,
+		protected readonly notebookEditor: INotebookEditorDelegate,
 		protected readonly contextMenuService: IContextMenuService,
 		protected readonly menuService: IMenuService,
 		configurationService: IConfigurationService,
@@ -257,7 +257,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 	static readonly TEMPLATE_ID = 'markdown_cell';
 
 	constructor(
-		notebookEditor: INotebookEditor,
+		notebookEditor: INotebookEditorDelegate,
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
@@ -582,7 +582,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	static readonly TEMPLATE_ID = 'code_cell';
 
 	constructor(
-		notebookEditor: INotebookEditor,
+		notebookEditor: INotebookEditorDelegate,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		dndController: CellDragAndDropController,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
@@ -1084,7 +1084,7 @@ export class ListTopCellToolbar extends Disposable {
 	private toolbar: ToolBar;
 	private readonly _modelDisposables = this._register(new DisposableStore());
 	constructor(
-		protected readonly notebookEditor: INotebookEditor,
+		protected readonly notebookEditor: INotebookEditorDelegate,
 
 		contextKeyService: IContextKeyService,
 		insertionIndicatorContainer: HTMLElement,

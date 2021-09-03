@@ -16,7 +16,7 @@ import { IListService, ListService } from 'vs/platform/list/browser/listService'
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { ICellViewModel, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, IActiveNotebookEditorDelegate, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -168,7 +168,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditor, viewModel: NotebookViewModel; } {
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate, viewModel: NotebookViewModel; } {
 
 	const viewType = 'notebook';
 	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
@@ -190,7 +190,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	cellList.attachViewModel(viewModel);
 	const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
 
-	const notebookEditor: IActiveNotebookEditor = new class extends mock<IActiveNotebookEditor>() {
+	const notebookEditor: IActiveNotebookEditorDelegate = new class extends mock<IActiveNotebookEditorDelegate>() {
 		override dispose() {
 			viewModel.dispose();
 		}
@@ -199,8 +199,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override _getViewModel(): NotebookViewModel {
 			return viewModel;
 		}
-		override get textModel() { return viewModel.notebookDocument; }
-		override hasModel(): this is IActiveNotebookEditor {
+		override textModel = viewModel.notebookDocument;
+		override hasModel(): this is IActiveNotebookEditorDelegate {
 			return !!viewModel;
 		}
 		override getLength() { return viewModel.length; }
@@ -261,7 +261,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	return { editor: notebookEditor, viewModel };
 }
 
-export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditor, viewModel: NotebookViewModel; } {
+export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate, viewModel: NotebookViewModel; } {
 	return _createTestNotebookEditor(setupInstantiationService(), cells);
 }
 
@@ -307,7 +307,7 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	return res;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
 	const instantiationService = accessor ?? setupInstantiationService();
 	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
 
