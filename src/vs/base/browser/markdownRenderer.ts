@@ -282,7 +282,7 @@ function sanitizeRenderedMarkdown(
 		const anchor = document.createElement('a');
 
 		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
+		for (const attr of ['href', 'src']) {
 			if (node.hasAttribute(attr)) {
 				anchor.href = node.getAttribute(attr) as string;
 				if (!allowedSchemes.includes(anchor.protocol)) {
