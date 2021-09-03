@@ -276,16 +276,16 @@ function sanitizeRenderedMarkdown(
 		}
 	});
 
+	// build an anchor to map URLs to
+	const anchor = document.createElement('a');
+
 	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
-
 		// check all href/src attributes for validity
 		for (const attr of ['href', 'src']) {
 			if (node.hasAttribute(attr)) {
 				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedSchemes.includes(anchor.protocol)) {
+				if (!allowedSchemes.includes(anchor.protocol.replace(/:$/, ''))) {
 					node.removeAttribute(attr);
 				}
 			}
