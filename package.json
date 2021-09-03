@@ -122,7 +122,7 @@
     "ansi-colors": "^4.1.1",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
-    "copy-webpack-plugin": "^6.0.3",
+    "copy-webpack-plugin": "^9.0.1",
     "cson-parser": "^4.0.9",
     "css-loader": "^6.2.0",
     "cssnano": "^5.0.8",
