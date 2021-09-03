@@ -22,9 +22,9 @@ export function create(host: EditorWorkerHost): IRequestHandler {
  */
 export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private static readonly expectedRelativeConfidence = 0.2;
-	private static readonly positiveConfidenceCorrectionBucket1 = 0.05;
-	private static readonly positiveConfidenceCorrectionBucket2 = 0.025;
-	private static readonly negativeConfidenceCorrection = 0.5;
+	// private static readonly positiveConfidenceCorrectionBucket1 = 0.05;
+	// private static readonly positiveConfidenceCorrectionBucket2 = 0.025;
+	// private static readonly negativeConfidenceCorrection = 0.5;
 
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
@@ -78,52 +78,52 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	// * VS Code's language usage
 	// * Languages with 'problematic' syntaxes that have caused incorrect language detection
 	private adjustLanguageConfidence(modelResult: ModelResult): ModelResult {
-		switch (modelResult.languageId) {
-			// For the following languages, we increase the confidence because
-			// these are commonly used languages in VS Code and supported
-			// by the model.
-			case 'javascript':
-			case 'html':
-			case 'json':
-			case 'typescript':
-			case 'css':
-			case 'python':
-			case 'xml':
-			case 'php':
-				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket1;
-				break;
-			case 'yaml':
-			case 'cpp':
-			case 'shellscript':
-			case 'java':
-			case 'csharp':
-			case 'c':
-				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket2;
-				break;
+		// switch (modelResult.languageId) {
+		// 	// For the following languages, we increase the confidence because
+		// 	// these are commonly used languages in VS Code and supported
+		// 	// by the model.
+		// 	case 'javascript':
+		// 	case 'html':
+		// 	case 'json':
+		// 	case 'typescript':
+		// 	case 'css':
+		// 	case 'python':
+		// 	case 'xml':
+		// 	case 'php':
+		// 		modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket1;
+		// 		break;
+		// 	case 'yaml':
+		// 	case 'cpp':
+		// 	case 'shellscript':
+		// 	case 'java':
+		// 	case 'csharp':
+		// 	case 'c':
+		// 		modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket2;
+		// 		break;
 
-			// For the following languages, we need to be extra confident that the language is correct because
-			// we've had issues like #131912 that caused incorrect guesses. To enforce this, we subtract the
-			// negativeConfidenceCorrection from the confidence.
+		// 	// For the following languages, we need to be extra confident that the language is correct because
+		// 	// we've had issues like #131912 that caused incorrect guesses. To enforce this, we subtract the
+		// 	// negativeConfidenceCorrection from the confidence.
 
-			// languages that are provided by default in VS Code
-			case 'bat':
-			case 'ini':
-			case 'makefile':
-			case 'sql':
-			// languages that aren't provided by default in VS Code
-			case 'csv':
-			case 'toml':
-				// Other considerations for negativeConfidenceCorrection that
-				// aren't built in but suported by the model include:
-				// * Assembly, TeX - These languages didn't have clear language modes in the community
-				// * Markdown, Dockerfile - These languages are simple but they embed other languages
-				modelResult.confidence -= LanguageDetectionSimpleWorker.negativeConfidenceCorrection;
-				break;
+		// 	// languages that are provided by default in VS Code
+		// 	case 'bat':
+		// 	case 'ini':
+		// 	case 'makefile':
+		// 	case 'sql':
+		// 	// languages that aren't provided by default in VS Code
+		// 	case 'csv':
+		// 	case 'toml':
+		// 		// Other considerations for negativeConfidenceCorrection that
+		// 		// aren't built in but suported by the model include:
+		// 		// * Assembly, TeX - These languages didn't have clear language modes in the community
+		// 		// * Markdown, Dockerfile - These languages are simple but they embed other languages
+		// 		modelResult.confidence -= LanguageDetectionSimpleWorker.negativeConfidenceCorrection;
+		// 		break;
 
-			default:
-				break;
+		// 	default:
+		// 		break;
 
-		}
+		// }
 		return modelResult;
 	}
 
