@@ -143,7 +143,7 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		const appenders: AppInsightsAppender[] = [];
-		if (getTelemetryLevel(productService, environmentService) === TelemetryLevel.USER) {
+		if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.USER) {
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
 				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}

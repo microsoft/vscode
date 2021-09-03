@@ -30,7 +30,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
 
-		if (getTelemetryLevel(this._productService, this._environmenService) !== TelemetryLevel.NONE) {
+		if (getTelemetryLevel(this._productService, this._environmenService) > TelemetryLevel.NONE) {
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
 				if (e.affectedKeys.includes('telemetry.enableTelemetry')) {
 					this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
@@ -42,7 +42,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	}
 
 	private get telemetryEnabled(): boolean {
-		if (getTelemetryLevel(this._productService, this._environmenService) !== TelemetryLevel.USER) {
+		if (getTelemetryLevel(this._productService, this._environmenService) < TelemetryLevel.USER) {
 			return false;
 		}
 

@@ -35,7 +35,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (getTelemetryLevel(productService, environmentService) === TelemetryLevel.LOG) {
+		if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.LOG) {
 			const channel = sharedProcessService.getChannel('telemetryAppender');
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),

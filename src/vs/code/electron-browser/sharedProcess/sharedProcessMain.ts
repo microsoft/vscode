@@ -212,7 +212,7 @@ class SharedProcessMain extends Disposable {
 		let telemetryService: ITelemetryService;
 		let telemetryAppender: ITelemetryAppender;
 		let telemetryLevel = getTelemetryLevel(productService, environmentService);
-		if (telemetryLevel !== TelemetryLevel.NONE) {
+		if (telemetryLevel > TelemetryLevel.NONE) {
 			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
 
 			const { appRoot, extensionsPath, installSourcePath } = environmentService;

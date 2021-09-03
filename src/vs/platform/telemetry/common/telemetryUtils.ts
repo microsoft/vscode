@@ -105,9 +105,9 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 }
 
 export const enum TelemetryLevel {
-	NONE,
-	LOG,
-	USER
+	NONE = 0,
+	LOG = 1,
+	USER = 2
 }
 
 /**

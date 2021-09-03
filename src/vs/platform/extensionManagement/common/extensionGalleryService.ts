@@ -939,7 +939,7 @@ export async function resolveMarketplaceHeaders(version: string, productService:
 		'User-Agent': `VSCode ${version}`
 	};
 	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
-	if (getTelemetryLevel(productService, environmentService) === TelemetryLevel.USER && configurationService.getValue('telemetry.enableTelemetry') === true) {
+	if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.USER && configurationService.getValue('telemetry.enableTelemetry') === true) {
 		headers['X-Market-User-Id'] = uuid;
 	}
 	return headers;
