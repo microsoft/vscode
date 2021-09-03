@@ -12,7 +12,7 @@ export function setup(opts: minimist.ParsedArgs) {
 		beforeSuite(opts);
 		afterSuite(opts);
 
-		it(`install and enable vscode-smoketest-check extension`, async function () {
+		it.skip(`install and enable vscode-smoketest-check extension`, async function () {
 			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev) {
