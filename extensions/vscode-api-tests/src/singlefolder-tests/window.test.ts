@@ -348,7 +348,7 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	test('Tabs - Ensure tabs getter is correct', async () => {
+	test.skip('Tabs - Ensure tabs getter is correct', async () => {
 		assert.ok(workspace.workspaceFolders);
 		const workspaceRoot = workspace.workspaceFolders[0].uri;
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
