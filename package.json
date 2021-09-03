@@ -188,7 +188,7 @@
     "rimraf": "^2.2.8",
     "sinon": "^1.17.2",
     "source-map": "0.7.3",
-    "source-map-support": "^0.3.2",
+    "source-map-support": "^0.5.19",
     "style-loader": "^1.0.0",
     "ts-loader": "^6.2.1",
     "tsec": "0.1.4",
