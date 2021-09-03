@@ -93,8 +93,8 @@ Adipisicing voluptate commodo sunt esse velit eu. Eu labore nisi adipisicing mag
 
 		// the timeout should occur
 		try {
-			await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
-			assert.fail('The language should not have changed.');
+			const language = await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
+			assert.fail(`The language should not have changed to: ${language.languageId}`);
 		} catch (e) {
 			assert.strictEqual(e.toString(), 'Error: asPromise TIMEOUT reached');
 		}
