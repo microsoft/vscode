@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IEditorTabDto, IExtHostEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -69,7 +70,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			}
 			return Object.freeze({
 				label: dto.label,
-				viewColumn: dto.viewColumn,
+				viewColumn: typeConverters.ViewColumn.to(dto.viewColumn),
 				resource,
 				editorId: dto.editorId,
 				isActive: dto.isActive

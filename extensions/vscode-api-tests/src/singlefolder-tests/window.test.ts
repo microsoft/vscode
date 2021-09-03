@@ -347,6 +347,39 @@ suite('vscode API - window', () => {
 		}).then(passOncePlease, failOncePlease);
 	});
 
+	//#region Tabs API tests
+	test.only('Tabs - Ensure tabs getter is correct', async () => {
+		assert.ok(workspace.workspaceFolders);
+		const workspaceRoot = workspace.workspaceFolders[0].uri;
+		const [docA, docB, docC, notebookDoc] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openNotebookDocument(Uri.joinPath(workspaceRoot, 'test.ipynb'))
+		]);
+
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+		await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
+
+		const tabs = window.tabs;
+		assert.strictEqual(tabs.length, 4);
+
+		// All resources should match the text documents as they're the only tabs currently open
+		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
+		assert.strictEqual(tabs[1].resource?.toString(), notebookDoc.uri.toString());
+		assert.strictEqual(tabs[2].resource?.toString(), docB.uri.toString());
+		assert.strictEqual(tabs[3].resource?.toString(), docC.uri.toString());
+
+		assert.strictEqual(tabs[0].viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[1].viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Two);
+		assert.strictEqual(tabs[3].viewColumn, ViewColumn.Three);
+	});
+
+	//#endregion
+
 	test('#7013 - input without options', function () {
 		const source = new CancellationTokenSource();
 		let p = window.showInputBox(undefined, source.token);

@@ -46,7 +46,7 @@ import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/works
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { DebugConfigurationProviderTriggerKind, ViewColumn } from 'vs/workbench/api/common/extHostTypes';
+import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -640,7 +640,7 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 }
 
 export interface IEditorTabDto {
-	viewColumn: ViewColumn;
+	viewColumn: EditorGroupColumn;
 	label: string;
 	resource?: UriComponents | { primary?: UriComponents, secondary?: UriComponents };
 	editorId?: string;
