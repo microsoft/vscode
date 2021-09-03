@@ -19,6 +19,7 @@ import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedH
 import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -89,6 +90,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(null, action);
 		this.updateFilterActiveState();
@@ -106,9 +108,11 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		const wrapper = dom.$('.testing-filter-wrapper');
 		container.appendChild(wrapper);
 
+		const showHistoryHint = () => { return this.keybindingService.lookupKeybinding('history.showPrevious')?.getElectronAccelerator() === 'Up' && this.keybindingService.lookupKeybinding('history.showNext')?.getElectronAccelerator() === 'Down'; };
 		const input = this.input = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, wrapper, this.contextViewService, {
 			placeholder: localize('testExplorerFilter', "Filter (e.g. text, !exclude)"),
 			history: this.history.get([]),
+			showHistoryHint
 		}));
 		input.value = this.state.text.value;
 		this._register(attachInputBoxStyler(input, this.themeService));

@@ -634,6 +634,7 @@ export class InputBox extends Widget {
 
 export interface IHistoryInputOptions extends IInputOptions {
 	history: string[];
+	readonly showHistoryHint?: () => boolean;
 }
 
 export class HistoryInputBox extends InputBox implements IHistoryNavigationWidget {
@@ -650,7 +651,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {
-			if (!this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
+			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
 				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
 				const suffixedPlaceholder = this.placeholder + suffix;
 				if (options.showPlaceholderOnFocus && document.activeElement !== this.input) {

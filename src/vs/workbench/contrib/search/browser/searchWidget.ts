@@ -303,6 +303,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
+		const showHistoryHint = () => { return this.keyBindingService.lookupKeybinding('history.showPrevious')?.getElectronAccelerator() === 'Up' && this.keyBindingService.lookupKeybinding('history.showNext')?.getElectronAccelerator() === 'Down'; };
 		const inputOptions: IFindInputOptions = {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
@@ -311,6 +312,7 @@ export class SearchWidget extends Widget {
 			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService),
 			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService),
 			history: options.searchHistory,
+			showHistoryHint,
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
 		};
@@ -393,12 +395,14 @@ export class SearchWidget extends Widget {
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		this.replaceContainer = dom.append(parent, dom.$('.replace-container.disabled'));
 		const replaceBox = dom.append(this.replaceContainer, dom.$('.replace-input'));
+		const showHistoryHint = () => { return this.keyBindingService.lookupKeybinding('history.showPrevious')?.getElectronAccelerator() === 'Up' && this.keyBindingService.lookupKeybinding('history.showNext')?.getElectronAccelerator() === 'Down'; };
 
 		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
 			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
 			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.TogglePreserveCaseId), this.keyBindingService),
 			history: options.replaceHistory,
+			showHistoryHint,
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
 		}, this.contextKeyService, true));

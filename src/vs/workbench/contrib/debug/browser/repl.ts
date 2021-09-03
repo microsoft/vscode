@@ -486,8 +486,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			return this.instantiationService.createInstance(SelectReplActionViewItem, action, session);
 		} else if (action.id === FILTER_ACTION_ID) {
 			const filterHistory = JSON.parse(this.storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[];
+			const showHistoryHint = () => { return this.keybindingService.lookupKeybinding('history.showPrevious')?.getElectronAccelerator() === 'Up' && this.keybindingService.lookupKeybinding('history.showNext')?.getElectronAccelerator() === 'Down'; };
 			this.filterActionViewItem = this.instantiationService.createInstance(ReplFilterActionViewItem, action,
-				localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude)"), this.filterState, filterHistory);
+				localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude)"), this.filterState, filterHistory, showHistoryHint);
 			return this.filterActionViewItem;
 		}
 

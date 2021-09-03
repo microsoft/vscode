@@ -31,6 +31,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 	readonly appendWholeWordsLabel?: string;
 	readonly appendRegexLabel?: string;
 	readonly history?: string[];
+	readonly showHistoryHint?: () => boolean;
 }
 
 export interface IFindInputStyles extends IInputBoxStyles {
@@ -150,6 +151,7 @@ export class FindInput extends Widget {
 			inputValidationErrorForeground: this.inputValidationErrorForeground,
 			inputValidationErrorBorder: this.inputValidationErrorBorder,
 			history,
+			showHistoryHint: options.showHistoryHint,
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight
