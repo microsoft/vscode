@@ -357,25 +357,30 @@ export async function main(argv: string[]): Promise<any> {
 			}
 
 			if (verbose) {
-				// Set up arguments to pass to open
-				const tmpStdoutName = createFileName(tmpdir(), 'code-stdout');
-				const tmpStderrName = createFileName(tmpdir(), 'code-stderr');
-				const tmpStdoutLogger = new CliVerboseLogger();
-				const tmpStderrLogger = new CliVerboseLogger();
-				writeFileSync(tmpStdoutName, '');
-				writeFileSync(tmpStderrName, '');
-				openArgs.push('--stdout', tmpStdoutName);
-				openArgs.push('--stderr', tmpStderrName);
-
-				function createLoggerPromise(logger: CliVerboseLogger, filename: string): (child: ChildProcess) => Promise<void> {
+				// The open command only allows for redirecting stderr and stdout to files,
+				// so we make it redirect those to temp files, and then use a logger to
+				// redirect the file output to the console
+				function createLoggerPromise(logger: CliVerboseLogger, filename: string, stream: NodeJS.WriteStream): (child: ChildProcess) => Promise<void> {
 					return async (child: ChildProcess) => {
-						await logger.track(child, filename);
+						const childClosePromise = new Promise<void>(resolve => {
+							child.on('close', () => {
+								resolve();
+							});
+						});
+						await Promise.race([logger.streamFile(filename, stream), childClosePromise]);
 						unlinkSync(filename);
 					};
 				}
-				const stdoutPromise = createLoggerPromise(tmpStdoutLogger!, tmpStdoutName!);
-				const stderrPromise = createLoggerPromise(tmpStderrLogger!, tmpStderrName!);
-				processCallbacks.push(stdoutPromise, stderrPromise);
+
+				for (const outputType of ['stdout', 'stderr']) {
+					const stream = outputType === 'stdout' ? process.stdout : process.stderr;
+					const tmpName = createFileName(tmpdir(), `code-${outputType}`);
+					const tmpLogger = new CliVerboseLogger();
+					writeFileSync(tmpName, '');
+					openArgs.push(`--${outputType}`, tmpName);
+					const outputPromise = createLoggerPromise(tmpLogger, tmpName, stream);
+					processCallbacks.push(outputPromise);
+				}
 			}
 			const argsArr: string[] = [];
 			const execPathToUse = process.execPath;

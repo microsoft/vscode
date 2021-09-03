@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promises } from 'vs/base/node/pfs';
 import { watchFile } from 'vs/base/node/watcher';
@@ -13,29 +12,26 @@ import { watchFile } from 'vs/base/node/watcher';
  * as part of #102975
  */
 export class CliVerboseLogger {
-	public async track(child: ChildProcess, logfile: string): Promise<void> {
-		// Assume logfile already exists at this point
-		const fileHandle = await Promises.open(logfile, 'r');
+	public async streamFile(path: string, stream: NodeJS.WriteStream): Promise<void> {
+		// Assume path already exists at this point
+		const fileHandle = await Promises.open(path, 'r');
 		const bufferSize = 512;
 		const buffer = Buffer.allocUnsafe(bufferSize);
 		let watcher: IDisposable;
 
-		return new Promise<void>(async (c) => {
-			watcher = watchFile(logfile, async (type) => {
+		return new Promise<void>((c) => {
+			watcher = watchFile(path, async (type) => {
 				if (type === 'changed') {
 					while (true) {
 						const readObj = await Promises.read(fileHandle, buffer, 0, bufferSize, null);
 						if (!readObj.bytesRead) {
 							return;
 						}
-						process.stdout.write(readObj.buffer.toString(undefined, 0, readObj.bytesRead));
+						stream.write(readObj.buffer.toString(undefined, 0, readObj.bytesRead));
 					}
 				}
 			}, (err) => {
-				console.error('Verbose logger file watcher encountered an error. ' + err);
-				c();
-			});
-			child.on('close', () => {
+				console.error('File watcher encountered an error. ' + err);
 				c();
 			});
 		}).finally(async () => {
