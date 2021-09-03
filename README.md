@@ -14,7 +14,7 @@ VS Code has traditionally been a desktop IDE built with web technology. A few ye
 
 Luckily in 2019 the VS Code team started to refactor its architecture to support this working mode. While this new architecture has been adopted by Gitpod and GitHub, the important bits have not been open-sources, yet. As a result many people in the community are still using the old hard to maintain and error-prone approach.
 
-At Gitpod we've been asked a lot about how we do it. So we thought we might just share the minimal set of changes needed, so people can rely on the latest version of VS Code and have a straight forward upgrade path and low maintenance effort.
+At Gitpod we've been asked a lot about how we do it. So we thought we might just share the minimal set of changes needed, so people can rely on the latest version of VS Code and have a straightforward upgrade path and low maintenance effort.
 
 ## Getting started
 
