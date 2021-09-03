@@ -3,7 +3,7 @@
 **/vs/css.build.js
 **/vs/css.js
 **/vs/loader.js
-**/insane/**
+**/dompurify/**
 **/marked/**
 **/semver/**
 **/test/**/*.js

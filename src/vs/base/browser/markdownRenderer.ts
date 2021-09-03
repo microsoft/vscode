@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -13,7 +14,6 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -31,12 +31,6 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	asyncRenderCallback?: () => void;
 	baseUrl?: URI;
 }
-
-const _ttpInsane = window.trustedTypes?.createPolicy('insane', {
-	createHTML(value, options: InsaneOptions): string {
-		return insane(value, options);
-	}
-});
 
 /**
  * Low-level way create a html element from a markdown string.
@@ -220,7 +214,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// Use our own sanitizer so that we can let through only spans.
 	// Otherwise, we'd be letting all html be rendered.
 	// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
-	// We always pass the output through insane after this so that we don't rely on
+	// We always pass the output through dompurify after this so that we don't rely on
 	// marked for sanitization.
 	markedOptions.sanitizer = (html: string): string => {
 		const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
@@ -242,9 +236,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const renderedMarkdown = marked.parse(value, markedOptions);
-
-	// sanitize with insane
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as string;
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
@@ -266,12 +258,49 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 function sanitizeRenderedMarkdown(
 	options: { isTrusted?: boolean },
 	renderedMarkdown: string,
-): string | TrustedHTML {
-	const insaneOptions = getInsaneOptions(options);
-	return _ttpInsane?.createHTML(renderedMarkdown, insaneOptions) ?? insane(renderedMarkdown, insaneOptions);
+): TrustedHTML {
+	const { config, allowedSchemes } = getSanitizerOptions(options);
+	dompurify.addHook('uponSanitizeAttribute', (element, e) => {
+		if (e.attrName === 'style' || e.attrName === 'class') {
+			if (element.tagName === 'SPAN') {
+				if (e.attrName === 'style') {
+					e.keepAttr = /^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/.test(e.attrValue);
+					return;
+				} else if (e.attrName === 'class') {
+					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
+					return;
+				}
+			}
+			e.keepAttr = false;
+			return;
+		}
+	});
+
+	// build an anchor to map URLs to
+	const anchor = document.createElement('a');
+
+	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		// check all href/src attributes for validity
+		for (const attr of ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				anchor.href = node.getAttribute(attr) as string;
+				if (!allowedSchemes.includes(anchor.protocol.replace(/:$/, ''))) {
+					node.removeAttribute(attr);
+				}
+			}
+		}
+	});
+
+	try {
+		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
+	} finally {
+		dompurify.removeHook('uponSanitizeAttribute');
+		dompurify.removeHook('afterSanitizeAttributes');
+	}
 }
 
-function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOptions {
+function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config, allowedSchemes: string[] } {
 	const allowedSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -288,33 +317,16 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 	}
 
 	return {
-		allowedSchemes,
-		// allowedTags should included everything that markdown renders to.
-		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
-		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
-		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
-		allowedTags: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
-		allowedAttributes: {
-			'a': ['href', 'name', 'target', 'data-href'],
-			'img': ['src', 'title', 'alt', 'width', 'height'],
-			'div': ['class', 'data-code'],
-			'span': ['class', 'style'],
-			// https://github.com/microsoft/vscode/issues/95937
-			'th': ['align'],
-			'td': ['align']
+		config: {
+			// allowedTags should included everything that markdown renders to.
+			// Since we have our own sanitize function for marked, it's possible we missed some tag so let dompurify make sure.
+			// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
+			// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
+			ALLOWED_TAGS: ['ul', 'li', 'p', 'b', 'i', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
+			ALLOWED_ATTR: ['href', 'data-href', 'target', 'title', 'src', 'alt', 'class', 'style', 'data-code', 'width', 'height', 'align'],
+			ALLOW_UNKNOWN_PROTOCOLS: true,
 		},
-		filter(token: { tag: string; attrs: { readonly [key: string]: string; }; }): boolean {
-			if (token.tag === 'span' && options.isTrusted) {
-				if (token.attrs['style'] && (Object.keys(token.attrs).length === 1)) {
-					return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
-				} else if (token.attrs['class']) {
-					// The class should match codicon rendering in src\vs\base\common\codicons.ts
-					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/);
-				}
-				return false;
-			}
-			return true;
-		}
+		allowedSchemes
 	};
 }
 

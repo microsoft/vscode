@@ -29,5 +29,8 @@
 	"ban-worker-calls": [
 		"vs/base/worker/defaultWorkerFactory.ts",
 		"vs/workbench/services/extensions/browser/webWorkerExtensionHost.ts"
+	],
+	"ban-domparser-parsefromstring": [
+		"vs/base/test/browser/markdownRenderer.test.ts"
 	]
 }

@@ -6,48 +6,56 @@
 import * as assert from 'assert';
 import { renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 
-suite('MarkdownRenderer', () => {
-	suite('Images', () => {
+function strToNode(str: string): HTMLElement {
+	return new DOMParser().parseFromString(str, 'text/html').body.firstChild as HTMLElement;
+}
 
-		test('image rendering conforms to default', () => {
-			const markdown = { value: `![image](someimageurl 'caption')` };
+function assertNodeEquals(actualNode: HTMLElement, expectedHtml: string) {
+	const expectedNode = strToNode(expectedHtml);
+	assert.ok(
+		actualNode.isEqualNode(expectedNode),
+		`Expected: ${expectedNode.outerHTML}\nActual: ${actualNode.outerHTML}`);
+}
+
+suite('MarkdownRenderer', () => {
+	suite('Sanitization', () => {
+		test('Should not render images with unknown schemes', () => {
+			const markdown = { value: `![image](no-such://example.com/cat.gif)` };
 			const result: HTMLElement = renderMarkdown(markdown);
-			const renderer = new marked.Renderer();
-			const imageFromMarked = marked(markdown.value, {
-				renderer
-			}).trim();
-			assert.strictEqual(result.innerHTML, imageFromMarked);
+			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
+		});
+	});
+
+	suite('Images', () => {
+		test('image rendering conforms to default', () => {
+			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
+			const result: HTMLElement = renderMarkdown(markdown);
+			assertNodeEquals(result, '<div><p><img title="caption" alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image rendering conforms to default without title', () => {
-			const markdown = { value: `![image](someimageurl)` };
+			const markdown = { value: `![image](http://example.com/cat.gif)` };
 			const result: HTMLElement = renderMarkdown(markdown);
-			const renderer = new marked.Renderer();
-			const imageFromMarked = marked(markdown.value, {
-				renderer
-			}).trim();
-			assert.strictEqual(result.innerHTML, imageFromMarked);
+			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image width from title params', () => {
-			let result: HTMLElement = renderMarkdown({ value: `![image](someimageurl|width=100 'caption')` });
-			assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100"></p>`);
+			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` });
+			assertNodeEquals(result, `<div><p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image height from title params', () => {
-			let result: HTMLElement = renderMarkdown({ value: `![image](someimageurl|height=100 'caption')` });
-			assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" height="100"></p>`);
+			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=100 'caption')` });
+			assertNodeEquals(result, `<div><p><img height="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image width and height from title params', () => {
-			let result: HTMLElement = renderMarkdown({ value: `![image](someimageurl|height=200,width=100 'caption')` });
-			assert.strictEqual(result.innerHTML, `<p><img src="someimageurl" alt="image" title="caption" width="100" height="200"></p>`);
+			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` });
+			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
-
 	});
 
 	suite('ThemeIcons Support On', () => {
