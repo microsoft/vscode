@@ -11,13 +11,9 @@ async function openTextDocumentWithCotents(contents: string) {
 	const doc = await vscode.workspace.openTextDocument();
 	const editor = await vscode.window.showTextDocument(doc);
 
-	assert.strictEqual(editor.document.languageId, 'plaintext');
-
-	const result = await editor.edit(editBuilder => {
+	return await editor.edit(editBuilder => {
 		editBuilder.insert(new vscode.Position(0, 0), contents);
 	});
-
-	assert.ok(result);
 }
 
 suite('vscode - automatic language detection', () => {
@@ -28,7 +24,7 @@ suite('vscode - automatic language detection', () => {
 	});
 
 	test('model loads', async () => {
-		await openTextDocumentWithCotents(`{
+		const result = await openTextDocumentWithCotents(`{
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
 		"removeComments": false,
@@ -57,6 +53,7 @@ suite('vscode - automatic language detection', () => {
 		"./vs"
 	]
 }`);
+		assert.ok(result);
 
 		// Changing the language triggers a file to be closed and opened again so wait for that event to happen.
 		const newDoc = await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
