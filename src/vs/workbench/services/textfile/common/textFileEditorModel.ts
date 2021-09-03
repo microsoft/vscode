@@ -28,6 +28,7 @@ import { ILanguageDetectionService } from 'vs/workbench/services/languageDetecti
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -610,8 +611,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	protected override async autoDetectLanguage(): Promise<void> {
+		const mode = this.getMode();
 		if (
 			this.resource.scheme === this.pathService.defaultUriScheme &&	// make sure to not detect language for non-user visible documents
+			(!mode || mode === PLAINTEXT_MODE_ID) &&						// only run on files with plaintext mode set or no mode set at all
 			!this.resourceHasExtension										// only run if this particular file doesn't have an extension
 		) {
 			return super.autoDetectLanguage();
