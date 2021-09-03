@@ -2947,4 +2947,21 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region @mjbvz https://github.com/microsoft/vscode/issues/40607
+	export interface MarkdownString {
+		/**
+		 * Indicates that this markdown string can contain raw html tags. Default to false.
+		 *
+		 * When `supportHtml` is false, the markdown renderer will strip out any raw html tags
+		 * that appear in the markdown text. This means you can only use markdown syntax for rendering.
+		 *
+		 * When `supportHtml` is true, the markdown render will also allow a safe subset of html tags
+		 * and attributes to be rendered. See https://github.com/microsoft/vscode/blob/6d2920473c6f13759c978dd89104c4270a83422d/src/vs/base/browser/markdownRenderer.ts#L296
+		 * for a list of all supported tags and attributes.
+		 */
+		supportHtml?: boolean;
+	}
+
+	//#endregion
 }

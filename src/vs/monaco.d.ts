@@ -409,6 +409,7 @@ declare namespace monaco {
 		readonly value: string;
 		readonly isTrusted?: boolean;
 		readonly supportThemeIcons?: boolean;
+		readonly supportHtml?: boolean;
 		uris?: {
 			[href: string]: UriComponents;
 		};

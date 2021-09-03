@@ -211,17 +211,21 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}));
 	}
 
-	// Use our own sanitizer so that we can let through only spans.
-	// Otherwise, we'd be letting all html be rendered.
-	// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
-	// We always pass the output through dompurify after this so that we don't rely on
-	// marked for sanitization.
-	markedOptions.sanitizer = (html: string): string => {
-		const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
-		return match ? html : '';
-	};
-	markedOptions.sanitize = true;
-	markedOptions.silent = true;
+	if (!markdown.supportHtml) {
+		// TODO: Can we deprecated this in favor of 'supportHtml'?
+
+		// Use our own sanitizer so that we can let through only spans.
+		// Otherwise, we'd be letting all html be rendered.
+		// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
+		// We always pass the output through dompurify after this so that we don't rely on
+		// marked for sanitization.
+		markedOptions.sanitizer = (html: string): string => {
+			const match = markdown.isTrusted ? html.match(/^(<span[^>]+>)|(<\/\s*span>)$/) : undefined;
+			return match ? html : '';
+		};
+		markedOptions.sanitize = true;
+		markedOptions.silent = true;
+	}
 
 	markedOptions.renderer = renderer;
 

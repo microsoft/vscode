@@ -139,4 +139,38 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(result, expected);
 		});
 	});
+
+	suite('supportHtml', () => {
+		test('supportHtml is disabled by default', () => {
+			const mds = new MarkdownString(undefined, {});
+			mds.appendMarkdown('a<b>b</b>c');
+
+			const result = renderMarkdown(mds);
+			assert.strictEqual(result.innerHTML, `<p>abc</p>`);
+		});
+
+		test('Renders html when supportHtml=true', () => {
+			const mds = new MarkdownString(undefined, { supportHtml: true });
+			mds.appendMarkdown('a<b>b</b>c');
+
+			const result = renderMarkdown(mds);
+			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
+		});
+
+		test('Should not include scripts even when supportHtml=true', () => {
+			const mds = new MarkdownString(undefined, { supportHtml: true });
+			mds.appendMarkdown('a<b onclick="alert(1)">b</b><script>alert(2)</script>c');
+
+			const result = renderMarkdown(mds);
+			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
+		});
+
+		test('Should not render html appended as text', () => {
+			const mds = new MarkdownString(undefined, { supportHtml: true });
+			mds.appendText('a<b>b</b>c');
+
+			const result = renderMarkdown(mds);
+			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>`);
+		});
+	});
 });
