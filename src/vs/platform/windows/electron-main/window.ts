@@ -1192,13 +1192,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return; // ignore for macOS platform
 		}
 
-		/* Causing crash, temporary workaround #132238
 		if (visibility === 'toggle') {
 			if (notify) {
 				this.send('vscode:showInfoMessage', localize('hiddenMenuBar', "You can still access the menu bar by pressing the Alt-key."));
 			}
 		}
-		*/
 
 		if (visibility === 'hidden') {
 			// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
