@@ -47,6 +47,43 @@ suite('SideBySideEditorInput', () => {
 		}
 	}
 
+	test('basics', () => {
+		let counter = 0;
+		const input = new MyEditorInput(URI.file('/fake'));
+		input.onWillDispose(() => {
+			assert(true);
+			counter++;
+		});
+
+		const otherInput = new MyEditorInput(URI.file('/fake2'));
+		otherInput.onWillDispose(() => {
+			assert(true);
+			counter++;
+		});
+
+		const sideBySideInput = new SideBySideEditorInput('name', 'description', input, otherInput);
+
+		assert.ok(isSideBySideEditorInput(sideBySideInput));
+		assert.ok(!isSideBySideEditorInput(input));
+
+		assert.strictEqual(sideBySideInput.secondary, input);
+		assert.strictEqual(sideBySideInput.primary, otherInput);
+		assert(sideBySideInput.matches(sideBySideInput));
+		assert(!sideBySideInput.matches(otherInput));
+
+		sideBySideInput.dispose();
+		assert.strictEqual(counter, 0);
+
+		// Assert that a side by side input matches to one of the sides
+		// when both sides are identical
+
+		const sideBySideInput2 = new SideBySideEditorInput('name', 'description', input, input);
+		assert.strictEqual(sideBySideInput2.matches(input), true);
+
+		const sideBySideInput3 = new SideBySideEditorInput('name', 'description', new MyEditorInput(URI.file('/fake')), new MyEditorInput(URI.file('/fake')));
+		assert.strictEqual(sideBySideInput3.matches(input), true);
+	});
+
 	test('events dispatching', () => {
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();

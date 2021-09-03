@@ -170,6 +170,16 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
 		}
 
+		if (this.primary.matches(this.secondary)) {
+			// Special case: both sides of the input are the same editor
+			// so we allow this editor to match even on one of the sides
+			// to avoid the following case: the user splits an editor into
+			// 2 sides. Now, whenever the user opens the same file again,
+			// we want the side by side editor to become active, not the
+			// file in another new editor.
+			return this.primary.matches(otherInput);
+		}
+
 		return false;
 	}
 }
