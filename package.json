@@ -124,7 +124,7 @@
     "chromium-pickle-js": "^0.2.0",
     "copy-webpack-plugin": "^6.0.3",
     "cson-parser": "^4.0.9",
-    "css-loader": "^3.2.0",
+    "css-loader": "^6.2.0",
     "cssnano": "^5.0.8",
     "debounce": "^1.2.1",
     "deemon": "^1.6.0",
