@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,14 +19,13 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IEditorInput, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IEditorInput, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -57,7 +57,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
 
@@ -145,17 +144,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		editorID: string,
 		group: IEditorGroup
 	): DiffEditorInput {
-		const createEditorForSubInput = (subInput: IResourceEditorInput | IUntitledTextResourceEditorInput, editorID: string, customClasses: string): IEditorInput | undefined => {
-			if (!subInput.resource) {
-				return;
-			}
-			// We check before calling this call back that both resources are defined
-			return CustomEditorInput.create(this.instantiationService, subInput.resource, editorID, group.id, { customClasses });
-		};
-
-		const modifiedOverride = createEditorForSubInput(editor.modified, editorID, 'modified') ?? this.textEditorService.createTextEditor(editor.modified);
-		const originalOverride = createEditorForSubInput(editor.original, editorID, 'original') ?? this.textEditorService.createTextEditor(editor.original);
-
+		const modifiedOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.modified.resource), editorID, group.id, { customClasses: 'modified' });
+		const originalOverride = CustomEditorInput.create(this.instantiationService, assertIsDefined(editor.original.resource), editorID, group.id, { customClasses: 'original' });
 		return this.instantiationService.createInstance(DiffEditorInput, undefined, undefined, originalOverride, modifiedOverride, true);
 	}
 
