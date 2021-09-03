@@ -22,7 +22,7 @@ const enum Constants {
 	 */
 	ActiveDebounceDuration = 1000,
 }
-
+/*
 const ignoreProcessNames = [
 	// Popular prompt programs, these should not count as child processes
 	'starship',
@@ -123,7 +123,9 @@ export class ChildProcessMonitor extends Disposable {
 					cmd = item.cmd.substring(0, spaceIndex);
 				}
 			}
-			return ignoreProcessNames.indexOf(parse(cmd).name) === -1;
+			//return ignoreProcessNames.indexOf(parse(cmd).name) === -1;
+			return configurationService.getValue(TerminalSettingId.IgnoreProcessNames) !== false
+
 		}
 
 		// Fallback, count child processes
