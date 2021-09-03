@@ -24,7 +24,7 @@ import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/c
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -38,7 +38,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	): IEditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			if (viewType === defaultCustomEditor.id) {
-				return accessor.get(IEditorService).createEditorInput({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } });
+				return accessor.get(ITextEditorService).createTextEditor({ resource });
 			}
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);

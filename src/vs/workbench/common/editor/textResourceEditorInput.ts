@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IEditorInput, IRevertOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IEditorInput, IRevertOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileSaveOptions, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
@@ -16,6 +16,7 @@ import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/r
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { IReference } from 'vs/base/common/lifecycle';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -28,7 +29,8 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 		@IEditorService protected readonly editorService: IEditorService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
 	) {
 		super(resource, preferredResource, labelService, fileService);
 	}
@@ -42,14 +44,14 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 		}
 
 		// Normal save
-		return this.doSave(options, false);
+		return this.doSave(options, false, group);
 	}
 
 	override saveAs(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
-		return this.doSave(options, true);
+		return this.doSave(options, true, group);
 	}
 
-	private async doSave(options: ITextFileSaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
+	private async doSave(options: ITextFileSaveOptions | undefined, saveAs: boolean, group: GroupIdentifier | undefined): Promise<IEditorInput | undefined> {
 
 		// Save / Save As
 		let target: URI | undefined;
@@ -70,7 +72,10 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 			target.scheme !== this.resource.scheme ||
 			(saveAs && !isEqual(target, this.preferredResource))
 		) {
-			return this.editorService.createEditorInput({ resource: target });
+			const editor = await this.editorResolverService.resolveEditor({ resource: target, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, group);
+			if (isEditorInputWithOptionsAndGroup(editor)) {
+				return editor.editor;
+			}
 		}
 
 		return this;
@@ -120,9 +125,10 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
-		super(resource, undefined, editorService, textFileService, labelService, fileService);
+		super(resource, undefined, editorService, textFileService, labelService, fileService, editorResolverService);
 	}
 
 	override getName(skipDecorate?: boolean): string {

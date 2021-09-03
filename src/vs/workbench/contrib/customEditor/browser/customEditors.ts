@@ -26,6 +26,7 @@ import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/comm
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -57,6 +58,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
 
@@ -153,8 +155,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return input instanceof EditorInput ? input : undefined;
 		};
 
-		const modifiedOverride = createEditorForSubInput(editor.modified, editorID, 'modified') ?? this.editorService.createEditorInput(editor.modified);
-		const originalOverride = createEditorForSubInput(editor.original, editorID, 'original') ?? this.editorService.createEditorInput(editor.original);
+		const modifiedOverride = createEditorForSubInput(editor.modified, editorID, 'modified') ?? this.textEditorService.createTextEditor(editor.modified);
+		const originalOverride = createEditorForSubInput(editor.original, editorID, 'original') ?? this.textEditorService.createTextEditor(editor.original);
 
 		return this.instantiationService.createInstance(DiffEditorInput, undefined, undefined, originalOverride, modifiedOverride, true);
 	}
