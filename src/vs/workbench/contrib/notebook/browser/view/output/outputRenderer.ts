@@ -6,7 +6,7 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICommonNotebookEditorDelegate, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
 import { dispose } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -16,7 +16,7 @@ export class OutputRenderer {
 	private readonly _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
 
 	constructor(
-		private readonly notebookEditor: ICommonNotebookEditor,
+		private readonly notebookEditor: ICommonNotebookEditorDelegate,
 		private readonly instantiationService: IInstantiationService
 	) {
 	}

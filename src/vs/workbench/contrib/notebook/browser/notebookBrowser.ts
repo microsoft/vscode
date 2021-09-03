@@ -188,26 +188,6 @@ export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 }
 
-export interface ICommonNotebookEditor {
-	readonly creationOptions: INotebookEditorCreationOptions;
-	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
-	setScrollTop(scrollTop: number): void;
-	triggerScroll(event: IMouseWheelEvent): void;
-	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
-	getCellById(cellId: string): IGenericCellViewModel | undefined;
-	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
-	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
-	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
-	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
-	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
-	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
-	didEndDragMarkupCell(cellId: string): void;
-}
-
 //#endregion
 
 export interface NotebookLayoutInfo {
@@ -420,7 +400,7 @@ export class NotebookCellStateChangedEvent {
 export type NotebookViewEvent = NotebookLayoutChangedEvent | NotebookMetadataChangedEvent | NotebookCellStateChangedEvent;
 
 
-export interface INotebookEditor extends ICommonNotebookEditor {
+export interface INotebookEditor extends ICommonNotebookEditorDelegate {
 	//#region Eventing
 	readonly onDidChangeCellState: Event<NotebookCellStateChangedEvent>;
 	readonly onDidChangeOptions: Event<void>;
@@ -687,6 +667,26 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	getCellIndexByHandle(handle: number): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
+}
+
+export interface ICommonNotebookEditorDelegate {
+	readonly creationOptions: INotebookEditorCreationOptions;
+	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
+	setScrollTop(scrollTop: number): void;
+	triggerScroll(event: IMouseWheelEvent): void;
+	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+	getCellById(cellId: string): IGenericCellViewModel | undefined;
+	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
+	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
+	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
+	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
+	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
+	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
+	didEndDragMarkupCell(cellId: string): void;
 }
 
 export interface INotebookCellList {
