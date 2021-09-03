@@ -662,7 +662,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 			}
 		};
 
-		// Spot the change to the textarea class attribute whic occurs when it changes between non-empty and empty,
+		// Spot the change to the textarea class attribute which occurs when it changes between non-empty and empty,
 		// and add the history suffix to the placeholder if not yet present
 		this.observer = new MutationObserver((mutationList: MutationRecord[], observer: MutationObserver) => {
 			mutationList.forEach((mutation: MutationRecord) => {
