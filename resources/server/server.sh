@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
@@ -7,4 +7,5 @@ else
 	ROOT=$(dirname "$(readlink -f $0)")
 fi
 
-exec $ROOT/node/bin/node $ROOT/server-pkg/out/server.js "$@"
+PATH=$ROOT/bin:$PATH
+exec $ROOT/node $ROOT/out/server.js "$@"

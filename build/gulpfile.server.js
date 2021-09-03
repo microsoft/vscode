@@ -5,6 +5,7 @@
 // @ts-check
 'use strict';
 
+const cp = require('child_process');
 const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
@@ -271,12 +272,27 @@ function defineTasks(options) {
 			const packageJsonStream = gulp.src([base + '/package.json'], { base })
 				.pipe(json({ name, version }));
 
+			cp.execSync('yarn gulp node');
+			const nodePath = cp.execSync('node ' + path.join(root, 'build/lib/node'), { encoding: 'utf-8' });
+			const nodeStream = gulp.src([nodePath], { base: path.dirname(nodePath) });
+
+			const resourcesBase = path.join(root, 'resources/' + qualifier);
+			const binStream = gulp.src([path.join(resourcesBase, '**/*.' + (process.platform === 'win32' ? 'cmd' : 'sh'))], { base: resourcesBase })
+				.pipe(util.setExecutableBit(['**/*.sh']))
+				.pipe(rename(path => {
+					if (path.basename === 'code' && path.extname === '.sh') {
+						path.extname = '';
+					}
+				}));
+
 			let all = es.merge(
 				packageJsonStream,
 				productJsonStream,
 				// license,
 				sources,
-				runtimeDependencies
+				runtimeDependencies,
+				nodeStream,
+				binStream
 			);
 
 			let result = all
