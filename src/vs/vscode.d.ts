@@ -12577,8 +12577,9 @@ declare module 'vscode' {
 		 * The UI-visible count of {@link SourceControlResourceState resource states} of
 		 * this source control.
 		 *
-		 * Equals to the total number of {@link SourceControlResourceState resource state}
-		 * of this source control, if undefined.
+		 * If undefined, this source control will
+		 * - display its UI-visible count as zero, and
+		 * - contribute the count of its {@link SourceControlResourceState resource states} to the UI-visible aggregated count for all source controls
 		 */
 		count?: number;
 
