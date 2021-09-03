@@ -578,11 +578,6 @@ export interface INotebookEditor {
 	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
-	 * Get the view index of a cell
-	 */
-	getViewIndex(cell: ICellViewModel): number;
-
-	/**
 	 * Get the view height of a cell (from the list view)
 	 */
 	getViewHeight(cell: ICellViewModel): number;
@@ -623,6 +618,11 @@ export interface INotebookEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
+
+	/**
+	 * Get the view index of a cell at model `index`
+	 */
+	getViewIndexByModelIndex(index: number): number;
 	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel>;
 	cellAt(index: number): ICellViewModel | undefined;
 	getCellByHandle(handle: number): ICellViewModel | undefined;
@@ -999,7 +999,7 @@ export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges:
 			return;
 		}
 
-		const viewIndex = editor.getViewIndex(viewCell);
+		const viewIndex = editor.getViewIndexByModelIndex(index);
 		if (viewIndex < 0) {
 			return;
 		}

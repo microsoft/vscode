@@ -1806,10 +1806,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._listViewInfoAccessor.revealRangeInCenterIfOutsideViewportAsync(cell, range);
 	}
 
-	getViewIndex(cell: ICellViewModel): number {
+	getViewIndexByModelIndex(index: number): number {
 		if (!this._listViewInfoAccessor) {
 			return -1;
 		}
+		const cell = this.viewModel?.viewCells[index];
+		if (!cell) {
+			return -1;
+		}
+
 		return this._listViewInfoAccessor.getViewIndex(cell);
 	}
 
