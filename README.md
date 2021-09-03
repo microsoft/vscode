@@ -22,7 +22,7 @@ The easiest way to get started is ...
 
 ## The scope of this project
 
-This project really only adds the minimal bits required to run VS Code in a web server scenario. We have no intention of changing VS Code in any way or adding additional features through this. Feature request, bug fixes, etc. should go to the upstream repository.
+This project really only adds the minimal bits required to run VS Code in a web server scenario. We have no intention of changing VS Code in any way or adding additional features through this. Feature requests, bug fixes, etc. should go to the upstream repository.
 
 > **For any feature requests, bug reports, or contributions that are not specific to running VS Code in a web server context,**
 >
