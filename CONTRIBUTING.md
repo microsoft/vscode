@@ -34,8 +34,8 @@ Be sure to scan through the [most popular](https://github.com/microsoft/vscode/i
 
 If you find your issue already exists, make relevant comments and add your [reaction](https://github.com/blog/2119-add-reactions-to-pull-requests-issues-and-comments). Use a reaction in place of a "+1" comment:
 
-* 👍 - upvote
-* 👎 - downvote
+--> 👍 - upvote
+--> 👎 - downvote
 
 If you cannot find an existing issue that describes your bug or feature, create a new issue using the guidelines below.
 
