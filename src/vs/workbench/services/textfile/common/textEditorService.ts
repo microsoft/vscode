@@ -7,11 +7,10 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION, IEditorInput } from 'vs/workbench/common/editor';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -39,7 +38,7 @@ export interface ITextEditorService {
 	 *
 	 * @param input the untyped editor input to create a typed input from
 	 */
-	createTextEditor(input: IUntypedEditorInput): EditorInput;
+	createTextEditor(input: IUntypedEditorInput): IEditorInput;
 	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
 }
 
@@ -81,9 +80,9 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 		));
 	}
 
-	createTextEditor(input: IUntypedEditorInput): EditorInput;
+	createTextEditor(input: IUntypedEditorInput): IEditorInput;
 	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
-	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): EditorInput | IFileEditorInput {
+	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): IEditorInput | IFileEditorInput {
 
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {
@@ -134,7 +133,7 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 				Event.once(input.onWillDispose)(() => untitledModel.dispose());
 
 				return input;
-			}) as EditorInput;
+			});
 		}
 
 		// Text File/Resource Editor Support

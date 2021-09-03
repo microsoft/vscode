@@ -26,8 +26,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/contrib/files/common/files';
 import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keybindingsEditor';
@@ -86,22 +85,22 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 
 class KeybindingsEditorInputSerializer implements IEditorSerializer {
 
-	canSerialize(editorInput: EditorInput): boolean {
+	canSerialize(editorInput: IEditorInput): boolean {
 		return true;
 	}
 
-	serialize(editorInput: EditorInput): string {
+	serialize(editorInput: IEditorInput): string {
 		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService): EditorInput {
+	deserialize(instantiationService: IInstantiationService): IEditorInput {
 		return instantiationService.createInstance(KeybindingsEditorInput);
 	}
 }
 
 class SettingsEditor2InputSerializer implements IEditorSerializer {
 
-	canSerialize(editorInput: EditorInput): boolean {
+	canSerialize(editorInput: IEditorInput): boolean {
 		return true;
 	}
 

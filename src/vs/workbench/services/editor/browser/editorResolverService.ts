@@ -26,7 +26,6 @@ import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern,
@@ -223,7 +222,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 		return {
 			group: primaryResolvedEditor.group ?? secondaryResolvedEditor.group,
-			editor: new SideBySideEditorInput(editor.label, editor.description, secondaryResolvedEditor.editor as EditorInput, primaryResolvedEditor.editor as EditorInput),
+			editor: new SideBySideEditorInput(editor.label, editor.description, secondaryResolvedEditor.editor, primaryResolvedEditor.editor),
 			options: editor.options
 		};
 	}

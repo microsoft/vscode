@@ -49,19 +49,19 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return undefined; // use `EditorResourceAccessor` to obtain one side's resource
 	}
 
-	get primary(): EditorInput {
+	get primary(): IEditorInput {
 		return this._primary;
 	}
 
-	get secondary(): EditorInput {
+	get secondary(): IEditorInput {
 		return this._secondary;
 	}
 
 	constructor(
 		protected readonly name: string | undefined,
 		protected readonly description: string | undefined,
-		private readonly _secondary: EditorInput,
-		private readonly _primary: EditorInput
+		private readonly _secondary: IEditorInput,
+		private readonly _primary: IEditorInput
 	) {
 		super();
 

@@ -6,8 +6,7 @@
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -34,11 +33,11 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 		@IPathService private readonly pathService: IPathService
 	) { }
 
-	canSerialize(editorInput: EditorInput): boolean {
+	canSerialize(editorInput: IEditorInput): boolean {
 		return this.filesConfigurationService.isHotExitEnabled && !editorInput.isDisposed();
 	}
 
-	serialize(editorInput: EditorInput): string | undefined {
+	serialize(editorInput: IEditorInput): string | undefined {
 		if (!this.filesConfigurationService.isHotExitEnabled || editorInput.isDisposed()) {
 			return undefined;
 		}

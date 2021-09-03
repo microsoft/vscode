@@ -572,6 +572,13 @@ export interface IEditorInput extends IDisposable {
 	getAriaLabel(): string;
 
 	/**
+	 * Returns a descriptor suitable for telemetry events.
+	 *
+	 * Subclasses should extend if they can contribute.
+	 */
+	getTelemetryDescriptor(): { [key: string]: unknown }
+
+	/**
 	 * Returns a type of `IEditorModel` that represents the resolved input.
 	 * Subclasses should override to provide a meaningful model or return
 	 * `null` if the editor does not require a model.

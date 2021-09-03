@@ -162,14 +162,14 @@ export class SideBySideEditor extends EditorPane {
 		}
 
 		await Promise.all([
-			this.secondaryEditorPane.setInput(newInput.secondary, undefined, context, token),
-			this.primaryEditorPane.setInput(newInput.primary, options, context, token)
+			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, undefined, context, token),
+			this.primaryEditorPane.setInput(newInput.primary as EditorInput, options, context, token)
 		]);
 	}
 
 	private async setNewInput(newInput: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		this.secondaryEditorPane = this.doCreateEditor(newInput.secondary, assertIsDefined(this.secondaryEditorContainer));
-		this.primaryEditorPane = this.doCreateEditor(newInput.primary, assertIsDefined(this.primaryEditorContainer));
+		this.secondaryEditorPane = this.doCreateEditor(newInput.secondary as EditorInput, assertIsDefined(this.secondaryEditorContainer));
+		this.primaryEditorPane = this.doCreateEditor(newInput.primary as EditorInput, assertIsDefined(this.primaryEditorContainer));
 
 		this.layout(this.dimension);
 
@@ -181,8 +181,8 @@ export class SideBySideEditor extends EditorPane {
 		this.onDidCreateEditors.fire(undefined);
 
 		await Promise.all([
-			this.secondaryEditorPane.setInput(newInput.secondary, undefined, context, token),
-			this.primaryEditorPane.setInput(newInput.primary, options, context, token)]
+			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, undefined, context, token),
+			this.primaryEditorPane.setInput(newInput.primary as EditorInput, options, context, token)]
 		);
 	}
 

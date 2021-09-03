@@ -5,8 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,11 +26,11 @@ interface ISerializedFileEditorInput {
 
 export class FileEditorInputSerializer implements IEditorSerializer {
 
-	canSerialize(editorInput: EditorInput): boolean {
+	canSerialize(editorInput: IEditorInput): boolean {
 		return true;
 	}
 
-	serialize(editorInput: EditorInput): string {
+	serialize(editorInput: IEditorInput): string {
 		const fileEditorInput = editorInput as FileEditorInput;
 		const resource = fileEditorInput.resource;
 		const preferredResource = fileEditorInput.preferredResource;
