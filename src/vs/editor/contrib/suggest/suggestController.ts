@@ -797,7 +797,7 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
-		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: KeyMod.CtrlCmd | KeyCode.KEY_I }
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I] }
 	},
 	menuOpts: [{
 		menuId: suggestWidgetStatusbarMenu,
