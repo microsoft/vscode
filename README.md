@@ -12,7 +12,7 @@ This project provides a version of VS Code that runs a server on a remote machin
 
 VS Code has traditionally been a desktop IDE built with web technology. A few years back people started patching it, in order to run it in a remote context and to make it accessible through web browsers. [These efforts have been complex and error prone](https://github.com/cdr/code-server/issues/3835), because many changes had to be made across the large code base of VS Code.
 
-Luckily in 2019 the Vs Code team started to refactor its architecture to support this working mode. While this new architecture has been adopted by Gitpod and GitHub, the important bits have not been open-sources, yet. As a result many people in the community are still using the old hard to maintain and errorprone approach.
+Luckily in 2019 the VS Code team started to refactor its architecture to support this working mode. While this new architecture has been adopted by Gitpod and GitHub, the important bits have not been open-sources, yet. As a result many people in the community are still using the old hard to maintain and error-prone approach.
 
 At Gitpod we've been asked a lot about how we do it. So we thought we might just share the minimal set of changes needed, so people can rely on the latest version of VS Code and have a straight forward upgrade path and low maintenance effort.
 
