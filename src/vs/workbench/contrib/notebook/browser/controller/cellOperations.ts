@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { EndOfLinePreference, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -519,4 +521,58 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 			newFocusedCell.focusMode = CellFocusMode.Editor;
 		}
 	}
+}
+
+function _splitPointsToBoundaries(splitPoints: IPosition[], textBuffer: IReadonlyTextBuffer): IPosition[] | null {
+	const boundaries: IPosition[] = [];
+	const lineCnt = textBuffer.getLineCount();
+	const getLineLen = (lineNumber: number) => {
+		return textBuffer.getLineLength(lineNumber);
+	};
+
+	// split points need to be sorted
+	splitPoints = splitPoints.sort((l, r) => {
+		const lineDiff = l.lineNumber - r.lineNumber;
+		const columnDiff = l.column - r.column;
+		return lineDiff !== 0 ? lineDiff : columnDiff;
+	});
+
+	for (let sp of splitPoints) {
+		if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.column !== 1 /** empty line */ && sp.lineNumber < lineCnt) {
+			sp = new Position(sp.lineNumber + 1, 1);
+		}
+		_pushIfAbsent(boundaries, sp);
+	}
+
+	if (boundaries.length === 0) {
+		return null;
+	}
+
+	// boundaries already sorted and not empty
+	const modelStart = new Position(1, 1);
+	const modelEnd = new Position(lineCnt, getLineLen(lineCnt) + 1);
+	return [modelStart, ...boundaries, modelEnd];
+}
+
+function _pushIfAbsent(positions: IPosition[], p: IPosition) {
+	const last = positions.length > 0 ? positions[positions.length - 1] : undefined;
+	if (!last || last.lineNumber !== p.lineNumber || last.column !== p.column) {
+		positions.push(p);
+	}
+}
+
+export function computeCellLinesContents(cell: ICellViewModel, splitPoints: IPosition[]): string[] | null {
+	const rangeBoundaries = _splitPointsToBoundaries(splitPoints, cell.textBuffer);
+	if (!rangeBoundaries) {
+		return null;
+	}
+	const newLineModels: string[] = [];
+	for (let i = 1; i < rangeBoundaries.length; i++) {
+		const start = rangeBoundaries[i - 1];
+		const end = rangeBoundaries[i];
+
+		newLineModels.push(cell.textBuffer.getValueInRange(new Range(start.lineNumber, start.column, end.lineNumber, end.column), EndOfLinePreference.TextDefined));
+	}
+
+	return newLineModels;
 }

@@ -469,11 +469,6 @@ export interface INotebookEditor {
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string, ui?: boolean): CellViewModel | null;
 
 	/**
-	 * Split a given cell into multiple cells of the same type using the selection start positions.
-	 */
-	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
-
-	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;

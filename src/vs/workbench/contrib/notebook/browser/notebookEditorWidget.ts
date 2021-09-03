@@ -2073,20 +2073,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused[0]?.handle ?? null, selections);
 	}
 
-	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
-		if (!this.viewModel) {
-			return null;
-		}
-
-		if (this.viewModel.options.isReadOnly) {
-			return null;
-		}
-
-		const index = this.viewModel.getCellIndex(cell);
-
-		return this.viewModel.splitNotebookCell(index);
-	}
-
 	getActiveCell() {
 		const elements = this._list.getFocusedElements();
 
