@@ -387,6 +387,33 @@ suite('vscode API - window', () => {
 		//assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
 	});
 
+	test('Tabs - ensure active tab is correct', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docA.uri.toString());
+
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docB.uri.toString());
+
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docC.uri.toString());
+
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+
+		assert.ok(!window.activeTab);
+
+	});
+
 	//#endregion
 
 	test('#7013 - input without options', function () {
