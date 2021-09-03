@@ -212,13 +212,13 @@ class SharedProcessMain extends Disposable {
 		let telemetryService: ITelemetryService;
 		let telemetryAppender: ITelemetryAppender;
 		let telemetryLevel = getTelemetryLevel(productService, environmentService);
-		if (telemetryLevel > TelemetryLevel.NONE) {
+		if (telemetryLevel >= TelemetryLevel.LOG) {
 			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
 
 			const { appRoot, extensionsPath, installSourcePath } = environmentService;
 
 			// Application Insights
-			if (productService.aiConfig && productService.aiConfig.asimovKey && telemetryLevel === TelemetryLevel.USER) {
+			if (productService.aiConfig && productService.aiConfig.asimovKey && telemetryLevel >= TelemetryLevel.USER) {
 				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				telemetryAppender = combinedAppender(appInsightsAppender, telemetryAppender);
