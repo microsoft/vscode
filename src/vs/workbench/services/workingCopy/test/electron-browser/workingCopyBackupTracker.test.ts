@@ -134,7 +134,6 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		));
 
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);

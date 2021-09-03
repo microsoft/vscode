@@ -65,8 +65,8 @@ suite('Files - TextFileEditorTracker', () => {
 		}
 
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
+
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);

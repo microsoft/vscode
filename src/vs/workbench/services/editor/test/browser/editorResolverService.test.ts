@@ -23,8 +23,8 @@ suite('EditorResolverService', () => {
 
 	async function createEditorResolverService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): Promise<[EditorPart, EditorResolverService, TestServiceAccessor]> {
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
+
 		const editorResolverService = instantiationService.createInstance(EditorResolverService);
 		instantiationService.stub(IEditorResolverService, editorResolverService);
 

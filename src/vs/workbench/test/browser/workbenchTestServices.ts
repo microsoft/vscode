@@ -683,6 +683,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	contentDimension = { width: 800, height: 600 };
 
 	get activeGroup(): IEditorGroup { return this.groups[0]; }
+	get sideGroup(): IEditorGroup { return this.groups[0]; }
 	get count(): number { return this.groups.length; }
 
 	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }

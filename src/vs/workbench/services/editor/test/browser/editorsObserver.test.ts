@@ -10,7 +10,7 @@ import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor,
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
@@ -41,6 +41,7 @@ suite('EditorsObserver', function () {
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		const part = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, part);
 		disposables.add(toDisposable(() => part.clearState()));
 
 		return part;

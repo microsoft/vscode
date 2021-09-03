@@ -47,8 +47,8 @@ suite('EditorService', () => {
 
 	async function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): Promise<[EditorPart, EditorService, TestServiceAccessor]> {
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
+
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService = instantiationService.createInstance(EditorService);

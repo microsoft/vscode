@@ -45,7 +45,7 @@ import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/b
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { once } from 'vs/base/common/functional';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
@@ -177,7 +177,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -960,7 +961,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Open editor (typed)
 		if (isEditorInput(resourceOrEditor)) {
-			await this.editorService.openEditor(resourceOrEditor, editorOptions, targetGroup);
+			const group = (targetGroup === SIDE_GROUP) ? this.editorGroupService.sideGroup : this.editorGroupService.activeGroup;
+			await group.openEditor(resourceOrEditor, editorOptions);
 		}
 
 		// Open editor (untyped)

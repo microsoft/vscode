@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, isEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -32,6 +32,7 @@ suite('EditorGroupsService', () => {
 
 	async function createPart(instantiationService = workbenchInstantiationService()): Promise<[TestEditorPart, ITestInstantiationService]> {
 		const part = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, part);
 
 		return [part, instantiationService];
 	}
@@ -189,6 +190,25 @@ suite('EditorGroupsService', () => {
 		groupAddedListener.dispose();
 		groupRemovedListener.dispose();
 		groupMovedListener.dispose();
+	});
+
+	test('sideGroup', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) });
+		const [part] = await createPart(instantiationService);
+
+		const rootGroup = part.activeGroup;
+
+		let input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		let input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		let input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
+
+		await rootGroup.openEditor(input1, { pinned: true });
+		await part.sideGroup.openEditor(input2, { pinned: true });
+		assert.strictEqual(part.count, 2);
+
+		part.activateGroup(rootGroup);
+		await part.sideGroup.openEditor(input3, { pinned: true });
+		assert.strictEqual(part.count, 2);
 	});
 
 	test('save & restore state', async function () {

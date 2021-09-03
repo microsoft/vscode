@@ -93,10 +93,10 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
 		const part = await createEditorPart(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, part);
 
 		disposables.add(registerTestResourceEditor());
 
-		instantiationService.stub(IEditorGroupsService, part);
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
@@ -202,8 +202,8 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
+
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
