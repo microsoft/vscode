@@ -20,7 +20,6 @@ import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IEditorInput, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -146,13 +145,12 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		editorID: string,
 		group: IEditorGroup
 	): DiffEditorInput {
-		const createEditorForSubInput = (subInput: IResourceEditorInput | IUntitledTextResourceEditorInput, editorID: string, customClasses: string): EditorInput | undefined => {
+		const createEditorForSubInput = (subInput: IResourceEditorInput | IUntitledTextResourceEditorInput, editorID: string, customClasses: string): IEditorInput | undefined => {
 			if (!subInput.resource) {
 				return;
 			}
 			// We check before calling this call back that both resources are defined
-			const input = CustomEditorInput.create(this.instantiationService, subInput.resource, editorID, group.id, { customClasses });
-			return input instanceof EditorInput ? input : undefined;
+			return CustomEditorInput.create(this.instantiationService, subInput.resource, editorID, group.id, { customClasses });
 		};
 
 		const modifiedOverride = createEditorForSubInput(editor.modified, editorID, 'modified') ?? this.textEditorService.createTextEditor(editor.modified);
