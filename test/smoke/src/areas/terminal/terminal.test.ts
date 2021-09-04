@@ -3,7 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist = require('minimist');
-import { Application } from '../../../../automation';
+import * as path from 'path';
+import { Application, Quality } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
@@ -17,6 +18,24 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.terminal.showTerminal();
 			await app.workbench.terminal.runCommand('ls');
 			await app.workbench.terminal.waitForTerminalText(lines => lines.some(l => l.includes('app.js')));
+		});
+
+		it('shows terminal and runs cli command', async function () {
+			const app = this.app as Application;
+
+			if (app.quality !== Quality.Dev) {
+				this.skip();
+			}
+
+			const rootPath = process.env['VSCODE_REPOSITORY'];
+			if (!rootPath) {
+				throw new Error('VSCODE_REPOSITORY env variable not found');
+			}
+
+			const cliPath = path.join(rootPath, 'out', 'server-cli.js');
+
+			await app.workbench.terminal.runCommand(`node ${cliPath} app.js`);
+			await app.workbench.editors.waitForActiveTab('app.js');
 		});
 	});
 }
