@@ -230,7 +230,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._onDidChangeInstances.fire();
 	}
 
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
+	getInstanceFromResource(resource?: URI): ITerminalInstance | undefined {
 		return getInstanceFromResource(this.instances, resource);
 	}
 

@@ -748,8 +748,11 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalService).activeInstance?.changeIcon();
+		async run(accessor: ServicesAccessor, resource: unknown) {
+			const terminalService = accessor.get(ITerminalService);
+			const castedResource = URI.isUri(resource) ? resource : undefined;
+			const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
+			instance?.changeIcon();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -790,8 +793,11 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalService).activeInstance?.changeColor();
+		async run(accessor: ServicesAccessor, resource: unknown) {
+			const terminalService = accessor.get(ITerminalService);
+			const castedResource = URI.isUri(resource) ? resource : undefined;
+			const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
+			instance?.changeColor();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -832,10 +838,14 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			return accessor.get(ITerminalService).activeInstance?.rename();
+		async run(accessor: ServicesAccessor, resource: unknown) {
+			const terminalService = accessor.get(ITerminalService);
+			const castedResource = URI.isUri(resource) ? resource : undefined;
+			const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
+			instance?.rename();
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
