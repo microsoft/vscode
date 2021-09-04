@@ -1,0 +1,1 @@
+Interferencia no meu radio.
