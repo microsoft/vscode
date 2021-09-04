@@ -315,6 +315,7 @@ export async function main(options: IServerOptions): Promise<void> {
 					workspaceStorageHome: environmentService.workspaceStorageHome,
 					userHome: environmentService.userHome,
 					os: platform.OS,
+					arch: process.arch,
 					marks: [],
 					useHostProxy: false
 				} as IRemoteAgentEnvironmentDTO, uriTranformer);

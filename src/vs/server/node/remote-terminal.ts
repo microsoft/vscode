@@ -12,7 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IPtyService, IShellLaunchConfig, LocalReconnectConstants } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IReconnectConstants, IShellLaunchConfig, LocalReconnectConstants, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import * as platform from 'vs/base/common/platform';
@@ -34,14 +34,17 @@ import { IURITransformer, transformIncomingURIs, URITransformer } from 'vs/base/
 import { cloneAndChange } from 'vs/base/common/objects';
 
 export function registerRemoteTerminal(services: ServicesAccessor, channelServer: IPCServer<RemoteAgentConnectionContext>) {
-	const reconnectConstants = {
-		GraceTime: LocalReconnectConstants.GraceTime,
-		ShortGraceTime: LocalReconnectConstants.ShortGraceTime
-	};
 	const configurationService = services.get(IConfigurationService);
 	const logService = services.get(ILogService);
 	const telemetryService = services.get(ITelemetryService);
 	const rawURITransformerFactory = services.get(IRawURITransformerFactory);
+
+	const reconnectConstants: IReconnectConstants = {
+		graceTime: LocalReconnectConstants.GraceTime,
+		shortGraceTime: LocalReconnectConstants.ShortGraceTime,
+		scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100,
+		useExperimentalSerialization: configurationService.getValue<boolean>(TerminalSettingId.PersistentSessionExperimentalSerializer) ?? true,
+	};
 	const ptyHostService = new PtyHostService(reconnectConstants, configurationService, logService, telemetryService);
 	channelServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannelServer(rawURITransformerFactory, logService, ptyHostService));
 }
@@ -250,6 +253,7 @@ export class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentCo
 			initialCwd,
 			args.cols,
 			args.rows,
+			args.unicodeVersion,
 			env,
 			processEnv,
 			false,
