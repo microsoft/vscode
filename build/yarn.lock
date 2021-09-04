@@ -389,10 +389,10 @@
     "@types/node" "*"
     xmlbuilder ">=11.0.1"
 
-"@types/pump@^1.0.1":
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/@types/pump/-/pump-1.0.1.tgz#ae8157cefef04d1a4d24c1cc91d403c2f5da5cd0"
-  integrity sha1-roFXzv7wTRpNJMHMkdQDwvXaXNA=
+"@types/pump@^1.1.1":
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/@types/pump/-/pump-1.1.1.tgz#edb3475e2bad0f4552bdaa91c6c43b82e08ff15e"
+  integrity sha512-wpRerjHDxFBQ4r8XNv3xHJZeuqrBBoeQ/fhgkooV2F7KsPIYRROb/+f9ODgZfOEyO5/w2ej4YQdpPPXipT8DAA==
   dependencies:
     "@types/node" "*"
 
