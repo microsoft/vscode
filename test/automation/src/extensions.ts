@@ -27,6 +27,12 @@ export class Extensions extends Viewlet {
 	async searchForExtension(id: string): Promise<any> {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+a');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+a');
+		}
+		await this.code.dispatchKeybinding('delete');
 		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
 		await this.code.waitForTextContent(`div.part.sidebar div.composite.title h2`, 'Extensions: Marketplace');
 		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`);

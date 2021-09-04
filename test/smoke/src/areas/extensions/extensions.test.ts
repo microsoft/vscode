@@ -15,9 +15,9 @@ export function setup(opts: minimist.ParsedArgs) {
 		it(`install and enable vscode-smoketest-check extension`, async function () {
 			const app = this.app as Application;
 
-			if (app.quality === Quality.Dev) {
-				this.skip();
-			}
+			// if (app.quality === Quality.Dev) {
+			// 	this.skip();
+			// }
 
 			await app.workbench.extensions.openExtensionsViewlet();
 
@@ -30,5 +30,22 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.quickaccess.runCommand('Smoke Test Check');
 		});
 
+		it(`install and enable smoketest-check-web extension in web worker`, async function () {
+			const app = this.app as Application;
+
+			// if (app.quality === Quality.Dev) {
+			// 	this.skip();
+			// }
+
+			await app.workbench.extensions.openExtensionsViewlet();
+
+			await app.workbench.extensions.installExtension('jeanp413.smoketest-check-web', true);
+
+			// Close extension editor because keybindings dispatch is not working when web views are opened and focused
+			// https://github.com/microsoft/vscode/issues/110276
+			await app.workbench.extensions.closeExtension('smoketest-check-web');
+
+			await app.workbench.quickaccess.runCommand('Smoke Test Check Web');
+		});
 	});
 }

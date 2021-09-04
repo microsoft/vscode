@@ -30,7 +30,8 @@ const vscodeToPlaywrightKey: { [key: string]: string } = {
 	down: 'ArrowDown',
 	left: 'ArrowLeft',
 	home: 'Home',
-	esc: 'Escape'
+	esc: 'Escape',
+	delete: 'Delete'
 };
 
 let traceCounter = 1;
