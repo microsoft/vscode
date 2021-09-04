@@ -60,9 +60,11 @@ suite('vscode - automatic language detection', () => {
 		assert.ok(result);
 
 		// Changing the language triggers a file to be closed and opened again so wait for that event to happen.
-		const newDoc = await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
+		let newDoc;
+		do {
+			newDoc = await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
+		} while (doc.uri.toString() !== newDoc.uri.toString());
 
-		assert.strictEqual(doc.uri.toString(), newDoc.uri.toString());
 		assert.strictEqual(newDoc.languageId, 'json');
 	});
 });
