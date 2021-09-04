@@ -163,6 +163,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (resource) {
 			await this._editorService.openEditor({
 				resource,
+				description: instance.shellLaunchConfig.description,
 				options:
 				{
 					pinned: true,
@@ -247,6 +248,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (resource) {
 			this._editorService.openEditor({
 				resource: URI.revive(resource),
+				description: instance.shellLaunchConfig.description,
 				options:
 				{
 					pinned: true,
