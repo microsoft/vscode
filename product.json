@@ -27,6 +27,7 @@
 		"GitHub.vscode-pull-request-github",
 		"GitHub.vscode-pull-request-github-insiders",
 		"ms-python.python",
+		"ms-toolsai.jupyter",
 		"ms-vscode.js-debug-nightly",
 		"ms-vscode.js-debug",
 		"ms-vscode.lsif-browser",

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist = require('minimist');
-import { Application, Quality } from '../../../../automation';
+import { Application } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {

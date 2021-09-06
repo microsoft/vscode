@@ -5,9 +5,8 @@ ports:
     onOpen: open-browser
 tasks:
   - init: |
-      export VSCODE_INIT_BUILD_DIR=$(leeway describe "//:init" -t "/tmp/build/{{ .Metadata.Name }}.{{ .Metadata.Version }}")
-      leeway build
-      sudo cp -rup "$VSCODE_INIT_BUILD_DIR/install/." . | true
+      yarn
+      yarn gitpod:init
     command: |
       gp sync-done init
       export NODE_ENV=development

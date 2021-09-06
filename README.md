@@ -18,7 +18,24 @@ At Gitpod we've been asked a lot about how we do it. So we thought we might just
 
 ## Getting started
 
-The easiest way to get started is ...
+### Docker
+
+- Start the server:
+```bash
+docker run -it --init -p 3000:3000 -v "$(pwd):/home/workspace:cached" gitpod/vscode
+```
+- after this, visit [localhost:3000](http://localhost:3000).
+
+### Linux
+
+- [Download the latest release](https://github.com/gitpod-io/vscode-releases/releases/latest)
+- untar and run the server:
+```bash
+tar -xzf code-web-server-v*.tar.gz
+cd code-web-server-v*
+./server.sh
+```
+- after this, visit [localhost:3000](http://localhost:3000).
 
 ## The scope of this project
 
@@ -27,3 +44,29 @@ This project really only adds the minimal bits required to run VS Code in a web 
 > **For any feature requests, bug reports, or contributions that are not specific to running VS Code in a web server context,**
 >
 > **please go to [Visual Studio Code - Open Source "OSS"](https://github.com/microsoft/vscode)**
+
+## Contributing
+
+### Starting from sources
+
+- [Start a Gitpod workspace](https://gitpod.io/#https://github.com/gitpod-io/vscode/tree/web-server)
+- Dev version of the server should be already up and running. Notice that the dev version is slower to load since it is not bundled (around 2000 files).
+
+### Updating VS Code
+
+- Update your local VS Code, open the About dialog and remember the release commit and Node.js version.
+- Fetch latest upstream changes and rebase the branch based on the local VS Code's commit. Drop all commits before `code web server initial commit`.
+- Check that [.gitpod.Dockerfile](./.gitpod.Dockerfile) and [remote/.yarnrc](./remote/.yarnrc) has latest major Node.js version of local VS Code's Node.js version.
+- Recompile everything: `git clean -dfx && yarn && yarn gitpod:init`
+- Run smoke tests: `yarn gitpod:smoketest`.
+- Start the dev server and play:
+  - filesystem (open some project)
+  - extension host process: check language smartness
+  - extension management (installing/uninstalling)
+  - install VIM extension to test web extensions
+  - terminals
+  - code cli should open files and manage extensions: `alias code='export VSCODE_DEV=1 && node out/server-cli.js'`
+- Check server/browser logs for any warnings/errors about missing capabilities and fix them.
+- Build the production server with all changes: `yarn gulp server-min`.
+- Run it and play as with the dev server: `/workspace/server-pkg/server.sh`
+- Open a PR with your changes and ask for help if needed. It should be agaist `gitpod-io/vscode` repo and `web-server` branch!
