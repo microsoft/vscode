@@ -32,7 +32,7 @@ import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensio
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -57,7 +57,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@optional(IDownloadService) private downloadService: IDownloadService,
+		@IDownloadService private downloadService: IDownloadService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
 	) {
@@ -137,10 +137,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		if (vsix.scheme === Schemas.file) {
 			return vsix;
 		}
-		if (!this.downloadService) {
-			throw new Error('Download service is not available');
-		}
-
 		const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 		await this.downloadService.download(vsix, downloadedLocation);
 		return downloadedLocation;

@@ -18,6 +18,8 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -132,6 +134,9 @@ class CliMain extends Disposable {
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
+
+		// Download Service
+		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
 		// Extensions
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
