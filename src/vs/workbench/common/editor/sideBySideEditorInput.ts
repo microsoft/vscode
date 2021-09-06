@@ -170,16 +170,6 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
 		}
 
-		if (this.primary.matches(this.secondary)) {
-			// Special case: both sides of the input are the same editor
-			// so we allow this editor to match even on one of the sides
-			// to avoid the following case: the user splits an editor into
-			// 2 sides. Now, whenever the user opens the same file again,
-			// we want the side by side editor to become active, not the
-			// file in another new editor.
-			return this.primary.matches(otherInput);
-		}
-
 		return false;
 	}
 }
@@ -197,12 +187,6 @@ interface ISerializedSideBySideEditorInput {
 }
 
 export abstract class AbstractSideBySideEditorInputSerializer implements IEditorSerializer {
-
-	private getSerializers(secondaryEditorInputTypeId: string, primaryEditorInputTypeId: string): [IEditorSerializer | undefined, IEditorSerializer | undefined] {
-		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
-
-		return [registry.getEditorSerializer(secondaryEditorInputTypeId), registry.getEditorSerializer(primaryEditorInputTypeId)];
-	}
 
 	canSerialize(editorInput: EditorInput): boolean {
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
@@ -257,6 +241,12 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 		}
 
 		return undefined;
+	}
+
+	private getSerializers(secondaryEditorInputTypeId: string, primaryEditorInputTypeId: string): [IEditorSerializer | undefined, IEditorSerializer | undefined] {
+		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+
+		return [registry.getEditorSerializer(secondaryEditorInputTypeId), registry.getEditorSerializer(primaryEditorInputTypeId)];
 	}
 
 	protected abstract createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput;

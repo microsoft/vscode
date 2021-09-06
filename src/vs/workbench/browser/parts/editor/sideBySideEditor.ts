@@ -22,10 +22,17 @@ import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class SideBySideEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.sidebysideEditor';
+
+	static SIDE_BY_SIDE_LAYOUT_SETTING = 'workbench.editor.splitInGroupLayout';
+
+	//#region Layout Constraints
 
 	private get minimumPrimaryWidth() { return this.primaryEditorPane ? this.primaryEditorPane.minimumWidth : 0; }
 	private get maximumPrimaryWidth() { return this.primaryEditorPane ? this.primaryEditorPane.maximumWidth : Number.POSITIVE_INFINITY; }
@@ -37,7 +44,6 @@ export class SideBySideEditor extends EditorPane {
 	private get minimumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.minimumHeight : 0; }
 	private get maximumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.maximumHeight : Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from EditorPane
 	override set minimumWidth(value: number) { /* noop */ }
 	override set maximumWidth(value: number) { /* noop */ }
 	override set minimumHeight(value: number) { /* noop */ }
@@ -48,49 +54,107 @@ export class SideBySideEditor extends EditorPane {
 	override get minimumHeight() { return this.minimumPrimaryHeight + this.minimumSecondaryHeight; }
 	override get maximumHeight() { return this.maximumPrimaryHeight + this.maximumSecondaryHeight; }
 
-	protected primaryEditorPane?: EditorPane;
-	protected secondaryEditorPane?: EditorPane;
+	//#endregion
 
-	private primaryEditorContainer: HTMLElement | undefined;
-	private secondaryEditorContainer: HTMLElement | undefined;
-
-	private splitview: SplitView | undefined;
-	private dimension: Dimension = new Dimension(0, 0);
+	//#region Events
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 
 	private _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
 	override readonly onDidChangeSizeConstraints = Event.any(this.onDidCreateEditors.event, this._onDidChangeSizeConstraints.event);
 
+	//#endregion
+
+	protected primaryEditorPane: EditorPane | undefined = undefined;
+	protected secondaryEditorPane: EditorPane | undefined = undefined;
+
+	private primaryEditorContainer: HTMLElement | undefined;
+	private secondaryEditorContainer: HTMLElement | undefined;
+
+	private splitview: SplitView | undefined;
+	private splitviewDisposables = this._register(new DisposableStore());
+
+	private orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+
+	private dimension: Dimension = new Dimension(0, 0);
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(SideBySideEditor.ID, telemetryService, themeService, storageService);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+	}
+
+	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING)) {
+			this.orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+
+			// If config updated from event, re-create the split
+			// editor using the new layout orientation if it was
+			// already created.
+			if (this.splitview) {
+				this.recreateEditor();
+			}
+		}
+	}
+
+	private recreateEditor(): void {
+		const container = assertIsDefined(this.getContainer());
+
+		// Clear old (if any)
+		if (this.splitview) {
+			container.removeChild(this.splitview.el);
+			this.splitviewDisposables.clear();
+		}
+
+		// Create new
+		this.createSplitView(container);
+
+		this.layout(this.dimension);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
 		parent.classList.add('side-by-side-editor');
 
-		const splitview = this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
-		this._register(this.splitview.onDidSashReset(() => splitview.distributeViewSizes()));
+		// Editor pane containers
+		this.secondaryEditorContainer = $('.side-by-side-editor-container');
+		this.primaryEditorContainer = $('.side-by-side-editor-container');
 
-		this.secondaryEditorContainer = $('.side-by-side-editor-container.secondary');
+		// Split view
+		this.createSplitView(parent);
+	}
+
+	private createSplitView(parent: HTMLElement): void {
+
+		// Splitview widget
+		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation }));
+		this.splitviewDisposables.add(this.splitview.onDidSashReset(() => this.splitview?.distributeViewSizes()));
+
+		// Secondary (left)
+		const secondaryEditorContainer = assertIsDefined(this.secondaryEditorContainer);
 		this.splitview.addView({
-			element: this.secondaryEditorContainer,
-			layout: size => this.secondaryEditorPane?.layout(new Dimension(size, this.dimension.height)),
-			minimumSize: 220,
+			element: secondaryEditorContainer,
+			layout: size => this.layoutPane(this.secondaryEditorPane, size),
+			minimumSize: this.orientation === Orientation.HORIZONTAL ? DEFAULT_EDITOR_MIN_DIMENSIONS.width : DEFAULT_EDITOR_MIN_DIMENSIONS.height,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
 		}, Sizing.Distribute);
 
-		this.primaryEditorContainer = $('.side-by-side-editor-container.primary');
+		// Primary (right)
+		const primaryEditorContainer = assertIsDefined(this.primaryEditorContainer);
 		this.splitview.addView({
-			element: this.primaryEditorContainer,
-			layout: size => this.primaryEditorPane?.layout(new Dimension(size, this.dimension.height)),
-			minimumSize: 220,
+			element: primaryEditorContainer,
+			layout: size => this.layoutPane(this.primaryEditorPane, size),
+			minimumSize: this.orientation === Orientation.HORIZONTAL ? DEFAULT_EDITOR_MIN_DIMENSIONS.width : DEFAULT_EDITOR_MIN_DIMENSIONS.height,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
 		}, Sizing.Distribute);
@@ -133,7 +197,15 @@ export class SideBySideEditor extends EditorPane {
 		this.dimension = dimension;
 
 		const splitview = assertIsDefined(this.splitview);
-		splitview.layout(dimension.width);
+		splitview.layout(this.orientation === Orientation.HORIZONTAL ? dimension.width : dimension.height);
+	}
+
+	private layoutPane(pane: EditorPane | undefined, size: number): void {
+		if (this.orientation === Orientation.HORIZONTAL) {
+			pane?.layout(new Dimension(size, this.dimension.height));
+		} else {
+			pane?.layout(new Dimension(this.dimension.width, size));
+		}
 	}
 
 	override getControl(): IEditorControl | undefined {
@@ -203,7 +275,11 @@ export class SideBySideEditor extends EditorPane {
 		super.updateStyles();
 
 		if (this.primaryEditorContainer) {
-			this.primaryEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(scrollbarShadow)}`;
+			if (this.orientation === Orientation.HORIZONTAL) {
+				this.primaryEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(scrollbarShadow)}`;
+			} else {
+				this.primaryEditorContainer.style.boxShadow = '';
+			}
 		}
 	}
 

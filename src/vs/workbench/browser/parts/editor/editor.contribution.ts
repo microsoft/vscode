@@ -42,7 +42,7 @@ import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID,
 	CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_PINNED_EDITOR_COMMAND_ID, CLOSE_SAVED_EDITORS_COMMAND_ID, GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, KEEP_EDITOR_COMMAND_ID,
 	PIN_EDITOR_COMMAND_ID, SHOW_EDITORS_IN_GROUP, SPLIT_EDITOR_DOWN, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-	TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID, TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_LEFT_SIDE_EDITOR, FOCUS_RIGHT_SIDE_EDITOR
+	TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID, TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_LEFT_SIDE_EDITOR, FOCUS_RIGHT_SIDE_EDITOR, TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT
 } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -318,6 +318,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_ED
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '5_split', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '5_split', order: 30 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_IN_GROUP, title: localize('splitInGroup', "Split in Group") }, group: '6_split_in_group', order: 10, when: ActiveEditorCanSplitInGroupContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '6_split_in_group', order: 10, when: ActiveEditorContext.isEqualTo(SideBySideEditor.ID) });
 
 // Editor Title Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
@@ -353,6 +355,9 @@ function appendEditorToolItem(primary: IEditorToolItem, when: ContextKeyExpressi
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, item);
 }
 
+const SPLIT_ORDER = 100000;  // towards the end
+const CLOSE_ORDER = 1000000; // towards the far end
+
 // Editor Title Menu: Split Editor
 appendEditorToolItem(
 	{
@@ -361,7 +366,7 @@ appendEditorToolItem(
 		icon: Codicon.splitHorizontal
 	},
 	ContextKeyExpr.not('splitEditorsVertically'),
-	100000, // towards the end
+	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_DOWN,
 		title: localize('splitEditorDown', "Split Editor Down"),
@@ -376,12 +381,23 @@ appendEditorToolItem(
 		icon: Codicon.splitVertical
 	},
 	ContextKeyExpr.has('splitEditorsVertically'),
-	100000, // towards the end
+	SPLIT_ORDER,
 	{
 		id: SPLIT_EDITOR_RIGHT,
 		title: localize('splitEditorRight', "Split Editor Right"),
 		icon: Codicon.splitHorizontal
 	}
+);
+
+// Side by side: layout
+appendEditorToolItem(
+	{
+		id: TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT,
+		title: localize('toggleSplitEditorInGroupLayout', "Toggle Layout"),
+		icon: Codicon.editorLayout
+	},
+	ActiveEditorContext.isEqualTo(SideBySideEditor.ID),
+	SPLIT_ORDER - 1, // left to split actions
 );
 
 // Editor Title Menu: Close (tabs disabled, normal editor)
@@ -392,7 +408,7 @@ appendEditorToolItem(
 		icon: Codicon.close
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
-	1000000, // towards the far end
+	CLOSE_ORDER,
 	{
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: localize('closeAll', "Close All"),
@@ -408,7 +424,7 @@ appendEditorToolItem(
 		icon: Codicon.closeDirty
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated()),
-	1000000, // towards the far end
+	CLOSE_ORDER,
 	{
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: localize('closeAll', "Close All"),
@@ -424,7 +440,7 @@ appendEditorToolItem(
 		icon: Codicon.pinned
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext),
-	1000000, // towards the far end
+	CLOSE_ORDER,
 	{
 		id: CLOSE_EDITOR_COMMAND_ID,
 		title: localize('close', "Close"),
@@ -440,7 +456,7 @@ appendEditorToolItem(
 		icon: Codicon.pinnedDirty
 	},
 	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext),
-	1000000, // towards the far end
+	CLOSE_ORDER,
 	{
 		id: CLOSE_EDITOR_COMMAND_ID,
 		title: localize('close', "Close"),
@@ -456,7 +472,7 @@ appendEditorToolItem(
 		icon: Codicon.lock
 	},
 	ActiveEditorGroupLockedContext,
-	1000000 - 1, // left to close action
+	CLOSE_ORDER - 1, // left to close action
 );
 
 const previousChangeIcon = registerIcon('diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));

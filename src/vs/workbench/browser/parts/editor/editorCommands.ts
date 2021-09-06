@@ -70,6 +70,7 @@ export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 export const SPLIT_EDITOR_IN_GROUP = 'workbench.action.splitEditorInGroup';
 export const TOGGLE_SPLIT_EDITOR_IN_GROUP = 'workbench.action.toggleSplitEditorInGroup';
 export const JOIN_EDITOR_IN_GROUP = 'workbench.action.joinEditorInGroup';
+export const TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT = 'workbench.action.toggleSplitEditorInGroupLayout';
 
 export const FOCUS_LEFT_SIDE_EDITOR = 'workbench.action.focusLeftSideEditor';
 export const FOCUS_RIGHT_SIDE_EDITOR = 'workbench.action.focusRightSideEditor';
@@ -1027,6 +1028,31 @@ function registerSplitEditorInGroupCommands(): void {
 			} else if (activeEditorPane?.input) {
 				await commandService.executeCommand(SPLIT_EDITOR_IN_GROUP);
 			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT,
+				title: localize('toggleSplitEditorInGroupLayout', "Toggle Split Editor in Group Layout"),
+				category: CATEGORIES.View,
+				precondition: ActiveEditorContext.isEqualTo(SideBySideEditor.ID),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const configurationService = accessor.get(IConfigurationService);
+			const currentSetting = configurationService.getValue<unknown>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING);
+
+			let newSetting: 'vertical' | 'horizontal';
+			if (currentSetting !== 'horizontal') {
+				newSetting = 'horizontal';
+			} else {
+				newSetting = 'vertical';
+			}
+
+			return configurationService.updateValue(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING, newSetting);
 		}
 	});
 }
