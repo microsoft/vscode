@@ -73,15 +73,6 @@ suite('SideBySideEditorInput', () => {
 
 		sideBySideInput.dispose();
 		assert.strictEqual(counter, 0);
-
-		// Assert that a side by side input matches to one of the sides
-		// when both sides are identical
-
-		const sideBySideInput2 = new SideBySideEditorInput('name', 'description', input, input);
-		assert.strictEqual(sideBySideInput2.matches(input), true);
-
-		const sideBySideInput3 = new SideBySideEditorInput('name', 'description', new MyEditorInput(URI.file('/fake')), new MyEditorInput(URI.file('/fake')));
-		assert.strictEqual(sideBySideInput3.matches(input), true);
 	});
 
 	test('events dispatching', () => {
@@ -149,5 +140,4 @@ suite('SideBySideEditorInput', () => {
 
 		assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
 	});
-
 });
