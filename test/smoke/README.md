@@ -1,4 +1,4 @@
-# VS Code Smoke Test
+# VS Code Smoke Test.
 
 Make sure you are on **Node v12.x**.
 
