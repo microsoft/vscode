@@ -5,7 +5,7 @@
 
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * A way to address editor groups through a column based system
@@ -14,7 +14,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
  */
 export type EditorGroupColumn = number;
 
-export function columnToEditorGroup(editorGroupService: IEditorGroupsService, column?: EditorGroupColumn): GroupIdentifier {
+export function columnToEditorGroup(editorGroupService: IEditorGroupsService, column?: EditorGroupColumn): GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE {
 	if (
 		typeof column !== 'number' ||
 		column === ACTIVE_GROUP ||
