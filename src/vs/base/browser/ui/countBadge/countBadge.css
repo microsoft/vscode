@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.count-badge-wrapper {
+	display:flex;
+	align-items:center;
+}
+
 .monaco-count-badge {
 	padding: 3px 6px;
 	border-radius: 11px;
