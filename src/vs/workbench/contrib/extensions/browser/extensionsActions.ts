@@ -2013,7 +2013,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 				} else {
 					message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}.", this.extension.displayName || this.extension.identifier.id, productName)} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser)`);
 				}
-				this.updateStatus({ icon: infoIcon, message }, true);
+				this.updateStatus({ icon: warningIcon, message }, true);
 				return;
 			}
 		}
