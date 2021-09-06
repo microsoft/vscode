@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -47,7 +47,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
@@ -505,13 +504,9 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				group: '2_keybindings',
 				order: 2
 			}],
-			keybinding: {
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_M),
-				weight: KeybindingWeight.WorkbenchContrib
-			},
 			menuTitles: {
-				[MenuId.MenubarPreferencesMenu.id]: localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymaps"),
-				[MenuId.GlobalActivity.id]: localize('miOpenKeymapExtensions2', "Keymaps")
+				[MenuId.MenubarPreferencesMenu.id]: localize({ key: 'miimportKeyboardShortcutsFrom', comment: ['&& denotes a mnemonic'] }, "I&&mport Keyboard Shortcuts from..."),
+				[MenuId.GlobalActivity.id]: localize('importKeyboardShortcutsFroms', "Import Keyboard Shortcuts from...")
 			},
 			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@recommended:keymaps '))
 		});
