@@ -497,6 +497,10 @@
 							"include": "#interpolation"
 						},
 						{
+							"match": ",",
+							"name": "punctuation.separator.comma.function-call.makefile"
+						},
+						{
 							"match": "%|\\*",
 							"name": "constant.other.placeholder.makefile"
 						},
