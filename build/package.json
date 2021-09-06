@@ -27,7 +27,7 @@
     "@types/node": "^14.17.10",
     "@types/p-limit": "^2.2.0",
     "@types/plist": "^3.0.2",
-    "@types/pump": "^1.0.1",
+    "@types/pump": "^1.1.1",
     "@types/request": "^2.47.0",
     "@types/rimraf": "^2.0.5",
     "@types/through": "^0.0.29",
