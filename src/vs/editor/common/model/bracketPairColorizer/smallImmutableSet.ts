@@ -37,7 +37,7 @@ export class SmallImmutableSet<T> {
 	) {
 	}
 
-	public add(value: T, keyProvider: DenseKeyProvider<T>): SmallImmutableSet<T> {
+	public add(value: T, keyProvider: IDenseKeyProvider<T>): SmallImmutableSet<T> {
 		const key = keyProvider.getKey(value);
 		let idx = key >> 5; // divided by 32
 		if (idx === 0) {
@@ -59,7 +59,7 @@ export class SmallImmutableSet<T> {
 		return SmallImmutableSet.create(this.items, newItems);
 	}
 
-	public has(value: T, keyProvider: DenseKeyProvider<T>): boolean {
+	public has(value: T, keyProvider: IDenseKeyProvider<T>): boolean {
 		const key = keyProvider.getKey(value);
 		let idx = key >> 5; // divided by 32
 		if (idx === 0) {
@@ -128,6 +128,16 @@ export class SmallImmutableSet<T> {
 		return true;
 	}
 }
+
+export interface IDenseKeyProvider<T> {
+	getKey(value: T): number;
+}
+
+export const identityKeyProvider: IDenseKeyProvider<number> = {
+	getKey(value: number) {
+		return value;
+	}
+};
 
 /**
  * Assigns values a unique incrementing key.
