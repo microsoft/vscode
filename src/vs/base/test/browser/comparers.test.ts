@@ -3,19 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	compareFileNames,
-	compareFileExtensions,
-	compareFileNamesDefault,
-	compareFileExtensionsDefault,
-	compareFileNamesUpper,
-	compareFileExtensionsUpper,
-	compareFileNamesLower,
-	compareFileExtensionsLower,
-	compareFileNamesUnicode,
-	compareFileExtensionsUnicode,
-} from 'vs/base/common/comparers';
 import * as assert from 'assert';
+import {
+	compareFileExtensions, compareFileExtensionsDefault, compareFileExtensionsLower, compareFileExtensionsUnicode, compareFileExtensionsUpper, compareFileNames, compareFileNamesDefault, compareFileNamesLower, compareFileNamesUnicode, compareFileNamesUpper
+} from 'vs/base/common/comparers';
 
 const compareLocale = (a: string, b: string) => a.localeCompare(b);
 const compareLocaleNumeric = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });

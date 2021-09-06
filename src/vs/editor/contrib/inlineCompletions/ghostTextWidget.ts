@@ -3,42 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./ghostText';
 import * as dom from 'vs/base/browser/dom';
+import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
+import * as strings from 'vs/base/common/strings';
+import 'vs/css!./ghostText';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import * as strings from 'vs/base/common/strings';
-import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
-import { RGBA, Color } from 'vs/base/common/color';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
 export class GhostTextWidget extends Disposable {
 	private disposed = false;
-	private readonly partsWidget = this._register(new DecorationsWidget(this.editor, this.codeEditorService, this.themeService));
+	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
 	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly model: GhostTextWidgetModel,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -75,18 +76,18 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private update(): void {
-		if (!this.editor.hasModel() || !this.model.ghostText || this.disposed) {
+		const ghostText = this.model.ghostText;
+
+		if (!this.editor.hasModel() || !ghostText || this.disposed) {
 			this.partsWidget.clear();
 			this.additionalLinesWidget.clear();
 			return;
 		}
 
-		const ghostText = this.model.ghostText;
-
 		const inlineTexts = new Array<InsertedInlineText>();
 		const additionalLines = new Array<LineData>();
 
-		function addToAdditionalLines(lines: string[], className: string | undefined) {
+		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
 			if (additionalLines.length > 0) {
 				const lastLine = additionalLines[additionalLines.length - 1];
 				if (className) {
@@ -94,7 +95,7 @@ export class GhostTextWidget extends Disposable {
 				}
 				lastLine.content += lines[0];
 
-				lines.splice(0, 1);
+				lines = lines.slice(1);
 			}
 			for (const line of lines) {
 				additionalLines.push({
@@ -115,6 +116,7 @@ export class GhostTextWidget extends Disposable {
 				inlineTexts.push({
 					column: part.column,
 					text: lines[0],
+					preview: part.preview,
 				});
 				lines = lines.slice(1);
 			} else {
@@ -191,6 +193,7 @@ interface HiddenText {
 interface InsertedInlineText {
 	column: number;
 	text: string;
+	preview: boolean;
 }
 
 class DecorationsWidget implements IDisposable {
@@ -200,7 +203,8 @@ class DecorationsWidget implements IDisposable {
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 	}
 
@@ -254,12 +258,15 @@ class DecorationsWidget implements IDisposable {
 			});
 		}
 
+		const key = this.contextKeyService.getContextKeyValue('config.editor.useInjectedText');
+		const shouldUseInjectedText = key === undefined ? true : !!key;
+
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
 			currentLinePrefix += line.substring(lastIndex, p.column - 1);
 			lastIndex = p.column - 1;
 
 			// To avoid visual confusion, we don't want to render visible whitespace
-			const contentText = this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
+			const contentText = shouldUseInjectedText ? p.text : this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
 
 			const decorationType = this.disposableStore.add(registerDecorationType(this.codeEditorService, 'ghost-text', '0-ghost-text-', {
 				after: {
@@ -268,12 +275,16 @@ class DecorationsWidget implements IDisposable {
 					opacity,
 					color,
 					border,
+					fontWeight: p.preview ? 'bold' : 'normal',
 				},
 			}));
 
 			return ({
 				range: Range.fromPositions(new Position(lineNumber, p.column)),
-				options: {
+				options: shouldUseInjectedText ? {
+					description: 'ghost-text',
+					after: { content: contentText, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' }
+				} : {
 					...decorationType.resolve()
 				}
 			});
@@ -486,7 +497,8 @@ registerThemingParticipant((theme, collector) => {
 		const opacity = String(foreground.rgba.a);
 		const color = Color.Format.CSS.format(opaque(foreground))!;
 
-		// We need to override the only used token type .mtk1
+		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity}; color: ${color}; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()}; }`);
 		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity}; color: ${color}; }`);
 	}
 

@@ -34,7 +34,10 @@ const configurationEntrySchema: IJSONSchema = {
 			},
 			additionalProperties: {
 				anyOf: [
-					{ $ref: 'http://json-schema.org/draft-07/schema#' },
+					{
+						title: nls.localize('vscode.extension.contributes.configuration.properties.schema', 'Schema of the configuration property.'),
+						$ref: 'http://json-schema.org/draft-07/schema#'
+					},
 					{
 						type: 'object',
 						properties: {
@@ -81,6 +84,16 @@ const configurationEntrySchema: IJSONSchema = {
 							markdownDeprecationMessage: {
 								type: 'string',
 								description: nls.localize('scope.markdownDeprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation in the markdown format.')
+							},
+							editPresentation: {
+								type: 'string',
+								enum: ['singlelineText', 'multilineText'],
+								enumDescriptions: [
+									nls.localize('scope.singlelineText.description', 'The value will be shown in an inputbox.'),
+									nls.localize('scope.multilineText.description', 'The value will be shown in a textarea.')
+								],
+								default: 'singlelineText',
+								description: nls.localize('scope.editPresentation', 'When specified, controls the presentation format of the string setting.')
 							}
 						}
 					}

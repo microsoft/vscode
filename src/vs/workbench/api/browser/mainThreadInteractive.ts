@@ -24,7 +24,7 @@ export class MainThreadInteractive implements MainThreadInteractiveShape {
 			this._proxy.$willAddInteractiveDocument(e.inputUri, '\n', 'plaintext', e.notebookUri);
 		}));
 
-		this._disposables.add(interactiveDocumentService.onWillAddInteractiveDocument((e) => {
+		this._disposables.add(interactiveDocumentService.onWillRemoveInteractiveDocument((e) => {
 			this._proxy.$willRemoveInteractiveDocument(e.inputUri, e.notebookUri);
 		}));
 	}

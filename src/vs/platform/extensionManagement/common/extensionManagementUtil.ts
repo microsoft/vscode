@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, ILocalExtension, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {

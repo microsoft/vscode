@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, } from 'vs/base/common/errors';
-import { Emitter, Event, } from 'vs/base/common/event';
-import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { canceled } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -23,13 +23,17 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 
 	const thenable = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
-		source.token.onCancellationRequested(() => {
+		const subscription = source.token.onCancellationRequested(() => {
+			subscription.dispose();
+			source.dispose();
 			reject(canceled());
 		});
 		Promise.resolve(thenable).then(value => {
+			subscription.dispose();
 			source.dispose();
 			resolve(value);
 		}, err => {
+			subscription.dispose();
 			source.dispose();
 			reject(err);
 		});
@@ -394,9 +398,13 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	}
 
 	return new Promise((resolve, reject) => {
-		const handle = setTimeout(resolve, millis);
-		token.onCancellationRequested(() => {
+		const handle = setTimeout(() => {
+			disposable.dispose();
+			resolve();
+		}, millis);
+		const disposable = token.onCancellationRequested(() => {
 			clearTimeout(handle);
+			disposable.dispose();
 			reject(canceled());
 		});
 	});
@@ -405,10 +413,6 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
 	const timer = setTimeout(handler, timeout);
 	return toDisposable(() => clearTimeout(timer));
-}
-
-export function ignoreErrors<T>(promise: Promise<T>): Promise<T | undefined> {
-	return promise.then(undefined, _ => undefined);
 }
 
 /**
@@ -972,6 +976,10 @@ export class IdleValue<T> {
 			throw this._error;
 		}
 		return this._value!;
+	}
+
+	get isInitialized(): boolean {
+		return this._didRun;
 	}
 }
 

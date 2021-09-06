@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, posix, extname } from 'vs/base/common/path';
-import { startsWithUTF8BOM } from 'vs/base/common/strings';
-import { match } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
+import { ParsedPattern, parse } from 'vs/base/common/glob';
 import { Schemas } from 'vs/base/common/network';
+import { basename, extname, posix } from 'vs/base/common/path';
 import { DataUri } from 'vs/base/common/resources';
+import { startsWithUTF8BOM } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export namespace Mimes {
 	export const text = 'text/plain';
@@ -30,7 +30,7 @@ export interface ITextMimeAssociation {
 interface ITextMimeAssociationItem extends ITextMimeAssociation {
 	readonly filenameLowercase?: string;
 	readonly extensionLowercase?: string;
-	readonly filepatternLowercase?: string;
+	readonly filepatternLowercase?: ParsedPattern;
 	readonly filepatternOnPath?: boolean;
 }
 
@@ -89,7 +89,7 @@ function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMime
 		userConfigured: association.userConfigured,
 		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
 		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
-		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : undefined,
+		filepatternLowercase: association.filepattern ? parse(association.filepattern.toLowerCase()) : undefined,
 		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(posix.sep) >= 0 : false
 	};
 }
@@ -178,7 +178,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		if (association.filepattern) {
 			if (!patternMatch || association.filepattern.length > patternMatch.filepattern!.length) {
 				const target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
-				if (match(association.filepatternLowercase!, target)) {
+				if (association.filepatternLowercase?.(target)) {
 					patternMatch = association;
 				}
 			}
@@ -194,7 +194,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		}
 	}
 
-	// 1.) Exact name match has second highest prio
+	// 1.) Exact name match has second highest priority
 	if (filenameMatch) {
 		return filenameMatch.mime;
 	}
@@ -253,6 +253,18 @@ interface MapExtToMediaMimes {
 	[index: string]: string;
 }
 
+const mapExtToTextMimes: MapExtToMediaMimes = {
+	'.css': 'text/css',
+	'.csv': 'text/csv',
+	'.htm': 'text/html',
+	'.html': 'text/html',
+	'.ics': 'text/calendar',
+	'.js': 'text/javascript',
+	'.mjs': 'text/javascript',
+	'.txt': 'text/plain',
+	'.xml': 'text/xml'
+};
+
 // Known media mimes that we can handle
 const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.aac': 'audio/x-aac',
@@ -304,6 +316,16 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.wmv': 'video/x-ms-wmv',
 	'.woff': 'application/font-woff',
 };
+
+export function getMediaOrTextMime(path: string): string | undefined {
+	const ext = extname(path);
+	const textMime = mapExtToTextMimes[ext.toLowerCase()];
+	if (textMime !== undefined) {
+		return textMime;
+	} else {
+		return getMediaMime(path);
+	}
+}
 
 export function getMediaMime(path: string): string | undefined {
 	const ext = extname(path);

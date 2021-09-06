@@ -65,6 +65,48 @@ suite('Notebook Outline', function () {
 		});
 	});
 
+	test('Notebook falsely detects "empty cells"', async function () {
+		await withNotebookOutline([
+			['  的时代   ', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '的时代');
+		});
+
+		await withNotebookOutline([
+			['   ', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, 'empty cell');
+		});
+
+		await withNotebookOutline([
+			['+++++[]{}--)(0  ', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '+++++[]{}--)(0');
+		});
+
+		await withNotebookOutline([
+			['+++++[]{}--)(0 Hello **&^ ', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '+++++[]{}--)(0 Hello **&^');
+		});
+
+		await withNotebookOutline([
+			['!@#$\n Überschrïft', 'md', CellKind.Markup]
+		], outline => {
+			assert.ok(outline instanceof NotebookCellOutline);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements().length, 1);
+			assert.deepStrictEqual(outline.config.quickPickDataSource.getQuickPickElements()[0].label, '!@#$\n Überschrïft');
+		});
+	});
+
 	test('Heading text defines entry label', async function () {
 		return await withNotebookOutline([
 			['foo\n # h1', 'md', CellKind.Markup]

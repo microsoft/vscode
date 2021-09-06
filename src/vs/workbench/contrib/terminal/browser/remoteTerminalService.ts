@@ -22,7 +22,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICompleteTerminalConfiguration, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
-import { ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -42,6 +41,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
 	private readonly _onPtyHostRequestResolveVariables = this._register(new Emitter<IRequestResolveVariablesEvent>());
 	readonly onPtyHostRequestResolveVariables = this._onPtyHostRequestResolveVariables.event;
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -76,6 +77,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			channel.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
 			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+			channel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
+			channel.onProcessDidChangeHasChildProcesses(e => this._ptys.get(e.id)?.handleDidChangeHasChildProcesses(e.event));
 
 			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 			channel.onExecuteCommand(async e => {
@@ -134,20 +137,42 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				}));
 			}
 			this._register(channel.onPtyHostRequestResolveVariables(async e => {
+				// Only answer requests for this workspace
+				if (e.workspaceId !== workspaceContextService.getWorkspace().id) {
+					return;
+				}
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
-				channel.acceptPtyHostResolvedVariables(e.id, result);
+				channel.acceptPtyHostResolvedVariables(e.requestId, result);
 			}));
 		} else {
 			this._remoteTerminalChannel = null;
 		}
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot request detach instance when there is no remote!`);
+		}
+		return this._remoteTerminalChannel.requestDetachInstance(workspaceId, instanceId);
+	}
+
+	async acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error(`Cannot accept detached instance when there is no remote!`);
+		} else if (!persistentProcessId) {
+			this._logService.warn('Cannot attach to feature terminals, custom pty terminals, or those without a persistentProcessId');
+			return;
+		}
+
+		return this._remoteTerminalChannel.acceptDetachInstanceReply(requestId, persistentProcessId);
+	}
+
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, unicodeVersion: '6' | '11', shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot create remote terminal when there is no remote!`);
 		}
@@ -174,6 +199,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			shouldPersist,
 			cols,
 			rows,
+			unicodeVersion
 		);
 		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 		this._ptys.set(result.persistentTerminalId, pty);

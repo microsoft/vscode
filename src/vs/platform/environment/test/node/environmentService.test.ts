@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { parseExtensionHostPort } from 'vs/platform/environment/common/environmentService';
+import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import product from 'vs/platform/product/common/product';
 

@@ -27,6 +27,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -42,7 +43,7 @@ export class ExtensionsGridView extends Disposable {
 	) {
 		super();
 		this.element = dom.append(parent, dom.$('.extensions-grid-view'));
-		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None });
+		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None }, { hoverOptions: { position() { return HoverPosition.BELOW; } } });
 		this.delegate = delegate;
 		this.disposableStore = this._register(new DisposableStore());
 	}

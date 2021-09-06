@@ -15,6 +15,7 @@ import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/termi
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 let terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
@@ -22,6 +23,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 	static PREFIX = 'term ';
 
 	constructor(
+		@IEditorService private readonly _editorService: IEditorService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -121,7 +123,8 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				},
 				accept: (keyMod, event) => {
 					if (terminal.target === TerminalLocation.Editor) {
-						this._terminalEditorService.openEditor(terminal);
+						const existingEditors = this._editorService.findEditors(terminal.resource);
+						this._terminalEditorService.openEditor(terminal, { viewColumn: existingEditors?.[0].groupId });
 						this._terminalEditorService.setActiveInstance(terminal);
 					} else {
 						this._terminalGroupService.showPanel(!event.inBackground);

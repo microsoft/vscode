@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
 import API from '../utils/api';
-import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
+import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Logger } from '../utils/logger';
 import { isWeb } from '../utils/platform';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
@@ -98,14 +98,14 @@ export class TypeScriptServerSpawner {
 			return CompositeServerType.SyntaxOnly;
 		}
 
-		switch (configuration.separateSyntaxServer) {
-			case SeparateSyntaxServerConfiguration.ForAllRequests:
+		switch (configuration.useSyntaxServer) {
+			case SyntaxServerConfiguration.Always:
 				return CompositeServerType.SyntaxOnly;
 
-			case SeparateSyntaxServerConfiguration.Disabled:
+			case SyntaxServerConfiguration.Never:
 				return CompositeServerType.Single;
 
-			case SeparateSyntaxServerConfiguration.Enabled:
+			case SyntaxServerConfiguration.Auto:
 				if (version.apiVersion?.gte(API.v340)) {
 					return version.apiVersion?.gte(API.v400)
 						? CompositeServerType.DynamicSeparateSyntax

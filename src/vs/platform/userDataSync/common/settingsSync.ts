@@ -3,27 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import {
-	UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncStoreService, IUserDataSyncLogService, IUserDataSyncUtilService, CONFIGURATION_SYNC_STORE_KEY,
-	SyncResource, IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, USER_DATA_SYNC_SCHEME, ISyncResourceHandle, IUserDataSynchroniser,
-	IRemoteUserData, ISyncData, Change
-} from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { updateIgnoredSettings, merge, getIgnoredSettings, isEmpty } from 'vs/platform/userDataSync/common/settingsMerge';
-import { edit } from 'vs/platform/userDataSync/common/content';
-import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Event } from 'vs/base/common/event';
+import { applyEdits, setProperty } from 'vs/base/common/jsonEdit';
 import { Edit } from 'vs/base/common/jsonFormatter';
-import { setProperty, applyEdits } from 'vs/base/common/jsonEdit';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { edit } from 'vs/platform/userDataSync/common/content';
+import { getIgnoredSettings, isEmpty, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
+import { Change, CONFIGURATION_SYNC_STORE_KEY, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISettingsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
@@ -307,7 +303,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		if (!this._defaultIgnoredSettings) {
 			this._defaultIgnoredSettings = this.userDataSyncUtilService.resolveDefaultIgnoredSettings();
 			const disposable = Event.any<any>(
-				Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
+				Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
 				Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)))(() => {
 					disposable.dispose();
 					this._defaultIgnoredSettings = undefined;

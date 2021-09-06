@@ -16,7 +16,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeAction, CodeActionProviderRegistry, Command } from 'vs/editor/common/modes';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionTrigger, CodeActionKind } from 'vs/editor/contrib/codeAction/types';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';

@@ -6,24 +6,24 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
-import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import * as path from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { URI } from 'vs/base/common/uri';
+import * as pfs from 'vs/base/node/pfs';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceIdentifier, rewriteWorkspaceFileForNewLocation, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 flakySuite('WorkspacesManagementMainService', () => {
 

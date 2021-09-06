@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { TestFS } from './memfs';
-import * as assert from 'assert';
 
 export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);

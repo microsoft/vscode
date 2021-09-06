@@ -3,32 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, IFileContent, FileChangesEvent, FileOperationResult, FileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { equals } from 'vs/base/common/arrays';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import {
-	SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService,
-	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncResourcePreview as IBaseSyncResourcePreview,
-	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change, MergeState, IUserDataInitializer, getLastSyncResourceUri
-} from 'vs/platform/userDataSync/common/userDataSync';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtUri, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
-import { CancelablePromise, RunOnceScheduler, createCancelablePromise } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ParseError, parse } from 'vs/base/common/json';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { Emitter, Event } from 'vs/base/common/event';
+import { parse, ParseError } from 'vs/base/common/json';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { extUri, extUriIgnorePathCase, IExtUri } from 'vs/base/common/resources';
+import { uppercaseFirstLetter } from 'vs/base/common/strings';
+import { isString } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isString } from 'vs/base/common/types';
-import { uppercaseFirstLetter } from 'vs/base/common/strings';
-import { equals } from 'vs/base/common/arrays';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { FileChangesEvent, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileContent, IFileService } from 'vs/platform/files/common/files';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IHeaders } from 'vs/base/parts/request/common/request';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, ISyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };

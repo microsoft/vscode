@@ -35,7 +35,7 @@ suite('FileWorkingCopyManager', () => {
 			new TestUntitledFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
 			accessor.environmentService, accessor.dialogService
 		);
@@ -83,6 +83,7 @@ suite('FileWorkingCopyManager', () => {
 		const untitledFileWorkingCopy = await manager.resolve();
 		assert.ok(untitledFileWorkingCopy instanceof UntitledFileWorkingCopy);
 		assert.strictEqual(await manager.untitled.resolve({ untitledResource: untitledFileWorkingCopy.resource }), untitledFileWorkingCopy);
+		assert.strictEqual(await manager.resolve(untitledFileWorkingCopy.resource), untitledFileWorkingCopy);
 
 		fileWorkingCopy.dispose();
 		untitledFileWorkingCopy.dispose();

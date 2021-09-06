@@ -30,7 +30,7 @@
           ".har",
           ".jslintrc",
           ".jsonld",
-          ".ipynb"
+          ".geojson"
         ],
         "filenames": [
           "composer.lock",

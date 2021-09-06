@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
+import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 abstract class CommentLineAction extends EditorAction {

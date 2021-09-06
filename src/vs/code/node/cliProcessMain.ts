@@ -3,49 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { release, hostname } from 'os';
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
-import { Promises } from 'vs/base/node/pfs';
-import { isAbsolute, join } from 'vs/base/common/path';
+import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
-import product from 'vs/platform/product/common/product';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { isAbsolute, join } from 'vs/base/common/path';
+import { cwd } from 'vs/base/common/process';
+import { URI } from 'vs/base/common/uri';
+import { Promises } from 'vs/base/node/pfs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
+import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
+import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel, MultiplexLogService } from 'vs/platform/log/common/log';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
+import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
+import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import { combinedAppender, getTelemetryLevel, NullTelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ILogService, getLogLevel, LogLevel, ConsoleLogger, MultiplexLogService, ILogger } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
-import { URI } from 'vs/base/common/uri';
-import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { cwd } from 'vs/base/common/process';
 
 class CliMain extends Disposable {
 
@@ -143,7 +143,7 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		const appenders: AppInsightsAppender[] = [];
-		if (environmentService.isBuilt && !environmentService.isExtensionDevelopment && !environmentService.disableTelemetry && productService.enableTelemetry) {
+		if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.USER) {
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
 				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}
@@ -189,6 +189,10 @@ class CliMain extends Disposable {
 
 			logService.error(`[uncaught exception in CLI]: ${message}`);
 		});
+
+		// Handle unhandled errors that can occur
+		process.on('uncaughtException', err => onUnexpectedError(err));
+		process.on('unhandledRejection', (reason: unknown) => onUnexpectedError(reason));
 	}
 
 	private async doRun(environmentService: INativeEnvironmentService, extensionManagementCLIService: IExtensionManagementCLIService, fileService: IFileService): Promise<void> {

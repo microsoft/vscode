@@ -14,7 +14,7 @@ import { IWorkingCopyBackup, IWorkingCopyBackupMeta, WorkingCopyCapabilities } f
 import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { assertIsDefined } from 'vs/base/common/types';
-import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -294,7 +294,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		private readonly modelFactory: IStoredFileWorkingCopyModelFactory<M>,
 		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
-		@ITextFileService private readonly textFileService: ITextFileService,
+		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
@@ -657,7 +657,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	private onModelContentChanged(model: M, isUndoingOrRedoing: boolean): void {
 		this.trace(`[stored file working copy] onModelContentChanged() - enter`);
 
-		// In any case increment the version id because it tracks the textual content state of the model at all times
+		// In any case increment the version id because it tracks the content state of the model at all times
 		this.versionId++;
 		this.trace(`[stored file working copy] onModelContentChanged() - new versionId ${this.versionId}`);
 
@@ -835,7 +835,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			// In addition we update our version right after in case it changed
 			// because of a working copy change
 			// Save participants can also be skipped through API.
-			if (this.isResolved() && !options.skipSaveParticipants && this.isTextFileModel(this.model)) {
+			if (this.isResolved() && !options.skipSaveParticipants && this.workingCopyFileService.hasSaveParticipants) {
 				try {
 
 					// Measure the time it took from the last undo/redo operation to this save. If this
@@ -860,7 +860,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Run save participants unless save was cancelled meanwhile
 					if (!saveCancellation.token.isCancellationRequested) {
-						await this.textFileService.files.runSaveParticipants(this.model, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
 					}
 				} catch (error) {
 					this.logService.error(`[stored file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true), this.typeId);
@@ -983,12 +983,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			this.inConflictMode = true;
 		}
 
-		// Delegate to save error handler
-		if (this.isTextFileModel(this.model)) {
-			this.textFileService.files.saveErrorHandler.onSaveError(error, this.model);
-		} else {
-			this.doHandleSaveError(error);
-		}
+		// Show save error to user for handling
+		this.doHandleSaveError(error);
 
 		// Emit as event
 		this._onDidSaveError.fire();
@@ -1196,16 +1192,6 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		this.inErrorMode = false;
 
 		super.dispose();
-	}
-
-	//#endregion
-
-	//#region Remainders of text file model world (TODO@bpasero callers have to be handled in a generic way)
-
-	private isTextFileModel(model: unknown): model is ITextFileEditorModel {
-		const textFileModel = this.textFileService.files.get(this.resource);
-
-		return !!(textFileModel && this.model && (textFileModel as unknown) === (this.model as unknown));
 	}
 
 	//#endregion

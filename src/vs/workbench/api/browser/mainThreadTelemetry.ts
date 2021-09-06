@@ -10,6 +10,8 @@ import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/pla
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 @extHostNamedCustomer(MainContext.MainThreadTelemetry)
 export class MainThreadTelemetry extends Disposable implements MainThreadTelemetryShape {
@@ -22,12 +24,13 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmenService: IEnvironmentService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
 
-		if (!this._environmenService.disableTelemetry) {
+		if (getTelemetryLevel(this._productService, this._environmenService) >= TelemetryLevel.LOG) {
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
 				if (e.affectedKeys.includes('telemetry.enableTelemetry')) {
 					this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
@@ -39,7 +42,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	}
 
 	private get telemetryEnabled(): boolean {
-		if (this._environmenService.disableTelemetry) {
+		if (getTelemetryLevel(this._productService, this._environmenService) < TelemetryLevel.USER) {
 			return false;
 		}
 

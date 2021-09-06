@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { isWindows } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
-import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
+import { isWindows } from 'vs/base/common/platform';
+import { localize } from 'vs/nls';
 import { FileDeleteOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 

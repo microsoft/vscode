@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { localize } from 'vs/nls';
-import { ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { iconRegistry } from 'vs/base/common/codicons';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { localize } from 'vs/nls';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 
 const terminalProfileBaseProperties: IJSONSchemaMap = {
 	args: {
@@ -109,28 +109,28 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ShellLinux]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
 			type: ['string', 'null'],
 			default: null,
 			markdownDeprecationMessage: shellDeprecationMessageLinux
 		},
 		[TerminalSettingId.ShellMacOs]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
 			type: ['string', 'null'],
 			default: null,
 			markdownDeprecationMessage: shellDeprecationMessageOsx
 		},
 		[TerminalSettingId.ShellWindows]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
 			type: ['string', 'null'],
 			default: null,
 			markdownDeprecationMessage: shellDeprecationMessageWindows
 		},
 		[TerminalSettingId.ShellArgsLinux]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -140,7 +140,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ShellArgsMacOs]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -153,18 +153,18 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.ShellArgsWindows]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles)."),
 			'anyOf': [
 				{
 					type: 'array',
 					items: {
 						type: 'string',
-						markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
+						markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles).")
 					},
 				},
 				{
 					type: 'string',
-					markdownDescription: localize('terminal.integrated.shellArgs.windows.string', "The command line arguments in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).")
+					markdownDescription: localize('terminal.integrated.shellArgs.windows.string', "The command line arguments in [command-line format](https://msdn.microsoft.com/en-au/08dfcab2-eb6e-49a4-80eb-87d4076c98c6) to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_terminal-profiles).")
 				}
 			],
 			default: [],
@@ -210,6 +210,25 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 							...terminalProfileBaseProperties
 						}
 					},
+					{
+						type: 'object',
+						required: ['extensionIdentifier', 'id', 'title'],
+						properties: {
+							extensionIdentifier: {
+								description: localize('terminalProfile.windowsExtensionIdentifier', 'The extension that contributed this profile.'),
+								type: 'string'
+							},
+							id: {
+								description: localize('terminalProfile.windowsExtensionId', 'The id of the extension terminal'),
+								type: 'string'
+							},
+							title: {
+								description: localize('terminalProfile.windowsExtensionTitle', 'The name of the extension terminal'),
+								type: 'string'
+							},
+							...terminalProfileBaseProperties
+						}
+					},
 					{ type: 'null' },
 					terminalProfileSchema
 				]
@@ -250,6 +269,25 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			},
 			additionalProperties: {
 				'anyOf': [
+					{
+						type: 'object',
+						required: ['extensionIdentifier', 'id', 'title'],
+						properties: {
+							extensionIdentifier: {
+								description: localize('terminalProfile.osxExtensionIdentifier', 'The extension that contributed this profile.'),
+								type: 'string'
+							},
+							id: {
+								description: localize('terminalProfile.osxExtensionId', 'The id of the extension terminal'),
+								type: 'string'
+							},
+							title: {
+								description: localize('terminalProfile.osxExtensionTitle', 'The name of the extension terminal'),
+								type: 'string'
+							},
+							...terminalProfileBaseProperties
+						}
+					},
 					{ type: 'null' },
 					terminalProfileSchema
 				]
@@ -267,7 +305,8 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'bash': {
-					path: 'bash'
+					path: 'bash',
+					icon: 'terminal-bash'
 				},
 				'zsh': {
 					path: 'zsh'
@@ -286,6 +325,25 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			},
 			additionalProperties: {
 				'anyOf': [
+					{
+						type: 'object',
+						required: ['extensionIdentifier', 'id', 'title'],
+						properties: {
+							extensionIdentifier: {
+								description: localize('terminalProfile.linuxExtensionIdentifier', 'The extension that contributed this profile.'),
+								type: 'string'
+							},
+							id: {
+								description: localize('terminalProfile.linuxExtensionId', 'The id of the extension terminal'),
+								type: 'string'
+							},
+							title: {
+								description: localize('terminalProfile.linuxExtensionTitle', 'The name of the extension terminal'),
+								type: 'string'
+							},
+							...terminalProfileBaseProperties
+						}
+					},
 					{ type: 'null' },
 					terminalProfileSchema
 				]
@@ -298,7 +356,19 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.InheritEnv]: {
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code which may source a login shell to ensure $PATH and other development variables are initialized. This has no effect on Windows."),
+			description: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code, which may source a login shell to ensure $PATH and other development variables are initialized. This has no effect on Windows."),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.PersistentSessionScrollback]: {
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('terminal.integrated.persistentSessionScrollback', "Controls the maximum amount of lines that will be restored when reconnecting to a persistent terminal session. Increasing this will restore more lines of scrollback at the cost of more memory and increase the time it takes to connect to terminals on start up. This setting requires a restart to take effect and should be set to a value less than or equal to `#terminal.integrated.scrollback#`."),
+			type: 'number',
+			default: 100
+		},
+		[TerminalSettingId.PersistentSessionExperimentalSerializer]: {
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('terminal.integrated.persistentSessionExperimentalSerializer', "Whether to use a more efficient experimental approach for restoring the terminal's buffer. This setting requires a restart to take effect."),
 			type: 'boolean',
 			default: true
 		},
@@ -320,22 +390,14 @@ export function registerTerminalPlatformConfiguration() {
 }
 
 let lastDefaultProfilesConfiguration: IConfigurationNode | undefined;
-export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }) {
+export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }, extensionContributedProfiles?: readonly IExtensionTerminalProfile[]) {
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	if (lastDefaultProfilesConfiguration) {
 		registry.deregisterConfigurations([lastDefaultProfilesConfiguration]);
 	}
-	let enumValues: string[] | undefined = undefined;
-	let enumDescriptions: string[] | undefined = undefined;
+	let profileEnum;
 	if (detectedProfiles) {
-		const result = detectedProfiles.profiles.map(e => {
-			return {
-				name: e.profileName,
-				description: createProfileDescription(e)
-			};
-		});
-		enumValues = result.map(e => e.name);
-		enumDescriptions = result.map(e => e.description);
+		profileEnum = createProfileSchemaEnums(detectedProfiles?.profiles, extensionContributedProfiles);
 	}
 	lastDefaultProfilesConfiguration = {
 		id: 'terminal',
@@ -345,50 +407,29 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 		properties: {
 			[TerminalSettingId.DefaultProfileLinux]: {
 				restricted: true,
-				markdownDescription: localize('terminal.integrated.defaultProfile.linux', "The default profile used on Linux. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.linux#`', '`#terminal.integrated.shellArgs.linux#`'),
+				markdownDescription: localize('terminal.integrated.defaultProfile.linux', "The default profile used on Linux. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.linux`', '`terminal.integrated.shellArgs.linux`'),
 				type: ['string', 'null'],
 				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Linux ? enumValues : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Linux ? enumDescriptions : undefined
+				enum: detectedProfiles?.os === OperatingSystem.Linux ? profileEnum?.values : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Linux ? profileEnum?.markdownDescriptions : undefined
 			},
 			[TerminalSettingId.DefaultProfileMacOs]: {
 				restricted: true,
-				markdownDescription: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
+				markdownDescription: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.osx`', '`terminal.integrated.shellArgs.osx`'),
 				type: ['string', 'null'],
 				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Macintosh ? enumValues : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Macintosh ? enumDescriptions : undefined
+				enum: detectedProfiles?.os === OperatingSystem.Macintosh ? profileEnum?.values : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Macintosh ? profileEnum?.markdownDescriptions : undefined
 			},
 			[TerminalSettingId.DefaultProfileWindows]: {
 				restricted: true,
-				markdownDescription: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
+				markdownDescription: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`terminal.integrated.shell.windows`', '`terminal.integrated.shellArgs.windows`'),
 				type: ['string', 'null'],
 				default: null,
-				enum: detectedProfiles?.os === OperatingSystem.Windows ? enumValues : undefined,
-				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Windows ? enumDescriptions : undefined
+				enum: detectedProfiles?.os === OperatingSystem.Windows ? profileEnum?.values : undefined,
+				markdownEnumDescriptions: detectedProfiles?.os === OperatingSystem.Windows ? profileEnum?.markdownDescriptions : undefined
 			},
 		}
 	};
 	registry.registerConfiguration(lastDefaultProfilesConfiguration);
-}
-
-function createProfileDescription(profile: ITerminalProfile): string {
-	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
-	if (profile.args) {
-		if (typeof profile.args === 'string') {
-			description += `\n- args: "${profile.args}"`;
-		} else {
-			description += `\n- args: [${profile.args.length === 0 ? '' : profile.args.join(`','`)}]`;
-		}
-	}
-	if (profile.overrideName !== undefined) {
-		description += `\n- overrideName: ${profile.overrideName}`;
-	}
-	if (profile.color) {
-		description += `\n- color: ${profile.color}`;
-	}
-	if (profile.env) {
-		description += `\n- env: ${JSON.stringify(profile.env)}`;
-	}
-	return description;
 }

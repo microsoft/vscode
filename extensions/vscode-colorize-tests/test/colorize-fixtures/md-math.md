@@ -62,3 +62,28 @@ $$
 \theta % comment
 $$
 -->
+
+Should be disabled in fenced code blocks:
+
+```txt
+$$
+\displaystyle
+\left( \sum_{k=1}^n a_k b_k \right)^2
+\leq
+\left( \sum_{k=1}^n a_k^2 \right)
+\left( \sum_{k=1}^n b_k^2 \right)
+$$
+```
+
+<!-- #128411 -->
+
+- list item
+    **abc**
+    $$
+    \begin{aligned}
+        &\text{Any equation}
+        \\
+        &\text {Inconsistent KaTeX keyword highlighting}
+    \end{aligned}
+    $$
+    **xyz**

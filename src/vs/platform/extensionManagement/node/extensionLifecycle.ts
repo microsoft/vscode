@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { fork, ChildProcess } from 'child_process';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { join } from 'vs/base/common/path';
+import { ChildProcess, fork } from 'child_process';
 import { Limiter } from 'vs/base/common/async';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionsLifecycle extends Disposable {
 

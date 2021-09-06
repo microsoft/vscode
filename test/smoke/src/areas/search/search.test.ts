@@ -19,7 +19,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
-		afterSuite();
+		afterSuite(opts);
 
 		// https://github.com/microsoft/vscode/issues/124146
 		it.skip /* https://github.com/microsoft/vscode/issues/124335 */('has a tooltp with a keybinding', async function () {
@@ -75,7 +75,7 @@ export function setup(opts: minimist.ParsedArgs) {
 
 	describe('Quick Access', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;

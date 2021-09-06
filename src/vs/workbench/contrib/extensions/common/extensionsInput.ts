@@ -8,9 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { EditorInputCapabilities, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { join } from 'vs/base/common/path';
+
 export class ExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.extensions.input2';
@@ -26,18 +27,26 @@ export class ExtensionsInput extends EditorInput {
 	override get resource() {
 		return URI.from({
 			scheme: Schemas.extension,
-			path: join(this.extension.identifier.id, 'extension')
+			path: join(this._extension.identifier.id, 'extension')
 		});
 	}
 
 	constructor(
-		public readonly extension: IExtension
+		private _extension: IExtension,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super();
+		this._register(extensionsWorkbenchService.onChange(extension => {
+			if (extension && areSameExtensions(this._extension.identifier, extension.identifier)) {
+				this._extension = extension;
+			}
+		}));
 	}
 
+	get extension(): IExtension { return this._extension; }
+
 	override getName(): string {
-		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
+		return localize('extensionsInputName', "Extension: {0}", this._extension.displayName);
 	}
 
 	override matches(other: IEditorInput | IUntypedEditorInput): boolean {
@@ -45,6 +54,6 @@ export class ExtensionsInput extends EditorInput {
 			return true;
 		}
 
-		return other instanceof ExtensionsInput && areSameExtensions(this.extension.identifier, other.extension.identifier);
+		return other instanceof ExtensionsInput && areSameExtensions(this._extension.identifier, other._extension.identifier);
 	}
 }

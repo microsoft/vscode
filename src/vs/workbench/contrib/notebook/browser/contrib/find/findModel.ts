@@ -24,7 +24,7 @@ export class FindModel extends Disposable {
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
 	private _currentMatchDecorations: ICellModelDecorations[] = [];
-	private _modelDisposable = new DisposableStore();
+	private readonly _modelDisposable = this._register(new DisposableStore());
 
 	get findMatches() {
 		return this._findMatches;
@@ -42,7 +42,7 @@ export class FindModel extends Disposable {
 		super();
 
 		this._register(_state.onFindReplaceStateChange(e => {
-			if (e.searchString || (e.isRevealed && this._state.isRevealed)) {
+			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed)) {
 				this.research();
 			}
 
@@ -133,13 +133,18 @@ export class FindModel extends Disposable {
 	}
 
 	research() {
-		if (!this._state.isRevealed) {
+		if (!this._state.isRevealed || !this._notebookEditor.hasModel()) {
 			this.set([], false);
 			return;
 		}
 
 		const findMatches = this._getFindMatches();
 		if (!findMatches) {
+			return;
+		}
+
+		if (findMatches.length === 0) {
+			this.set([], false);
 			return;
 		}
 
@@ -151,11 +156,11 @@ export class FindModel extends Disposable {
 
 		const oldCurrIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		const oldCurrCell = this._findMatches[oldCurrIndex.index].cell;
-		const oldCurrMatchCellIndex = this._notebookEditor.viewModel!.getCellIndex(oldCurrCell);
+		const oldCurrMatchCellIndex = this._notebookEditor.getCellIndex(oldCurrCell);
 
 		if (oldCurrMatchCellIndex < 0) {
 			// the cell containing the active match is deleted
-			const focusedCell = this._notebookEditor.viewModel!.viewCells[this._notebookEditor.viewModel!.getFocus().start];
+			const focusedCell = this._notebookEditor.cellAt(this._notebookEditor.getFocus().start);
 
 			if (!focusedCell) {
 				this.set(findMatches, false);
@@ -168,7 +173,7 @@ export class FindModel extends Disposable {
 		}
 
 		// the cell still exist
-		const cell = this._notebookEditor.viewModel!.viewCells[oldCurrMatchCellIndex];
+		const cell = this._notebookEditor.cellAt(oldCurrMatchCellIndex);
 		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
 			// find the nearest match above this cell
 			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
@@ -186,7 +191,7 @@ export class FindModel extends Disposable {
 					?? this._findMatches[oldCurrIndex.index].matches[oldCurrIndex.remainder].range;
 
 				// not attached, just use the range
-				const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex);
+				const matchAfterSelection = findFirstInSorted(findMatches, match => match.index >= oldCurrMatchCellIndex) % findMatches.length;
 				if (findMatches[matchAfterSelection].index > oldCurrMatchCellIndex) {
 					// there is no search result in curr cell anymore
 					this._updateCurrentMatch(findMatches, this._matchesCountBeforeIndex(findMatches, matchAfterSelection));
@@ -215,6 +220,12 @@ export class FindModel extends Disposable {
 			this.constructFindMatchesStarts();
 			this._currentMatch = -1;
 			this.clearCurrentFindMatchDecoration();
+
+			this._state.changeMatchInfo(
+				this._currentMatch,
+				this._findMatches.reduce((p, c) => p + c.matches.length, 0),
+				undefined
+			);
 			return;
 		}
 
@@ -246,7 +257,13 @@ export class FindModel extends Disposable {
 			return null;
 		}
 
-		const findMatches = this._notebookEditor.viewModel!.find(val, options).filter(match => match.matches.length > 0);
+		if (!this._notebookEditor.hasModel()) {
+			return null;
+		}
+
+		const vm = this._notebookEditor._getViewModel();
+
+		const findMatches = vm.find(val, options).filter(match => match.matches.length > 0);
 		return findMatches;
 	}
 

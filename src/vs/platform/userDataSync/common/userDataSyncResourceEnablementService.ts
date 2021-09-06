@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncResourceEnablementService, ALL_SYNC_RESOURCES, SyncResource, getEnablementKey } from 'vs/platform/userDataSync/common/userDataSync';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isWeb } from 'vs/base/common/platform';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { isWeb } from 'vs/base/common/platform';
+import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncEnablementClassification = {
 	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };

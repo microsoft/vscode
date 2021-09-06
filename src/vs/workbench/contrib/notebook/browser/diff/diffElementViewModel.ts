@@ -12,7 +12,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { hash } from 'vs/base/common/hash';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
-import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { URI } from 'vs/base/common/uri';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
@@ -34,9 +34,9 @@ interface ILayoutInfoDelta extends ILayoutInfoDelta0 {
 export abstract class DiffElementViewModelBase extends Disposable {
 	public metadataFoldingState: PropertyFoldingState;
 	public outputFoldingState: PropertyFoldingState;
-	protected _layoutInfoEmitter = new Emitter<CellDiffViewModelLayoutChangeEvent>();
+	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
 	onDidLayoutChange = this._layoutInfoEmitter.event;
-	protected _stateChangeEmitter = new Emitter<{ renderOutput: boolean; }>();
+	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean; }>());
 	onDidStateChange = this._stateChangeEmitter.event;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
@@ -332,7 +332,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	checkIfOutputsModified() {
-		return !this.mainDocumentTextModel.transientOptions.transientOutputs && hash(this.original?.outputs.map(op => op.outputs) ?? []) !== hash(this.modified?.outputs.map(op => op.outputs) ?? []);
+		return !this.mainDocumentTextModel.transientOptions.transientOutputs && outputsEqual(this.original?.outputs ?? [], this.modified?.outputs ?? []);
 	}
 
 	checkMetadataIfModified(): boolean {
@@ -487,6 +487,47 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	getCellByUri(cellUri: URI): IGenericCellViewModel {
 		return this.cellViewModel!;
 	}
+}
+
+function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
+	if (original.length !== modified.length) {
+		return false;
+	}
+
+	const len = original.length;
+	for (let i = 0; i < len; i++) {
+		const a = original[i];
+		const b = modified[i];
+
+		if (hash(a.metadata) !== hash(b.metadata)) {
+			return false;
+		}
+
+		if (a.outputs.length !== b.outputs.length) {
+			return false;
+		}
+
+		for (let j = 0; j < a.outputs.length; j++) {
+			const aOutputItem = a.outputs[j];
+			const bOutputItem = b.outputs[j];
+
+			if (aOutputItem.mime !== bOutputItem.mime) {
+				return false;
+			}
+
+			if (aOutputItem.data.buffer.length !== bOutputItem.data.buffer.length) {
+				return false;
+			}
+
+			for (let k = 0; k < aOutputItem.data.buffer.length; k++) {
+				if (aOutputItem.data.buffer[k] !== bOutputItem.data.buffer[k]) {
+					return false;
+				}
+			}
+		}
+	}
+
+	return true;
 }
 
 export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { escapeIcons } from 'vs/base/common/iconLabels';
 import { illegalArgument } from 'vs/base/common/errors';
+import { escapeIcons } from 'vs/base/common/iconLabels';
+import { UriComponents } from 'vs/base/common/uri';
 
 export interface IMarkdownString {
 	readonly value: string;
 	readonly isTrusted?: boolean;
 	readonly supportThemeIcons?: boolean;
+	readonly supportHtml?: boolean;
 	uris?: { [href: string]: UriComponents };
 }
 
@@ -24,10 +25,11 @@ export class MarkdownString implements IMarkdownString {
 	public value: string;
 	public isTrusted?: boolean;
 	public supportThemeIcons?: boolean;
+	public supportHtml?: boolean;
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean, supportHtml?: boolean } = false,
 	) {
 		this.value = value;
 		if (typeof this.value !== 'string') {
@@ -37,17 +39,19 @@ export class MarkdownString implements IMarkdownString {
 		if (typeof isTrustedOrOptions === 'boolean') {
 			this.isTrusted = isTrustedOrOptions;
 			this.supportThemeIcons = false;
+			this.supportHtml = false;
 		}
 		else {
 			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
 			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
+			this.supportHtml = isTrustedOrOptions.supportHtml ?? false;
 		}
 	}
 
 	appendText(value: string, newlineStyle: MarkdownStringTextNewlineStyle = MarkdownStringTextNewlineStyle.Paragraph): MarkdownString {
 		this.value += escapeMarkdownSyntaxTokens(this.supportThemeIcons ? escapeIcons(value) : value)
 			.replace(/([ \t]+)/g, (_match, g1) => '&nbsp;'.repeat(g1.length))
-			.replace(/^>/gm, '\\>')
+			.replace(/\>/gm, '\\>')
 			.replace(/\n/g, newlineStyle === MarkdownStringTextNewlineStyle.Break ? '\\\n' : '\n\n');
 
 		return this;

@@ -13,14 +13,12 @@ suite('NotebookRendererMessaging', () => {
 	let extService: NullExtensionService;
 	let m: NotebookRendererMessagingService;
 	let sent: unknown[] = [];
-	let received: unknown[] = [];
 
 	setup(() => {
 		sent = [];
 		extService = new NullExtensionService();
 		m = new NotebookRendererMessagingService(extService);
 		m.onShouldPostMessage(e => sent.push(e));
-		m.onDidReceiveMessage(e => received.push(e));
 	});
 
 	test('activates on prepare', () => {

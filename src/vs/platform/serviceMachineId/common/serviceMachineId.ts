@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
+import { generateUuid, isUUID } from 'vs/base/common/uuid';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { isUUID, generateUuid } from 'vs/base/common/uuid';
-import { VSBuffer } from 'vs/base/common/buffer';
 
 export async function getServiceMachineId(environmentService: IEnvironmentService, fileService: IFileService, storageService: {
 	get: (key: string, scope: StorageScope, fallbackValue?: string | undefined) => string | undefined,

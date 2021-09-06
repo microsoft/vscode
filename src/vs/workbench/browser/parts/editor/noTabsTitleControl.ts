@@ -10,8 +10,7 @@ import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
-import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
@@ -78,16 +77,13 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleTap(e)));
 
 		// Context Menu
-		this._register(addDisposableListener(titleContainer, EventType.CONTEXT_MENU, e => {
-			if (this.group.activeEditor) {
-				this.onContextMenu(this.group.activeEditor, e, titleContainer);
-			}
-		}));
-		this._register(addDisposableListener(titleContainer, TouchEventType.Contextmenu, (e: Event) => {
-			if (this.group.activeEditor) {
-				this.onContextMenu(this.group.activeEditor, e, titleContainer);
-			}
-		}));
+		[EventType.CONTEXT_MENU, TouchEventType.Contextmenu].forEach(event => {
+			this._register(addDisposableListener(titleContainer, event, e => {
+				if (this.group.activeEditor) {
+					this.onContextMenu(this.group.activeEditor, e, titleContainer);
+				}
+			}));
+		});
 	}
 
 	private onTitleLabelClick(e: MouseEvent): void {
@@ -123,19 +119,29 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 
 		// TODO@rebornix gesture tap should open the quick access
-		// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
-		// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
+		// editorGroupView will focus on the editor again when there
+		// are mouse/pointer/touch down events we need to wait a bit as
+		// `GesureEvent.Tap` is generated from `touchstart` and then
+		// `touchend` events, which are not an atom event.
 		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
 	}
 
 	openEditor(editor: IEditorInput): void {
+		this.doHandleOpenEditor();
+	}
+
+	openEditors(editors: IEditorInput[]): void {
+		this.doHandleOpenEditor();
+	}
+
+	private doHandleOpenEditor(): void {
 		const activeEditorChanged = this.ifActiveEditorChanged(() => this.redraw());
 		if (!activeEditorChanged) {
 			this.ifActiveEditorPropertiesChanged(() => this.redraw());
 		}
 	}
 
-	closeEditor(editor: IEditorInput): void {
+	closeEditor(editor: IEditorInput, index: number | undefined): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
@@ -169,12 +175,6 @@ export class NoTabsTitleControl extends TitleControl {
 
 	updateEditorCapabilities(editor: IEditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
-	}
-
-	updateEditorLabels(): void {
-		if (this.group.activeEditor) {
-			this.updateEditorLabel(this.group.activeEditor); // we only have the active one to update
-		}
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
@@ -212,9 +212,9 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private ifActiveEditorChanged(fn: () => void): boolean {
 		if (
-			!this.activeLabel.editor && this.group.activeEditor || 	// active editor changed from null => editor
-			this.activeLabel.editor && !this.group.activeEditor || 	// active editor changed from editor => null
-			(!this.activeLabel.editor || !this.group.isActive(this.activeLabel.editor))			// active editor changed from editorA => editorB
+			!this.activeLabel.editor && this.group.activeEditor || 						// active editor changed from null => editor
+			this.activeLabel.editor && !this.group.activeEditor || 						// active editor changed from editor => null
+			(!this.activeLabel.editor || !this.group.isActive(this.activeLabel.editor))	// active editor changed from editorA => editorB
 		) {
 			fn();
 
@@ -325,16 +325,21 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	protected override prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
+	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
-		// Group active: show all actions
+		// Active: allow all actions
 		if (isGroupActive) {
-			return super.prepareEditorActions(editorActions);
+			return editorActions;
 		}
 
-		// Group inactive: only show close action
-		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
+		// Inactive: only show "Close, "Unlock" and secondary actions
+		else {
+			return {
+				primary: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
+				secondary: editorActions.secondary
+			};
+		}
 	}
 
 	getHeight(): IEditorGroupTitleHeight {

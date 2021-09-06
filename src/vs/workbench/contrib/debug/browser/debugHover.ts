@@ -33,6 +33,7 @@ import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesV
 import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isMacintosh } from 'vs/base/common/platform';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 
 const $ = dom.$;
 
@@ -107,13 +108,16 @@ export class DebugHoverWidget implements IContentWidget {
 		const tip = dom.append(this.complexValueContainer, $('.tip'));
 		tip.textContent = nls.localize({ key: 'quickTip', comment: ['"switch to editor language hover" means to show the programming language hover widget instead of the debug hover'] }, 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
 		const dataSource = new DebugHoverDataSource();
-
-		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
+		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer, linkeDetector)],
 			dataSource, {
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
 			horizontalScrolling: true,
 			useShadows: false,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e.name },
+			filterOnType: false,
+			simpleKeyboardNavigation: true,
 			overrideStyles: {
 				listBackground: editorHoverBackground
 			}
@@ -310,7 +314,7 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private layoutTreeAndContainer(initialLayout: boolean): void {
 		const scrollBarHeight = 10;
-		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.55, this.tree.contentHeight + scrollBarHeight);
+		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
 		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
 		this.editor.layoutContentWidget(this);

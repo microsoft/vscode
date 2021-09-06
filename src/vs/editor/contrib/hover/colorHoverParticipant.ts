@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/modes';
 import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
-import { Color, RGBA } from 'vs/base/common/color';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ColorHover implements IHoverPart {

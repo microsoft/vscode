@@ -177,7 +177,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		template.container.style.removeProperty('--outline-element-color');
 		template.decoration.innerText = '';
 		if (markerInfo) {
-			const useBadges = this._configurationService.getValue<boolean>(OutlineConfigKeys.problemsBadges);
+			const useBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 			if (!useBadges) {
 				template.decoration.classList.remove('bubble');
 				template.decoration.innerText = '';
@@ -189,7 +189,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 				template.decoration.innerText = markerInfo.count > 9 ? '9+' : String(markerInfo.count);
 			}
 			const color = this._themeService.getColorTheme().getColor(markerInfo.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
-			const useColors = this._configurationService.getValue<boolean>(OutlineConfigKeys.problemsColors);
+			const useColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 			if (!useColors) {
 				template.container.style.removeProperty('--outline-element-color');
 				template.decoration.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
@@ -273,17 +273,15 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 	}
 }
 
-export class NotebookCellOutline implements IOutline<OutlineEntry> {
+export class NotebookCellOutline extends Disposable implements IOutline<OutlineEntry> {
 
-	private readonly _dispoables = new DisposableStore();
-
-	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
+	private readonly _onDidChange = this._register(new Emitter<OutlineChangeEvent>());
 
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
 	private _entries: OutlineEntry[] = [];
 	private _activeEntry?: OutlineEntry;
-	private readonly _entriesDisposables = new DisposableStore();
+	private readonly _entriesDisposables = this._register(new DisposableStore());
 
 	readonly config: IOutlineListConfig<OutlineEntry>;
 	readonly outlineKind = 'notebookCells';
@@ -301,31 +299,32 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		const selectionListener = new MutableDisposable();
-		this._dispoables.add(selectionListener);
+		super();
+		const selectionListener = this._register(new MutableDisposable());
 		const installSelectionListener = () => {
-			if (!_editor.viewModel) {
+			const notebookEditor = _editor.getControl();
+			if (!notebookEditor?.hasModel()) {
 				selectionListener.clear();
 			} else {
 				selectionListener.value = combinedDisposable(
-					_editor.viewModel.onDidChangeSelection(() => this._recomputeActive()),
-					_editor.viewModel.onDidChangeViewCells(() => this._recomputeState())
+					notebookEditor.onDidChangeSelection(() => this._recomputeActive()),
+					notebookEditor.onDidChangeViewCells(() => this._recomputeState())
 				);
 			}
 		};
 
-		this._dispoables.add(_editor.onDidChangeModel(() => {
+		this._register(_editor.onDidChangeModel(() => {
 			this._recomputeState();
 			installSelectionListener();
 		}));
 
-		this._dispoables.add(_configurationService.onDidChangeConfiguration(e => {
+		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('notebook.outline.showCodeCells')) {
 				this._recomputeState();
 			}
 		}));
 
-		this._dispoables.add(themeService.onDidFileIconThemeChange(() => {
+		this._register(themeService.onDidFileIconThemeChange(() => {
 			this._onDidChange.fire({});
 		}));
 
@@ -367,19 +366,18 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		};
 	}
 
-	dispose(): void {
-		this._onDidChange.dispose();
-		this._dispoables.dispose();
-		this._entriesDisposables.dispose();
-	}
-
 	private _recomputeState(): void {
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._entries.length = 0;
 
-		const { viewModel } = this._editor;
-		if (!viewModel) {
+		const notebookEditorWidget = this._editor.getControl();
+
+		if (!notebookEditorWidget) {
+			return;
+		}
+
+		if (!notebookEditorWidget.hasModel()) {
 			return;
 		}
 
@@ -390,18 +388,22 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const focusedCellIndex = viewModel.getFocus().start;
-		const focused = viewModel.cellAt(focusedCellIndex)?.handle;
+		const focusedCellIndex = notebookEditorWidget.getFocus().start;
+		const focused = notebookEditorWidget.cellAt(focusedCellIndex)?.handle;
 		const entries: OutlineEntry[] = [];
 
-		for (let i = 0; i < viewModel.length; i++) {
-			const cell = viewModel.viewCells[i];
+		for (let i = 0; i < notebookEditorWidget.getLength(); i++) {
+			const cell = notebookEditorWidget.cellAt(i);
+			if (!cell) {
+				continue;
+			}
+
 			const isMarkdown = cell.cellKind === CellKind.Markup;
 			if (!isMarkdown && !includeCodeCells) {
 				continue;
 			}
 
-			// The cap the amount of characters that we look at and use the following logic
+			// cap the amount of characters that we look at and use the following logic
 			// - for MD prefer headings (each header is an entry)
 			// - otherwise use the first none-empty line of the cell (MD or code)
 			let content = cell.getText().substr(0, 10_000);
@@ -420,15 +422,10 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			}
 
 			if (!hasHeader) {
-				const lineMatch = content.match(/^.*\w+.*\w*$/m);
-				let preview: string;
-				if (!lineMatch) {
+				let preview = content.trim();
+				if (preview.length === 0) {
+					// empty or just whitespace
 					preview = localize('empty', "empty cell");
-				} else {
-					preview = lineMatch[0].trim();
-					if (preview.length >= 64) {
-						preview = preview.slice(0, 64) + '…';
-					}
 				}
 
 				entries.push(new OutlineEntry(entries.length, 7, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code));
@@ -491,7 +488,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			};
 			if (this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
 				markerServiceListener.value = this._markerService.onMarkerChanged(e => {
-					if (e.some(uri => viewModel.viewCells.some(cell => isEqual(cell.uri, uri)))) {
+					if (e.some(uri => notebookEditorWidget.getCellsInRange().some(cell => isEqual(cell.uri, uri)))) {
 						doUpdateMarker(false);
 						this._onDidChange.fire({});
 					}
@@ -515,10 +512,10 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private _recomputeActive(): void {
 		let newActive: OutlineEntry | undefined;
-		const { viewModel } = this._editor;
+		const notebookEditorWidget = this._editor.getControl();
 
-		if (viewModel) {
-			const cell = viewModel.cellAt(viewModel.getFocus().start);
+		if (notebookEditorWidget) {
+			const cell = notebookEditorWidget.cellAt(notebookEditorWidget.getFocus().start);
 			if (cell) {
 				for (let entry of this._entries) {
 					newActive = entry.find(cell, []);
@@ -541,7 +538,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
 		await this._editorService.openEditor({
 			resource: entry.cell.uri,
-			options,
+			options: { ...options, override: this._editor.input?.editorId },
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 

@@ -61,6 +61,8 @@ for (let dir of dirs) {
 		const env = { ...process.env };
 		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
 		if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
+		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
+		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 		opts = { env };
 	} else if (/^extensions\//.test(dir)) {
@@ -89,3 +91,4 @@ runtime "${runtime}"`;
 }
 
 cp.execSync('git config pull.rebase merges');
+cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore');

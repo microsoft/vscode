@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILocalization } from 'vs/platform/localizations/common/localizations';
 
 export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
 export const USER_MANIFEST_CACHE_FILE = 'user';
@@ -118,8 +118,9 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never }
-	| { markdown: string, image?: never }
+	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never, svg?: never }
+	| { markdown: string, image?: never, svg?: never }
+	| { svg: string, altText: string, markdown?: never, image?: never }
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
@@ -131,6 +132,7 @@ export interface IWalkthrough {
 	readonly title: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
+	readonly featuredFor: string[] | undefined;
 	readonly when?: string;
 }
 
@@ -140,6 +142,10 @@ export interface IStartEntry {
 	readonly command: string;
 	readonly when?: string;
 	readonly category: 'file' | 'folder' | 'notebook';
+}
+
+export interface INotebookRendererContribution {
+	readonly id: string;
 }
 
 export interface IExtensionContributions {
@@ -164,25 +170,26 @@ export interface IExtensionContributions {
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
 	startEntries?: IStartEntry[];
+	readonly notebookRenderer?: INotebookRendererContribution[];
 }
 
 export interface IExtensionCapabilities {
-	readonly virtualWorkspaces?: ExtensionVirtualWorkpaceSupport;
+	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
 	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
 }
 
 
-
+export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
-export type LimitedWorkpaceSupportType = 'limited';
-export type ExtensionUntrustedWorkpaceSupportType = boolean | LimitedWorkpaceSupportType;
-export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkpaceSupportType, description: string, restrictedConfigurations?: string[] };
+export type LimitedWorkspaceSupportType = 'limited';
+export type ExtensionUntrustedWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
+export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkspaceSupportType, description: string, restrictedConfigurations?: string[] };
 
-export type ExtensionVirtualWorkpaceSupportType = boolean | LimitedWorkpaceSupportType;
-export type ExtensionVirtualWorkpaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkpaceSupportType, description: string };
+export type ExtensionVirtualWorkspaceSupportType = boolean | LimitedWorkspaceSupportType;
+export type ExtensionVirtualWorkspaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkspaceSupportType, description: string };
 
-export function getWorkpaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkpaceSupport | undefined): string | undefined {
+export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkspaceSupport | undefined): string | undefined {
 	if (typeof supportType === 'object' && supportType !== null) {
 		if (supportType.supported !== true) {
 			return supportType.description;

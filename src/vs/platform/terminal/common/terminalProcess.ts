@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from 'vs/base/common/uri';
-import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;

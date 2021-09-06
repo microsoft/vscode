@@ -5,12 +5,12 @@
 
 import { binarySearch, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export abstract class WordDistance {
 

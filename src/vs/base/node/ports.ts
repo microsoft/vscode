@@ -9,7 +9,7 @@ import * as net from 'net';
  * Given a start point and a max number of retries, will find a port that
  * is openable. Will return 0 in case no free port can be found.
  */
-export function findFreePort(startPort: number, giveUpAfter: number, timeout: number): Promise<number> {
+export function findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
 	let done = false;
 
 	return new Promise(resolve => {
@@ -20,7 +20,7 @@ export function findFreePort(startPort: number, giveUpAfter: number, timeout: nu
 			}
 		}, timeout);
 
-		doFindFreePort(startPort, giveUpAfter, (port) => {
+		doFindFreePort(startPort, giveUpAfter, stride, (port) => {
 			if (!done) {
 				done = true;
 				clearTimeout(timeoutHandle);
@@ -30,7 +30,7 @@ export function findFreePort(startPort: number, giveUpAfter: number, timeout: nu
 	});
 }
 
-function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: number) => void): void {
+function doFindFreePort(startPort: number, giveUpAfter: number, stride: number, clb: (port: number) => void): void {
 	if (giveUpAfter === 0) {
 		return clb(0);
 	}
@@ -41,7 +41,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 	client.once('connect', () => {
 		dispose(client);
 
-		return doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
+		return doFindFreePort(startPort + stride, giveUpAfter - 1, stride, clb);
 	});
 
 	client.once('data', () => {
@@ -53,7 +53,7 @@ function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: numb
 
 		// If we receive any non ECONNREFUSED error, it means the port is used but we cannot connect
 		if (err.code !== 'ECONNREFUSED') {
-			return doFindFreePort(startPort + 1, giveUpAfter - 1, clb);
+			return doFindFreePort(startPort + stride, giveUpAfter - 1, stride, clb);
 		}
 
 		// Otherwise it means the port is free to use!

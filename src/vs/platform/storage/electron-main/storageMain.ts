@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/node/pfs';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
-import { Storage, InMemoryStorageDatabase, StorageHint, IStorage } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
+import { generateUuid } from 'vs/base/common/uuid';
+import { Promises } from 'vs/base/node/pfs';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
+import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IStorageMainOptions {
@@ -133,7 +133,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 		return this.initializePromise;
 	}
 
-	protected createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
+	protected createLoggingOptions(): ISQLiteStorageDatabaseLoggingOptions {
 		return {
 			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => this.logService.error(error)
@@ -201,7 +201,7 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 		}
 
 		return new Storage(new SQLiteStorageDatabase(storagePath, {
-			logging: this.createLogginOptions()
+			logging: this.createLoggingOptions()
 		}));
 	}
 
@@ -254,7 +254,7 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		const { storageFilePath, wasCreated } = await this.prepareWorkspaceStorageFolder();
 
 		return new Storage(new SQLiteStorageDatabase(storageFilePath, {
-			logging: this.createLogginOptions()
+			logging: this.createLoggingOptions()
 		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
 	}
 

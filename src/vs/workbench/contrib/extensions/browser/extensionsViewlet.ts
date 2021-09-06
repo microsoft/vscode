@@ -32,7 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -59,7 +59,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isWeb } from 'vs/base/common/platform';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { WorkspaceTrustContext } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
@@ -184,7 +183,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 							f1: true,
 							menu: {
 								id: MenuId.ViewTitle,
-								when: ContextKeyEqualsExpr.create('view', id),
+								when: ContextKeyExpr.equals('view', id),
 								group: 'navigation',
 							}
 						});
@@ -411,14 +410,14 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: 'workbench.views.extensions.untrustedUnsupportedExtensions',
 			name: localize('untrustedUnsupportedExtensions', "Disabled in Restricted Mode"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspaceUnsupportedExtensionsView, [{}]),
-			when: ContextKeyExpr.and(WorkspaceTrustContext.IsTrusted.negate(), SearchUnsupportedWorkspaceExtensionsContext),
+			when: ContextKeyExpr.and(SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.untrustedPartiallySupportedExtensions',
 			name: localize('untrustedPartiallySupportedExtensions', "Limited in Restricted Mode"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspacePartiallySupportedExtensionsView, [{}]),
-			when: ContextKeyExpr.and(WorkspaceTrustContext.IsTrusted.negate(), SearchUnsupportedWorkspaceExtensionsContext),
+			when: ContextKeyExpr.and(SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
@@ -609,7 +608,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	override layout(dimension: Dimension): void {
 		if (this.root) {
-			this.root.classList.toggle('narrow', dimension.width <= 300);
+			this.root.classList.toggle('narrow', dimension.width <= 250);
+			this.root.classList.toggle('mini', dimension.width <= 200);
 		}
 		if (this.searchBox) {
 			this.searchBox.layout(new Dimension(dimension.width - 34, 20));
@@ -759,7 +759,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		if (/ECONNREFUSED/.test(message)) {
 			const error = createErrorWithActions(localize('suggestProxyError', "Marketplace returned 'ECONNREFUSED'. Please check the 'http.proxy' setting."), {
 				actions: [
-					new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openGlobalSettings())
+					new Action('open user settings', localize('open user settings', "Open User Settings"), undefined, true, () => this.preferencesService.openUserSettings())
 				]
 			});
 

@@ -10,12 +10,11 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { RuntimeExtensionsEditor, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
 import { DebugExtensionHostAction } from 'vs/workbench/contrib/extensions/electron-sandbox/debugExtensionHostAction';
-import { IEditorInputSerializer, IEditorInputFactoryRegistry, ActiveEditorContext, EditorExtensions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorSerializer, IEditorFactoryRegistry, ActiveEditorContext, EditorExtensions, IEditorInput } from 'vs/workbench/common/editor';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
@@ -25,24 +24,24 @@ import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/e
 import { Codicon } from 'vs/base/common/codicons';
 
 // Running Extensions Editor
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(RuntimeExtensionsEditor, RuntimeExtensionsEditor.ID, localize('runtimeExtension', "Running Extensions")),
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(RuntimeExtensionsEditor, RuntimeExtensionsEditor.ID, localize('runtimeExtension', "Running Extensions")),
 	[new SyncDescriptor(RuntimeExtensionsInput)]
 );
 
-class RuntimeExtensionsInputSerializer implements IEditorInputSerializer {
-	canSerialize(editorInput: EditorInput): boolean {
+class RuntimeExtensionsInputSerializer implements IEditorSerializer {
+	canSerialize(editorInput: IEditorInput): boolean {
 		return true;
 	}
-	serialize(editorInput: EditorInput): string {
+	serialize(editorInput: IEditorInput): string {
 		return '';
 	}
-	deserialize(instantiationService: IInstantiationService): EditorInput {
+	deserialize(instantiationService: IInstantiationService): IEditorInput {
 		return RuntimeExtensionsInput.instance;
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(RuntimeExtensionsInput.ID, RuntimeExtensionsInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(RuntimeExtensionsInput.ID, RuntimeExtensionsInputSerializer);
 
 
 // Global actions

@@ -101,7 +101,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		}
 
 		const output = new TestOutputProcess();
-		this.showResultsInTerminal(this.terminalService.createTerminal({
+		this.showResultsInTerminal(await this.terminalService.createTerminal({
 			config: {
 				isFeatureTerminal: true,
 				icon: testingViewIcon,
@@ -202,6 +202,10 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	}
 	public acknowledgeDataEvent(): void {
 		// no-op, flow control not currently implemented
+	}
+	public setUnicodeVersion(): Promise<void> {
+		// no-op
+		return Promise.resolve();
 	}
 
 	public getInitialCwd(): Promise<string> {

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFunction, isString } from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
-import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { localize } from 'vs/nls';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isFunction, isString } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
 
 
 export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {
@@ -25,7 +25,7 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIc
 	}
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | undefined): IDisposable | undefined {
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement | undefined): IDisposable | undefined {
 	if (!markdownTooltip) {
 		return undefined;
 	}
@@ -72,14 +72,14 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			if (hoverPreparation) {
 
 				const hoverOptions = {
-					text: localize('iconLabel.loading', "Loading..."),
+					content: localize('iconLabel.loading', "Loading..."),
 					target,
 					hoverPosition: HoverPosition.BELOW
 				};
 				hoverWidget?.dispose();
 				hoverWidget = hoverDelegate.showHover(hoverOptions);
 
-				const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) ? markdownTooltip.markdownNotSupportedFallback : undefined);
+				const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) && !(markdownTooltip instanceof HTMLElement) ? markdownTooltip.markdownNotSupportedFallback : undefined);
 
 				hoverWidget?.dispose();
 				hoverWidget = undefined;
@@ -87,7 +87,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 				// awaiting the tooltip could take a while. Make sure we're still preparing to hover.
 				if (resolvedTooltip && hoverPreparation) {
 					const hoverOptions = {
-						text: resolvedTooltip,
+						content: resolvedTooltip,
 						target,
 						showPointer: hoverDelegate.placement === 'element',
 						hoverPosition: HoverPosition.BELOW
@@ -119,8 +119,8 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 }
 
 
-function getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString): (token: CancellationToken) => Promise<string | IMarkdownString | undefined> {
-	if (isString(markdownTooltip)) {
+function getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString | HTMLElement): (token: CancellationToken) => Promise<string | IMarkdownString | HTMLElement | undefined> {
+	if (isString(markdownTooltip) || markdownTooltip instanceof HTMLElement) {
 		return async () => markdownTooltip;
 	} else if (isFunction(markdownTooltip.markdown)) {
 		return markdownTooltip.markdown;

@@ -16,8 +16,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { GroupIdentifier, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
-import { IResourceEditorInput, isResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 suite('HistoryService', function () {
@@ -29,7 +29,6 @@ suite('HistoryService', function () {
 		const instantiationService = workbenchInstantiationService();
 
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
 
 		const editorService = instantiationService.createInstance(EditorService);
@@ -77,7 +76,7 @@ suite('HistoryService', function () {
 
 		class TestFileEditorInputWithUntyped extends TestFileEditorInput {
 
-			override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput {
+			override toUntyped(): IUntypedEditorInput {
 				return {
 					resource: this.resource,
 					options: {

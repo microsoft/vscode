@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -55,6 +55,7 @@ suite('WorkingCopyEditorService', () => {
 		const instantiationService = workbenchInstantiationService();
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
+
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 		const editorService = instantiationService.createInstance(EditorService);
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -77,7 +78,7 @@ suite('WorkingCopyEditorService', () => {
 		const editor1 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
 		const editor2 = instantiationService.createInstance(UntitledTextEditorInput, accessor.untitledTextEditorService.create({ initialValue: 'foo' }));
 
-		await editorService.openEditors([{ editor: editor1, options: { override: EditorOverride.DISABLED } }, { editor: editor2, options: { override: EditorOverride.DISABLED } }]);
+		await editorService.openEditors([{ editor: editor1, options: { override: EditorResolution.DISABLED } }, { editor: editor2, options: { override: EditorResolution.DISABLED } }]);
 
 		assert.ok(service.findEditor(testWorkingCopy));
 

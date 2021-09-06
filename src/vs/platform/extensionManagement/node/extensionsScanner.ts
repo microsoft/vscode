@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as semver from 'vs/base/common/semver/semver';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as pfs from 'vs/base/node/pfs';
-import * as path from 'vs/base/common/path';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILocalExtension, IGalleryMetadata, ExtensionManagementError } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionManifest, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { areSameExtensions, ExtensionIdentifierWithVersion, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { flatten } from 'vs/base/common/arrays';
 import { Limiter, Promises, Queue } from 'vs/base/common/async';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
+import * as path from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { basename } from 'vs/base/common/resources';
+import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { generateUuid } from 'vs/base/common/uuid';
+import * as pfs from 'vs/base/node/pfs';
+import { extract, ExtractError } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtensionManagementError, IGalleryMetadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationToken } from 'vscode';
-import { extract, ExtractError } from 'vs/base/node/zip';
-import { isWindows } from 'vs/base/common/platform';
-import { flatten } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { FileAccess } from 'vs/base/common/network';
-import { IFileService } from 'vs/platform/files/common/files';
-import { basename } from 'vs/base/common/resources';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getErrorMessage } from 'vs/base/common/errors';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -100,7 +100,7 @@ export class ExtensionsScanner extends Disposable {
 		return this.scanExtensionsInDir(this.extensionsPath, ExtensionType.User);
 	}
 
-	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, token: CancellationToken): Promise<ILocalExtension> {
+	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IMetadata | undefined, token: CancellationToken): Promise<ILocalExtension> {
 		const folderName = identifierWithVersion.key();
 		const tempPath = path.join(this.extensionsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsPath, folderName);
@@ -119,7 +119,7 @@ export class ExtensionsScanner extends Disposable {
 		if (!local) {
 			throw new Error(localize('cannot read', "Cannot read the extension from {0}", tempPath));
 		}
-		await this.storeMetadata(local, { installedTimestamp: Date.now() });
+		await this.storeMetadata(local, { ...metadata, installedTimestamp: Date.now() });
 
 		try {
 			await this.rename(identifierWithVersion, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);

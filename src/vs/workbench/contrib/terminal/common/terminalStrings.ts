@@ -28,13 +28,21 @@ export const terminalStrings = {
 		short: localize('killTerminal.short', "Kill"),
 	},
 	moveToEditor: {
-		value: localize('moveToEditor', "Move Terminal into Editor Group"),
-		original: 'Move Terminal into Editor Group',
-		short: 'Move into Editor Group'
+		value: localize('moveToEditor', "Move Terminal into Editor Area"),
+		original: 'Move Terminal into Editor Area',
+		short: localize('moveToEditorShort', "Move into Editor Area")
 	},
 	moveToTerminalPanel: {
 		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
 		original: 'Move Terminal into Panel'
+	},
+	changeIcon: {
+		value: localize('workbench.action.terminal.changeIcon', "Change Icon..."),
+		original: 'Change Icon...'
+	},
+	changeColor: {
+		value: localize('workbench.action.terminal.changeColor', "Change Color..."),
+		original: 'Change Color...'
 	},
 	split: {
 		value: localize('splitTerminal', "Split Terminal"),
@@ -44,5 +52,9 @@ export const terminalStrings = {
 	unsplit: {
 		value: localize('unsplitTerminal', "Unsplit Terminal"),
 		original: 'Unsplit Terminal'
+	},
+	rename: {
+		value: localize('workbench.action.terminal.rename', "Rename..."),
+		original: 'Rename...'
 	}
 };

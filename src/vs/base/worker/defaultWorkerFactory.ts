@@ -15,8 +15,8 @@ function getWorker(workerId: string, label: string): Worker | Promise<Worker> {
 			return globals.MonacoEnvironment.getWorker(workerId, label);
 		}
 		if (typeof globals.MonacoEnvironment.getWorkerUrl === 'function') {
-			const wokerUrl = <string>globals.MonacoEnvironment.getWorkerUrl(workerId, label);
-			return new Worker(ttPolicy ? ttPolicy.createScriptURL(wokerUrl) as unknown as string : wokerUrl, { name: label });
+			const workerUrl = <string>globals.MonacoEnvironment.getWorkerUrl(workerId, label);
+			return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
 		}
 	}
 	// ESM-comment-begin
@@ -37,7 +37,7 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
 		const myPath = 'vs/base/worker/defaultWorkerFactory.js';
 		const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};importScripts('${scriptPath}');/*${label}*/`;
+		const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = self.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
 		const blob = new Blob([js], { type: 'application/javascript' });
 		return URL.createObjectURL(blob);
 	}
@@ -71,10 +71,10 @@ class WebWorker implements IWorker {
 		}
 		this.postMessage(moduleId, []);
 		this.worker.then((w) => {
-			w.onmessage = function (ev: any) {
+			w.onmessage = function (ev) {
 				onMessageCallback(ev.data);
 			};
-			(<any>w).onmessageerror = onErrorCallback;
+			w.onmessageerror = onErrorCallback;
 			if (typeof w.addEventListener === 'function') {
 				w.addEventListener('error', onErrorCallback);
 			}

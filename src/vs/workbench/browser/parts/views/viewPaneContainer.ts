@@ -19,9 +19,9 @@ import { PaneView, IPaneViewOptions } from 'vs/base/browser/ui/splitview/panevie
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
+import { IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, IViewsService, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -45,7 +45,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
 	submenu: ViewsSubMenu,
 	title: nls.localize('views', "Views"),
 	order: 1,
-	when: ContextKeyEqualsExpr.create('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
 });
 
 export interface IPaneColors extends IColorMapping {
@@ -1193,3 +1193,36 @@ registerAction2(
 		}
 	}
 );
+
+
+registerAction2(class MoveViews extends Action2 {
+	constructor() {
+		super({
+			id: 'vscode.moveViews',
+			title: nls.localize('viewsMove', "Move Views"),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, options: { viewIds: string[], destinationId: string }): Promise<void> {
+		if (!Array.isArray(options?.viewIds) || typeof options?.destinationId !== 'string') {
+			return Promise.reject('Invalid arguments');
+		}
+
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+
+		const destination = viewDescriptorService.getViewContainerById(options.destinationId);
+		if (!destination) {
+			return;
+		}
+
+		// FYI, don't use `moveViewsToContainer` in 1 shot, because it expects all views to have the same current location
+		for (const viewId of options.viewIds) {
+			const viewDescriptor = viewDescriptorService.getViewDescriptorById(viewId);
+			if (viewDescriptor?.canMoveView) {
+				viewDescriptorService.moveViewsToContainer([viewDescriptor], destination, ViewVisibilityState.Default);
+			}
+		}
+
+		await accessor.get(IViewsService).openViewContainer(destination.id, true);
+	}
+});

@@ -17,7 +17,8 @@ function workspaceFile(...segments: string[]) {
 
 const testDocument = workspaceFile('bower.json');
 
-suite('vscode API - webview', () => {
+// Disable webview tests on web
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {

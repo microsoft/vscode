@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
-import { SuggestWidgetAdapterModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetAdapterModel';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { Emitter } from 'vs/base/common/event';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { InlineCompletionTriggerKind } from 'vs/editor/common/modes';
+import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { InlineCompletionsModel, LiveInlineCompletions, SynchronizedInlineCompletionsCache } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
+import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
 import { createDisposableRef } from 'vs/editor/contrib/inlineCompletions/utils';
-import { GhostTextWidgetModel, GhostText } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export abstract class DelegatingModel extends Disposable implements GhostTextWidgetModel {
 	private readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
+
+	private hasCachedGhostText = false;
+	private cachedGhostText: GhostText | undefined;
 
 	private readonly currentModelRef = this._register(new MutableDisposable<IReference<GhostTextWidgetModel>>());
 	protected get targetModel(): GhostTextWidgetModel | undefined {
@@ -24,15 +28,25 @@ export abstract class DelegatingModel extends Disposable implements GhostTextWid
 	}
 
 	protected setTargetModel(model: GhostTextWidgetModel | undefined): void {
+		if (this.currentModelRef.value?.object === model) {
+			return;
+		}
+		this.currentModelRef.clear();
 		this.currentModelRef.value = model ? createDisposableRef(model, model.onDidChange(() => {
+			this.hasCachedGhostText = false;
 			this.onDidChangeEmitter.fire();
 		})) : undefined;
 
+		this.hasCachedGhostText = false;
 		this.onDidChangeEmitter.fire();
 	}
 
 	public get ghostText(): GhostText | undefined {
-		return this.targetModel?.ghostText;
+		if (!this.hasCachedGhostText) {
+			this.cachedGhostText = this.currentModelRef.value?.object?.ghostText;
+			this.hasCachedGhostText = true;
+		}
+		return this.cachedGhostText;
 	}
 
 	public setExpanded(expanded: boolean): void {
@@ -52,8 +66,9 @@ export abstract class DelegatingModel extends Disposable implements GhostTextWid
  * A ghost text model that is both driven by inline completions and the suggest widget.
 */
 export class GhostTextModel extends DelegatingModel implements GhostTextWidgetModel {
-	public readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetAdapterModel(this.editor));
-	public readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.commandService));
+	public readonly sharedCache = this._register(new SharedInlineCompletionCache());
+	public readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetPreviewModel(this.editor, this.sharedCache));
+	public readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.sharedCache, this.commandService));
 
 	public get activeInlineCompletionsModel(): InlineCompletionsModel | undefined {
 		if (this.targetModel === this.inlineCompletionsModel) {
@@ -92,7 +107,7 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 	}
 
 	public triggerInlineCompletion(): void {
-		this.activeInlineCompletionsModel?.trigger();
+		this.activeInlineCompletionsModel?.trigger(InlineCompletionTriggerKind.Explicit);
 	}
 
 	public commitInlineCompletion(): void {
@@ -114,5 +129,36 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 	public async hasMultipleInlineCompletions(): Promise<boolean> {
 		const result = await this.activeInlineCompletionsModel?.hasMultipleInlineCompletions();
 		return result !== undefined ? result : false;
+	}
+}
+
+export class SharedInlineCompletionCache extends Disposable {
+	private readonly onDidChangeEmitter = new Emitter<void>();
+	public readonly onDidChange = this.onDidChangeEmitter.event;
+
+	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
+
+	public get value(): SynchronizedInlineCompletionsCache | undefined {
+		return this.cache.value;
+	}
+
+	public setValue(editor: IActiveCodeEditor,
+		completionsSource: LiveInlineCompletions,
+		triggerKind: InlineCompletionTriggerKind
+	) {
+		this.cache.value = new SynchronizedInlineCompletionsCache(
+			editor,
+			completionsSource,
+			() => this.onDidChangeEmitter.fire(),
+			triggerKind
+		);
+	}
+
+	public clearAndLeak(): SynchronizedInlineCompletionsCache | undefined {
+		return this.cache.clearAndLeak();
+	}
+
+	public clear() {
+		this.cache.clear();
 	}
 }

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel } from 'vs/editor/common/model';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { CodeLensModel } from 'vs/editor/contrib/codelens/codelens';
-import { LRUCache } from 'vs/base/common/map';
-import { CodeLensProvider, CodeLensList, CodeLens } from 'vs/editor/common/modes';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { Range } from 'vs/editor/common/core/range';
 import { runWhenIdle } from 'vs/base/common/async';
 import { once } from 'vs/base/common/functional';
+import { LRUCache } from 'vs/base/common/map';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { CodeLens, CodeLensList, CodeLensProvider } from 'vs/editor/common/modes';
+import { CodeLensModel } from 'vs/editor/contrib/codelens/codelens';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
 export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
 

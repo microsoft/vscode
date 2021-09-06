@@ -22,6 +22,11 @@ export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 			return workspaceStorageURI;
 		}
 
+		if (this._environment.skipWorkspaceStorageLock) {
+			this._logService.info(`Skipping acquiring lock for ${workspaceStorageURI.fsPath}.`);
+			return workspaceStorageURI;
+		}
+
 		const workspaceStorageBase = workspaceStorageURI.fsPath;
 		let attempt = 0;
 		do {
@@ -71,7 +76,10 @@ async function mkdir(dir: string): Promise<void> {
 		// doesn't exist, that's OK
 	}
 
-	await fs.promises.mkdir(dir);
+	try {
+		await fs.promises.mkdir(dir, { recursive: true });
+	} catch {
+	}
 }
 
 const MTIME_UPDATE_TIME = 1000; // 1s
@@ -174,7 +182,13 @@ async function readLockfileContents(logService: ILogService, filename: string): 
 		return null;
 	}
 
-	return JSON.parse(String(contents));
+	try {
+		return JSON.parse(String(contents));
+	} catch (err) {
+		// cannot parse the file
+		logService.error(err);
+		return null;
+	}
 }
 
 /**

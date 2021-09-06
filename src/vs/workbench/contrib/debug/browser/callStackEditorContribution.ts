@@ -18,8 +18,8 @@ import { distinct } from 'vs/base/common/arrays';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { debugStackframe, debugStackframeFocused } from 'vs/workbench/contrib/debug/browser/debugIcons';
 
-const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
-const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
+export const topStackFrameColor = registerColor('editor.stackFrameHighlightBackground', { dark: '#ffff0033', light: '#ffff6673', hc: '#ffff0033' }, localize('topStackFrameLineHighlight', 'Background color for the highlight of line at the top stack frame position.'));
+export const focusedStackFrameColor = registerColor('editor.focusedStackFrameHighlightBackground', { dark: '#7abd7a4d', light: '#cee7ce73', hc: '#7abd7a4d' }, localize('focusedStackFrameLineHighlight', 'Background color for the highlight of line at focused stack frame position.'));
 const stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 
 // we need a separate decoration for glyph margin, since we do not want it on each line of a multi line statement.
@@ -47,10 +47,6 @@ const TOP_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	className: 'debug-top-stack-frame-line',
 	stickiness
 };
-const TOP_STACK_FRAME_INLINE_DECORATION: IModelDecorationOptions = {
-	description: 'top-stack-frame-inline-decoration',
-	beforeContentClassName: 'debug-top-stack-frame-column'
-};
 const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	description: 'focused-stack-frame-decoration',
 	isWholeLine: true,
@@ -58,7 +54,7 @@ const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	stickiness
 };
 
-export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocusedSession: boolean): IModelDeltaDecoration[] {
+export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocusedSession: boolean, noCharactersBefore: boolean): IModelDeltaDecoration[] {
 	// only show decorations for the currently focused thread.
 	const result: IModelDeltaDecoration[] = [];
 	const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
@@ -82,7 +78,10 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 
 		if (stackFrame.range.startColumn > 1) {
 			result.push({
-				options: TOP_STACK_FRAME_INLINE_DECORATION,
+				options: {
+					description: 'top-stack-frame-inline-decoration',
+					beforeContentClassName: noCharactersBefore ? 'debug-top-stack-frame-column start-of-line' : 'debug-top-stack-frame-column'
+				},
 				range: columnUntilEOLRange
 			});
 		}
@@ -142,7 +141,8 @@ export class CallStackEditorContribution implements IEditorContribution {
 
 					stackFrames.forEach(candidateStackFrame => {
 						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, this.editor.getModel()?.uri)) {
-							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, isSessionFocused));
+							const noCharactersBefore = this.editor.hasModel() ? this.editor.getModel()?.getLineFirstNonWhitespaceColumn(candidateStackFrame.range.startLineNumber) >= candidateStackFrame.range.startColumn : false;
+							decorations.push(...createDecorationsForStackFrame(candidateStackFrame, isSessionFocused, noCharactersBefore));
 						}
 					});
 				}

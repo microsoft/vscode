@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedExternalError, canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { canceled, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Range } from 'vs/editor/common/core/range';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { isDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible")),

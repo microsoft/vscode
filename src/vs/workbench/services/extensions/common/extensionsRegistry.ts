@@ -148,13 +148,11 @@ const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
-		'workspace',
-		'web'
+		'workspace'
 	],
 	enumDescriptions: [
 		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
 		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
-		nls.localize('web', "Web worker extension kind. Such an extension can execute in a web worker extension host.")
 	],
 };
 
@@ -326,8 +324,13 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onTerminalProfile',
-						body: 'onTerminalProfile:${1:terminalType}',
+						body: 'onTerminalProfile:${1:terminalId}',
 						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+					},
+					{
+						label: 'onWalkthrough',
+						body: 'onWalkthrough:${1:walkthroughID}',
+						description: nls.localize('vscode.extension.activationEvents.onWalkthrough', 'An activation event emitted when a specified walkthrough is opened.'),
 					},
 					{
 						label: '*',

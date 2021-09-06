@@ -3,32 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncResourceEnablementService,
-	IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, USER_DATA_SYNC_SCHEME, IRemoteUserData, Change, ALL_SYNC_RESOURCES, getEnablementKey, SYNC_SERVICE_URL_TYPE, UserDataSyncStoreType, IUserData, ISyncData, createSyncHeaders, UserDataSyncError, UserDataSyncErrorCode
-} from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { edit } from 'vs/platform/userDataSync/common/content';
-import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
-import { parse } from 'vs/base/common/json';
-import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { Event } from 'vs/base/common/event';
+import { parse } from 'vs/base/common/json';
+import { applyEdits } from 'vs/base/common/jsonEdit';
+import { format } from 'vs/base/common/jsonFormatter';
 import { isWeb } from 'vs/base/common/platform';
-import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders } from 'vs/base/parts/request/common/request';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { edit } from 'vs/platform/userDataSync/common/content';
+import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
+import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, getEnablementKey, IGlobalState, IRemoteUserData, IStorageValue, ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, SyncResource, SYNC_SERVICE_URL_TYPE, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreType, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
@@ -108,7 +105,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const lastSyncGlobalState: IGlobalState | null = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
 
-		const localGloablState = await this.getLocalGlobalState();
+		const localGlobalState = await this.getLocalGlobalState();
 
 		if (remoteGlobalState) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote ui state with local ui state...`);
@@ -117,7 +114,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 
 		const storageKeys = this.getStorageKeys(lastSyncGlobalState);
-		const { local, remote } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, storageKeys, this.logService);
+		const { local, remote } = merge(localGlobalState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, storageKeys, this.logService);
 		const previewResult: IGlobalStateResourceMergeResult = {
 			content: null,
 			local,
@@ -128,8 +125,8 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 		return [{
 			localResource: this.localResource,
-			localContent: formatAndStringify(localGloablState),
-			localUserData: localGloablState,
+			localContent: formatAndStringify(localGlobalState),
+			localUserData: localGlobalState,
 			remoteResource: this.remoteResource,
 			remoteContent: remoteGlobalState ? formatAndStringify(remoteGlobalState) : null,
 			previewResource: this.previewResource,

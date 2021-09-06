@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { sep } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IExpression } from 'vs/base/common/glob';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isNumber } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { IExpression } from 'vs/base/common/glob';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { sep } from 'vs/base/common/path';
+import { ReadableStreamEvents } from 'vs/base/common/stream';
+import { startsWithIgnoreCase } from 'vs/base/common/strings';
+import { isNumber } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 //#region file service & providers
 

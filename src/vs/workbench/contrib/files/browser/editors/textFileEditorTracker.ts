@@ -52,7 +52,11 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
 
-	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyTextFilesAreOpened(units), 50));
+	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyTextFilesAreOpened(units), this.getDirtyTextFileTrackerDelay()));
+
+	protected getDirtyTextFileTrackerDelay(): number {
+		return 800; // encapsulated in a method for tests to override
+	}
 
 	private ensureDirtyTextFilesAreOpened(resources: URI[]): void {
 		this.doEnsureDirtyTextFilesAreOpened(distinct(resources.filter(resource => {

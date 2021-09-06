@@ -12,6 +12,8 @@
 		["[", "]"],
 		["(", ")"]
 	],
+	"colorizedBracketPairs": [
+	],
 	"autoClosingPairs": [
 		{
 			"open": "{",

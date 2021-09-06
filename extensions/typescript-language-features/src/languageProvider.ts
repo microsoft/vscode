@@ -5,11 +5,11 @@
 
 import { basename } from 'path';
 import * as vscode from 'vscode';
+import { CommandManager } from './commands/commandManager';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import { CachedResponse } from './tsServer/cachedResponse';
 import TypeScriptServiceClient from './typescriptServiceClient';
-import { CommandManager } from './commands/commandManager';
 import { Disposable } from './utils/dispose';
 import { DocumentSelector } from './utils/documentSelector';
 import * as fileSchemes from './utils/fileSchemes';
@@ -83,6 +83,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
 			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
+			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
 		]);
 	}
 

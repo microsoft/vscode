@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -21,7 +21,7 @@ import { ActivityUpdater, IMarkersView } from 'vs/workbench/contrib/markers/brow
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -319,7 +319,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			title: localize('collapseAll', "Collapse All"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyEqualsExpr.create('view', Constants.MARKERS_VIEW_ID),
+				when: ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID),
 				group: 'navigation',
 				order: 2,
 			},
@@ -339,7 +339,7 @@ registerAction2(class extends Action2 {
 			title: localize('filter', "Filter"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', Constants.MARKERS_VIEW_ID), Constants.MarkersViewSmallLayoutContextKey.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', Constants.MARKERS_VIEW_ID), Constants.MarkersViewSmallLayoutContextKey.negate()),
 				group: 'navigation',
 				order: 1,
 			},
@@ -391,9 +391,9 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersTooltip(stats: MarkerStatistics): string {
-		const errorTitle = (n: number) => localize('totalErrors', "{0} Errors", n);
-		const warningTitle = (n: number) => localize('totalWarnings', "{0} Warnings", n);
-		const infoTitle = (n: number) => localize('totalInfos', "{0} Infos", n);
+		const errorTitle = (n: number) => localize('totalErrors', "Errors: {0}", n);
+		const warningTitle = (n: number) => localize('totalWarnings', "Warnings: {0}", n);
+		const infoTitle = (n: number) => localize('totalInfos', "Infos: {0}", n);
 
 		const titles: string[] = [];
 

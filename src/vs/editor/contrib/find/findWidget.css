@@ -113,8 +113,10 @@
 }
 
 .monaco-editor .find-widget .button {
-	width: 20px;
-	height: 20px;
+	width: 16px;
+	height: 16px;
+	padding: 3px;
+	border-radius: 5px;
 	display: flex;
 	flex: initial;
 	margin-left: 3px;
@@ -124,6 +126,14 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+/* find in selection button */
+.monaco-editor .find-widget .codicon-find-selection {
+	width: 22px;
+	height: 22px;
+	padding: 3px;
+	border-radius: 5px;
 }
 
 .monaco-editor .find-widget .button.left {

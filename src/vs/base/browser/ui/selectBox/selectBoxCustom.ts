@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./selectBoxCustom';
-
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
-import * as arrays from 'vs/base/common/arrays';
-import { IContextViewProvider, AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IListRenderer, IListEvent } from 'vs/base/browser/ui/list/list';
 import { DomEmitter } from 'vs/base/browser/event';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
-import { isMacintosh } from 'vs/base/common/platform';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { IListEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
+import * as arrays from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import 'vs/css!./selectBoxCustom';
 import { localize } from 'vs/nls';
+
 
 const $ = dom.$;
 
@@ -349,14 +349,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Hover foreground - ignore for disabled options
 		if (this.styles.listHoverForeground) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover { color: ${this.styles.listHoverForeground} !important; }`);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.listActiveSelectionForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { color: ${this.styles.listHoverForeground} !important; }`);
 		}
 
 		// Hover background - ignore for disabled options
 		if (this.styles.listHoverBackground) {
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
 		}
 
 		// Match quick input outline styles - ignore for disabled options
@@ -365,9 +363,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		if (this.styles.listHoverOutline) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover:not(.focused) { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
 		}
+
+		// Clear list styles on focus and on hover for disabled options
+		content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled.focused { background-color: transparent !important; color: inherit !important; outline: none !important; }`);
+		content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: transparent !important; color: inherit !important; outline: none !important; }`);
 
 		this.styleElement.textContent = content.join('\n');
 
@@ -742,6 +743,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			.map(e => new StandardKeyboardEvent(e));
 
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(e => this.onEnter(e), this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Tab).on(e => this.onEnter(e), this)); // Tab should behave the same as enter, #79339
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(e => this.onUpArrow(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(e => this.onDownArrow(e), this));

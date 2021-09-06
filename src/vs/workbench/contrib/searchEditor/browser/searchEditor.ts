@@ -10,14 +10,15 @@ import { Delayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
@@ -57,6 +58,8 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -218,6 +221,15 @@ export class SearchEditor extends BaseTextEditor {
 				this.searchResultEditor.focus();
 			}));
 		}
+	}
+
+	private _getContributions(): IEditorContributionDescription[] {
+		const skipContributions = [UnusualLineTerminatorsDetector.ID];
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+	}
+
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: this._getContributions() });
 	}
 
 	private registerEditorListeners() {
@@ -487,7 +499,7 @@ export class SearchEditor extends BaseTextEditor {
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: 10000,
+			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			excludePattern: config.filesToExclude,

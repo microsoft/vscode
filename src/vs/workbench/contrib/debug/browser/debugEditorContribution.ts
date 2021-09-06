@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { flatten } from 'vs/base/common/arrays';
+import { distinct, flatten } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
@@ -715,7 +715,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				return createInlineValueDecorationsInsideRange(variables, range, model, this.wordToLineNumbersMap);
 			}));
 
-			allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
+			allDecorations = distinct(decorationsPerScope.reduce((previous, current) => previous.concat(current), []),
+				// Deduplicate decorations since same variable can appear in multiple scopes, leading to duplicated decorations #129770
+				decoration => `${decoration.range.startLineNumber}:${decoration.renderOptions?.after?.contentText}`);
 		}
 
 		this.editor.setDecorations('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, allDecorations);

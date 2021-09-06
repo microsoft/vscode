@@ -10,9 +10,8 @@ import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IEditorInputSerializer } from 'vs/workbench/common/editor';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {
@@ -42,20 +41,20 @@ export class EditorWalkThroughAction extends Action {
 
 	public override run(): Promise<void> {
 		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
-		return this.editorService.openEditor(input, { pinned: true, override: EditorOverride.DISABLED })
+		return this.editorService.openEditor(input, { pinned: true, override: EditorResolution.DISABLED })
 			.then(() => void (0));
 	}
 }
 
-export class EditorWalkThroughInputSerializer implements IEditorInputSerializer {
+export class EditorWalkThroughInputSerializer implements IEditorSerializer {
 
 	static readonly ID = typeId;
 
-	public canSerialize(editorInput: EditorInput): boolean {
+	public canSerialize(editorInput: IEditorInput): boolean {
 		return true;
 	}
 
-	public serialize(editorInput: EditorInput): string {
+	public serialize(editorInput: IEditorInput): string {
 		return '';
 	}
 

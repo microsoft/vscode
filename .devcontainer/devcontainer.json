@@ -30,7 +30,11 @@
 	],
 
 	// Optionally loads a cached yarn install for the repo
-	"postCreateCommand": ".devcontainer/cache/restore-diff.sh",
+	"postCreateCommand": ".devcontainer/cache/restore-diff.sh && sudo chown node:node /workspaces",
 
-	"remoteUser": "node"
+	"remoteUser": "node",
+
+	"hostRequirements": {
+		"memory": "6gb"
+	}
 }

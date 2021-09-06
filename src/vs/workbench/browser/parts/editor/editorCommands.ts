@@ -7,7 +7,8 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, viewColumnToEditorGroup, EditorGroupColumn, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorContext, ActiveEditorCanSplitInGroupContext } from 'vs/workbench/common/editor';
+import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -20,11 +21,16 @@ import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorResolution, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { Schemas } from 'vs/base/common/network';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -39,7 +45,11 @@ export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
+export const TOGGLE_LOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalToggleEditorGroupLock';
+export const LOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalLockEditorGroup';
+export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalUnlockEditorGroup';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
+export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
 
 export const PIN_EDITOR_COMMAND_ID = 'workbench.action.pinEditor';
 export const UNPIN_EDITOR_COMMAND_ID = 'workbench.action.unpinEditor';
@@ -56,6 +66,14 @@ export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
 export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
+
+export const SPLIT_EDITOR_IN_GROUP = 'workbench.action.splitEditorInGroup';
+export const TOGGLE_SPLIT_EDITOR_IN_GROUP = 'workbench.action.toggleSplitEditorInGroup';
+export const JOIN_EDITOR_IN_GROUP = 'workbench.action.joinEditorInGroup';
+
+export const FOCUS_LEFT_SIDE_EDITOR = 'workbench.action.focusLeftSideEditor';
+export const FOCUS_RIGHT_SIDE_EDITOR = 'workbench.action.focusRightSideEditor';
+export const FOCUS_OTHER_SIDE_EDITOR = 'workbench.action.focusOtherSideEditor';
 
 export const FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusLeftGroupWithoutWrap';
 export const FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusRightGroupWithoutWrap';
@@ -349,14 +367,14 @@ function registerDiffEditorCommands(): void {
 	function toggleDiffSideBySide(accessor: ServicesAccessor): void {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const newValue = !configurationService.getValue<boolean>('diffEditor.renderSideBySide');
+		const newValue = !configurationService.getValue('diffEditor.renderSideBySide');
 		configurationService.updateValue('diffEditor.renderSideBySide', newValue);
 	}
 
 	function toggleDiffIgnoreTrimWhitespace(accessor: ServicesAccessor): void {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const newValue = !configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
+		const newValue = !configurationService.getValue('diffEditor.ignoreTrimWhitespace');
 		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue);
 	}
 
@@ -426,6 +444,19 @@ function registerOpenEditorAPICommands(): void {
 		];
 	}
 
+	// partial, renderer-side API command to open editor
+	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L373
+	CommandsRegistry.registerCommand({
+		id: 'vscode.open',
+		handler: (accessor, arg) => {
+			accessor.get(ICommandService).executeCommand(API_OPEN_EDITOR_COMMAND_ID, arg);
+		},
+		description: {
+			description: 'Opens the provided resource in the editor.',
+			args: [{ name: 'Uri' }]
+		}
+	});
+
 	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, resourceArg: UriComponents, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], label?: string, context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
@@ -438,7 +469,7 @@ function registerOpenEditorAPICommands(): void {
 		if (optionsArg || typeof columnArg === 'number') {
 			const [options, column] = mixinContext(context, optionsArg, columnArg);
 
-			await editorService.openEditor({ resource, options, label }, viewColumnToEditorGroup(editorGroupService, column));
+			await editorService.openEditor({ resource, options, label }, columnToEditorGroup(editorGroupService, column));
 		}
 
 		// do not allow to execute commands from here
@@ -452,6 +483,24 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
+	// partial, renderer-side API command to open diff editor
+	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L397
+	CommandsRegistry.registerCommand({
+		id: 'vscode.diff',
+		handler: (accessor, left, right, label) => {
+			accessor.get(ICommandService).executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
+		},
+		description: {
+			description: 'Opens the provided resources in the diff editor to compare their contents.',
+			args: [
+				{ name: 'left', description: 'Left-hand side resource of the diff editor' },
+				{ name: 'right', description: 'Right-hand side resource of the diff editor' },
+				{ name: 'title', description: 'Human readable title for the diff editor' },
+			]
+		}
+	});
+
+
 	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
@@ -460,11 +509,11 @@ function registerOpenEditorAPICommands(): void {
 		const [options, column] = mixinContext(context, optionsArg, columnArg);
 
 		await editorService.openEditor({
-			originalInput: { resource: URI.revive(originalResource) },
-			modifiedInput: { resource: URI.revive(modifiedResource) },
+			original: { resource: URI.revive(originalResource) },
+			modified: { resource: URI.revive(modifiedResource) },
 			label,
 			options
-		}, viewColumnToEditorGroup(editorGroupService, column));
+		}, columnToEditorGroup(editorGroupService, column));
 	});
 
 	CommandsRegistry.registerCommand(API_OPEN_WITH_EDITOR_COMMAND_ID, (accessor: ServicesAccessor, resource: UriComponents, id: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?]) => {
@@ -484,7 +533,7 @@ function registerOpenEditorAPICommands(): void {
 			}
 			group = neighbourGroup;
 		} else {
-			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
+			group = editorGroupsService.getGroup(columnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		}
 
 		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, pinned: true, override: id } }, group);
@@ -571,6 +620,10 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 				// Group does not exist: create new by splitting the active one of the last group
 				const direction = preferredSideBySideGroupDirection(configurationService);
 				const lastGroup = editorGroupService.findGroup({ location: GroupLocation.LAST });
+				if (!lastGroup) {
+					return;
+				}
+
 				const newGroup = editorGroupService.addGroup(lastGroup, direction);
 
 				// Focus
@@ -819,6 +872,32 @@ function registerCloseEditorCommands() {
 		}
 	});
 
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: REOPEN_WITH_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: async (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+			const editorService = accessor.get(IEditorService);
+
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+
+			if (!editor) {
+				return;
+			}
+
+			await editorService.replaceEditors([
+				{
+					editor: editor,
+					replacement: editor,
+					forceReplaceDirty: editor.resource?.scheme === Schemas.untitled,
+					options: { ...editorService.activeEditorPane?.options, override: EditorResolution.PICK }
+				}
+			], group);
+		}
+	});
+
 	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, async (accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -866,6 +945,168 @@ function registerFocusEditorGroupWihoutWrapCommands(): void {
 	}
 }
 
+function registerSplitEditorInGroupCommands(): void {
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: SPLIT_EDITOR_IN_GROUP,
+				title: localize('splitEditorInGroup', "Split Active Editor in Group"),
+				category: CATEGORIES.View,
+				precondition: ActiveEditorCanSplitInGroupContext,
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorService = accessor.get(IEditorService);
+
+			const activeEditorPane = editorService.activeEditorPane;
+			if (!(activeEditorPane?.input instanceof EditorInput)) {
+				return;
+			}
+
+			await activeEditorPane.group.replaceEditors([{
+				editor: activeEditorPane.input,
+				replacement: new SideBySideEditorInput(undefined, undefined, activeEditorPane.input, activeEditorPane.input),
+				forceReplaceDirty: true
+			}]);
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: JOIN_EDITOR_IN_GROUP,
+				title: localize('joinEditorInGroup', "Join Active Editor in Group"),
+				category: CATEGORIES.View,
+				precondition: ActiveEditorContext.isEqualTo(SideBySideEditor.ID),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorService = accessor.get(IEditorService);
+
+			const activeEditorPane = editorService.activeEditorPane;
+			if (!(activeEditorPane instanceof SideBySideEditor) || !(activeEditorPane.input instanceof SideBySideEditorInput)) {
+				return;
+			}
+
+			let options: IEditorOptions | undefined = undefined;
+			for (const pane of [activeEditorPane.getPrimaryEditorPane(), activeEditorPane.getSecondaryEditorPane()]) {
+				if (pane?.hasFocus()) {
+					options = { viewState: pane.getViewState?.() };
+					break;
+				}
+			}
+
+			await activeEditorPane.group.replaceEditors([{
+				editor: activeEditorPane.input,
+				replacement: activeEditorPane.input.primary,
+				options
+			}]);
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TOGGLE_SPLIT_EDITOR_IN_GROUP,
+				title: localize('toggleJoinEditorInGroup', "Toggle Split Active Editor in Group"),
+				category: CATEGORIES.View,
+				precondition: ContextKeyExpr.or(ActiveEditorCanSplitInGroupContext, ActiveEditorContext.isEqualTo(SideBySideEditor.ID)),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorService = accessor.get(IEditorService);
+			const commandService = accessor.get(ICommandService);
+
+			const activeEditorPane = editorService.activeEditorPane;
+			if (activeEditorPane?.input instanceof SideBySideEditorInput) {
+				await commandService.executeCommand(JOIN_EDITOR_IN_GROUP);
+			} else if (activeEditorPane?.input) {
+				await commandService.executeCommand(SPLIT_EDITOR_IN_GROUP);
+			}
+		}
+	});
+}
+
+function registerFocusSideEditorsCommands(): void {
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: FOCUS_LEFT_SIDE_EDITOR,
+				title: localize('focusLeftSideEditor', "Focus Left Side in Active Editor"),
+				category: CATEGORIES.View,
+				precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorService = accessor.get(IEditorService);
+			const commandService = accessor.get(ICommandService);
+
+			const activeEditorPane = editorService.activeEditorPane;
+			if (activeEditorPane instanceof SideBySideEditor) {
+				activeEditorPane.getSecondaryEditorPane()?.focus();
+			} else if (activeEditorPane instanceof TextDiffEditor) {
+				await commandService.executeCommand(DIFF_FOCUS_SECONDARY_SIDE);
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: FOCUS_RIGHT_SIDE_EDITOR,
+				title: localize('focusRightSideEditor', "Focus Right Side in Active Editor"),
+				category: CATEGORIES.View,
+				precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorService = accessor.get(IEditorService);
+			const commandService = accessor.get(ICommandService);
+
+			const activeEditorPane = editorService.activeEditorPane;
+			if (activeEditorPane instanceof SideBySideEditor) {
+				activeEditorPane.getPrimaryEditorPane()?.focus();
+			} else if (activeEditorPane instanceof TextDiffEditor) {
+				await commandService.executeCommand(DIFF_FOCUS_PRIMARY_SIDE);
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: FOCUS_OTHER_SIDE_EDITOR,
+				title: localize('focusOtherSideEditor', "Focus Other Side in Active Editor"),
+				category: CATEGORIES.View,
+				precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorService = accessor.get(IEditorService);
+			const commandService = accessor.get(ICommandService);
+
+			const activeEditorPane = editorService.activeEditorPane;
+			if (activeEditorPane instanceof SideBySideEditor) {
+				if (activeEditorPane.getPrimaryEditorPane()?.hasFocus()) {
+					activeEditorPane.getSecondaryEditorPane()?.focus();
+				} else {
+					activeEditorPane.getPrimaryEditorPane()?.focus();
+				}
+			} else if (activeEditorPane instanceof TextDiffEditor) {
+				await commandService.executeCommand(DIFF_FOCUS_OTHER_SIDE);
+			}
+		}
+	});
+}
+
 function registerOtherEditorCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -888,9 +1129,63 @@ function registerOtherEditorCommands(): void {
 		handler: accessor => {
 			const configurationService = accessor.get(IConfigurationService);
 
-			const currentSetting = configurationService.getValue<boolean>('workbench.editor.enablePreview');
+			const currentSetting = configurationService.getValue('workbench.editor.enablePreview');
 			const newSetting = currentSetting === true ? false : true;
 			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
+		}
+	});
+
+	function setEditorGroupLock(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext, locked?: boolean): void {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		if (group) {
+			group.lock(locked ?? !group.isLocked);
+		}
+	}
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TOGGLE_LOCK_GROUP_COMMAND_ID,
+				title: localize('toggleEditorGroupLock', "Toggle Editor Group Lock"),
+				category: CATEGORIES.View,
+				precondition: MultipleEditorGroupsContext,
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+			setEditorGroupLock(accessor, resourceOrContext, context);
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: LOCK_GROUP_COMMAND_ID,
+				title: localize('lockEditorGroup', "Lock Editor Group"),
+				category: CATEGORIES.View,
+				precondition: ContextKeyExpr.and(MultipleEditorGroupsContext, ActiveEditorGroupLockedContext.toNegated()),
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+			setEditorGroupLock(accessor, resourceOrContext, context, true);
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: UNLOCK_GROUP_COMMAND_ID,
+				title: localize('unlockEditorGroup', "Unlock Editor Group"),
+				precondition: ContextKeyExpr.and(MultipleEditorGroupsContext, ActiveEditorGroupLockedContext),
+				category: CATEGORIES.View,
+				f1: true
+			});
+		}
+		async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+			setEditorGroupLock(accessor, resourceOrContext, context, false);
 		}
 	});
 
@@ -1053,6 +1348,8 @@ export function setup(): void {
 	registerOpenEditorAtIndexCommands();
 	registerCloseEditorCommands();
 	registerOtherEditorCommands();
+	registerSplitEditorInGroupCommands();
+	registerFocusSideEditorsCommands();
 	registerFocusEditorGroupAtIndexCommands();
 	registerSplitEditorCommands();
 	registerFocusEditorGroupWihoutWrapCommands();

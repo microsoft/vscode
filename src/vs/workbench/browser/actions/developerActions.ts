@@ -207,7 +207,7 @@ class ToggleScreencastModeAction extends Action2 {
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
-			if (shortcut || !configurationService.getValue<boolean>('screencastMode.onlyKeyboardShortcuts')) {
+			if (shortcut || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
 				if (
 					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
 					|| length > 20

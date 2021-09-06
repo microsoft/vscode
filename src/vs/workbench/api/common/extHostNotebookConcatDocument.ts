@@ -107,18 +107,24 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		// get start and end locations and create substrings
 		const start = this.locationAt(range.start);
 		const end = this.locationAt(range.end);
-		const startCell = this._cells[this._cellUris.get(start.uri) ?? -1];
-		const endCell = this._cells[this._cellUris.get(end.uri) ?? -1];
 
-		if (!startCell || !endCell) {
+		const startIdx = this._cellUris.get(start.uri);
+		const endIdx = this._cellUris.get(end.uri);
+
+		if (startIdx === undefined || endIdx === undefined) {
 			return '';
-		} else if (startCell === endCell) {
-			return startCell.document.getText(new types.Range(start.range.start, end.range.end));
-		} else {
-			const a = startCell.document.getText(new types.Range(start.range.start, new types.Position(startCell.document.lineCount, 0)));
-			const b = endCell.document.getText(new types.Range(new types.Position(0, 0), end.range.end));
-			return a + '\n' + b;
 		}
+
+		if (startIdx === endIdx) {
+			return this._cells[startIdx].document.getText(new types.Range(start.range.start, end.range.end));
+		}
+
+		const parts = [this._cells[startIdx].document.getText(new types.Range(start.range.start, new types.Position(this._cells[startIdx].document.lineCount, 0)))];
+		for (let i = startIdx + 1; i < endIdx; i++) {
+			parts.push(this._cells[i].document.getText());
+		}
+		parts.push(this._cells[endIdx].document.getText(new types.Range(new types.Position(0, 0), end.range.end)));
+		return parts.join('\n');
 	}
 
 	offsetAt(position: vscode.Position): number {

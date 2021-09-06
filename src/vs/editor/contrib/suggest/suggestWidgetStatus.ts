@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 class StatusBarViewItem extends MenuEntryActionViewItem {
 
 	override updateLabel() {
-		const kb = this._keybindingService.lookupKeybinding(this._action.id);
+		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
 		if (!kb) {
 			return super.updateLabel();
 		}
