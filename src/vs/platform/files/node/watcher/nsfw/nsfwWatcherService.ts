@@ -5,6 +5,7 @@
 
 import * as nsfw from 'nsfw';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { parse, ParsedPattern } from 'vs/base/common/glob';
@@ -50,17 +51,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	constructor() {
 		super();
 
-		process.on('uncaughtException', (e: Error | string) => {
-			// Specially handle ENOSPC errors that can happen when
-			// the watcher consumes so many file descriptors that
-			// we are running into a limit. We only want to warn
-			// once in this case to avoid log spam.
-			// See https://github.com/microsoft/vscode/issues/7950
-			if (e === 'Inotify limit reached' && !this.enospcErrorLogged) {
-				this.enospcErrorLogged = true;
-				this.error('Inotify limit reached (ENOSPC)');
-			}
-		});
+		process.on('uncaughtException', (error: Error | string) => this.onError(error));
 	}
 
 	async setRoots(roots: IWatcherRequest[]): Promise<void> {
@@ -209,6 +200,8 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 					}
 				}
 			});
+		}, {
+			errorCallback: error => this.onError(error)
 		}).then(watcher => {
 			this.pathWatchers[request.path].watcher = watcher;
 			const startPromise = watcher.start();
@@ -216,6 +209,19 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 			return startPromise;
 		});
+	}
+
+	private onError(error: unknown): void {
+		// Specially handle ENOSPC errors that can happen when
+		// the watcher consumes so many file descriptors that
+		// we are running into a limit. We only want to warn
+		// once in this case to avoid log spam.
+		// See https://github.com/microsoft/vscode/issues/7950
+		const msg = toErrorMessage(error);
+		if (msg.indexOf('Inotify limit reached') !== -1 && !this.enospcErrorLogged) {
+			this.enospcErrorLogged = true;
+			this.error('Inotify limit reached (ENOSPC)');
+		}
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {
