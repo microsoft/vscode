@@ -6,6 +6,25 @@
 import * as vscode from 'vscode';
 import { NotebookSerializer } from './notebookSerializer';
 
+// From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
+type NotebookMetadata = {
+	kernelspec?: {
+		name: string;
+		display_name: string;
+		[propName: string]: unknown;
+	};
+	language_info?: {
+		name: string;
+		codemirror_mode?: string | {};
+		file_extension?: string;
+		mimetype?: string;
+		pygments_lexer?: string;
+		[propName: string]: unknown;
+	};
+	orig_nbformat: number;
+	[propName: string]: unknown;
+};
+
 export function activate(context: vscode.ExtensionContext) {
 	const serializer = new NotebookSerializer(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
@@ -22,7 +41,7 @@ export function activate(context: vscode.ExtensionContext) {
 		exportNotebook: (notebook: vscode.NotebookData): string => {
 			return exportNotebook(notebook, serializer);
 		},
-		setKernelSpec: async (resource: vscode.Uri, kernelspec: unknown, language_info?: unknown): Promise<boolean> => {
+		setKernelSpec: async (resource: vscode.Uri, kernelspec: unknown): Promise<boolean> => {
 			const document = vscode.workspace.notebookDocuments.find(doc => doc.uri.toString() === resource.toString());
 			if (!document) {
 				return false;
@@ -35,8 +54,26 @@ export function activate(context: vscode.ExtensionContext) {
 					...(document.metadata.custom ?? {}),
 					metadata: {
 						...(document.metadata.custom?.metadata ?? {}),
-						kernelspec: kernelspec,
-						...(language_info ? { language_info: language_info } : {}),
+						kernelspec: kernelspec
+					},
+				}
+			});
+			return vscode.workspace.applyEdit(edit);
+		},
+		setNotebookMetadata: async (resource: vscode.Uri, metadata: Partial<NotebookMetadata>): Promise<boolean> => {
+			const document = vscode.workspace.notebookDocuments.find(doc => doc.uri.toString() === resource.toString());
+			if (!document) {
+				return false;
+			}
+
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookMetadata(resource, {
+				...document.metadata,
+				custom: {
+					...(document.metadata.custom ?? {}),
+					metadata: <NotebookMetadata>{
+						...(document.metadata.custom?.metadata ?? {}),
+						...metadata
 					},
 				}
 			});
