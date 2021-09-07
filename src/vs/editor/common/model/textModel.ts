@@ -317,7 +317,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
 		return this._backgroundTokenizationState;
 	}
-	private setBackgroundTokenizationState(newState: BackgroundTokenizationState) {
+	private handleTokenizationProgress(completed: boolean) {
+		if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
+			// We already did a full tokenization and don't go back to progressing.
+			return;
+		}
+		const newState = completed ? BackgroundTokenizationState.Completed : BackgroundTokenizationState.InProgress;
 		if (this._backgroundTokenizationState !== newState) {
 			this._backgroundTokenizationState = newState;
 			this._onBackgroundTokenizationStateChanged.fire();
@@ -2000,7 +2005,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				});
 			}
 		}
-		this.setBackgroundTokenizationState(backgroundTokenizationCompleted ? BackgroundTokenizationState.Completed : BackgroundTokenizationState.InProgress);
+		this.handleTokenizationProgress(backgroundTokenizationCompleted);
 	}
 
 	public setSemanticTokens(tokens: MultilineTokens2[] | null, isComplete: boolean): void {
