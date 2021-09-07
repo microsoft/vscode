@@ -77,7 +77,7 @@ registerAction2(class NotebookConfigureLayoutFromEditorTitle extends Action2 {
 		super({
 			id: 'workbench.notebook.layout.configure.editorTitle',
 			title: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
-			f1: true,
+			f1: false,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
 				{
