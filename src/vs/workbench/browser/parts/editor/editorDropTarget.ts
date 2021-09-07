@@ -20,7 +20,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/workbench/workbench.web.api';
+import { URI } from 'vs/base/common/uri';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
