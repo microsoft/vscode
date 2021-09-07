@@ -19,6 +19,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/workbench/workbench.web.api';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -296,12 +298,12 @@ class DropOverlay extends Themable {
 
 			const files = event.dataTransfer?.files;
 			if (files) {
-				this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ resource, data }) => {
+				this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
 					if (!targetGroup) {
 						targetGroup = ensureTargetGroup();
 					}
 
-					this.editorService.openEditor({ resource, forceUntitled: true, contents: data.toString() }, targetGroup.id);
+					this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() }, targetGroup.id);
 				}));
 			}
 		}

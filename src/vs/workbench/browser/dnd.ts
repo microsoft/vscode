@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer } from 'vs/base/common/buffer';
 import Severity from 'vs/base/common/severity';
 import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { basename, isEqual, joinPath } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
@@ -32,6 +32,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 //#region Editor / Resources DND
 
@@ -134,13 +135,12 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 }
 
 export interface IFileDropData {
-	resource?: URI;
+	name: string;
 	data: VSBuffer;
 }
 
 export function extractFilesDropData(accessor: ServicesAccessor, files: FileList, onResult: (file: IFileDropData) => void): void {
 	const dialogService = accessor.get(IDialogService);
-	const fileDialogService = accessor.get(IFileDialogService);
 
 	for (let i = 0; i < files.length; i++) {
 		const file = files.item(i);
@@ -157,22 +157,16 @@ export function extractFilesDropData(accessor: ServicesAccessor, files: FileList
 			reader.readAsArrayBuffer(file);
 			reader.onload = async event => {
 				const name = file.name;
-				if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
-
-					// Try to come up with a good file path for the file
-					// by asking the file dialog service for the default
-					let proposedFilePath: URI | undefined = undefined;
-					const defaultFilePath = await fileDialogService.defaultFilePath();
-					if (defaultFilePath) {
-						proposedFilePath = joinPath(defaultFilePath, name);
-					}
-
-					// Yield result
-					onResult({
-						resource: proposedFilePath,
-						data: VSBuffer.wrap(new Uint8Array(event.target.result))
-					});
+				const result = withNullAsUndefined(event.target?.result);
+				if (typeof name !== 'string' || typeof result === 'undefined') {
+					return;
 				}
+
+				// Yield result
+				onResult({
+					name,
+					data: typeof result === 'string' ? VSBuffer.fromString(result) : VSBuffer.wrap(new Uint8Array(result))
+				});
 			};
 		}
 	}

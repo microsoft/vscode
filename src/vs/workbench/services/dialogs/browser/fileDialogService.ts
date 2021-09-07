@@ -228,8 +228,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 				if (context === 'open') {
 					const files = await triggerUpload();
 					if (files) {
-						this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ resource, data }) => {
-							this.editorService.openEditor({ resource: resource?.with({ scheme: Schemas.untitled }), forceUntitled: true, contents: data.toString() });
+						this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
+							this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() });
 						}));
 					}
 					break;
