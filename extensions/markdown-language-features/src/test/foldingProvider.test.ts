@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import 'mocha';
-
+import * as vscode from 'vscode';
 import MarkdownFoldingProvider from '../features/foldingProvider';
-import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
+import { InMemoryDocument } from './inMemoryDocument';
+
 
 const testFileName = vscode.Uri.file('test.md');
 

@@ -7,7 +7,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import {
-	workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration,
+	workspace, window, languages, commands, ExtensionContext, extensions, Uri,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString,
 } from 'vscode';
@@ -358,17 +358,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		}
 
 	});
-
-	const languageConfiguration: LanguageConfiguration = {
-		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
-		indentationRules: {
-			increaseIndentPattern: /({+(?=([^"]*"[^"]*")*[^"}]*$))|(\[+(?=([^"]*"[^"]*")*[^"\]]*$))/,
-			decreaseIndentPattern: /^\s*[}\]],?\s*$/
-		}
-	};
-	languages.setLanguageConfiguration('json', languageConfiguration);
-	languages.setLanguageConfiguration('jsonc', languageConfiguration);
-
 }
 
 function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {

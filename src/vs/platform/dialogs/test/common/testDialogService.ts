@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Severity from 'vs/base/common/severity';
-import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IShowResult, IInputResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 
 export class TestDialogService implements IDialogService {
 
@@ -26,7 +26,7 @@ export class TestDialogService implements IDialogService {
 		return { confirmed: false };
 	}
 
-	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
+	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
 	async input(): Promise<IInputResult> { { return { choice: 0, values: [] }; } }
 	async about(): Promise<void> { }
 }

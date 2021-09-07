@@ -23,6 +23,7 @@ interface IAPIMenu {
 	readonly description: string;
 	readonly proposed?: boolean; // defaults to false
 	readonly supportsSubmenus?: boolean; // defaults to true
+	readonly deprecationMessage?: string;
 }
 
 const apiMenus: IAPIMenu[] = [
@@ -136,7 +137,8 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.StatusBarWindowIndicatorMenu,
 		description: localize('menus.statusBarWindowIndicator', "The window indicator menu in the status bar"),
 		proposed: true,
-		supportsSubmenus: false
+		supportsSubmenus: false,
+		deprecationMessage: localize('menus.statusBarWindowIndicator.deprecated', "Use menu 'statusBar/remoteIndicator' instead."),
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -179,26 +181,39 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'notebook/toolbar',
 		id: MenuId.NotebookToolbar,
-		description: localize('notebook.toolbar', "The contributed notebook toolbar menu"),
-		proposed: true
-	},
-	{
-		key: 'notebook/toolbar/right',
-		id: MenuId.NotebookRightToolbar,
-		description: localize('notebook.toolbar.right', "The contributed notebook right toolbar menu"),
-		proposed: true
+		description: localize('notebook.toolbar', "The contributed notebook toolbar menu")
 	},
 	{
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
-		description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
+		description: localize('notebook.cell.title', "The contributed notebook cell title menu")
+	},
+	{
+		key: 'notebook/cell/execute',
+		id: MenuId.NotebookCellExecute,
+		description: localize('notebook.cell.execute', "The contributed notebook cell execution menu")
+	},
+	{
+		key: 'interactive/toolbar',
+		id: MenuId.InteractiveToolbar,
+		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
+		proposed: true
+	},
+	{
+		key: 'interactive/cell/title',
+		id: MenuId.InteractiveCellTitle,
+		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
 		proposed: true
 	},
 	{
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
-		description: localize('testing.item.title', "The contributed test item menu"),
-		proposed: true
+		description: localize('testing.item.context', "The contributed test item menu"),
+	},
+	{
+		key: 'testing/item/gutter',
+		id: MenuId.TestItemGutter,
+		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
 	},
 	{
 		key: 'extension/context',
@@ -229,7 +244,20 @@ const apiMenus: IAPIMenu[] = [
 		key: 'ports/item/port/inline',
 		id: MenuId.TunnelPortInline,
 		description: localize('view.tunnelPortInline', "The Ports view item port inline menu")
-	}
+	},
+	{
+		key: 'file/newFile',
+		id: MenuId.NewFile,
+		description: localize('file.newFile', "The 'New File...' quick pick, shown on welcome page and File menu."),
+		supportsSubmenus: false,
+	},
+	{
+		key: 'editor/inlineCompletions/actions',
+		id: MenuId.InlineCompletionsActions,
+		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
+		supportsSubmenus: false,
+		proposed: true
+	},
 ];
 
 namespace schema {
@@ -417,6 +445,7 @@ namespace schema {
 		type: 'object',
 		properties: index(apiMenus, menu => menu.key, menu => ({
 			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
+			deprecationMessage: menu.deprecationMessage,
 			type: 'array',
 			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
 		})),
@@ -515,11 +544,11 @@ namespace schema {
 				type: 'string'
 			},
 			shortTitle: {
-				description: localize('vscode.extension.contributes.commandType.shortTitle', 'Short title by which the command is represented in the UI'),
+				markdownDescription: localize('vscode.extension.contributes.commandType.shortTitle', '(Optional) Short title by which the command is represented in the UI. Menus pick either `title` or `shortTitle` depending on the context in which they show commands.'),
 				type: 'string'
 			},
 			category: {
-				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by the command is grouped in the UI'),
+				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by which the command is grouped in the UI'),
 				type: 'string'
 			},
 			enablement: {
@@ -596,7 +625,9 @@ commandsExtensionPoint.setHandler(extensions => {
 		bucket.push({
 			id: command,
 			title,
-			shortTitle: extension.description.enableProposedApi ? shortTitle : undefined,
+			source: extension.description.displayName ?? extension.description.name,
+			shortTitle,
+			tooltip: extension.description.enableProposedApi ? title : undefined,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon

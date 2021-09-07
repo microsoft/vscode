@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export enum StorageHint {
@@ -321,7 +321,6 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	override dispose(): void {
-		this.flushDelayer.cancel(); // workaround https://github.com/microsoft/vscode/issues/116777
 		this.flushDelayer.dispose();
 
 		super.dispose();

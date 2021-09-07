@@ -5,25 +5,25 @@
 
 import * as assert from 'assert';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
+import { timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
-import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
-import { Range } from 'vs/workbench/api/common/extHostTypes';
-import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
-import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import type * as vscode from 'vscode';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { mock } from 'vs/base/test/common/mock';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { Range } from 'vs/workbench/api/common/extHostTypes';
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
+import { NativeExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
+import { IFileMatch, IFileQuery, IPatternInfo, IRawFileMatch2, ISearchCompleteStats, ISearchQuery, ITextQuery, QueryType, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
-import { timeout } from 'vs/base/common/async';
+import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
+import type * as vscode from 'vscode';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: NativeExtHostSearch;
@@ -141,7 +141,7 @@ suite('ExtHostSearch', () => {
 			constructor() {
 				super(
 					rpcProtocol,
-					new class extends mock<IExtHostInitDataService>() { remote = { isRemote: false, authority: undefined, connectionData: null }; },
+					new class extends mock<IExtHostInitDataService>() { override remote = { isRemote: false, authority: undefined, connectionData: null }; },
 					new URITransformerService(null),
 					logService
 				);
@@ -883,14 +883,16 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('basic sibling clause', async () => {
-			mockPFS.readdir = (_path: string): any => {
-				if (_path === rootFolderA.fsPath) {
-					return Promise.resolve([
-						'file1.js',
-						'file1.ts'
-					]);
-				} else {
-					return Promise.reject(new Error('Wrong path'));
+			(mockPFS as any).Promises = {
+				readdir: (_path: string): any => {
+					if (_path === rootFolderA.fsPath) {
+						return Promise.resolve([
+							'file1.js',
+							'file1.ts'
+						]);
+					} else {
+						return Promise.reject(new Error('Wrong path'));
+					}
 				}
 			};
 
@@ -926,21 +928,23 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('multiroot sibling clause', async () => {
-			mockPFS.readdir = (_path: string): any => {
-				if (_path === joinPath(rootFolderA, 'folder').fsPath) {
-					return Promise.resolve([
-						'fileA.scss',
-						'fileA.css',
-						'file2.css'
-					]);
-				} else if (_path === rootFolderB.fsPath) {
-					return Promise.resolve([
-						'fileB.ts',
-						'fileB.js',
-						'file3.js'
-					]);
-				} else {
-					return Promise.reject(new Error('Wrong path'));
+			(mockPFS as any).Promises = {
+				readdir: (_path: string): any => {
+					if (_path === joinPath(rootFolderA, 'folder').fsPath) {
+						return Promise.resolve([
+							'fileA.scss',
+							'fileA.css',
+							'file2.css'
+						]);
+					} else if (_path === rootFolderB.fsPath) {
+						return Promise.resolve([
+							'fileB.ts',
+							'fileB.js',
+							'file3.js'
+						]);
+					} else {
+						return Promise.reject(new Error('Wrong path'));
+					}
 				}
 			};
 

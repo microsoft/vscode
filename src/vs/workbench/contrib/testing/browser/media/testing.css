@@ -26,7 +26,7 @@
 .test-explorer .monaco-list-row .codicon-testing-hidden {
 	display: none;
 	flex-shrink: 0;
-	margin-right: 1px;
+	margin-right: 0.8em;
 }
 
 .test-explorer .monaco-list-row:hover .monaco-action-bar,
@@ -128,7 +128,8 @@
 	border-bottom-width: 2px;
 }
 
-.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container {
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-tree {
 	height: 100%;
 }
 
@@ -144,6 +145,7 @@
 .monaco-editor .zone-widget.test-output-peek .preview-text p:last-child {
 	margin-bottom: 0;
 }
+
 /** -- filter  */
 .testing-filter-action-bar {
 	flex-shrink: 0;
@@ -160,6 +162,10 @@
 
 .testing-filter-action-bar .testing-filter-action-item {
 	max-width: none;
+}
+
+.testing-filter-wrapper {
+	height: 27px;
 }
 
 .testing-filter-action-item .testing-filter-wrapper {
@@ -185,10 +191,20 @@
 	cursor: pointer;
 }
 
-.monaco-editor .testing-inline-message-content {
-	cursor: pointer;
+.testing-diff-title-widget {
+	line-height: 19px;
+	font-size: 12px;
+	padding-right: 6px;
+
+	overflow: hidden;
+	display: inline-block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.monaco-editor .testing-inline-message-line {
-	background: red;
+.test-message-inline-content {
+	font-family: var(--testMessageDecorationFontFamily);
+	padding: 0px 12px 0px 24px;
+	font-size: var(--testMessageDecorationFontSize);
+	cursor: pointer;
 }

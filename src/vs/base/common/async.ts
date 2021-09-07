@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event, Listener } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { canceled } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -24,13 +23,17 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 
 	const thenable = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
-		source.token.onCancellationRequested(() => {
+		const subscription = source.token.onCancellationRequested(() => {
+			subscription.dispose();
+			source.dispose();
 			reject(canceled());
 		});
 		Promise.resolve(thenable).then(value => {
+			subscription.dispose();
 			source.dispose();
 			resolve(value);
 		}, err => {
+			subscription.dispose();
 			source.dispose();
 			reject(err);
 		});
@@ -298,7 +301,7 @@ export class Delayer<T> implements IDisposable {
 	}
 
 	dispose(): void {
-		this.cancelTimeout();
+		this.cancel();
 	}
 }
 
@@ -395,9 +398,13 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	}
 
 	return new Promise((resolve, reject) => {
-		const handle = setTimeout(resolve, millis);
-		token.onCancellationRequested(() => {
+		const handle = setTimeout(() => {
+			disposable.dispose();
+			resolve();
+		}, millis);
+		const disposable = token.onCancellationRequested(() => {
 			clearTimeout(handle);
+			disposable.dispose();
 			reject(canceled());
 		});
 	});
@@ -406,10 +413,6 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
 	const timer = setTimeout(handler, timeout);
 	return toDisposable(() => clearTimeout(timer));
-}
-
-export function ignoreErrors<T>(promise: Promise<T>): Promise<T | undefined> {
-	return promise.then(undefined, _ => undefined);
 }
 
 /**
@@ -787,6 +790,103 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 	}
 }
 
+/**
+ * The `ThrottledWorker` will accept units of work `T`
+ * to handle. The contract is:
+ * * there is a maximum of units the worker can handle at once (via `chunkSize`)
+ * * after having handled units, the worker needs to rest (via `throttleDelay`)
+ */
+export class ThrottledWorker<T> extends Disposable {
+
+	private readonly pendingWork: T[] = [];
+
+	private readonly throttler = this._register(new MutableDisposable<RunOnceScheduler>());
+	private disposed = false;
+
+	constructor(
+		private readonly maxWorkChunkSize: number,
+		private readonly maxPendingWork: number | undefined,
+		private readonly throttleDelay: number,
+		private readonly handler: (units: readonly T[]) => void
+	) {
+		super();
+	}
+
+	/**
+	 * The number of work units that are pending to be processed.
+	 */
+	get pending(): number { return this.pendingWork.length; }
+
+	/**
+	 * Add units to be worked on. Use `pending` to figure out
+	 * how many units are not yet processed after this method
+	 * was called.
+	 *
+	 * @returns whether the work was accepted or not. If the
+	 * worker is disposed, it will not accept any more work.
+	 * If the number of pending units would become larger
+	 * than `maxPendingWork`, more work will also not be accepted.
+	 */
+	work(units: readonly T[]): boolean {
+		if (this.disposed) {
+			return false; // work not accepted: disposed
+		}
+
+		// Check for reaching maximum of pending work
+		if (typeof this.maxPendingWork === 'number') {
+
+			// Throttled: simple check if pending + units exceeds max pending
+			if (this.throttler.value) {
+				if (this.pending + units.length > this.maxPendingWork) {
+					return false; // work not accepted: too much pending work
+				}
+			}
+
+			// Unthrottled: same as throttled, but account for max chunk getting
+			// worked on directly without being pending
+			else {
+				if (this.pending + units.length - this.maxWorkChunkSize > this.maxPendingWork) {
+					return false; // work not accepted: too much pending work
+				}
+			}
+		}
+
+		// Add to pending units first
+		this.pendingWork.push(...units);
+
+		// If not throttled, start working directly
+		// Otherwise, when the throttle delay has
+		// past, pending work will be worked again.
+		if (!this.throttler.value) {
+			this.doWork();
+		}
+
+		return true; // work accepted
+	}
+
+	private doWork(): void {
+
+		// Extract chunk to handle and handle it
+		this.handler(this.pendingWork.splice(0, this.maxWorkChunkSize));
+
+		// If we have remaining work, schedule it after a delay
+		if (this.pendingWork.length > 0) {
+			this.throttler.value = new RunOnceScheduler(() => {
+				this.throttler.clear();
+
+				this.doWork();
+			}, this.throttleDelay);
+			this.throttler.value.schedule();
+		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.disposed = true;
+	}
+}
+
 //#region -- run on idle tricks ------------
 
 export interface IdleDeadline {
@@ -876,6 +976,10 @@ export class IdleValue<T> {
 			throw this._error;
 		}
 		return this._value!;
+	}
+
+	get isInitialized(): boolean {
+		return this._didRun;
 	}
 }
 
@@ -1098,118 +1202,9 @@ export class DeferredPromise<T> {
 
 //#endregion
 
-//#region
-
-export interface IWaitUntil {
-	waitUntil(thenable: Promise<unknown>): void;
-}
-
-export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
-
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
-
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
-		if (!this._listeners) {
-			return;
-		}
-
-		if (!this._asyncDeliveryQueue) {
-			this._asyncDeliveryQueue = new LinkedList();
-		}
-
-		for (const listener of this._listeners) {
-			this._asyncDeliveryQueue.push([listener, data]);
-		}
-
-		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
-
-			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<unknown>[] = [];
-
-			const event = <T>{
-				...data,
-				waitUntil: (p: Promise<unknown>): void => {
-					if (Object.isFrozen(thenables)) {
-						throw new Error('waitUntil can NOT be called asynchronous');
-					}
-					if (promiseJoin) {
-						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
-					}
-					thenables.push(p);
-				}
-			};
-
-			try {
-				if (typeof listener === 'function') {
-					listener.call(undefined, event);
-				} else {
-					listener[0].call(listener[1], event);
-				}
-			} catch (e) {
-				onUnexpectedError(e);
-				continue;
-			}
-
-			// freeze thenables-collection to enforce sync-calls to
-			// wait until and then wait for all thenables to resolve
-			Object.freeze(thenables);
-			await Promises.settled(thenables).catch(e => onUnexpectedError(e));
-		}
-	}
-}
-
-//#endregion
-
 //#region Promises
 
 export namespace Promises {
-
-	export interface IResolvedPromise<T> {
-		status: 'fulfilled';
-		value: T;
-	}
-
-	export interface IRejectedPromise {
-		status: 'rejected';
-		reason: Error;
-	}
-
-	/**
-	 * Interface of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
-	 */
-	interface PromiseWithAllSettled<T> {
-		allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]>;
-	}
-
-	/**
-	 * A polyfill of `Promise.allSettled`: returns after all promises have
-	 * resolved or rejected and provides access to each result or error
-	 * in the order of the original passed in promises array.
-	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
-	 */
-	export async function allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		if (typeof (Promise as unknown as PromiseWithAllSettled<T>).allSettled === 'function') {
-			return allSettledNative(promises); // in some environments we can benefit from native implementation
-		}
-
-		return allSettledShim(promises);
-	}
-
-	async function allSettledNative<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		return (Promise as unknown as PromiseWithAllSettled<T>).allSettled(promises);
-	}
-
-	async function allSettledShim<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		return Promise.all(promises.map(promise => (promise.then(value => {
-			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
-
-			return fulfilled;
-		}, error => {
-			const rejected: IRejectedPromise = { status: 'rejected', reason: error };
-
-			return rejected;
-		}))));
-	}
 
 	/**
 	 * A drop-in replacement for `Promise.all` with the only difference

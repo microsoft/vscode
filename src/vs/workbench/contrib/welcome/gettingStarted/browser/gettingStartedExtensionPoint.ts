@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IStartEntry, IWalkthrough } from 'vs/platform/extensions/common/extensions';
+import { IWalkthrough } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+
+const titleTranslated = localize('title', "Title");
 
 export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IWalkthrough[]>({
 	extensionPoint: 'walkthroughs',
 	jsonSchema: {
-		doNotSuggest: true,
-		description: localize('walkthroughs', "Contribute collections of steps to help users with your extension. Experimental, available in VS Code Insiders only."),
+		description: localize('walkthroughs', "Contribute walkthroughs to help users getting started with your extension."),
 		type: 'array',
 		items: {
 			type: 'object',
@@ -30,16 +31,16 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					type: 'string',
 					description: localize('walkthroughs.description', "Description of walkthrough.")
 				},
-				primary: {
-					type: 'boolean',
-					description: localize('walkthroughs.primary', "if this is a `primary` walkthrough, hinting if it should be opened on install of the extension. The first `primary` walkthough with a `when` condition matching the current context may be opened by core on install of the extension.")
+				featuredFor: {
+					type: 'array',
+					description: localize('walkthroughs.featuredFor', "Walkthroughs that match one of these glob patterns appear as 'featured' in workspaces with the specified files. For example, a walkthrough for TypeScript projects might specify `tsconfig.json` here."),
+					items: {
+						type: 'string'
+					},
 				},
 				when: {
 					type: 'string',
 					description: localize('walkthroughs.when', "Context key expression to control the visibility of this walkthrough.")
-				},
-				tasks: {
-					deprecationMessage: localize('usesteps', "Deprecated. Use `steps` instead")
 				},
 				steps: {
 					type: 'array',
@@ -51,7 +52,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
 								'completionEvents': ['$5'],
-								'media': { 'path': '$6', 'type': '$7' }
+								'media': {},
 							}
 						}],
 						properties: {
@@ -65,21 +66,23 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							},
 							description: {
 								type: 'string',
-								description: localize('walkthroughs.steps.description', "Description of step. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms). Links on their own line will be rendered as buttons.")
+								description: localize('walkthroughs.steps.description.interpolated', "Description of step. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: {0}, {1}, or {2}. Links on their own line will be rendered as buttons.", `[${titleTranslated}](command:myext.command)`, `[${titleTranslated}](command:toSide:myext.command)`, `[${titleTranslated}](https://aka.ms)`)
 							},
 							button: {
-								deprecationMessage: localize('walkthroughs.steps.button.deprecated', "Deprecated. Use markdown links in the description instead, i.e. [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms), "),
+								deprecationMessage: localize('walkthroughs.steps.button.deprecated.interpolated', "Deprecated. Use markdown links in the description instead, i.e. {0}, {1}, or {2}", `[${titleTranslated}](command:myext.command)`, `[${titleTranslated}](command:toSide:myext.command)`, `[${titleTranslated}](https://aka.ms)`),
 							},
 							media: {
 								type: 'object',
 								description: localize('walkthroughs.steps.media', "Media to show alongside this step, either an image or markdown content."),
-								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
 								oneOf: [
 									{
-										required: ['path', 'altText'],
+										required: ['image', 'altText'],
 										additionalProperties: false,
 										properties: {
 											path: {
+												deprecationMessage: localize('pathDeprecated', "Deprecated. Please use `image` or `markdown` instead")
+											},
+											image: {
 												description: localize('walkthroughs.steps.media.image.path.string', "Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
 												oneOf: [
 													{
@@ -110,11 +113,29 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
 											}
 										}
-									}, {
-										required: ['path'],
+									},
+									{
+										required: ['svg', 'altText'],
+										additionalProperties: false,
+										properties: {
+											svg: {
+												description: localize('walkthroughs.steps.media.image.path.svg', "Path to an svg, color tokens are supported in variables to support theming to match the workbench."),
+												type: 'string',
+											},
+											altText: {
+												type: 'string',
+												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+											},
+										}
+									},
+									{
+										required: ['markdown'],
 										additionalProperties: false,
 										properties: {
 											path: {
+												deprecationMessage: localize('pathDeprecated', "Deprecated. Please use `image` or `markdown` instead")
+											},
+											markdown: {
 												description: localize('walkthroughs.steps.media.markdown.path', "Path to the markdown document, relative to extension directory."),
 												type: 'string',
 											}
@@ -135,7 +156,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 										},
 										{
 											label: 'onLink',
-											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a Getting Started step.'),
+											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a walkthrough step.'),
 											body: 'onLink:${2:linkId}'
 										},
 										{
@@ -149,19 +170,19 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											body: 'onSettingChanged:${2:settingName}'
 										},
 										{
-											label: 'onContextKeyDefined',
-											description: localize('walkthroughs.steps.completionEvents.onContextKeyDefined', 'Check off step when a context key is defined to a truthy value. Note: this only accepts single context keys, not full context key expressions'),
-											body: 'onContextKeyDefined:${2:key}'
+											label: 'onContext',
+											description: localize('walkthroughs.steps.completionEvents.onContext', 'Check off step when a context key expression is true.'),
+											body: 'onContext:${2:key}'
 										},
 										{
-											label: 'extensionInstalled',
+											label: 'onExtensionInstalled',
 											description: localize('walkthroughs.steps.completionEvents.extensionInstalled', 'Check off step when an extension with the given id is installed. If the extension is already installed, the step will start off checked.'),
-											body: 'extensionInstalled:${3:extensionId}'
+											body: 'onExtensionInstalled:${3:extensionId}'
 										},
 										{
-											label: 'stepSelected',
+											label: 'onStepSelected',
 											description: localize('walkthroughs.steps.completionEvents.stepSelected', 'Check off step as soon as it is selected.'),
-											body: 'stepSelected'
+											body: 'onStepSelected'
 										},
 									]
 								}
@@ -185,43 +206,6 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							}
 						}
 					}
-				}
-			}
-		}
-	}
-});
-
-export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
-	extensionPoint: 'startEntries',
-	jsonSchema: {
-		doNotSuggest: true,
-		description: localize('startEntries', "Contribute commands to help users start using your extension. Experimental, available in VS Code Insiders only."),
-		type: 'array',
-		items: {
-			type: 'object',
-			required: ['id', 'title', 'description'],
-			defaultSnippets: [{ body: { 'id': '$1', 'title': '$2', 'description': '$3' } }],
-			properties: {
-				title: {
-					type: 'string',
-					description: localize('startEntries.title', "Title of start item.")
-				},
-				command: {
-					type: 'string',
-					description: localize('startEntries.command', "Command to run.")
-				},
-				description: {
-					type: 'string',
-					description: localize('startEntries.description', "Description of start item.")
-				},
-				when: {
-					type: 'string',
-					description: localize('startEntries.when', "Context key expression to control the visibility of this start item.")
-				},
-				type: {
-					type: 'string',
-					enum: ['sample-notebook', 'template-folder'],
-					description: localize('startEntries.type', "The type of start item this is, used for grouping. Supported values are `sample-notebook` or `template-folder`.")
 				}
 			}
 		}

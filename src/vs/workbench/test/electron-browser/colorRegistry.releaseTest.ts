@@ -101,7 +101,7 @@ function getDescription(color: ColorContribution) {
 
 async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
 	let extPath = getPathFromAmdModule(require, '../../../../../extensions');
-	let extFolders = await pfs.readDirsInDir(extPath);
+	let extFolders = await pfs.Promises.readDirsInDir(extPath);
 	let result: { [id: string]: string } = Object.create(null);
 	for (let folder of extFolders) {
 		try {

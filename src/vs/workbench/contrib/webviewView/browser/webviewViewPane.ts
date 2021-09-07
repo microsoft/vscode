@@ -219,7 +219,7 @@ export class WebviewViewPane extends ViewPane {
 		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
 	}
 
-	override onRootScroll() {
+	override onDidScrollRoot() {
 		this.layoutWebview();
 	}
 

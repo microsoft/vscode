@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { language } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -39,7 +38,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
+		@ITASExperimentService tasExperimentService: ITASExperimentService,
 	) {
 		super();
 

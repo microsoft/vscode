@@ -2,10 +2,96 @@
 # yarn lockfile v1
 
 
+"@microsoft/applicationinsights-analytics-js@2.6.4":
+  version "2.6.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-analytics-js/-/applicationinsights-analytics-js-2.6.4.tgz#22ad17276ed922f2f0e66b7efe304f31c50ede64"
+  integrity sha512-BHx3U6H4j3ddtl2wSJNt+kX2jG+qsvH4mNnimFJjZ4Mq9dheD3o6ghnBH8gQjIb5Up09JdyV5itsTZf1aC84Dg==
+  dependencies:
+    "@microsoft/applicationinsights-common" "2.6.4"
+    "@microsoft/applicationinsights-core-js" "2.6.4"
+    "@microsoft/applicationinsights-shims" "2.0.0"
+    "@microsoft/dynamicproto-js" "^1.1.4"
+
+"@microsoft/applicationinsights-channel-js@2.6.4":
+  version "2.6.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-channel-js/-/applicationinsights-channel-js-2.6.4.tgz#49c139e8d801835bfba25547cb57d030286dec8a"
+  integrity sha512-ps9ZglUw8nzou9/CxmfRgHO7aGjhopu9YqsadbQL6yz/q8LSj1w30+ADa3gSMYCEEy8FQrDo5e5UebDEnX/w+A==
+  dependencies:
+    "@microsoft/applicationinsights-common" "2.6.4"
+    "@microsoft/applicationinsights-core-js" "2.6.4"
+    "@microsoft/applicationinsights-shims" "2.0.0"
+    "@microsoft/dynamicproto-js" "^1.1.4"
+
+"@microsoft/applicationinsights-common@2.6.4":
+  version "2.6.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-common/-/applicationinsights-common-2.6.4.tgz#c3a4129c727127271c93c7e23b86cf18fcb9e3a0"
+  integrity sha512-/YLrKpxXL8zusjzu8GTYPuRrKw0OzUD4rLh8mxSlUZWK+SLOE/1loizJIesmd6OLgcgmOTrd1iZFVsuxn20b/g==
+  dependencies:
+    "@microsoft/applicationinsights-core-js" "2.6.4"
+    "@microsoft/applicationinsights-shims" "2.0.0"
+    "@microsoft/dynamicproto-js" "^1.1.4"
+
+"@microsoft/applicationinsights-core-js@2.6.4":
+  version "2.6.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.6.4.tgz#163caa31c02e72cfe02fc4abebd6bffd6b587de3"
+  integrity sha512-rYxfJzl4aLXFGOLsRoJqyKj5qfhQTz1u/eXSo6N6gIIr/D+RCVNJZKVzeBh3xOOytm4UBGRshK0QFZJlIQL3Kw==
+  dependencies:
+    "@microsoft/applicationinsights-shims" "2.0.0"
+    "@microsoft/dynamicproto-js" "^1.1.4"
+
+"@microsoft/applicationinsights-dependencies-js@2.6.4":
+  version "2.6.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-dependencies-js/-/applicationinsights-dependencies-js-2.6.4.tgz#6d120965cdc3ef5798feac6bc729bc97d40a4bb5"
+  integrity sha512-mJ/yTe00HPlUpQCmQWGhY3ronlkhsPgIYBWjxstN4NHRO4Qt17/ITxFoRa+r50J8Sf4ouc4qBoEFSVc56x80bg==
+  dependencies:
+    "@microsoft/applicationinsights-common" "2.6.4"
+    "@microsoft/applicationinsights-core-js" "2.6.4"
+    "@microsoft/applicationinsights-shims" "2.0.0"
+    "@microsoft/dynamicproto-js" "^1.1.4"
+
+"@microsoft/applicationinsights-properties-js@2.6.4":
+  version "2.6.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-properties-js/-/applicationinsights-properties-js-2.6.4.tgz#d779cd552277e6049b30efe71024a39bad5264e7"
+  integrity sha512-SdIR3gVX46N0RdC0zV/pXKoCxwT+2+79ek6hVXvXa2o2I+JfgYEAxb1Q8flYNGEdlFd/Ge7BHcJLqFvjat1t4Q==
+  dependencies:
+    "@microsoft/applicationinsights-common" "2.6.4"
+    "@microsoft/applicationinsights-core-js" "2.6.4"
+    "@microsoft/applicationinsights-shims" "2.0.0"
+    "@microsoft/dynamicproto-js" "^1.1.4"
+
+"@microsoft/applicationinsights-shims@2.0.0":
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-shims/-/applicationinsights-shims-2.0.0.tgz#ee622588f14e58ae3c055b12431da8ed55d71991"
+  integrity sha512-OaKew7f7acuNFgKYjMSPrRTRQi93xUyONWeeCeBlJSx7oRNJaL0TqbTvW6j5GHnSr3mhinPtAQ+rCQWASBnOrg==
+
+"@microsoft/applicationinsights-web@^2.6.4":
+  version "2.6.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-web/-/applicationinsights-web-2.6.4.tgz#509069c798a4da2c2b2b494bb15eb328425d4e86"
+  integrity sha512-/lBngt78Q7YNs8Llu1xz22f9oT5Rr2lo1QmSSSSKal30HL6kkzkP14J2E6+0+O5dRmyTDgOSiEePt6AhF8NFzg==
+  dependencies:
+    "@microsoft/applicationinsights-analytics-js" "2.6.4"
+    "@microsoft/applicationinsights-channel-js" "2.6.4"
+    "@microsoft/applicationinsights-common" "2.6.4"
+    "@microsoft/applicationinsights-core-js" "2.6.4"
+    "@microsoft/applicationinsights-dependencies-js" "2.6.4"
+    "@microsoft/applicationinsights-properties-js" "2.6.4"
+    "@microsoft/applicationinsights-shims" "2.0.0"
+    "@microsoft/dynamicproto-js" "^1.1.4"
+
+"@microsoft/dynamicproto-js@^1.1.4":
+  version "1.1.4"
+  resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.4.tgz#40e1c0ad20743fcee1604a7df2c57faf0aa1af87"
+  integrity sha512-Ot53G927ykMF8cQ3/zq4foZtdk+Tt1YpX7aUTHxBU7UHNdkEiBvBfZSq+rnlUmKCJ19VatwPG4mNzvcGpBj4og==
+
 "@tootallnate/once@1", "@tootallnate/once@^1.1.2":
   version "1.1.2"
   resolved "https://registry.yarnpkg.com/@tootallnate/once/-/once-1.1.2.tgz#ccb91445360179a04e7fe6aff78c00ffc1eeaf82"
   integrity sha512-RbzJvlNzmRq5c3O09UipeuXno4tA1FE6ikOjxZK0tuxVv3412l64l5t1W5pj4+rJq9vpkm/kwiR07aZXnsKPxw==
+
+"@vscode/vscode-languagedetection@1.0.21":
+  version "1.0.21"
+  resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.21.tgz#89b48f293f6aa3341bb888c1118d16ff13b032d3"
+  integrity sha512-zSUH9HYCw5qsCtd7b31yqkpaCU6jhtkKLkvOOA8yTrIRfBSOFb8PPhgmMicD7B/m+t4PwOJXzU1XDtrM9Fd3/g==
 
 agent-base@4:
   version "4.2.0"
@@ -208,9 +294,9 @@ get-uri@^3.0.2:
     ftp "^0.3.10"
 
 glob-parent@~5.1.0:
-  version "5.1.0"
-  resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-5.1.0.tgz#5f4c1d1e748d30cd73ad2944b3577a81b081e8c2"
-  integrity sha512-qjtRgnIVmOfnKUE3NJAQEdk+lKrxfw8t5ke7SXtfMTHcjsBfOfWXCQfdb30zfDoZQ2IRSIiidmjtbHZPZ++Ihw==
+  version "5.1.2"
+  resolved "https://registry.yarnpkg.com/glob-parent/-/glob-parent-5.1.2.tgz#869832c58034fe68a4093c17dc15e8340d8401c4"
+  integrity sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==
   dependencies:
     is-glob "^4.0.1"
 
@@ -338,10 +424,15 @@ ms@2.1.2, ms@^2.1.1:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.2.tgz#d09d1f357b443f493382a8eb3ccd183872ae6009"
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
 
-nan@^2.13.2, nan@^2.14.0:
+nan@^2.13.2:
   version "2.14.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
   integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
+
+nan@^2.14.0:
+  version "2.15.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.15.0.tgz#3f34a473ff18e15c1b5626b62903b5ad6e665fee"
+  integrity sha512-8ZtvEnA2c5aYCZYd1cvgdnU6cqwixRoYg70xPLWUws5ORTa/lnw+u4amixRS/Ac5U5mQVgp9pnlSUnbNWFaWZQ==
 
 native-watchdog@1.3.0:
   version "1.3.0"
@@ -437,9 +528,9 @@ socks@^2.3.3:
     smart-buffer "^4.1.0"
 
 spdlog@^0.13.0:
-  version "0.13.5"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.5.tgz#a31027dcccbe032e9a53579f42cb45428af08bad"
-  integrity sha512-D1xA5tRXw7eZOoFBCAnOxCxLN3JpHVDjpPJG/xjJ0nFZvtfOUTAzK66MVxJCDht/ZFwjLcBAltvzjfz4JTuSEw==
+  version "0.13.6"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.6.tgz#26b2e13d46cbf8f2334c12ba2a8cc82de5a28f02"
+  integrity sha512-iGqDoA88G3Rv3lkbVQglTulp3nv12FzND6LDC7cOZ+OoFvWnXVb3+Ebhed60oZ6+IWWGwDtjXK6ympwr7C1XmQ==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^0.5.5"
@@ -492,10 +583,10 @@ vscode-regexpp@^3.1.0:
   resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"
   integrity sha512-pqtN65VC1jRLawfluX4Y80MMG0DHJydWhe5ZwMHewZD6sys4LbU6lHwFAHxeuaVE6Y6+xZOtAw+9hvq7/0ejkg==
 
-vscode-ripgrep@^1.11.3:
-  version "1.11.3"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.11.3.tgz#a997f4f4535dfeb9d775f04053c1247454d7a37a"
-  integrity sha512-fdD+BciXiEO1iWTrV/S3sAthlK/tHRBjHF+aJIZDxUMD/q9wpNq+YPFEiLCrW+8epahfR19241DeVHHgX/I4Ww==
+vscode-ripgrep@^1.12.0:
+  version "1.12.0"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.12.0.tgz#8fee3f892349f2bf1c7ef9743e3bbccb108ad9d7"
+  integrity sha512-tn+bM7RbVElyuIGjIFyuSZZSuqodDjPNVQeHdo9w7EOIFEOuNtXuZ82s/Sy59lG/gJyMEkXjXjKunbUNNa5kOw==
   dependencies:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"
@@ -529,25 +620,35 @@ xregexp@2.0.0:
   resolved "https://registry.yarnpkg.com/xregexp/-/xregexp-2.0.0.tgz#52a63e56ca0b84a7f3a5f3d61872f126ad7a5943"
   integrity sha1-UqY+VsoLhKfzpfPWGHLxJq16WUM=
 
-xterm-addon-search@0.9.0-beta.2:
-  version "0.9.0-beta.2"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.2.tgz#46de7c7d5f1d0ae546b84552c08182916d83025d"
-  integrity sha512-Ljg+O8HcGx1z2RjpV+nX070zpSjmefU09SFPBVWAHjGT983y6b5yoqG7AVVZdirsJ0zGiccAZL9Kila1CQN6nQ==
+xterm-addon-search@0.9.0-beta.4:
+  version "0.9.0-beta.4"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.4.tgz#e332f99d5eb5991f8c0e361c9b0d45b23f454323"
+  integrity sha512-PMzAPtUOjQjJcqpjB2k9BkbjOZPH4PFuQkBtln2599mCPeA9WdA++FpVN6WdBHgeIR5QILoT4pWg0hA8USInzg==
 
-xterm-addon-unicode11@0.3.0-beta.5:
-  version "0.3.0-beta.5"
-  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.3.0-beta.5.tgz#7e490799d530d3b301125c7a4e92317c161761c4"
-  integrity sha512-SgDDL3PoMH1G48JO6T45whKAex4NPxi80UzUVitnrqyd8dFQP+oF6cxqUutULgm9HSGk62qy3mrZvIMGO5VXog==
+xterm-addon-serialize@0.6.0-beta.8:
+  version "0.6.0-beta.8"
+  resolved "https://registry.yarnpkg.com/xterm-addon-serialize/-/xterm-addon-serialize-0.6.0-beta.8.tgz#b07c56ef86c79935a64c1cbd9930dcbd67631c5d"
+  integrity sha512-KAy+QTRXCWkctMuuNo1O78q74H1CqrHu2FwOUQiHg6SBkqaTSA+WqRj9RCeD5eb5tyCR22kCticyFUSXeboLow==
 
-xterm-addon-webgl@0.11.1:
-  version "0.11.1"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.11.1.tgz#33dd250ab52e9f51d2ff52396447962e6f53e24c"
-  integrity sha512-xF6DnEoV+rPtzetMBXBZVe1kLKtus7AKdEcyfq2eMHQzhaRvC+pfnU+XiCXC85kueguqu2UkBHXZs5mihK9jOQ==
+xterm-addon-unicode11@0.3.0-beta.6:
+  version "0.3.0-beta.6"
+  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.3.0-beta.6.tgz#8914f377757d5078e7b4daee7d3e2b7428b6edf0"
+  integrity sha512-Qwa18yMhtacf9Jtxy+UuxHfjIeIjaX9q0LUfHtZU8/Lwjh+bGcn8E8IABVSGvXZgPNKw/4TqEpgLFexn+sfc5g==
 
-xterm@4.13.0-beta.1:
-  version "4.13.0-beta.1"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.13.0-beta.1.tgz#ad2ad321c69a4add6e878c890f278a1da74fd7d0"
-  integrity sha512-gAMGqBglESTxQWph1uKVyd1jO/6eKsbicNG+Mr/YAsj06TjFVcLw839Iqu6P+DVFEV7lLLspcOb8fwX6qMBH/Q==
+xterm-addon-webgl@0.12.0-beta.10:
+  version "0.12.0-beta.10"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.10.tgz#ba23287043da8172f4f9e53babb620f54ad36189"
+  integrity sha512-mzMOAqgM95FAgzcVzCH/Q0NfN0CTMHVDWCCFyg4B5ZcsuRiQKqQQw0HS+5uOQDtoZEDl2BqGFby7pGpENWGjZQ==
+
+xterm-headless@4.14.0-beta.12:
+  version "4.14.0-beta.12"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.14.0-beta.12.tgz#06454c63a2e7ca36abbaa0774f7db0d6d7286eff"
+  integrity sha512-VRtNpNbMvg0mQ3fj7tuC8/thXx5MfzqviSg2KU48mtNMhisGQSH6mL5Q7hgXs7J5m7d2nm3SyklRhQ5ztxRpQg==
+
+xterm@4.14.0-beta.22:
+  version "4.14.0-beta.22"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.14.0-beta.22.tgz#89e1060927f6542645f53584bfcd35cec08abe5a"
+  integrity sha512-zl4d2fmjAoCB+G0O5tq2kNkoe7dnnrcY2Daj6VFPPV6nItyXrgRzlKWNfTjKYunC3kU2ApYy+FnHulO7lWuXSw==
 
 yauzl@^2.9.2:
   version "2.10.0"

@@ -61,7 +61,7 @@ export class TestUntitledFileWorkingCopyModel extends Disposable implements IUnt
 
 		this.versionId++;
 
-		this._onDidChangeContent.fire({ isEmpty: newContents.length === 0 });
+		this._onDidChangeContent.fire({ isInitial: newContents.length === 0 });
 	}
 
 	versionId = 0;
@@ -101,7 +101,7 @@ suite('UntitledFileWorkingCopy', () => {
 			uri,
 			basename(uri),
 			hasAssociatedFilePath,
-			initialValue.length > 0 ? bufferToStream(VSBuffer.fromString(initialValue)) : undefined,
+			initialValue.length > 0 ? { value: bufferToStream(VSBuffer.fromString(initialValue)) } : undefined,
 			factory,
 			async workingCopy => { await workingCopy.revert(); return true; },
 			accessor.workingCopyService,
@@ -127,10 +127,6 @@ suite('UntitledFileWorkingCopy', () => {
 		workingCopy.dispose();
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
-	});
-
-	test('requires good untitled URI', async () => {
-		assert.throws(() => createWorkingCopy(URI.from({ scheme: 'unknown', path: 'somePath' })));
 	});
 
 	test('dirty', async () => {
@@ -170,7 +166,7 @@ suite('UntitledFileWorkingCopy', () => {
 		workingCopy.model?.updateContents('hello dirty');
 		assert.strictEqual(workingCopy.isDirty(), true);
 
-		workingCopy.model?.fireContentChangeEvent({ isEmpty: true });
+		workingCopy.model?.fireContentChangeEvent({ isInitial: true });
 
 		assert.strictEqual(workingCopy.isDirty(), false);
 	});
@@ -184,7 +180,7 @@ suite('UntitledFileWorkingCopy', () => {
 		workingCopy.model?.updateContents('hello dirty');
 		assert.strictEqual(workingCopy.isDirty(), true);
 
-		workingCopy.model?.fireContentChangeEvent({ isEmpty: true });
+		workingCopy.model?.fireContentChangeEvent({ isInitial: true });
 
 		assert.strictEqual(workingCopy.isDirty(), true);
 	});

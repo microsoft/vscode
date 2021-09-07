@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import { createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
-import { Sequencer, createCancelablePromise } from 'vs/base/common/async';
-import { Promises, rimraf } from 'vs/base/node/pfs';
-import { open as _openZip, Entry, ZipFile } from 'yauzl';
-import * as yazl from 'yazl';
+import { createCancelablePromise, Sequencer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import * as path from 'vs/base/common/path';
 import { assertIsDefined } from 'vs/base/common/types';
+import { Promises } from 'vs/base/node/pfs';
+import * as nls from 'vs/nls';
+import { Entry, open as _openZip, ZipFile } from 'yauzl';
+import * as yazl from 'yazl';
 
 export interface IExtractOptions {
 	overwrite?: boolean;
@@ -218,7 +218,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 	let promise = openZip(zipPath, true);
 
 	if (options.overwrite) {
-		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
+		promise = promise.then(zipfile => Promises.rm(targetPath).then(() => zipfile));
 	}
 
 	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }, token));

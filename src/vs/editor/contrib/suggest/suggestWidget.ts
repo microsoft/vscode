@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/suggest';
+import * as dom from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
+import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { List } from 'vs/base/browser/ui/list/listWidget';
+import { CancelablePromise, createCancelablePromise, disposableTimeout, TimeoutTimer } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
+import * as strings from 'vs/base/common/strings';
+import 'vs/css!./media/suggest';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IPosition } from 'vs/editor/common/core/position';
+import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/suggestWidgetStatus';
 import 'vs/editor/contrib/symbolIcons/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
-import * as dom from 'vs/base/browser/dom';
-import { Event, Emitter } from 'vs/base/common/event';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IListEvent, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { Context as SuggestContext, CompletionItem } from './suggest';
-import { CompletionModel } from './completionModel';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorWidgetBackground, quickInputListFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground, quickInputListFocusForeground, listFocusHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SuggestDetailsWidget, canExpandCompletionItem, SuggestDetailsOverlay } from './suggestWidgetDetails';
-import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/suggestWidgetStatus';
-import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, focusBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, textCodeBlockBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { CompletionModel } from './completionModel';
 import { ResizableHTMLElement } from './resizable';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { IPosition } from 'vs/editor/common/core/position';
-import { clamp } from 'vs/base/common/numbers';
+import { CompletionItem, Context as SuggestContext } from './suggest';
+import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
+import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 
 /**
  * Suggest widget colors
@@ -41,6 +41,7 @@ export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.
 export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
 export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hc: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
 export const editorSuggestWidgetSelectedForeground = registerColor('editorSuggestWidget.selectedForeground', { dark: quickInputListFocusForeground, light: quickInputListFocusForeground, hc: quickInputListFocusForeground }, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetSelectedIconForeground = registerColor('editorSuggestWidget.selectedIconForeground', { dark: quickInputListFocusIconForeground, light: quickInputListFocusIconForeground, hc: quickInputListFocusIconForeground }, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hc: quickInputListFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 export const editorSuggestWidgetHighlightFocusForeground = registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hc: listFocusHighlightForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
@@ -791,7 +792,8 @@ export class SuggestWidget implements IDisposable {
 			const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 			const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
 			const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
-			const maxHeightAbove = Math.min(editorBox.top + cursorBox.top - info.verticalPadding, fullHeight);
+			const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
+			const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
 			let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
 
 			if (height === this._cappedHeight?.capped) {
@@ -807,11 +809,11 @@ export class SuggestWidget implements IDisposable {
 				height = maxHeight;
 			}
 
-			if (height > maxHeightBelow || this._forceRenderingAbove) {
+			const forceRenderingAboveRequiredSpace = 150;
+			if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
 				this.element.enableSashes(true, true, false, false);
 				maxHeight = maxHeightAbove;
-
 			} else {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
 				this.element.enableSashes(false, true, true, false);
@@ -1002,9 +1004,19 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused { color: ${selectedForeground}; }`);
 	}
 
+	const selectedIconForeground = theme.getColor(editorSuggestWidgetSelectedIconForeground);
+	if (selectedIconForeground) {
+		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .codicon { color: ${selectedIconForeground}; }`);
+	}
+
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.monaco-editor .suggest-details a { color: ${link}; }`);
+	}
+
+	const linkHover = theme.getColor(textLinkActiveForeground);
+	if (linkHover) {
+		collector.addRule(`.monaco-editor .suggest-details a:hover { color: ${linkHover}; }`);
 	}
 
 	const codeBackground = theme.getColor(textCodeBlockBackground);

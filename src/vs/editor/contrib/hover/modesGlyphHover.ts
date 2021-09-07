@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from 'vs/base/browser/dom';
+import { asArray } from 'vs/base/common/arrays';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
-import { asArray } from 'vs/base/common/arrays';
 
 export interface IHoverMessage {
 	value: IMarkdownString;

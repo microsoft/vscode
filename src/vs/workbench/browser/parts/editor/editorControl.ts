@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInputCapabilities, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorRegistry, IEditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,11 +17,34 @@ import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIM
 import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/workspaceTrustRequiredEditor';
+import { UnavailableResourceErrorEditor, UnknownErrorEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 
 export interface IOpenEditorResult {
-	readonly editorPane: EditorPane;
-	readonly editorChanged: boolean;
+
+	/**
+	 * The editor pane used for opening. This can be a generic
+	 * placeholder in certain cases, e.g. when workspace trust
+	 * is required, or an editor fails to restore.
+	 *
+	 * Will be `undefined` if an error occured while trying to
+	 * open the editor and in cases where no placeholder is being
+	 * used.
+	 */
+	readonly editorPane?: EditorPane;
+
+	/**
+	 * Whether the editor changed as a result of opening.
+	 */
+	readonly editorChanged?: boolean;
+
+	/**
+	 * This property is set when an editor fails to restore and
+	 * is shown with a generic place holder. It allows callers
+	 * to still present the error to the user in that case.
+	 */
+	readonly error?: Error;
 }
 
 export class EditorControl extends Disposable {
@@ -45,7 +68,7 @@ export class EditorControl extends Disposable {
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
 	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
-	private readonly editorsRegistry = Registry.as<IEditorRegistry>(EditorExtensions.Editors);
+	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
 	constructor(
 		private parent: HTMLElement,
@@ -53,7 +76,7 @@ export class EditorControl extends Disposable {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService
 	) {
 		super();
 
@@ -78,10 +101,37 @@ export class EditorControl extends Disposable {
 		}
 	}
 
-	async openEditor(editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
-		// Editor descriptor
-		const descriptor = this.getEditorDescriptor(editor);
+
+		try {
+			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
+		} catch (error) {
+			if (!context.newInGroup) {
+				const isUnavailableResource = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+				const editorPlaceholder = isUnavailableResource ? UnavailableResourceErrorEditor.DESCRIPTOR : UnknownErrorEditor.DESCRIPTOR;
+
+				// The editor is restored (as opposed to being newly opened) and as
+				// such we want to preserve the fact that an editor was opened here
+				// before by falling back to a editor placeholder that allows the
+				// user to retry the operation.
+				//
+				// This is especially important when an editor is dirty and fails to
+				// restore after a restart to prevent the impression that any user
+				// data is lost.
+				//
+				// Related: https://github.com/microsoft/vscode/issues/110062
+				return {
+					...(await this.doOpenEditor(editorPlaceholder, editor, options, context)),
+					error
+				};
+			}
+
+			return { error };
+		}
+	}
+
+	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
 		// Editor pane
 		const editorPane = this.doShowEditorPane(descriptor);
@@ -91,8 +141,8 @@ export class EditorControl extends Disposable {
 		return { editorPane, editorChanged };
 	}
 
-	private getEditorDescriptor(editor: EditorInput): IEditorDescriptor {
-		if (editor.hasCapability(EditorInputCapabilities.RequiresTrust) && !this.workspaceTrustService.isWorkpaceTrusted()) {
+	private getEditorPaneDescriptor(editor: EditorInput): IEditorPaneDescriptor {
+		if (editor.hasCapability(EditorInputCapabilities.RequiresTrust) && !this.workspaceTrustService.isWorkspaceTrusted()) {
 			// Workspace trust: if an editor signals it needs workspace trust
 			// but the current workspace is untrusted, we fallback to a generic
 			// editor descriptor to indicate this an do NOT load the registered
@@ -100,10 +150,10 @@ export class EditorControl extends Disposable {
 			return WorkspaceTrustRequiredEditor.DESCRIPTOR;
 		}
 
-		return assertIsDefined(this.editorsRegistry.getEditor(editor));
+		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));
 	}
 
-	private doShowEditorPane(descriptor: IEditorDescriptor): EditorPane {
+	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
 		// Return early if the currently active editor pane can handle the input
 		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
@@ -135,7 +185,7 @@ export class EditorControl extends Disposable {
 		return editorPane;
 	}
 
-	private doCreateEditorPane(descriptor: IEditorDescriptor): EditorPane {
+	private doCreateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
 		// Instantiate editor
 		const editorPane = this.doInstantiateEditorPane(descriptor);
@@ -151,7 +201,7 @@ export class EditorControl extends Disposable {
 		return editorPane;
 	}
 
-	private doInstantiateEditorPane(descriptor: IEditorDescriptor): EditorPane {
+	private doInstantiateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
 		// Return early if already instantiated
 		const existingEditorPane = this.editorPanes.find(editorPane => descriptor.describes(editorPane));
@@ -182,7 +232,7 @@ export class EditorControl extends Disposable {
 		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
-	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
+	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
@@ -251,7 +301,7 @@ export class EditorControl extends Disposable {
 	}
 
 	closeEditor(editor: EditorInput): void {
-		if (this._activeEditorPane && editor.matches(this._activeEditorPane.input)) {
+		if (this._activeEditorPane && this._activeEditorPane.input && editor.matches(this._activeEditorPane.input)) {
 			this.doHideActiveEditorPane();
 		}
 	}

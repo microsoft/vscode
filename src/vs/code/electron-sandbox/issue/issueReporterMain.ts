@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/issueReporter';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Delayer } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isWindows, isLinux, isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isLinuxSnap, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
+import 'vs/css!./media/issueReporter';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IssueReporterWindowConfiguration, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
-import { Codicon } from 'vs/base/common/codicons';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
+import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -140,6 +140,7 @@ export class IssueReporter extends Disposable {
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
 		this.updateExperimentsInfo(configuration.data.experiments);
+		this.updateRestrictedMode(configuration.data.restrictedMode);
 	}
 
 	render(): void {
@@ -1157,6 +1158,10 @@ export class IssueReporter extends Disposable {
 
 			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
 		}
+	}
+
+	private updateRestrictedMode(restrictedMode: boolean) {
+		this.issueReporterModel.update({ restrictedMode });
 	}
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {

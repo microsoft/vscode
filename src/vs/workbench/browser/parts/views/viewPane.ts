@@ -445,7 +445,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.scrollableElement.scanDomNode();
 	}
 
-	onRootScroll() {
+	onDidScrollRoot() {
 		// noop
 	}
 

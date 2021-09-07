@@ -5,18 +5,17 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AutoRunMode, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { TestDiffOpType, TestIdWithMaybeSrc } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestDiffOpType, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { isRunningTests, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { getCollectionItemParents, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export interface ITestingAutoRun {
 	/**
@@ -36,7 +35,6 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
 		@IConfigurationService private readonly configuration: IConfigurationService,
-		@IWorkspaceTestCollectionService private readonly workspaceTests: IWorkspaceTestCollectionService,
 	) {
 		super();
 		this.enabled = TestingContextKeys.autoRun.bindTo(contextKeyService);
@@ -67,7 +65,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 	 * Runs them on a debounce.
 	 */
 	private makeRunner() {
-		const rerunIds = new Map<string, TestIdWithMaybeSrc>();
+		const rerunIds = new Map<string, InternalTestItem>();
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
@@ -85,39 +83,32 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 			const tests = [...rerunIds.values()];
 			rerunIds.clear();
-			await this.testService.runTests({ debug: false, tests, isAutoRun: true });
+			await this.testService.runTests({ group: TestRunProfileBitset.Run, tests, isAutoRun: true });
 
 			if (rerunIds.size > 0) {
 				scheduler.schedule(delay);
 			}
 		}, delay));
 
-		const addToRerun = (test: TestIdWithMaybeSrc) => {
-			rerunIds.set(identifyTest(test), test);
+		const addToRerun = (test: InternalTestItem) => {
+			rerunIds.set(test.item.extId, test);
 			if (!isRunningTests(this.results)) {
 				scheduler.schedule(delay);
 			}
 		};
 
-		const removeFromRerun = (test: TestIdWithMaybeSrc) => {
-			const id = identifyTest(test);
-			if (test.src) {
-				rerunIds.delete(id);
-				return;
-			}
-
-			for (const test of rerunIds.keys()) {
-				if (test.startsWith(id)) {
-					rerunIds.delete(test);
-				}
+		const removeFromRerun = (test: InternalTestItem) => {
+			rerunIds.delete(test.item.extId);
+			if (rerunIds.size === 0) {
+				scheduler.cancel();
 			}
 		};
 
 		store.add(this.results.onTestChanged(evt => {
 			if (evt.reason === TestResultItemChangeReason.Retired) {
-				addToRerun({ testId: evt.item.item.extId });
-			} else if ((evt.reason === TestResultItemChangeReason.OwnStateChange || evt.reason === TestResultItemChangeReason.ComputedStateChange) && isStateWithResult(evt.item.computedState)) {
-				removeFromRerun({ testId: evt.item.item.extId });
+				addToRerun(evt.item);
+			} else if ((evt.reason === TestResultItemChangeReason.OwnStateChange || evt.reason === TestResultItemChangeReason.ComputedStateChange)) {
+				removeFromRerun(evt.item);
 			}
 		}));
 
@@ -128,32 +119,30 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 		}));
 
 		if (getTestingConfiguration(this.configuration, TestingConfigKeys.AutoRunMode) === AutoRunMode.AllInWorkspace) {
-			const listener = this.workspaceTests.subscribeToWorkspaceTests();
-			store.add(listener);
 
-			listener.waitForAllRoots(cts.token).then(() => {
-				if (!cts.token.isCancellationRequested) {
-					for (const collection of listener.workspaceFolderCollections.values()) {
-						for (const rootId of collection.rootIds) {
-							const root = collection.getNodeById(rootId);
-							if (root) { addToRerun({ testId: root.item.extId, src: root.src }); }
+			store.add(this.testService.onDidProcessDiff(diff => {
+				for (const entry of diff) {
+					if (entry[0] === TestDiffOpType.Add) {
+						const test = entry[1];
+						const isQueued = Iterable.some(
+							getCollectionItemParents(this.testService.collection, test),
+							t => rerunIds.has(test.item.extId),
+						);
+
+						const state = this.results.getStateById(test.item.extId);
+						if (!isQueued && (!state || state[1].retired)) {
+							addToRerun(test);
 						}
 					}
 				}
-			});
-
-			store.add(listener.onDiff(({ diff }) => {
-				for (const entry of diff) {
-					if (entry[0] === TestDiffOpType.Add) {
-						const { item, src } = entry[1];
-						addToRerun({ testId: item.extId, src });
-					}
-				}
 			}));
+
+
+			for (const root of this.testService.collection.rootItems) {
+				addToRerun(root);
+			}
 		}
 
 		return store;
 	}
 }
-
-const identifyTest = (test: TestIdWithMaybeSrc) => test.src ? `${test.testId}\0${test.src.controller}` : `${test.testId}\0`;

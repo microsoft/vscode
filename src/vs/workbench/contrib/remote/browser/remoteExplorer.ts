@@ -6,12 +6,12 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Attributes, IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { Attributes, AutoTunnelSource, IRemoteExplorerService, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { forwardedPortsViewEnabled, ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -221,6 +221,7 @@ class OnAutoForwardedAction extends Disposable {
 	private lastNotification: INotificationHandle | undefined;
 	private lastShownPort: number | undefined;
 	private doActionTunnels: RemoteTunnel[] | undefined;
+	private alreadyOpenedOnce: Set<string> = new Set();
 
 	constructor(private readonly notificationService: INotificationService,
 		private readonly remoteExplorerService: IRemoteExplorerService,
@@ -240,9 +241,17 @@ class OnAutoForwardedAction extends Disposable {
 		const tunnel = await this.portNumberHeuristicDelay();
 		this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) Heuristic chose ${tunnel?.tunnelRemotePort}`);
 		if (tunnel) {
-			const attributes = (await this.remoteExplorerService.tunnelModel.getAttributes([tunnel.tunnelRemotePort]))?.get(tunnel.tunnelRemotePort)?.onAutoForward;
+			const allAttributes = await this.remoteExplorerService.tunnelModel.getAttributes([{ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }]);
+			const attributes = allAttributes?.get(tunnel.tunnelRemotePort)?.onAutoForward;
 			this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) onAutoForward action is ${attributes}`);
 			switch (attributes) {
+				case OnPortForward.OpenBrowserOnce: {
+					if (this.alreadyOpenedOnce.has(tunnel.localAddress)) {
+						break;
+					}
+					this.alreadyOpenedOnce.add(tunnel.localAddress);
+					// Intentionally do not break so that the open browser path can be run.
+				}
 				case OnPortForward.OpenBrowser: {
 					const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 					await OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address);
@@ -314,7 +323,9 @@ class OnAutoForwardedAction extends Disposable {
 	}
 
 	private linkMessage() {
-		return nls.localize('remote.tunnelsView.notificationLink', "[See all forwarded ports](command:{0}.focus)", TunnelPanel.ID);
+		return nls.localize(
+			{ key: 'remote.tunnelsView.notificationLink2', comment: ['[See all forwarded ports]({0}) is a link. Only translate `See all forwarded ports`. Do not change brackets and parentheses or {0}'] },
+			"[See all forwarded ports]({0})", `command:${TunnelPanel.ID}.focus`);
 	}
 
 	private async showNotification(tunnel: RemoteTunnel) {
@@ -370,7 +381,12 @@ class OnAutoForwardedAction extends Disposable {
 			label: nls.localize('remote.tunnelsView.elevationButton', "Use Port {0} as Sudo...", tunnel.tunnelRemotePort),
 			run: async () => {
 				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
-				const newTunnel = await this.remoteExplorerService.forward({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, tunnel.tunnelRemotePort, undefined, undefined, true, undefined, false);
+				const newTunnel = await this.remoteExplorerService.forward({
+					remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort },
+					local: tunnel.tunnelRemotePort,
+					elevateIfNeeded: true,
+					source: AutoTunnelSource
+				});
 				if (!newTunnel) {
 					return;
 				}
@@ -444,14 +460,14 @@ class OutputAutomaticPortForwarding extends Disposable {
 			if (mapHasAddressLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.detected, localUrl.host, localUrl.port)) {
 				return;
 			}
-			const attributes = (await this.remoteExplorerService.tunnelModel.getAttributes([localUrl.port]))?.get(localUrl.port);
+			const attributes = (await this.remoteExplorerService.tunnelModel.getAttributes([localUrl]))?.get(localUrl.port);
 			if (attributes?.onAutoForward === OnPortForward.Ignore) {
 				return;
 			}
 			if (this.privilegedOnly() && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
 				return;
 			}
-			const forwarded = await this.remoteExplorerService.forward(localUrl, undefined, undefined, undefined, undefined, undefined, false, attributes ?? null);
+			const forwarded = await this.remoteExplorerService.forward({ remote: localUrl, source: AutoTunnelSource }, attributes ?? null);
 			if (forwarded) {
 				this.notifier.doAction([forwarded]);
 			}
@@ -486,7 +502,15 @@ class ProcAutomaticPortForwarding extends Disposable {
 	) {
 		super();
 		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService);
-		this._register(configurationService.onDidChangeConfiguration(async (e) => {
+		this.initialize();
+	}
+
+	private async initialize() {
+		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
+			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet(() => resolve()));
+		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
 			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
 				await this.startStopCandidateListener();
 			}
@@ -522,14 +546,13 @@ class ProcAutomaticPortForwarding extends Disposable {
 			this.portsFeatures.dispose();
 		}
 
-		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
-			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet(() => resolve()));
-		}
-
 		// Capture list of starting candidates so we don't auto forward them later.
 		await this.setInitialCandidates();
 
-		this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
+		// Need to check the setting again, since it may have changed while we waited for the initial candidates to be set.
+		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
+			this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
+		}
 	}
 
 	private async setInitialCandidates() {
@@ -565,14 +588,14 @@ class ProcAutomaticPortForwarding extends Disposable {
 			}
 
 			if (!attributes) {
-				attributes = await this.remoteExplorerService.tunnelModel.getAttributes(this.remoteExplorerService.tunnelModel.candidates.map(candidate => candidate.port));
+				attributes = await this.remoteExplorerService.tunnelModel.getAttributes(this.remoteExplorerService.tunnelModel.candidates);
 			}
 
 			const portAttributes = attributes?.get(value.port);
 			if (portAttributes?.onAutoForward === OnPortForward.Ignore) {
 				continue;
 			}
-			const forwarded = await this.remoteExplorerService.forward(value, undefined, undefined, undefined, undefined, undefined, false, portAttributes ?? null);
+			const forwarded = await this.remoteExplorerService.forward({ remote: value, source: AutoTunnelSource }, portAttributes ?? null);
 			if (!alreadyForwarded && forwarded) {
 				this.autoForwarded.add(address);
 			} else if (forwarded) {

@@ -141,7 +141,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 		// loop through all variables occurrences in 'value'
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
-			// disallow attempted nesting, see #77289
+			// disallow attempted nesting, see #77289. This doesn't exclude variables that resolve to other variables.
 			if (variable.includes(AbstractVariableResolverService.VARIABLE_LHS)) {
 				return match;
 			}
@@ -150,6 +150,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			if (resolvedVariables) {
 				resolvedVariables.set(variable, resolvedValue);
+			}
+
+			if ((resolvedValue !== match) && types.isString(resolvedValue) && resolvedValue.match(AbstractVariableResolverService.VARIABLE_REGEXP)) {
+				resolvedValue = this.resolveString(environment, folderUri, resolvedValue, commandValueMapping, resolvedVariables);
 			}
 
 			return resolvedValue;

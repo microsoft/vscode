@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { IKeyMods, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,6 +17,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
@@ -24,6 +26,7 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -47,11 +50,13 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
 			context.restoreViewState?.(); // since we open to the side, restore view state in this editor
 
-			this.editorService.openEditor(this.editorService.activeEditor, {
+			const editorOptions: ITextEditorOptions = {
 				selection: options.range,
 				pinned: options.keyMods.ctrlCmd || this.configuration.openEditorPinned,
 				preserveFocus: options.preserveFocus
-			}, SIDE_GROUP);
+			};
+
+			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
 		}
 
 		// Otherwise let parent handle it

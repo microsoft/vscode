@@ -15,7 +15,7 @@
 		"type": "label",
 		"name": "*question",
 		"action": "close",
-		"comment": "Please ask your question on [StackOverflow](https://aka.ms/vscodestackoverflow). We have a great community over [there](https://aka.ms/vscodestackoverflow). They have already answered thousands of questions and are happy to answer yours as well. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+		"comment": "We closed this issue because it is a question about using VS Code rather than an issue or feature request. Please search for help on [StackOverflow](https://aka.ms/vscodestackoverflow), where the community has already answered thousands of similar questions. You may find their [guide on asking a new question](https://aka.ms/vscodestackoverflowquestion) helpful if your question has not already been asked. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
 	},
 	{
 		"type": "label",
@@ -66,6 +66,21 @@
 		"comment": "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
 	},
 	{
+		"type": "label",
+		"name": "notebook",
+		"assign": [
+			"rebornix"
+		]
+	},
+	{
+		"type": "label",
+		"name": "L10N",
+		"assign": [
+			"csigs",
+			"TylerLeonhardt"
+		]
+	},
+	{
 		"type": "comment",
 		"name": "duplicate",
 		"allowUsers": [
@@ -90,7 +105,7 @@
 			"@author"
 		],
 		"action": "updateLabels",
-		"addLabel": "z-author-verified",
+		"addLabel": "verified",
 		"removeLabel": "author-verification-requested",
 		"requireLabel": "author-verification-requested",
 		"disallowLabel": "unreleased"
@@ -393,9 +408,11 @@
 			"IllusionMH"
 		],
 		"action": "comment",
+		"addLabel": "needs more info",
 		"comment": "Thanks for reporting this issue! Unfortunately, it's hard for us to understand what issue you're seeing. Please help us out by providing a screen recording showing exactly what isn't working as expected. While we can work with most standard formats, `.gif` files are preferred as they are displayed inline on GitHub. You may find https://gifcap.dev helpful as a browser-based gif recording tool.\n\nIf the issue depends on keyboard input, you can help us by enabling screencast mode for the recording (`Developer: Toggle Screencast Mode` in the command palette).\n\nHappy coding!"
 	},
 	{
+		"__comment__": "Allows folks on the team to label issues by commenting: `\\label My-Label` ",
 		"type": "comment",
 		"name": "label",
 		"allowUsers": []
@@ -409,5 +426,11 @@
 			"gjsjohnmurray",
 			"IllusionMH"
 		]
+	},
+	{
+		"type": "label",
+		"name": "*workspace-trust-docs",
+		"action": "close",
+		"comment": "This issue appears to be the result of the new workspace trust feature shipped in June 2021. This security-focused feature has major impact on the functionality of VS Code. Due to the volume of issues, we ask that you take some time to review our [comprehensive documentation](https://aka.ms/vscode-workspace-trust) on the feature. If your issue is still not resolved, please let us know."
 	}
 ]

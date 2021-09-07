@@ -4,22 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolution, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, DebounceEmitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename, joinPath, isEqual } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, isEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -28,22 +23,16 @@ import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isUndefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorResolverService, ResolvedStatus } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-
-type CachedEditorInput = TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
-type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
@@ -57,6 +46,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
 	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
+	private readonly _onDidEditorsChange = this._register(new DebounceEmitter<void>({ delay: 0, merge: () => undefined }));
+	readonly onDidEditorsChange = this._onDidEditorsChange.event;
+
 	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
 	readonly onDidCloseEditor = this._onDidCloseEditor.event;
 
@@ -68,31 +60,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
-
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILogService private readonly logService: ILogService,
-		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IHostService private readonly hostService: IHostService,
+		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
 
 		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
 
 		this.registerListeners();
-
-		// Register the default editor to the override service
-		// so that it shows up in the editors picker
-		this.registerDefaultOverride();
 	}
 
 	private registerListeners(): void {
@@ -101,6 +86,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
 		this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
+		this.editorGroupService.onDidMoveGroup(group => this.handleGroupMove(group));
 		this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
 
 		// Out of workspace file watchers
@@ -116,22 +102,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Configuration
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
-	}
-
-	private registerDefaultOverride(): void {
-		this._register(this.editorOverrideService.registerContributionPoint(
-			'*',
-			{
-				id: DEFAULT_EDITOR_ASSOCIATION.id,
-				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
-				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				describes: (currentEditor) => this.fileEditorInputFactory.isFileEditorInput(currentEditor) && currentEditor.matches(this.activeEditor),
-				priority: ContributedEditorPriority.builtin
-			},
-			{},
-			resource => ({ editor: this.createEditorInput({ resource }) }),
-			diffEditor => ({ editor: diffEditor })
-		));
 	}
 
 	//#region Editor & group event handlers
@@ -150,6 +120,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			this.doHandleActiveEditorChangeEvent();
 			this._onDidVisibleEditorsChange.fire();
 		}
+	}
+
+	private handleGroupMove(group: IEditorGroup): void {
+		if (group.isEmpty) {
+			return; // empty groups do not change structure of editors
+		}
+
+		this._onDidEditorsChange.fire();
 	}
 
 	private handleActiveEditorChange(group: IEditorGroup): void {
@@ -172,15 +150,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
+		this._onDidEditorsChange.fire();
 	}
 
 	private registerGroupListeners(group: IEditorGroupView): void {
 		const groupDisposables = new DisposableStore();
 
 		groupDisposables.add(group.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				this.handleActiveEditorChange(group);
-				this._onDidVisibleEditorsChange.fire();
+			switch (e.kind) {
+				case GroupChangeKind.EDITOR_ACTIVE:
+					this.handleActiveEditorChange(group);
+					this._onDidVisibleEditorsChange.fire();
+					break;
+				case GroupChangeKind.EDITOR_CLOSE:
+				case GroupChangeKind.EDITOR_OPEN:
+				case GroupChangeKind.EDITOR_MOVE:
+					this._onDidEditorsChange.fire();
+					break;
 			}
 		}));
 
@@ -240,7 +226,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region File Changes: Move & Deletes to move or close opend editors
 
-	private onDidRunFileOperation(e: FileOperationEvent): void {
+	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
 
 		// Handle moves specially when file is opened
 		if (e.isOperation(FileOperation.MOVE)) {
@@ -259,9 +245,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private handleMovedFile(source: URI, target: URI): void {
+	private async handleMovedFile(source: URI, target: URI): Promise<void> {
 		for (const group of this.editorGroupService.groups) {
-			let replacements: (IResourceEditorReplacement | IEditorReplacement)[] = [];
+			let replacements: (IUntypedEditorReplacement | IEditorReplacement)[] = [];
 
 			for (const editor of group.editors) {
 				const resource = editor.resource;
@@ -279,7 +265,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				// Delegate rename() to editor instance
-				const moveResult = editor.rename(group.id, targetResource);
+				const moveResult = await editor.rename(group.id, targetResource);
 				if (!moveResult) {
 					return; // not target - ignore
 				}
@@ -293,7 +279,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				};
 
 				// Construct a replacement with our extra options mixed in
-				if (moveResult.editor instanceof EditorInput) {
+				if (isEditorInput(moveResult.editor)) {
 					replacements.push({
 						editor,
 						replacement: moveResult.editor,
@@ -304,11 +290,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					});
 				} else {
 					replacements.push({
-						editor: { resource: editor.resource },
+						editor,
 						replacement: {
 							...moveResult.editor,
 							options: {
-								...(moveResult.editor as IResourceEditorInputType).options,
+								...moveResult.editor.options,
 								...optionOverrides
 							}
 						}
@@ -343,7 +329,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Handle deletes in opened editors depending on:
 				// - we close any editor when `closeOnFileDelete: true`
-				// - we close any editor when the delete occured from within VSCode
+				// - we close any editor when the delete occurred from within VSCode
 				// - we close any editor without resolved working copy assuming that
 				//   this editor could not be opened after the file is gone
 				if (this.closeOnFileDelete || !isExternal || !this.workingCopyService.has(resource)) {
@@ -512,273 +498,143 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region openEditor()
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
-	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
-		const result = this.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
-		if (result) {
-			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
+	openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined>;
+	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined> {
+		let typedEditor: IEditorInput | undefined = undefined;
+		let options = isEditorInput(editor) ? optionsOrPreferredGroup as IEditorOptions : editor.options;
+		let group: IEditorGroup | undefined = undefined;
 
-			// Override handling: request override from override service
-			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
-				if (resolvedInputWithOptionsAndGroup) {
-					return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(
-						resolvedInputWithOptionsAndGroup.editor,
-						this.toOptions(resolvedInputWithOptionsAndGroup.options) ?? resolvedOptions
-					);
-				}
+		if (isPreferredGroup(optionsOrPreferredGroup)) {
+			preferredGroup = optionsOrPreferredGroup;
+		}
+
+		// Resolve override unless disabled
+		if (options?.override !== EditorResolution.DISABLED) {
+			const resolvedEditor = await this.editorResolverService.resolveEditor(isEditorInput(editor) ? { editor, options } : editor, preferredGroup);
+
+			if (resolvedEditor === ResolvedStatus.ABORT) {
+				return; // skip editor if override is aborted
 			}
 
-			// Override handling: disabled or no override found
-			return resolvedGroup.openEditor(resolvedEditor, resolvedOptions);
-		}
-
-		return undefined;
-	}
-
-	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
-		let resolvedGroup: IEditorGroup | undefined;
-		let candidateGroup: OpenInEditorGroup | undefined;
-
-		let typedEditor: EditorInput | undefined;
-		let typedOptions: EditorOptions | undefined;
-
-		// Typed Editor Support
-		if (editor instanceof EditorInput) {
-			typedEditor = editor;
-			typedOptions = this.toOptions(optionsOrGroup as IEditorOptions);
-
-			candidateGroup = group;
-			resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup);
-		}
-
-		// Untyped Text Editor Support
-		else {
-			const textInput = editor as IResourceEditorInputType;
-			typedEditor = this.createEditorInput(textInput);
-			if (typedEditor) {
-				typedOptions = TextEditorOptions.from(textInput);
-
-				candidateGroup = optionsOrGroup as OpenInEditorGroup;
-				resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup);
+			// We resolved an editor to use
+			if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+				typedEditor = resolvedEditor.editor;
+				options = resolvedEditor.options;
+				group = resolvedEditor.group;
 			}
 		}
 
-		if (typedEditor && resolvedGroup) {
-			if (
-				this.editorGroupService.activeGroup !== resolvedGroup && 	// only if target group is not already active
-				typedOptions && !typedOptions.inactive &&					// never for inactive editors
-				typedOptions.preserveFocus &&								// only if preserveFocus
-				typeof typedOptions.activation !== 'number' &&				// only if activation is not already defined (either true or false)
-				candidateGroup !== SIDE_GROUP								// never for the SIDE_GROUP
-			) {
-				// If the resolved group is not the active one, we typically
-				// want the group to become active. There are a few cases
-				// where we stay away from encorcing this, e.g. if the caller
-				// is already providing `activation`.
-				//
-				// Specifically for historic reasons we do not activate a
-				// group is it is opened as `SIDE_GROUP` with `preserveFocus:true`.
-				// repeated Alt-clicking of files in the explorer always open
-				// into the same side group and not cause a group to be created each time.
-				typedOptions.overwrite({ activation: EditorActivation.ACTIVATE });
-			}
-
-			return [resolvedGroup, typedEditor, typedOptions];
+		// Override is disabled or did not apply: fallback to default
+		if (!typedEditor) {
+			typedEditor = isEditorInput(editor) ? editor : this.textEditorService.createTextEditor(editor);
 		}
 
-		return undefined;
-	}
+		// If group still isn't defined because of a disabled override we resolve it
+		if (!group) {
+			let activation: EditorActivation | undefined = undefined;
+			([group, activation] = this.instantiationService.invokeFunction(findGroup, { editor: typedEditor, options }, preferredGroup));
 
-	private findTargetGroup(editor: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): IEditorGroup {
-		let targetGroup: IEditorGroup | undefined;
-
-		// Group: Instance of Group
-		if (group && typeof group !== 'number') {
-			targetGroup = group;
-		}
-
-		// Group: Side by Side
-		else if (group === SIDE_GROUP) {
-			targetGroup = this.findSideBySideGroup();
-		}
-
-		// Group: Specific Group
-		else if (typeof group === 'number' && group >= 0) {
-			targetGroup = this.editorGroupService.getGroup(group);
-		}
-
-		// Group: Unspecified without a specific index to open
-		else if (!options || typeof options.index !== 'number') {
-			const groupsByLastActive = this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-
-			// Respect option to reveal an editor if it is already visible in any group
-			if (options?.revealIfVisible) {
-				for (const group of groupsByLastActive) {
-					if (group.isActive(editor)) {
-						targetGroup = group;
-						break;
-					}
-				}
-			}
-
-			// Respect option to reveal an editor if it is open (not necessarily visible)
-			// Still prefer to reveal an editor in a group where the editor is active though.
-			if (!targetGroup) {
-				if (options?.revealIfOpened || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
-					let groupWithInputActive: IEditorGroup | undefined = undefined;
-					let groupWithInputOpened: IEditorGroup | undefined = undefined;
-
-					for (const group of groupsByLastActive) {
-						if (group.contains(editor)) {
-							if (!groupWithInputOpened) {
-								groupWithInputOpened = group;
-							}
-
-							if (!groupWithInputActive && group.isActive(editor)) {
-								groupWithInputActive = group;
-							}
-						}
-
-						if (groupWithInputOpened && groupWithInputActive) {
-							break; // we found all groups we wanted
-						}
-					}
-
-					// Prefer a target group where the input is visible
-					targetGroup = groupWithInputActive || groupWithInputOpened;
-				}
+			// Mixin editor group activation if returned
+			if (activation) {
+				options = { ...options, activation };
 			}
 		}
 
-		// Fallback to active group if target not valid
-		if (!targetGroup) {
-			targetGroup = this.editorGroupService.activeGroup;
-		}
-
-		return targetGroup;
-	}
-
-	private findSideBySideGroup(): IEditorGroup {
-		const direction = preferredSideBySideGroupDirection(this.configurationService);
-
-		let neighbourGroup = this.editorGroupService.findGroup({ direction });
-		if (!neighbourGroup) {
-			neighbourGroup = this.editorGroupService.addGroup(this.editorGroupService.activeGroup, direction);
-		}
-
-		return neighbourGroup;
-	}
-
-	private toOptions(options?: IEditorOptions | ITextEditorOptions | EditorOptions): EditorOptions {
-		if (!options || options instanceof EditorOptions) {
-			return options as EditorOptions;
-		}
-
-		const textOptions: ITextEditorOptions = options;
-		if (textOptions.selection || textOptions.viewState) {
-			return TextEditorOptions.create(options);
-		}
-
-		return EditorOptions.create(options);
+		return group.openEditor(typedEditor, options);
 	}
 
 	//#endregion
 
 	//#region openEditors()
 
-	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
+	openEditors(editors: IEditorInputWithOptions[], group?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	openEditors(editors: IUntypedEditorInput[], group?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, group?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	async openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, preferredGroup?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
 
 		// Pass all editors to trust service to determine if
-		// we should proceed with opening the editors
-		const editorsTrusted = await this.handleWorkspaceTrust(editors);
-		if (!editorsTrusted) {
-			return [];
-		}
-
-		// Convert to typed editors and options
-		const typedEditors: IEditorInputWithOptions[] = editors.map(editor => {
-			if (isEditorInputWithOptions(editor)) {
-				return editor;
-			}
-
-			return {
-				editor: this.createEditorInput(editor),
-				options: TextEditorOptions.from(editor)
-			};
-		});
-
-		// Find target groups to open
-		const mapGroupToEditorsCandidates = new Map<IEditorGroup, IEditorInputWithOptions[]>();
-		if (group === SIDE_GROUP) {
-			mapGroupToEditorsCandidates.set(this.findSideBySideGroup(), typedEditors);
-		} else {
-			for (const typedEditor of typedEditors) {
-				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
-
-				let targetGroupEditors = mapGroupToEditorsCandidates.get(targetGroup);
-				if (!targetGroupEditors) {
-					targetGroupEditors = [];
-					mapGroupToEditorsCandidates.set(targetGroup, targetGroupEditors);
-				}
-
-				targetGroupEditors.push(typedEditor);
+		// we should proceed with opening the editors if we
+		// are asked to validate trust.
+		if (options?.validateTrust) {
+			const editorsTrusted = await this.handleWorkspaceTrust(editors);
+			if (!editorsTrusted) {
+				return [];
 			}
 		}
 
-		// Resolve overrides
-		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
-		for (const [group, editorsWithOptions] of mapGroupToEditorsCandidates) {
-			for (const { editor, options } of editorsWithOptions) {
-				let editorOverride: IEditorInputWithOptionsAndGroup | undefined;
-				if (options?.override !== EditorOverride.DISABLED) {
-					editorOverride = await this.editorOverrideService.resolveEditorOverride(editor, options, group);
+		// Find target groups for editors to open
+		const mapGroupToTypedEditors = new Map<IEditorGroup, Array<IEditorInputWithOptions>>();
+		for (const editor of editors) {
+			let typedEditor: IEditorInputWithOptions | undefined = undefined;
+			let group: IEditorGroup | undefined = undefined;
+
+			// Resolve override unless disabled
+			if (editor.options?.override !== EditorResolution.DISABLED) {
+				const resolvedEditor = await this.editorResolverService.resolveEditor(editor, preferredGroup);
+
+				if (resolvedEditor === ResolvedStatus.ABORT) {
+					continue; // skip editor if override is aborted
 				}
 
-				const targetGroup = editorOverride?.group ?? group;
-				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
-				if (!targetGroupEditors) {
-					targetGroupEditors = [];
-					mapGroupToEditors.set(targetGroup, targetGroupEditors);
+				// We resolved an editor to use
+				if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+					typedEditor = resolvedEditor;
+					group = resolvedEditor.group;
 				}
-
-				targetGroupEditors.push(editorOverride ?
-					{ editor: editorOverride.editor, options: this.toOptions(editorOverride.options) } :
-					{ editor, options }
-				);
 			}
+
+			// Override is disabled or did not apply: fallback to default
+			if (!typedEditor) {
+				typedEditor = isEditorInputWithOptions(editor) ? editor : { editor: this.textEditorService.createTextEditor(editor), options: editor.options };
+			}
+
+			// If group still isn't defined because of a disabled override we resolve it
+			if (!group) {
+				[group] = this.instantiationService.invokeFunction(findGroup, typedEditor, preferredGroup);
+			}
+
+			// Update map of groups to editors
+			let targetGroupEditors = mapGroupToTypedEditors.get(group);
+			if (!targetGroupEditors) {
+				targetGroupEditors = [];
+				mapGroupToTypedEditors.set(group, targetGroupEditors);
+			}
+
+			targetGroupEditors.push(typedEditor);
 		}
 
 		// Open in target groups
 		const result: Promise<IEditorPane | null>[] = [];
-		for (const [group, editorsWithOptions] of mapGroupToEditors) {
-			result.push(group.openEditors(editorsWithOptions));
+		for (const [group, editors] of mapGroupToTypedEditors) {
+			result.push(group.openEditors(editors));
 		}
 
 		return coalesce(await Promises.settled(result));
 	}
 
-	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): Promise<boolean> {
-		const resources = this.extractEditorResources(editors);
+	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>): Promise<boolean> {
+		const { resources, diffMode } = this.extractEditorResources(editors);
 
-		const trustResult = await this.workspaceTrustRequestService.requestOpenUris(resources);
+		const trustResult = await this.workspaceTrustRequestService.requestOpenFilesTrust(resources);
 		switch (trustResult) {
 			case WorkspaceTrustUriResponse.Open:
 				return true;
 			case WorkspaceTrustUriResponse.OpenInNewWindow:
-				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true });
+				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true, diffMode });
 				return false;
 			case WorkspaceTrustUriResponse.Cancel:
 				return false;
 		}
 	}
 
-	private extractEditorResources(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): URI[] {
+	private extractEditorResources(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>): { resources: URI[], diffMode?: boolean } {
 		const resources = new ResourceMap<boolean>();
+		let diffMode = false;
 
 		for (const editor of editors) {
 
@@ -795,25 +651,35 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (resource.secondary) {
 						resources.set(resource.secondary, true);
 					}
+
+					diffMode = editor.editor instanceof DiffEditorInput;
 				}
 			}
 
 			// Untyped editor
 			else {
-				const resourceDiffEditor = editor as IResourceDiffEditorInput;
-				if (URI.isUri(resourceDiffEditor.leftResource) && URI.isUri(resourceDiffEditor.rightResource)) {
-					resources.set(resourceDiffEditor.leftResource, true);
-					resources.set(resourceDiffEditor.rightResource, true);
-				}
+				if (isResourceDiffEditorInput(editor)) {
+					const originalResourceEditor = editor.original;
+					if (URI.isUri(originalResourceEditor.resource)) {
+						resources.set(originalResourceEditor.resource, true);
+					}
 
-				const resourceEditor = editor as IResourceEditorInput;
-				if (URI.isUri(resourceEditor.resource)) {
-					resources.set(resourceEditor.resource, true);
+					const modifiedResourceEditor = editor.modified;
+					if (URI.isUri(modifiedResourceEditor.resource)) {
+						resources.set(modifiedResourceEditor.resource, true);
+					}
+
+					diffMode = true;
+				} else if (isResourceEditorInput(editor)) {
+					resources.set(editor.resource, true);
 				}
 			}
 		}
 
-		return Array.from(resources.keys());
+		return {
+			resources: Array.from(resources.keys()),
+			diffMode
+		};
 	}
 
 	//#endregion
@@ -822,9 +688,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	isOpened(editor: IResourceEditorInputIdentifier): boolean {
 		return this.editorsObserver.hasEditor({
-			resource: this.asCanonicalEditorResource(editor.resource),
-			typeId: editor.typeId
+			resource: this.uriIdentityService.asCanonicalUri(editor.resource),
+			typeId: editor.typeId,
+			editorId: editor.editorId
 		});
+	}
+
+	//#endregion
+
+	//#region isOpened()
+
+	isVisible(editor: IEditorInput): boolean {
+		for (const group of this.editorGroupService.groups) {
+			if (group.activeEditor?.matches(editor)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	//#endregion
@@ -911,225 +792,61 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region replaceEditors()
 
-	async replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
-		const typedEditors: IEditorReplacement[] = [];
+	async replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(replacements: Array<IEditorReplacement | IUntypedEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 
-		for (const replaceEditorArg of editors) {
-			if (replaceEditorArg.editor instanceof EditorInput) {
-				const replacementArg = replaceEditorArg as IEditorReplacement;
-				if (replacementArg.options?.override !== EditorOverride.DISABLED && targetGroup) {
-					const override = await this.editorOverrideService.resolveEditorOverride(replacementArg.replacement, replacementArg.options, targetGroup);
-					replacementArg.options = override?.options ?? replacementArg.options;
-					replacementArg.replacement = override?.editor ?? replacementArg.replacement;
-				}
-				typedEditors.push({
-					editor: replacementArg.editor,
-					replacement: replacementArg.replacement,
-					forceReplaceDirty: replacementArg.forceReplaceDirty,
-					options: this.toOptions(replacementArg.options)
-				});
+		// Convert all replacements to typed editors unless already
+		// typed and handle overrides properly.
+		const typedReplacements: IEditorReplacement[] = [];
+		for (const replacement of replacements) {
+			let typedReplacement: IEditorReplacement | undefined = undefined;
+
+			// Figure out the override rule based on options
+			let override: string | EditorResolution | undefined;
+			if (isEditorReplacement(replacement)) {
+				override = replacement.options?.override;
 			} else {
-				const replacementArg = replaceEditorArg as IResourceEditorReplacement;
-
-				typedEditors.push({
-					editor: this.createEditorInput(replacementArg.editor),
-					replacement: this.createEditorInput(replacementArg.replacement),
-					options: this.toOptions(replacementArg.replacement.options)
-				});
-			}
-		}
-
-		if (targetGroup) {
-			return targetGroup.replaceEditors(typedEditors);
-		}
-	}
-
-	//#endregion
-
-	//#region createEditorInput()
-
-	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
-
-	createEditorInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditorInputType): EditorInput {
-
-		// Typed Editor Input Support (EditorInput)
-		if (input instanceof EditorInput) {
-			return input;
-		}
-
-		// Typed Editor Input Support (IEditorInputWithOptions)
-		const editorInputWithOptions = input as IEditorInputWithOptions;
-		if (editorInputWithOptions.editor instanceof EditorInput) {
-			return editorInputWithOptions.editor;
-		}
-
-		// Diff Editor Support
-		const resourceDiffInput = input as IResourceDiffEditorInput;
-		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
-			const leftInput = this.createEditorInput({ resource: resourceDiffInput.leftResource, forceFile: resourceDiffInput.forceFile });
-			const rightInput = this.createEditorInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
-
-			return this.instantiationService.createInstance(DiffEditorInput,
-				resourceDiffInput.label,
-				resourceDiffInput.description,
-				leftInput,
-				rightInput,
-				undefined
-			);
-		}
-
-		// Untitled file support
-		const untitledInput = input as IUntitledTextResourceEditorInput;
-		if (untitledInput.forceUntitled || !untitledInput.resource || (untitledInput.resource.scheme === Schemas.untitled)) {
-			const untitledOptions = {
-				mode: untitledInput.mode,
-				initialValue: untitledInput.contents,
-				encoding: untitledInput.encoding
-			};
-
-			// Untitled resource: use as hint for an existing untitled editor
-			let untitledModel: IUntitledTextEditorModel;
-			if (untitledInput.resource?.scheme === Schemas.untitled) {
-				untitledModel = this.untitledTextEditorService.create({ untitledResource: untitledInput.resource, ...untitledOptions });
+				override = replacement.replacement.options?.override;
 			}
 
-			// Other resource: use as hint for associated filepath
-			else {
-				untitledModel = this.untitledTextEditorService.create({ associatedResource: untitledInput.resource, ...untitledOptions });
+			// Resolve override unless disabled
+			if (override !== EditorResolution.DISABLED) {
+				const resolvedEditor = await this.editorResolverService.resolveEditor(
+					isEditorReplacement(replacement) ? { editor: replacement.replacement, options: replacement.options } : replacement.replacement,
+					targetGroup
+				);
+
+				if (resolvedEditor === ResolvedStatus.ABORT) {
+					continue; // skip editor if override is aborted
+				}
+
+				// We resolved an editor to use
+				if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+					typedReplacement = {
+						editor: replacement.editor,
+						replacement: resolvedEditor.editor,
+						options: resolvedEditor.options,
+						forceReplaceDirty: replacement.forceReplaceDirty
+					};
+				}
 			}
 
-			return this.createOrGetCached(untitledModel.resource, () => {
-
-				// Factory function for new untitled editor
-				const input = this.instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
-
-				// We dispose the untitled model once the editor
-				// is being disposed. Even though we may have not
-				// created the model initially, the lifecycle for
-				// untitled is tightly coupled with the editor
-				// lifecycle for now.
-				Event.once(input.onWillDispose)(() => untitledModel.dispose());
-
-				return input;
-			}) as EditorInput;
-		}
-
-		// Resource Editor Support
-		const resourceEditorInput = input as IResourceEditorInput;
-		if (resourceEditorInput.resource instanceof URI) {
-
-			// Derive the label from the path if not provided explicitly
-			const label = resourceEditorInput.label || basename(resourceEditorInput.resource);
-
-			// We keep track of the preferred resource this input is to be created
-			// with but it may be different from the canonical resource (see below)
-			const preferredResource = resourceEditorInput.resource;
-
-			// From this moment on, only operate on the canonical resource
-			// to ensure we reduce the chance of opening the same resource
-			// with different resource forms (e.g. path casing on Windows)
-			const canonicalResource = this.asCanonicalEditorResource(preferredResource);
-
-			return this.createOrGetCached(canonicalResource, () => {
-
-				// File
-				if (resourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
-				}
-
-				// Resource
-				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.mode);
-			}, cachedInput => {
-
-				// Untitled
-				if (cachedInput instanceof UntitledTextEditorInput) {
-					return;
-				}
-
-				// Files
-				else if (!(cachedInput instanceof TextResourceEditorInput)) {
-					cachedInput.setPreferredResource(preferredResource);
-
-					if (resourceEditorInput.label) {
-						cachedInput.setPreferredName(resourceEditorInput.label);
-					}
-
-					if (resourceEditorInput.description) {
-						cachedInput.setPreferredDescription(resourceEditorInput.description);
-					}
-
-					if (resourceEditorInput.encoding) {
-						cachedInput.setPreferredEncoding(resourceEditorInput.encoding);
-					}
-
-					if (resourceEditorInput.mode) {
-						cachedInput.setPreferredMode(resourceEditorInput.mode);
-					}
-				}
-
-				// Resources
-				else {
-					if (label) {
-						cachedInput.setName(label);
-					}
-
-					if (resourceEditorInput.description) {
-						cachedInput.setDescription(resourceEditorInput.description);
-					}
-
-					if (resourceEditorInput.mode) {
-						cachedInput.setPreferredMode(resourceEditorInput.mode);
-					}
-				}
-			}) as EditorInput;
-		}
-
-		throw new Error('Unknown input type');
-	}
-
-	private _modelService: IModelService | undefined = undefined;
-	private get modelService(): IModelService | undefined {
-		if (!this._modelService) {
-			this._modelService = this.instantiationService.invokeFunction(accessor => accessor.get(IModelService));
-		}
-
-		return this._modelService;
-	}
-
-	private asCanonicalEditorResource(resource: URI): URI {
-		const canonicalResource: URI = this.uriIdentityService.asCanonicalUri(resource);
-
-		// In the unlikely case that a model exists for the original resource but
-		// differs from the canonical resource, we print a warning as this means
-		// the model will not be able to be opened as editor.
-		if (!isEqual(resource, canonicalResource) && this.modelService?.getModel(resource)) {
-			this.logService.warn(`EditorService: a model exists for a resource that is not canonical: ${resource.toString(true)}`);
-		}
-
-		return canonicalResource;
-	}
-
-	private createOrGetCached(resource: URI, factoryFn: () => CachedEditorInput, cachedFn?: (input: CachedEditorInput) => void): CachedEditorInput {
-
-		// Return early if already cached
-		let input = this.editorInputCache.get(resource);
-		if (input) {
-			if (cachedFn) {
-				cachedFn(input);
+			// Override is disabled or did not apply: fallback to default
+			if (!typedReplacement) {
+				typedReplacement = {
+					editor: replacement.editor,
+					replacement: isEditorReplacement(replacement) ? replacement.replacement : this.textEditorService.createTextEditor(replacement.replacement),
+					options: isEditorReplacement(replacement) ? replacement.options : replacement.replacement.options,
+					forceReplaceDirty: replacement.forceReplaceDirty
+				};
 			}
 
-			return input;
+			typedReplacements.push(typedReplacement);
 		}
 
-		// Otherwise create and add to cache
-		input = factoryFn();
-		this.editorInputCache.set(resource, input);
-		Event.once(input.onWillDispose)(() => this.editorInputCache.delete(resource));
-
-		return input;
+		return targetGroup?.replaceEditors(typedReplacements);
 	}
 
 	//#endregion
@@ -1187,11 +904,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Preserve view state by opening the editor first if the editor
 			// is untitled or we "Save As". This also allows the user to review
 			// the contents of the editor before making a decision.
-			let viewState: IEditorViewState | undefined = undefined;
-			const editorPane = await this.openEditor(editor, undefined, groupId);
-			if (isTextEditorPane(editorPane)) {
-				viewState = editorPane.getViewState();
-			}
+			const editorPane = await this.openEditor(editor, groupId);
+			const editorOptions: IEditorOptions = {
+				pinned: true,
+				viewState: editorPane?.getViewState?.()
+			};
 
 			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
 			saveResults.push(result);
@@ -1205,8 +922,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// current one.
 			if (!result.matches(editor)) {
 				const targetGroups = editor.hasCapability(EditorInputCapabilities.Untitled) ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [groupId];
-				for (const group of targetGroups) {
-					await this.replaceEditors([{ editor, replacement: result, options: { pinned: true, viewState } }], group);
+				for (const targetGroup of targetGroups) {
+					const group = this.editorGroupService.getGroup(targetGroup);
+					await group?.replaceEditors([{ editor, replacement: result, options: editorOptions }]);
 				}
 			}
 		}
@@ -1290,90 +1008,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this.activeOutOfWorkspaceWatchers.forEach(disposable => dispose(disposable));
 		this.activeOutOfWorkspaceWatchers.clear();
 	}
-}
-
-export interface IEditorOpenHandler {
-	(
-		group: IEditorGroup,
-		delegate: () => Promise<IEditorPane | undefined>,
-	): Promise<IEditorPane | undefined>;
-}
-
-/**
- * The delegating workbench editor service can be used to override the behaviour of the openEditor()
- * method by providing a IEditorOpenHandler. All calls are being delegated to the existing editor
- * service otherwise.
- */
-export class DelegatingEditorService implements IEditorService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		private editorOpenHandler: IEditorOpenHandler,
-		@IEditorService private editorService: EditorService
-	) { }
-
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
-	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
-		const result = this.editorService.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
-		if (result) {
-			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
-
-			return this.editorOpenHandler(resolvedGroup, () => this.editorService.openEditor(resolvedEditor, resolvedOptions, resolvedGroup));
-		}
-
-		return undefined;
-	}
-
-	//#region Delegate to IEditorService
-
-	get onDidActiveEditorChange(): Event<void> { return this.editorService.onDidActiveEditorChange; }
-	get onDidVisibleEditorsChange(): Event<void> { return this.editorService.onDidVisibleEditorsChange; }
-	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this.editorService.onDidCloseEditor; }
-
-	get activeEditor(): IEditorInput | undefined { return this.editorService.activeEditor; }
-	get activeEditorPane(): IVisibleEditorPane | undefined { return this.editorService.activeEditorPane; }
-	get activeTextEditorControl(): ICodeEditor | IDiffEditor | undefined { return this.editorService.activeTextEditorControl; }
-	get activeTextEditorMode(): string | undefined { return this.editorService.activeTextEditorMode; }
-	get visibleEditors(): readonly IEditorInput[] { return this.editorService.visibleEditors; }
-	get visibleEditorPanes(): readonly IVisibleEditorPane[] { return this.editorService.visibleEditorPanes; }
-	get visibleTextEditorControls(): readonly (ICodeEditor | IDiffEditor)[] { return this.editorService.visibleTextEditorControls; }
-	get editors(): readonly IEditorInput[] { return this.editorService.editors; }
-	get count(): number { return this.editorService.count; }
-
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[] { return this.editorService.getEditors(order, options); }
-
-	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
-		return this.editorService.openEditors(editors, group);
-	}
-
-	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
-		return this.editorService.replaceEditors(editors, group);
-	}
-
-	isOpened(editor: IResourceEditorInputIdentifier): boolean { return this.editorService.isOpened(editor); }
-
-	findEditors(resource: URI): readonly IEditorIdentifier[];
-	findEditors(resource: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
-	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
-	findEditors(arg1: URI | IResourceEditorInputIdentifier, arg2?: IEditorGroup | GroupIdentifier): readonly IEditorIdentifier[] | readonly IEditorInput[] | IEditorInput | undefined { return this.editorService.findEditors(arg1, arg2); }
-
-	createEditorInput(input: IResourceEditorInputType): IEditorInput { return this.editorService.createEditorInput(input); }
-
-	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { return this.editorService.save(editors, options); }
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> { return this.editorService.saveAll(options); }
-
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { return this.editorService.revert(editors, options); }
-	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { return this.editorService.revertAll(options); }
-
-	//#endregion
 }
 
 registerSingleton(IEditorService, EditorService);

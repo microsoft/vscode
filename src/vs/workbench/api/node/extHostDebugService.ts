@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
 import * as platform from 'vs/base/common/platform';
-import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
+import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -84,8 +84,10 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			const shell = this._terminalService.getDefaultShell(true);
 			const shellArgs = this._terminalService.getDefaultShellArgs(true);
 
+			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
+
 			const shellConfig = JSON.stringify({ shell, shellArgs });
-			let terminal = await this._integratedTerminalInstances.checkout(shellConfig);
+			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
 
 			let cwdForPrepareCommand: string | undefined;
 			let giveShellTimeToInitialize = false;
@@ -95,7 +97,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					shellPath: shell,
 					shellArgs: shellArgs,
 					cwd: args.cwd,
-					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
+					name: terminalName,
+					iconPath: new ThemeIcon('debug'),
 				};
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {
@@ -162,9 +165,15 @@ class DebugTerminalCollection {
 
 	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
 
-	public async checkout(config: string) {
+	public async checkout(config: string, name: string) {
 		const entries = [...this._terminalInstances.entries()];
 		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
+
+			// Only allow terminals that match the title.  See #123189
+			if (terminal.name !== name) {
+				return null;
+			}
+
 			if (termInfo.lastUsedAt !== -1 && await hasChildProcesses(await terminal.processId)) {
 				return null;
 			}

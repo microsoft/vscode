@@ -5,22 +5,26 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEditorModel, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { isEqual } from 'vs/base/common/resources';
+import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
  */
-export abstract class EditorInput extends Disposable implements IEditorInput {
+export abstract class EditorInput extends AbstractEditorInput implements IEditorInput {
 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
+
+	protected readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -30,6 +34,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	abstract get typeId(): string;
 
 	abstract get resource(): URI | undefined;
+
+	get editorId(): string | undefined {
+		return undefined;
+	}
 
 	get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Readonly;
@@ -47,6 +55,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return `Editor ${this.typeId}`;
 	}
 
+	getLabelExtraClasses(): string[] {
+		return [];
+	}
+
 	getDescription(verbosity?: Verbosity): string | undefined {
 		return undefined;
 	}
@@ -59,11 +71,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this.getTitle(Verbosity.SHORT);
 	}
 
-	/**
-	* Returns a descriptor suitable for telemetry events.
-	*
-	* Subclasses should extend if they can contribute.
-	*/
 	getTelemetryDescriptor(): { [key: string]: unknown } {
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {
@@ -85,6 +92,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return null;
 	}
 
+	confirm?(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		return this;
 	}
@@ -95,7 +104,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
 
-	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
 		return undefined;
 	}
 
@@ -103,22 +112,39 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	matches(otherInput: unknown): boolean {
-		return this === otherInput;
+	matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+
+		// Typed inputs: via  === check
+		if (isEditorInput(otherInput)) {
+			return this === otherInput;
+		}
+
+		// Untyped inputs: go into properties
+		const otherInputEditorId = otherInput.options?.override;
+
+		if (this.editorId === undefined) {
+			return false; // untyped inputs can only match for editors that have adopted `editorId`
+		}
+
+		if (this.editorId !== otherInputEditorId) {
+			return false; // untyped input uses another `editorId`
+		}
+
+		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput));
 	}
 
 	/**
-	 * If a input was registered onto multiple editors, this method
+	 * If a editor was registered onto multiple editor panes, this method
 	 * will be asked to return the preferred one to use.
 	 *
-	 * @param editors a list of editor descriptors that are candidates
-	 * for the editor input to open in.
+	 * @param editorPanes a list of editor pane descriptors that are candidates
+	 * for the editor to open in.
 	 */
-	prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
-		return firstOrDefault(editors);
+	prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
+		return firstOrDefault(editorPanes);
 	}
 
-	asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined {
+	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 

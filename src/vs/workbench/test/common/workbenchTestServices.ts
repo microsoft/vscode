@@ -16,12 +16,13 @@ import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import product from 'vs/platform/product/common/product';
+import { IActivity, IActivityService } from 'vs/workbench/services/activity/common/activity';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -33,8 +34,8 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 	}
 
 	getEOL(resource: URI, language?: string): string {
-		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
-		if (eol && eol !== 'auto') {
+		const eol = this.configurationService.getValue('files.eol', { overrideIdentifier: language, resource });
+		if (eol && typeof eol === 'string' && eol !== 'auto') {
 			return eol;
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';
@@ -189,6 +190,10 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
 
+	readonly hasSaveParticipants = false;
+	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable { return Disposable.None; }
+	async runSaveParticipants(workingCopy: IWorkingCopy, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> { }
+
 	async delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void> { }
 
 	registerWorkingCopyProvider(provider: (resourceOrFolder: URI) => IWorkingCopy[]): IDisposable { return Disposable.None; }
@@ -214,3 +219,21 @@ export interface Ctor<T> {
 export class TestExtensionService extends NullExtensionService { }
 
 export const TestProductService = { _serviceBrand: undefined, ...product };
+
+export class TestActivityService implements IActivityService {
+	_serviceBrand: undefined;
+	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable {
+		return this;
+	}
+	showViewActivity(viewId: string, badge: IActivity): IDisposable {
+		return this;
+	}
+	showAccountsActivity(activity: IActivity): IDisposable {
+		return this;
+	}
+	showGlobalActivity(activity: IActivity): IDisposable {
+		return this;
+	}
+
+	dispose() { }
+}

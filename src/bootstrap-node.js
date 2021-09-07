@@ -8,33 +8,23 @@
 
 // Setup current working directory in all our node & electron processes
 // - Windows: call `process.chdir()` to always set application folder as cwd
-// -   Posix: allow to change the current working dir via `VSCODE_CWD` if defined
 // -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
-// TODO@bpasero revisit if chdir() on Windows is needed in the future still
-// (find all users of `chdir` in code, there are more locations)
 function setupCurrentWorkingDirectory() {
 	const path = require('path');
 
 	try {
-		let cwd = process.env['VSCODE_CWD'];
 
-		// remember current working directory in environment
-		// unless it was given to us already from outside
-		if (typeof cwd !== 'string') {
-			cwd = process.cwd();
-			process.env['VSCODE_CWD'] = cwd;
+		// Store the `process.cwd()` inside `VSCODE_CWD`
+		// for consistent lookups, but make sure to only
+		// do this once unless defined already from e.g.
+		// a parent process.
+		if (typeof process.env['VSCODE_CWD'] !== 'string') {
+			process.env['VSCODE_CWD'] = process.cwd();
 		}
 
 		// Windows: always set application folder as current working dir
 		if (process.platform === 'win32') {
 			process.chdir(path.dirname(process.execPath));
-		}
-
-		// Linux/macOS: allow to change current working dir based on env
-		else {
-			if (cwd !== process.cwd()) {
-				process.chdir(cwd);
-			}
 		}
 	} catch (err) {
 		console.error(err);

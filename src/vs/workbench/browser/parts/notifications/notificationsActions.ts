@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notificationsActions';
-import { INotificationViewItem } from 'vs/workbench/common/notifications';
+import { INotificationViewItem, isNotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
 import { Action, IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -169,11 +169,18 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected override async runAction(action: IAction, context: INotificationViewItem | undefined): Promise<void> {
+	protected override async runAction(action: IAction, context: unknown): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
-		if (context) {
-			// If the context is not present it is a "global" notification action. Will be captured by other events
-			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()).toString(), actionLabel: action.label, source: context.sourceId || 'core', silent: context.silent });
+
+		if (isNotificationViewItem(context)) {
+			// Log some additional telemetry specifically for actions
+			// that are triggered from within notifications.
+			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', {
+				id: hash(context.message.original.toString()).toString(),
+				actionLabel: action.label,
+				source: context.sourceId || 'core',
+				silent: context.silent
+			});
 		}
 
 		// Run and make sure to notify on any error again

@@ -12,7 +12,7 @@ import { hash } from 'vs/base/common/hash';
 import { isEqual } from 'vs/base/common/resources';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'vs/base/common/path';
-import { Promises, readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
+import { Promises, readdirSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -151,12 +151,12 @@ suite('WorkingCopyBackupService', () => {
 
 		await Promises.mkdir(backupHome, { recursive: true });
 
-		return writeFile(workspacesJsonPath, '');
+		return Promises.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
 		service.dispose();
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	suite('hashIdentifier', () => {

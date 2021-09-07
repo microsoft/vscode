@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { Contracts, TelemetryClient } from 'applicationinsights';
 import * as assert from 'assert';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { TelemetryClient, Contracts } from 'applicationinsights';
 
 class AppInsightsMock extends TelemetryClient {
 	public override config: any;

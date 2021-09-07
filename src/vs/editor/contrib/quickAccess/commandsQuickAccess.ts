@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractCommandsQuickAccessProvider, ICommandQuickPick, ICommandsQuickAccessOptions } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { IEditor } from 'vs/editor/common/editorCommon';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AbstractCommandsQuickAccessProvider, ICommandQuickPick, ICommandsQuickAccessOptions } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { stripIcons } from 'vs/base/common/iconLabels';
 
 export abstract class AbstractEditorCommandsQuickAccessProvider extends AbstractCommandsQuickAccessProvider {
 

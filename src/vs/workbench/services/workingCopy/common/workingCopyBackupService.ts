@@ -19,7 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
 import { isEmptyObject } from 'vs/base/common/types';
-import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class WorkingCopyBackupsModel {
 
@@ -212,14 +212,12 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		// Migrate hashes as needed. We used to hash with a MD5
 		// sum of the path but switched to our own simpler hash
 		// to avoid a node.js dependency. We still want to
-		// support the older hash so we:
+		// support the older hash to prevent dataloss, so we:
 		// - iterate over all backups
 		// - detect if the file name length is 32 (MD5 length)
 		// - read the backup's target file path
 		// - rename the backup to the new hash
 		// - update the backup in our model
-		//
-		// TODO@bpasero remove me eventually
 		for (const backupResource of this.model.get()) {
 			if (basename(backupResource).length !== 32) {
 				continue; // not a MD5 hash, already uses new hash function
@@ -404,7 +402,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		}
 
 		return {
-			typeId: typeId ?? '', // Fallback for previous backups that do not encode the typeId (TODO@bpasero remove me eventually)
+			typeId: typeId ?? NO_TYPE_ID,
 			resource: URI.parse(resourcePreamble)
 		};
 	}

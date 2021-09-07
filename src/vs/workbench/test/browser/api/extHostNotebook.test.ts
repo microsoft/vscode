@@ -22,6 +22,8 @@ import { isEqual } from 'vs/base/common/resources';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Event } from 'vs/base/common/event';
+import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 suite('NotebookCell#Document', function () {
 
@@ -31,6 +33,8 @@ suite('NotebookCell#Document', function () {
 	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
 	let extHostDocuments: ExtHostDocuments;
 	let extHostNotebooks: ExtHostNotebookController;
+	let extHostNotebookDocuments: ExtHostNotebookDocuments;
+
 	const notebookUri = URI.parse('test:///notebook.file');
 	const disposables = new DisposableStore();
 
@@ -54,11 +58,13 @@ suite('NotebookCell#Document', function () {
 				return URI.from({ scheme: 'test', path: generateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, new NullLogService(), extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
+
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedDocuments: [{
 				uri: notebookUri,
 				viewType: 'test',
@@ -87,8 +93,8 @@ suite('NotebookCell#Document', function () {
 				selections: [{ start: 0, end: 1 }],
 				visibleRanges: []
 			}]
-		});
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
+		}));
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 
@@ -129,7 +135,7 @@ suite('NotebookCell#Document', function () {
 			removedCellUris.push(doc.uri.toString());
 		});
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ removedDocuments: [notebook.uri] }));
 		reg.dispose();
 
 		assert.strictEqual(removedCellUris.length, 2);
@@ -162,7 +168,7 @@ suite('NotebookCell#Document', function () {
 			});
 		});
 
-		extHostNotebooks.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [
 				{
@@ -186,7 +192,7 @@ suite('NotebookCell#Document', function () {
 					}]]]
 				}
 			]
-		}, false);
+		}), false);
 
 		await p;
 
@@ -224,7 +230,7 @@ suite('NotebookCell#Document', function () {
 		}
 
 		// close notebook -> docs are closed
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ removedDocuments: [notebook.uri] }));
 		for (let cell of notebook.apiNotebook.getCells()) {
 			assert.throws(() => extHostDocuments.getDocument(cell.document.uri));
 		}
@@ -238,7 +244,7 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(notebook.apiNotebook.cellCount, 2);
 		const [cell1, cell2] = notebook.apiNotebook.getCells();
 
-		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 2,
 			rawEvents: [
 				{
@@ -246,7 +252,7 @@ suite('NotebookCell#Document', function () {
 					changes: [[0, 1, []]]
 				}
 			]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1);
 		assert.strictEqual(cell1.document.isClosed, true); // ref still alive!
@@ -269,18 +275,18 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(second.index, 1);
 
 		// remove first cell
-		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [{
 				kind: NotebookCellsChangeType.ModelChange,
 				changes: [[0, 1, []]]
 			}]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 1);
 		assert.strictEqual(second.index, 0);
 
-		extHostNotebooks.$acceptModelChanged(notebookUri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebookUri, new SerializableObjectWithBuffers({
 			versionId: notebook.apiNotebook.version + 1,
 			rawEvents: [{
 				kind: NotebookCellsChangeType.ModelChange,
@@ -302,7 +308,7 @@ suite('NotebookCell#Document', function () {
 					outputs: [],
 				}]]]
 			}]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 3);
 		assert.strictEqual(second.index, 2);
@@ -315,7 +321,7 @@ suite('NotebookCell#Document', function () {
 		// DON'T call this, make sure the cell-documents have not been created yet
 		// assert.strictEqual(notebook.notebookDocument.cellCount, 2);
 
-		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 100,
 			rawEvents: [{
 				kind: NotebookCellsChangeType.ModelChange,
@@ -337,7 +343,7 @@ suite('NotebookCell#Document', function () {
 					outputs: [],
 				}]]]
 			}]
-		}, false);
+		}), false);
 
 		assert.strictEqual(notebook.apiNotebook.cellCount, 2);
 
@@ -358,18 +364,18 @@ suite('NotebookCell#Document', function () {
 		let count = 0;
 		extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedEditors: [{
 				documentUri: notebookUri,
 				id: '_notebook_editor_2',
 				selections: [{ start: 0, end: 1 }],
 				visibleRanges: []
 			}]
-		});
+		}));
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			newActiveEditor: '_notebook_editor_2'
-		});
+		}));
 
 		assert.strictEqual(count, 1);
 	});
@@ -379,13 +385,13 @@ suite('NotebookCell#Document', function () {
 		const editor = extHostNotebooks.activeNotebookEditor;
 		assert.ok(editor !== undefined);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: undefined });
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: undefined }));
 		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({});
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({}));
 		assert.ok(extHostNotebooks.activeNotebookEditor === editor);
 
-		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: null });
+		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: null }));
 		assert.ok(extHostNotebooks.activeNotebookEditor === undefined);
 	});
 
@@ -398,13 +404,13 @@ suite('NotebookCell#Document', function () {
 		const removed = Event.toPromise(extHostDocuments.onDidRemoveDocument);
 		const added = Event.toPromise(extHostDocuments.onDidAddDocument);
 
-		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({
 			versionId: 12, rawEvents: [{
 				kind: NotebookCellsChangeType.ChangeLanguage,
 				index: 0,
 				language: 'fooLang'
 			}]
-		}, false);
+		}), false);
 
 		const removedDoc = await removed;
 		const addedDoc = await added;

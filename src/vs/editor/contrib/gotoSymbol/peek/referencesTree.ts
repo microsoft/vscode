@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReferencesModel, FileReferences, OneReference } from '../referencesModel';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import * as dom from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { dirname, basename } from 'vs/base/common/resources';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
+import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { basename, dirname } from 'vs/base/common/resources';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
 
 //#region data source
 

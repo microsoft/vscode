@@ -6,14 +6,14 @@
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { MIME_BINARY } from 'vs/base/common/mime';
+import { Mimes } from 'vs/base/common/mime';
 
 /**
  * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
 
-	private readonly mime = MIME_BINARY;
+	private readonly mime = Mimes.binary;
 
 	private size: number | undefined;
 	private etag: string | undefined;
@@ -64,5 +64,7 @@ export class BinaryEditorModel extends EditorModel {
 				this.size = stat.size;
 			}
 		}
+
+		return super.resolve();
 	}
 }

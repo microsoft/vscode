@@ -6,7 +6,7 @@
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -23,6 +23,11 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
+			type: 'boolean',
+			default: true,
+		},
+		[TerminalSettingId.TabsEnableAnimation]: {
+			description: localize('terminal.integrated.tabs.enableAnimation', 'Controls whether terminal tab statuses support animation (eg. in progress tasks).'),
 			type: 'boolean',
 			default: true,
 		},
@@ -49,6 +54,18 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'singleTerminalOrNarrow',
 		},
+		[TerminalSettingId.TabsShowActions]: {
+			description: localize('terminal.integrated.tabs.showActions', 'Controls whether terminal split and kill buttons are displays next to the new terminal button.'),
+			type: 'string',
+			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.showActions.always', "Always show the actions"),
+				localize('terminal.integrated.tabs.showActions.singleTerminal', "Show the actions when it is the only terminal opened"),
+				localize('terminal.integrated.tabs.showActions.singleTerminalOrNarrow', "Show the actions when it is the only terminal opened or when the tabs view is in its narrow textless state"),
+				localize('terminal.integrated.tabs.showActions.never', "Never show the actions"),
+			],
+			default: 'singleTerminalOrNarrow',
+		},
 		[TerminalSettingId.TabsLocation]: {
 			type: 'string',
 			enum: ['left', 'right'],
@@ -58,6 +75,16 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
+		},
+		[TerminalSettingId.DefaultLocation]: {
+			type: 'string',
+			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
+			enumDescriptions: [
+				localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
+				localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
+			],
+			default: 'view',
+			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
@@ -210,11 +237,12 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.GpuAcceleration]: {
 			type: 'string',
-			enum: ['auto', 'on', 'off'],
+			enum: ['auto', 'on', 'off', 'canvas'],
 			markdownEnumDescriptions: [
 				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
 				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
-				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal.")
+				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal."),
+				localize('terminal.integrated.gpuAcceleration.canvas', "Use the fallback canvas renderer within the terminal. This uses a 2d context instead of webgl and may be better on some systems.")
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
@@ -238,9 +266,27 @@ const terminalConfiguration: IConfigurationNode = {
 			default: undefined
 		},
 		[TerminalSettingId.ConfirmOnExit]: {
-			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions."),
-			type: 'boolean',
-			default: false
+			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions."),
+			type: 'string',
+			enum: ['never', 'always', 'hasChildProcesses'],
+			enumDescriptions: [
+				localize('terminal.integrated.confirmOnExit.never', "Never confirm."),
+				localize('terminal.integrated.confirmOnExit.always', "Always confirm if there are terminals."),
+				localize('terminal.integrated.confirmOnExit.hasChildProcesses', "Confirm if there are any terminals that have child processes."),
+			],
+			default: 'never'
+		},
+		[TerminalSettingId.ConfirmOnKill]: {
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as dirty when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
+			type: 'string',
+			enum: ['never', 'editor', 'panel', 'always'],
+			enumDescriptions: [
+				localize('terminal.integrated.confirmOnKill.never', "Never confirm."),
+				localize('terminal.integrated.confirmOnKill.editor', "Confirm if the terminal is in the editor."),
+				localize('terminal.integrated.confirmOnKill.panel', "Confirm if the terminal is in the panel."),
+				localize('terminal.integrated.confirmOnKill.always', "Confirm if the terminal is either in the editor or panel."),
+			],
+			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
 			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
@@ -248,7 +294,12 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.CommandsToSkipShell]: {
-			markdownDescription: localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by VS Code. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open.\n\n&nbsp;\n\nMany commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell.\n\n&nbsp;\n\nThe following list of default skipped commands is truncated when viewed in Settings Editor. To see the full list, [open the default settings JSON](command:workbench.action.openRawDefaultSettings 'Open Default Settings (JSON)') and search for the first command from the list below.\n\n&nbsp;\n\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
+			markdownDescription: localize(
+				'terminal.integrated.commandsToSkipShell',
+				"A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by VS Code. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open.\n\n&nbsp;\n\nMany commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell.\n\n&nbsp;\n\nThe following list of default skipped commands is truncated when viewed in Settings Editor. To see the full list, {1} and search for the first command from the list below.\n\n&nbsp;\n\nDefault Skipped Commands:\n\n{0}",
+				DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n'),
+				`[${localize('openDefaultSettingsJson', "open the default settings JSON")}](command:workbench.action.openRawDefaultSettings '${localize('openDefaultSettingsJson.capitalized', "Open Default Settings (JSON)")}')`
+			),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -339,8 +390,8 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['executable', 'sequence'],
 			markdownEnumDescriptions: [
-				localize('titleMode.executable', "The title is set by the _terminal_, the name of the detected foreground process will be used."),
-				localize('titleMode.sequence', "The title is set by the _process_ via an escape sequence, this is useful if your shell dynamically sets the title.")
+				localize('titleMode.executable', "The title is set by the terminal, the name of the detected foreground process will be used."),
+				localize('titleMode.sequence', "The title is set by the process via an escape sequence, this is useful if your shell dynamically sets the title.")
 			],
 			default: 'executable'
 		},
@@ -400,6 +451,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.CustomGlyphs]: {
+			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer"),
+			type: 'boolean',
+			default: true
+		}
 	}
 };
 

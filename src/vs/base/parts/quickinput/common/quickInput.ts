@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMatch } from 'vs/base/common/filters';
 import { IItemAccessor } from 'vs/base/common/fuzzyScorer';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -288,6 +288,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	sortByLabel: boolean;
 
 	autoFocusOnList: boolean;
+
+	keepScrollPosition: boolean;
 
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 

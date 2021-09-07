@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 
@@ -72,7 +72,10 @@ class MirrorCell {
 		}
 
 		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.internalMetadata, this.outputs.map(op => ({
-			outputs: op.outputs,
+			outputs: op.outputs.map(output => ({
+				mime: output.mime,
+				data: output.data
+			})),
 			metadata: op.metadata
 		}))]);
 		return this._hash;
@@ -122,7 +125,7 @@ class MirrorNotebookDocument {
 		});
 	}
 
-	_spliceNotebookCells(splices: NotebookCellsSplice2[]) {
+	_spliceNotebookCells(splices: NotebookCellTextModelSplice<IMainCellDto>[]) {
 		splices.reverse().forEach(splice => {
 			const cellDtos = splice[2];
 			const newCells = cellDtos.map(cell => {
@@ -173,7 +176,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	dispose(): void {
 	}
 
-	public acceptNewModel(uri: string, data: NotebookDataDto): void {
+	public acceptNewModel(uri: string, data: NotebookData): void {
 		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), data.cells.map(dto => new MirrorCell(
 			(dto as unknown as IMainCellDto).handle,
 			dto.source,

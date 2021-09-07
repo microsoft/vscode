@@ -129,7 +129,7 @@
 }
 
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
-	padding-right: 3px;
+	margin-right: 3px;
 }
 
 .scm-view .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
@@ -142,6 +142,11 @@
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
 	margin-right: 8px;
+}
+
+.scm-view .monaco-list-row .resource > .decoration-icon.codicon {
+	margin-right: 0;
+	margin-top: 3px;
 }
 
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
@@ -208,6 +213,16 @@
 	border-width: 1px;
 	border-style: solid;
 	border-top: none;
+}
+
+.scm-editor-validation p {
+	margin: 0;
+	padding: 0;
+}
+
+.scm-editor-validation a {
+	-webkit-user-select: none;
+	user-select: none;
 }
 
 .scm-view .scm-editor-placeholder {

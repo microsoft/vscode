@@ -22,6 +22,7 @@ import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/comm
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
+import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 
 export interface ICompositeBarItem {
 	id: string;
@@ -151,9 +152,9 @@ export interface ICompositeBarOptions {
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => IAction;
 	getOnCompositeClickAction: (compositeId: string) => IAction;
-	fillExtraContextMenuActions: (actions: IAction[]) => void;
+	fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
 	getContextMenuActionsForComposite: (compositeId: string) => IAction[];
-	openComposite: (compositeId: string) => Promise<IComposite | null>;
+	openComposite: (compositeId: string, preserveFocus?: boolean) => Promise<IComposite | null>;
 	getDefaultCompositeId: () => string;
 	hidePart: () => void;
 }
@@ -233,6 +234,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Contextmenu for composites
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
+		this._register(Gesture.addTarget(parent));
+		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, e => this.showContextMenu(e)));
 
 		let insertDropBefore: Before2D | undefined = undefined;
 		// Register a drop target on the whole bar to prevent forbidden feedback
@@ -415,7 +418,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Case: composite is not the default composite and default composite is still showing
 		// Solv: we open the default composite
 		if (defaultCompositeId !== compositeId && this.isPinned(defaultCompositeId)) {
-			this.options.openComposite(defaultCompositeId);
+			this.options.openComposite(defaultCompositeId, true);
 		}
 
 		// Case: we closed the last visible composite
@@ -619,16 +622,16 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return this.model.visibleItems.filter(c => overflowingIds.includes(c.id)).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
 	}
 
-	private showContextMenu(e: MouseEvent): void {
+	private showContextMenu(e: MouseEvent | GestureEvent): void {
 		EventHelper.stop(e, true);
 		const event = new StandardMouseEvent(e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => this.getContextMenuActions()
+			getActions: () => this.getContextMenuActions(e)
 		});
 	}
 
-	getContextMenuActions(): IAction[] {
+	getContextMenuActions(e?: MouseEvent | GestureEvent): IAction[] {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (toAction({
 				id,
@@ -644,7 +647,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				}
 			})));
 
-		this.options.fillExtraContextMenuActions(actions);
+		this.options.fillExtraContextMenuActions(actions, e);
 
 		return actions;
 	}

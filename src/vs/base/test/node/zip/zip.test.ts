@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { extract } from 'vs/base/node/zip';
-import { rimraf, exists, Promises } from 'vs/base/node/pfs';
 import { createCancelablePromise } from 'vs/base/common/async';
-import { getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import * as path from 'vs/base/common/path';
+import { Promises } from 'vs/base/node/pfs';
+import { extract } from 'vs/base/node/zip';
+import { getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 suite('Zip', () => {
 
@@ -22,7 +22,7 @@ suite('Zip', () => {
 	});
 
 	teardown(() => {
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('extract should handle directories', async () => {
@@ -30,7 +30,7 @@ suite('Zip', () => {
 		const fixture = path.join(fixtures, 'extract.zip');
 
 		await createCancelablePromise(token => extract(fixture, testDir, {}, token));
-		const doesExist = await exists(path.join(testDir, 'extension'));
+		const doesExist = await Promises.exists(path.join(testDir, 'extension'));
 		assert(doesExist);
 	});
 });

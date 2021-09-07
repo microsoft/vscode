@@ -21,11 +21,11 @@ Visual Studio Code is updated monthly with new features and bug fixes. You can d
 
 ## Contributing
 
-There are many ways in which you can participate in the project, for example:
+There are many ways in which you can participate in this project, for example:
 
 * [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify as they are checked in
 * Review [source code changes](https://github.com/microsoft/vscode/pulls)
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content
+* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to additional and new content
 
 If you are interested in fixing issues and contributing directly to the code base,
 please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
@@ -57,10 +57,10 @@ VS Code includes a set of built-in extensions located in the [extensions](extens
 
 ## Development Container
 
-This repository includes a Visual Studio Code Remote - Containers / Codespaces development container.
+This repository includes a Visual Studio Code Remote - Containers / GitHub Codespaces development container.
 
-- For [Remote - Containers](https://aka.ms/vscode-remote/download/containers), use the **Remote-Containers: Open Repository in Container...** command which creates a Docker volume for better disk I/O on macOS and Windows.
-- For Codespaces, install the [Visual Studio Codespaces](https://aka.ms/vscs-ext-vscode) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
+- For [Remote - Containers](https://aka.ms/vscode-remote/download/containers), use the **Remote-Containers: Clone Repository in Container Volume...** command which creates a Docker volume for better disk I/O on macOS and Windows.
+- For Codespaces, install the [Github Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
 
 Docker / the Codespace should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run full build. See the [development container README](.devcontainer/README.md) for more information.
 

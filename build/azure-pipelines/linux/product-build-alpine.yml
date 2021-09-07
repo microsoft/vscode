@@ -12,6 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password'
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -88,6 +89,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 

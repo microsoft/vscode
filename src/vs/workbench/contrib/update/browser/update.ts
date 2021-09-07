@@ -186,11 +186,6 @@ export class ProductContribution implements IWorkbenchContribution {
 					});
 			}
 
-			// should we show the new license?
-			if (productService.licenseUrl && lastVersion && lastVersion.major < 1 && currentVersion && currentVersion.major >= 1) {
-				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
-			}
-
 			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		});
 	}
@@ -260,10 +255,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				this.onUpdateDownloaded(state.update);
 				break;
 
-			case StateType.Updating:
-				this.onUpdateUpdating(state.update);
-				break;
-
 			case StateType.Ready:
 				this.onUpdateReady(state.update);
 				break;
@@ -315,8 +306,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private onUpdateNotAvailable(): void {
 		this.dialogService.show(
 			severity.Info,
-			nls.localize('noUpdatesAvailable', "There are currently no updates available."),
-			[nls.localize('ok', "OK")]
+			nls.localize('noUpdatesAvailable', "There are currently no updates available.")
 		);
 	}
 
@@ -369,23 +359,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					action.dispose();
 				}
 			}]
-		);
-	}
-
-	// windows fast updates
-	private onUpdateUpdating(update: IUpdate): void {
-		if (isWindows && this.productService.target === 'user') {
-			return;
-		}
-
-		// windows fast updates (target === system)
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateInstalling', "{0} {1} is being installed in the background; we'll let you know when it's done.", this.productService.nameLong, update.productVersion),
-			[],
-			{
-				neverShowAgain: { id: 'neverShowAgain:update/win32-fast-updates', isSecondary: true }
-			}
 		);
 	}
 
@@ -556,53 +529,58 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					const storageService = accessor.get(IStorageService);
 					const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
 					const userDataSyncService = accessor.get(IUserDataSyncService);
+					const notificationService = accessor.get(INotificationService);
 
-					const selectSettingsSyncServiceDialogShownKey = 'switchQuality.selectSettingsSyncServiceDialogShown';
-					const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
-					let userDataSyncStoreType: UserDataSyncStoreType | undefined;
-					if (userDataSyncStore && isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled()
-						&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL, false)) {
-						userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
-						if (!userDataSyncStoreType) {
-							return;
-						}
-						storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
-						if (userDataSyncStoreType === 'stable') {
-							// Update the stable service type in the current window, so that it uses stable service after switched to insiders version (after reload).
-							await userDataSyncStoreManagementService.switch(userDataSyncStoreType);
-						}
-					}
-
-					const res = await dialogService.confirm({
-						type: 'info',
-						message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
-						detail: newQuality === 'insider' ?
-							nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VSCode.") :
-							nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VSCode."),
-						primaryButton: nls.localize('reload', "&&Reload")
-					});
-
-					if (res.confirmed) {
-						const promises: Promise<any>[] = [];
-
-						// If sync is happening wait until it is finished before reload
-						if (userDataSyncService.status === SyncStatus.Syncing) {
-							promises.push(Event.toPromise(Event.filter(userDataSyncService.onDidChangeStatus, status => status !== SyncStatus.Syncing)));
+					try {
+						const selectSettingsSyncServiceDialogShownKey = 'switchQuality.selectSettingsSyncServiceDialogShown';
+						const userDataSyncStore = userDataSyncStoreManagementService.userDataSyncStore;
+						let userDataSyncStoreType: UserDataSyncStoreType | undefined;
+						if (userDataSyncStore && isSwitchingToInsiders && userDataAutoSyncEnablementService.isEnabled()
+							&& !storageService.getBoolean(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL, false)) {
+							userDataSyncStoreType = await this.selectSettingsSyncService(dialogService);
+							if (!userDataSyncStoreType) {
+								return;
+							}
+							storageService.store(selectSettingsSyncServiceDialogShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+							if (userDataSyncStoreType === 'stable') {
+								// Update the stable service type in the current window, so that it uses stable service after switched to insiders version (after reload).
+								await userDataSyncStoreManagementService.switch(userDataSyncStoreType);
+							}
 						}
 
-						// Synchronise the store type option in insiders service, so that other clients using insiders service are also updated.
-						if (isSwitchingToInsiders) {
-							promises.push(userDataSyncWorkbenchService.synchroniseUserDataSyncStoreType());
-						}
+						const res = await dialogService.confirm({
+							type: 'info',
+							message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
+							detail: newQuality === 'insider' ?
+								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VSCode.") :
+								nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VSCode."),
+							primaryButton: nls.localize('reload', "&&Reload")
+						});
 
-						await Promises.settled(promises);
+						if (res.confirmed) {
+							const promises: Promise<any>[] = [];
 
-						productQualityChangeHandler(newQuality);
-					} else {
-						// Reset
-						if (userDataSyncStoreType) {
-							storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL);
+							// If sync is happening wait until it is finished before reload
+							if (userDataSyncService.status === SyncStatus.Syncing) {
+								promises.push(Event.toPromise(Event.filter(userDataSyncService.onDidChangeStatus, status => status !== SyncStatus.Syncing)));
+							}
+
+							// If user chose the sync service then synchronise the store type option in insiders service, so that other clients using insiders service are also updated.
+							if (isSwitchingToInsiders && userDataSyncStoreType) {
+								promises.push(userDataSyncWorkbenchService.synchroniseUserDataSyncStoreType());
+							}
+
+							await Promises.settled(promises);
+
+							productQualityChangeHandler(newQuality);
+						} else {
+							// Reset
+							if (userDataSyncStoreType) {
+								storageService.remove(selectSettingsSyncServiceDialogShownKey, StorageScope.GLOBAL);
+							}
 						}
+					} catch (error) {
+						notificationService.error(error);
 					}
 				}
 

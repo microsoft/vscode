@@ -13,7 +13,7 @@ import { ConfigureLocaleAction } from 'vs/workbench/contrib/localizations/browse
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { IExtensionManagementService, DidInstallExtensionEvent, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -47,30 +47,32 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		super();
 
 		this.checkAndInstall();
-		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(this.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 	}
 
-	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
-			const locale = e.local.manifest.contributes.localizations[0].languageId;
-			if (platform.language !== locale) {
-				const updateAndRestart = platform.locale !== locale;
-				this.notificationService.prompt(
-					Severity.Info,
-					updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
-						: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
-					[{
-						label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
-						run: () => {
-							const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
-							updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		for (const e of results) {
+			if (e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+				const locale = e.local.manifest.contributes.localizations[0].languageId;
+				if (platform.language !== locale) {
+					const updateAndRestart = platform.locale !== locale;
+					this.notificationService.prompt(
+						Severity.Info,
+						updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
+							: localize('activateLanguagePack', "In order to use VS Code in {0}, VS Code needs to restart.", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
+						[{
+							label: updateAndRestart ? localize('changeAndRestart', "Change Language and Restart") : localize('restart', "Restart"),
+							run: () => {
+								const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
+								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
+							}
+						}],
+						{
+							sticky: true,
+							neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
 						}
-					}],
-					{
-						sticky: true,
-						neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true }
-					}
-				);
+					);
+				}
 			}
 		}
 	}
@@ -83,7 +85,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (!language || !locale || language === 'en' || language.indexOf('en-') === 0) {
+		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
 			return;
 		}
 		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
@@ -133,7 +135,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 										"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 									}
 								*/
-								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language });
+								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language: locale });
 							};
 
 							const searchAction = {
@@ -214,6 +216,7 @@ workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContributio
 
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'localizations',
+	defaultExtensionKind: ['ui', 'workspace'],
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.localizations', "Contributes localizations to the editor"),
 		type: 'array',

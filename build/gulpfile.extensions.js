@@ -8,7 +8,6 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
 const path = require('path');
-const child_process = require('child_process');
 const nodeUtil = require('util');
 const es = require('event-stream');
 const filter = require('gulp-filter');
@@ -20,8 +19,6 @@ const glob = require('glob');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
-const fancyLog = require('fancy-log');
-const ansiColors = require('ansi-colors');
 const ext = require('./lib/extensions');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
@@ -48,18 +45,19 @@ const compilations = [
 	'html-language-features/client/tsconfig.json',
 	'html-language-features/server/tsconfig.json',
 	'image-preview/tsconfig.json',
+	'ipynb/tsconfig.json',
 	'jake/tsconfig.json',
 	'json-language-features/client/tsconfig.json',
 	'json-language-features/server/tsconfig.json',
 	'markdown-language-features/preview-src/tsconfig.json',
 	'markdown-language-features/tsconfig.json',
+	'markdown-math/tsconfig.json',
 	'merge-conflict/tsconfig.json',
 	'microsoft-authentication/tsconfig.json',
 	'npm/tsconfig.json',
 	'php-language-features/tsconfig.json',
 	'search-result/tsconfig.json',
 	'simple-browser/tsconfig.json',
-	'testing-editor-contributions/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
 	'vscode-api-tests/tsconfig.json',
@@ -201,44 +199,16 @@ gulp.task(compileExtensionsBuildLegacyTask);
 
 //#region Extension media
 
-// Additional projects to webpack. These typically build code for webviews
-const webpackMediaConfigFiles = [
-	'markdown-language-features/webpack.config.js',
-	'simple-browser/webpack.config.js',
-];
-
-// Additional projects to run esbuild on. These typically build code for webviews
-const esbuildMediaScripts = [
-	'markdown-language-features/esbuild.js',
-	'notebook-markdown-extensions/esbuild.js',
-];
-
-const compileExtensionMediaTask = task.define('compile-extension-media', () => buildExtensionMedia(false));
+const compileExtensionMediaTask = task.define('compile-extension-media', () => ext.buildExtensionMedia(false));
 gulp.task(compileExtensionMediaTask);
 exports.compileExtensionMediaTask = compileExtensionMediaTask;
 
-const watchExtensionMedia = task.define('watch-extension-media', () => buildExtensionMedia(true));
+const watchExtensionMedia = task.define('watch-extension-media', () => ext.buildExtensionMedia(true));
 gulp.task(watchExtensionMedia);
 exports.watchExtensionMedia = watchExtensionMedia;
 
-const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => buildExtensionMedia(false, '.build/extensions'));
+const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => ext.buildExtensionMedia(false, '.build/extensions'));
 gulp.task(compileExtensionMediaBuildTask);
-
-async function buildExtensionMedia(isWatch, outputRoot) {
-	const webpackConfigLocations = webpackMediaConfigFiles.map(p => {
-		return {
-			configPath: path.join(extensionsPath, p),
-			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-		};
-	});
-	return Promise.all([
-		webpackExtensions('webpacking extension media', isWatch, webpackConfigLocations),
-		esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
-			script: path.join(extensionsPath, p),
-			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-		}))),
-	]);
-}
 
 //#endregion
 
@@ -271,121 +241,5 @@ async function buildWebExtensions(isWatch) {
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
 		{ ignore: ['**/node_modules'] }
 	);
-	return webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
-}
-
-/**
- * @param {string} taskName
- * @param {boolean} isWatch
- * @param {{ configPath: string, outputRoot?: boolean}} webpackConfigLocations
- */
-async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
-	const webpack = require('webpack');
-
-	const webpackConfigs = [];
-
-	for (const { configPath, outputRoot } of webpackConfigLocations) {
-		const configOrFnOrArray = require(configPath);
-		function addConfig(configOrFn) {
-			let config;
-			if (typeof configOrFn === 'function') {
-				config = configOrFn({}, {});
-				webpackConfigs.push(config);
-			} else {
-				config = configOrFn;
-			}
-
-			if (outputRoot) {
-				config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
-			}
-
-			webpackConfigs.push(configOrFn);
-		}
-		addConfig(configOrFnOrArray);
-	}
-	function reporter(fullStats) {
-		if (Array.isArray(fullStats.children)) {
-			for (const stats of fullStats.children) {
-				const outputPath = stats.outputPath;
-				if (outputPath) {
-					const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
-					const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
-					fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
-				}
-				if (Array.isArray(stats.errors)) {
-					stats.errors.forEach(error => {
-						fancyLog.error(error);
-					});
-				}
-				if (Array.isArray(stats.warnings)) {
-					stats.warnings.forEach(warning => {
-						fancyLog.warn(warning);
-					});
-				}
-			}
-		}
-	}
-	return new Promise((resolve, reject) => {
-		if (isWatch) {
-			webpack(webpackConfigs).watch({}, (err, stats) => {
-				if (err) {
-					reject();
-				} else {
-					reporter(stats.toJson());
-				}
-			});
-		} else {
-			webpack(webpackConfigs).run((err, stats) => {
-				if (err) {
-					fancyLog.error(err);
-					reject();
-				} else {
-					reporter(stats.toJson());
-					resolve();
-				}
-			});
-		}
-	});
-}
-
-/**
- * @param {string} taskName
- * @param {boolean} isWatch
- * @param {{ script: string, outputRoot?: string }}} scripts
- */
-async function esbuildExtensions(taskName, isWatch, scripts) {
-	function reporter(/** @type {string} */ stdError, /** @type {string} */script) {
-		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
-		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
-		for (const match of matches || []) {
-			fancyLog.error(match);
-		}
-	}
-
-	const tasks = scripts.map(({ script, outputRoot }) => {
-		return new Promise((resolve, reject) => {
-			const args = [script];
-			if (isWatch) {
-				args.push('--watch');
-			}
-			if (outputRoot) {
-				args.push('--outputRoot', outputRoot);
-			}
-			const proc = child_process.execFile(process.argv[0], args, {}, (error, _stdout, stderr) => {
-				if (error) {
-					return reject(error);
-				}
-				reporter(stderr, script);
-				if (stderr) {
-					return reject();
-				}
-				return resolve();
-			});
-
-			proc.stdout.on('data', (data) => {
-				fancyLog(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
-			});
-		});
-	});
-	return Promise.all(tasks);
+	return ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
 }

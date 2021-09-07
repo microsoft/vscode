@@ -6,7 +6,7 @@
 import 'vs/css!./media/binaryeditor';
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -14,15 +14,18 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, append, addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode, append } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ByteSize } from 'vs/platform/files/common/files';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Link } from 'vs/platform/opener/browser/link';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
+	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
 }
 
 /*
@@ -36,7 +39,6 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 	private readonly _onDidOpenInPlace = this._register(new Emitter<void>());
 	readonly onDidOpenInPlace = this._onDidOpenInPlace.event;
 
-	private callbacks: IOpenCallbacks;
 	private metadata: string | undefined;
 	private binaryContainer: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -44,14 +46,13 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 
 	constructor(
 		id: string,
-		callbacks: IOpenCallbacks,
+		private readonly callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
 		themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(id, telemetryService, themeService, storageService);
-
-		this.callbacks = callbacks;
 	}
 
 	override getTitle(): string {
@@ -71,7 +72,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
 
@@ -89,7 +90,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		this.inputDisposable.value = this.renderInput(input, options, model);
 	}
 
-	private renderInput(input: EditorInput, options: EditorOptions | undefined, model: BinaryEditorModel): IDisposable {
+	private renderInput(input: EditorInput, options: IEditorOptions | undefined, model: BinaryEditorModel): IDisposable {
 		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
 
 		clearNode(binaryContainer);
@@ -100,16 +101,21 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		label.textContent = localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
 		binaryContainer.appendChild(label);
 
-		const link = append(label, $('a.embedded-link'));
-		link.setAttribute('role', 'button');
-		link.textContent = localize('openAsText', "Do you want to open it anyway?");
+		const link = this._register(this.instantiationService.createInstance(Link, {
+			label: localize('openAsText', "Do you want to open it anyway?"),
+			href: ''
+		}, {
+			opener: async () => {
 
-		disposables.add(addDisposableListener(link, EventType.CLICK, async () => {
-			await this.callbacks.openInternal(input, options);
+				// Open in place
+				await this.callbacks.openInternal(input, options);
 
-			// Signal to listeners that the binary editor has been opened in-place
-			this._onDidOpenInPlace.fire();
+				// Signal to listeners that the binary editor has been opened in-place
+				this._onDidOpenInPlace.fire();
+			}
 		}));
+
+		append(label, link.el);
 
 		scrollbar.scanDomNode();
 

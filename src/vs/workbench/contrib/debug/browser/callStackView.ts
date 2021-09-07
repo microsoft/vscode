@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel, CALLSTACK_VIEW_ID, CONTEXT_DEBUG_STATE, getStateLabel, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel, CALLSTACK_VIEW_ID, CONTEXT_DEBUG_STATE, getStateLabel, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, CONTEXT_CALLSTACK_SESSION_IS_ATTACH, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD, IRawStoppedDetails } from 'vs/workbench/contrib/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView
 import { IAction, Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -163,10 +163,11 @@ export class CallStackView extends ViewPane {
 			}
 
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
-			if (thread && thread.stoppedDetails) {
-				this.stateMessageLabel.textContent = thread.stateLabel;
-				this.stateMessageLabel.title = thread.stoppedDetails.text || thread.stateLabel;
-				this.stateMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
+			const stoppedDetails = sessions.length === 1 ? sessions[0].getStoppedDetails() : undefined;
+			if (stoppedDetails && (thread || typeof stoppedDetails.threadId !== 'number')) {
+				this.stateMessageLabel.textContent = stoppedDescription(stoppedDetails);
+				this.stateMessageLabel.title = stoppedText(stoppedDetails);
+				this.stateMessageLabel.classList.toggle('exception', stoppedDetails.reason === 'exception');
 				this.stateMessage.hidden = false;
 			} else if (sessions.length === 1 && sessions[0].state === State.Running) {
 				this.stateMessageLabel.textContent = localize({ key: 'running', comment: ['indicates state'] }, "Running");
@@ -516,9 +517,9 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		const actionBar = new ActionBar(session, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+					return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 				} else if (action instanceof SubmenuItemAction) {
-					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
 				}
 
 				return undefined;
@@ -541,6 +542,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	private doRenderElement(session: IDebugSession, matches: IMatch[], data: ISessionTemplateData): void {
 		data.session.title = localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
 		data.label.set(session.getLabel(), matches);
+		const stoppedDetails = session.getStoppedDetails();
 		const thread = session.getAllThreads().find(t => t.stopped);
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -553,15 +555,22 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
+		// We need to set our internal context on the action bar, since our commands depend on that one
+		// While the external context our extensions rely on
+		data.actionBar.context = getContext(session);
 		data.stateLabel.style.display = '';
 
-		if (thread && thread.stoppedDetails) {
-			data.stateLabel.textContent = thread.stateLabel;
-			if (thread.stoppedDetails.text) {
-				data.session.title = thread.stoppedDetails.text;
-			}
+		if (stoppedDetails) {
+			data.stateLabel.textContent = stoppedDescription(stoppedDetails);
+			data.session.title = stoppedText(stoppedDetails);
+			data.stateLabel.classList.toggle('exception', stoppedDetails.reason === 'exception');
+		} else if (thread && thread.stoppedDetails) {
+			data.stateLabel.textContent = stoppedDescription(thread.stoppedDetails);
+			data.session.title = stoppedText(thread.stoppedDetails);
+			data.stateLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
 		} else {
 			data.stateLabel.textContent = localize({ key: 'running', comment: ['indicates state'] }, "Running");
+			data.stateLabel.classList.remove('exception');
 		}
 	}
 
@@ -836,6 +845,15 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 	}
 }
 
+function stoppedText(stoppedDetails: IRawStoppedDetails): string {
+	return stoppedDetails.text ?? stoppedDescription(stoppedDetails);
+}
+
+function stoppedDescription(stoppedDetails: IRawStoppedDetails): string {
+	return stoppedDetails.description ||
+		(stoppedDetails.reason ? localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", stoppedDetails.reason) : localize('paused', "Paused"));
+}
+
 function isDebugModel(obj: any): obj is IDebugModel {
 	return typeof obj.getSessions === 'function';
 }
@@ -1011,7 +1029,7 @@ registerAction2(class Collapse extends ViewAction<CallStackView> {
 				id: MenuId.ViewTitle,
 				order: 10,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', CALLSTACK_VIEW_ID)
+				when: ContextKeyExpr.equals('view', CALLSTACK_VIEW_ID)
 			}
 		});
 	}

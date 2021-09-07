@@ -35,6 +35,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
 import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
+import { Mimes } from 'vs/base/common/mime';
 
 /**
  * Description of an action contribution
@@ -192,6 +193,11 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	 * Defaults to "https://go.microsoft.com/fwlink/?linkid=852450"
 	 */
 	accessibilityHelpUrl?: string;
+	/**
+	 * Container element to use for ARIA messages.
+	 * Defaults to document.body.
+	 */
+	ariaContainerElement?: HTMLElement;
 }
 
 /**
@@ -232,12 +238,19 @@ export interface IStandaloneDiffEditor extends IDiffEditor {
 let LAST_GENERATED_COMMAND_ID = 0;
 
 let ariaDomNodeCreated = false;
-function createAriaDomNode() {
-	if (ariaDomNodeCreated) {
-		return;
+/**
+ * Create ARIA dom node inside parent,
+ * or only for the first editor instantiation inside document.body.
+ * @param parent container element for ARIA dom node
+ */
+function createAriaDomNode(parent: HTMLElement | undefined) {
+	if (!parent) {
+		if (ariaDomNodeCreated) {
+			return;
+		}
+		ariaDomNodeCreated = true;
 	}
-	ariaDomNodeCreated = true;
-	aria.setARIAContainer(document.body);
+	aria.setARIAContainer(parent || document.body);
 }
 
 /**
@@ -270,8 +283,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			this._standaloneKeybindingService = null;
 		}
 
-		// Create the ARIA dom node as soon as the first editor is instantiated
-		createAriaDomNode();
+		createAriaDomNode(options.ariaContainerElement);
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
@@ -425,7 +437,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			model = createTextModel(modelService, modeService, options.value || '', options.language || 'text/plain', undefined);
+			model = createTextModel(modelService, modeService, options.value || '', options.language || Mimes.text, undefined);
 			this._ownsModel = true;
 		} else {
 			model = _model;

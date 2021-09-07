@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Database, Statement } from 'vscode-sqlite3';
-import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'vs/base/common/path';
-import { copy, Promises } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
+import type { Database, Statement } from '@vscode/sqlite3';
 
 interface IDatabaseConnection {
 	readonly db: Database;
@@ -216,7 +216,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private backup(): Promise<void> {
 		const backupPath = this.toBackupPath(this.path);
 
-		return copy(this.path, backupPath, { preserveSymlinks: false });
+		return Promises.copy(this.path, backupPath, { preserveSymlinks: false });
 	}
 
 	private toBackupPath(path: string): string {
@@ -299,7 +299,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	private doConnect(path: string): Promise<IDatabaseConnection> {
 		return new Promise((resolve, reject) => {
-			import('vscode-sqlite3').then(sqlite3 => {
+			import('@vscode/sqlite3').then(sqlite3 => {
 				const connection: IDatabaseConnection = {
 					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 						if (error) {

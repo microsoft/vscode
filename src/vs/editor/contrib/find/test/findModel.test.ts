@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -14,9 +14,9 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 suite('FindModel', () => {
 

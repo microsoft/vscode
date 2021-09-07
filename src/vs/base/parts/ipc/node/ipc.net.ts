@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { Socket, Server as NetServer, createConnection, createServer } from 'net';
-import * as zlib from 'zlib';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { join } from 'vs/base/common/path';
+import { createConnection, createServer, Server as NetServer, Socket } from 'net';
 import { tmpdir } from 'os';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ISocket, Protocol, Client, ChunkStream } from 'vs/base/parts/ipc/common/ipc.net';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { join } from 'vs/base/common/path';
 import { Platform, platform } from 'vs/base/common/platform';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
+import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import * as zlib from 'zlib';
 
 export class NodeSocket implements ISocket {
 
@@ -54,10 +54,17 @@ export class NodeSocket implements ISocket {
 		};
 	}
 
-	public onClose(listener: () => void): IDisposable {
-		this.socket.on('close', listener);
+	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
+		const adapter = (hadError: boolean) => {
+			listener({
+				type: SocketCloseEventType.NodeSocketCloseEvent,
+				hadError: hadError,
+				error: undefined
+			});
+		};
+		this.socket.on('close', adapter);
 		return {
-			dispose: () => this.socket.off('close', listener)
+			dispose: () => this.socket.off('close', adapter)
 		};
 	}
 
@@ -167,7 +174,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	private readonly _pendingDeflateData: Buffer[] = [];
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
-	private readonly _onClose = this._register(new Emitter<void>());
+	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
 	private _isEnded: boolean = false;
 
 	private readonly _state = {
@@ -223,7 +230,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		this._recordInflateBytes = recordInflateBytes;
 		if (permessageDeflate) {
 			// See https://tools.ietf.org/html/rfc7692#page-16
-			// To simplify our logic, we don't negociate the window size
+			// To simplify our logic, we don't negotiate the window size
 			// and simply dedicate (2^15) / 32kb per web socket
 			this._zlibInflate = zlib.createInflateRaw({
 				windowBits: 15
@@ -232,7 +239,11 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				// zlib errors are fatal, since we have no idea how to recover
 				console.error(err);
 				onUnexpectedError(err);
-				this._onClose.fire();
+				this._onClose.fire({
+					type: SocketCloseEventType.NodeSocketCloseEvent,
+					hadError: true,
+					error: err
+				});
 			});
 			this._zlibInflate.on('data', (data: Buffer) => {
 				this._pendingInflateData.push(data);
@@ -251,7 +262,11 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				// zlib errors are fatal, since we have no idea how to recover
 				console.error(err);
 				onUnexpectedError(err);
-				this._onClose.fire();
+				this._onClose.fire({
+					type: SocketCloseEventType.NodeSocketCloseEvent,
+					hadError: true,
+					error: err
+				});
 			});
 			this._zlibDeflate.on('data', (data: Buffer) => {
 				this._pendingDeflateData.push(data);
@@ -263,7 +278,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		this._zlibDeflateFlushWaitingCount = 0;
 		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
-		this._register(this.socket.onClose(() => this._onClose.fire()));
+		this._register(this.socket.onClose((e) => this._onClose.fire(e)));
 	}
 
 	public override dispose(): void {
@@ -282,7 +297,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		return this._onData.event(listener);
 	}
 
-	public onClose(listener: () => void): IDisposable {
+	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
 		return this._onClose.event(listener);
 	}
 

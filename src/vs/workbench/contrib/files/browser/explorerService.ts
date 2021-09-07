@@ -22,6 +22,7 @@ import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/brow
 import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProgressCompositeOptions } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -48,7 +49,8 @@ export class ExplorerService implements IExplorerService {
 		@IEditorService private editorService: IEditorService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IHostService hostService: IHostService
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 		this._lexicographicOptions = this.configurationService.getValue('explorer.sortOrderLexicographicOptions');
@@ -78,13 +80,16 @@ export class ExplorerService implements IExplorerService {
 			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
 			events.forEach(e => {
 				if (!shouldRefresh) {
-					const added = e.getAdded();
-					if (added.some(a => {
-						const parent = this.model.findClosest(dirname(a.resource));
-						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
-						return parent && !parent.getChild(basename(a.resource));
-					})) {
-						shouldRefresh = true;
+					const added = e.rawAdded;
+					if (added) {
+						for (const [resource] of added) {
+							const parent = this.model.findClosest(dirname(resource));
+							// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
+							if (parent && !parent.getChild(basename(resource))) {
+								shouldRefresh = true;
+								break;
+							}
+						}
 					}
 				}
 			});
@@ -121,6 +126,8 @@ export class ExplorerService implements IExplorerService {
 				this.view.setTreeInput();
 			}
 		}));
+		// Refresh explorer when window gets focus to compensate for missing file events #126817
+		this.disposables.add(hostService.onDidChangeFocus(hasFocus => hasFocus ? this.refresh(false) : undefined));
 	}
 
 	get roots(): ExplorerItem[] {
@@ -344,7 +351,6 @@ export class ExplorerService implements IExplorerService {
 					const parent = element.parent;
 					// Remove Element from Parent (Model)
 					parent.removeChild(element);
-					this.view?.focusNeighbourIfItemFocused(element);
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}

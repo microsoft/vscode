@@ -12,7 +12,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
 
-suite('Resource editors', () => {
+suite('ResourceEditorInput', () => {
 
 	let instantiationService: IInstantiationService;
 

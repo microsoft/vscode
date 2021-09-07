@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { flatten } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { IRange } from 'vs/base/common/range';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { IContentDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { InlayHintsProvider, InlayHintsProviderRegistry, InlayHint } from 'vs/editor/common/modes';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { flatten } from 'vs/base/common/arrays';
-import { editorInlayHintForeground, editorInlayHintBackground } from 'vs/platform/theme/common/colorRegistry';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Range } from 'vs/editor/common/core/range';
+import { InlayHint, InlayHintsProvider, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/base/common/range';
-import { assertType } from 'vs/base/common/types';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { Position } from 'vs/editor/common/core/position';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { editorInlayHintBackground, editorInlayHintForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const MAX_DECORATORS = 500;
 
@@ -37,13 +38,16 @@ export interface InlayHintsData {
 export async function getInlayHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHintsData[]> {
 	const datas: InlayHintsData[] = [];
 	const providers = InlayHintsProviderRegistry.ordered(model).reverse();
-	const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlayHints(model, range, token)).then(result => {
-		if (result) {
-			datas.push({ list: result, provider });
-		}
-	}, err => {
-		onUnexpectedExternalError(err);
-	}))));
+	const promises = flatten(providers.map(provider => ranges.map(range => {
+		return Promise.resolve(provider.provideInlayHints(model, range, token)).then(result => {
+			const itemsInRange = result?.filter(hint => range.containsPosition(hint.position));
+			if (itemsInRange?.length) {
+				datas.push({ list: itemsInRange, provider });
+			}
+		}, err => {
+			onUnexpectedExternalError(err);
+		});
+	})));
 
 	await Promise.all(promises);
 
@@ -56,7 +60,7 @@ export class InlayHintsController implements IEditorContribution {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
-	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 250, 2500);
+	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 2500);
 
 	private _decorationsTypeIds: string[] = [];
 	private _decorationIds: string[] = [];
@@ -65,6 +69,7 @@ export class InlayHintsController implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._disposables.add(InlayHintsProviderRegistry.onDidChange(() => this._update()));
 		this._disposables.add(_themeService.onDidColorThemeChange(() => this._update()));
@@ -145,6 +150,9 @@ export class InlayHintsController implements IEditorContribution {
 		const fontFamilyVar = '--inlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
+		const key = this._configurationService.getValue('editor.useInjectedText');
+		const shouldUseInjectedText = key === undefined ? true : !!key;
+
 		for (const { list: hints } of hintsData) {
 
 			for (let j = 0; j < hints.length && newDecorationsData.length < MAX_DECORATORS; j++) {
@@ -152,8 +160,10 @@ export class InlayHintsController implements IEditorContribution {
 				const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
 				const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
+				const massagedText = fixSpace(text);
+
 				const before: IContentDecorationRenderOptions = {
-					contentText: text,
+					contentText: massagedText,
 					backgroundColor: `${backgroundColor}`,
 					color: `${fontColor}`,
 					margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
@@ -161,9 +171,11 @@ export class InlayHintsController implements IEditorContribution {
 					fontFamily: `var(${fontFamilyVar})`,
 					padding: `0px ${(fontSize / 4) | 0}px`,
 					borderRadius: `${(fontSize / 4) | 0}px`,
+					verticalAlign: 'middle',
 				};
 				const key = 'inlayHints-' + hash(before).toString(16);
-				this._codeEditorService.registerDecorationType(key, { before }, undefined, this._editor);
+				this._codeEditorService.registerDecorationType('inlay-hints-controller', key,
+					shouldUseInjectedText ? { beforeInjectedText: { ...before, affectsLetterSpacing: true } } : { before }, undefined, this._editor);
 
 				// decoration types are ref-counted which means we only need to
 				// call register und remove equally often
@@ -190,7 +202,7 @@ export class InlayHintsController implements IEditorContribution {
 		if (!fontSize || fontSize < 5 || fontSize > editorFontSize) {
 			fontSize = (editorFontSize * .9) | 0;
 		}
-		const fontFamily = options.fontFamily;
+		const fontFamily = options.fontFamily || this._editor.getOption(EditorOption.fontFamily);
 		return { fontSize, fontFamily };
 	}
 
@@ -199,6 +211,11 @@ export class InlayHintsController implements IEditorContribution {
 		this._decorationsTypeIds.forEach(this._codeEditorService.removeDecorationType, this._codeEditorService);
 		this._decorationsTypeIds = [];
 	}
+}
+
+function fixSpace(str: string): string {
+	const noBreakWhitespace = '\xa0';
+	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
 
 registerEditorContribution(InlayHintsController.ID, InlayHintsController);

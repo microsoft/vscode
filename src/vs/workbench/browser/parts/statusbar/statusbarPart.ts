@@ -10,9 +10,10 @@ import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } fro
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Part } from 'vs/workbench/browser/part';
+import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, toAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -43,6 +44,11 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { hash } from 'vs/base/common/hash';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 interface IStatusbarEntryPriority {
 
@@ -426,6 +432,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
+	private hoverDelegate: IHoverDelegate;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -434,10 +442,18 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
+
+		this.hoverDelegate = {
+			showHover: (options: IHoverDelegateOptions) => hoverService.showHover(options),
+			delay: <number>configurationService.getValue('workbench.hover.delay'),
+			placement: 'element'
+		};
 	}
 
 	private registerListeners(): void {
@@ -489,7 +505,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Create item
 		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
-		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
+		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry, this.hoverDelegate);
 
 		// Append to parent
 		this.appendOneStatusbarEntry(itemContainer, alignment, priority);
@@ -571,6 +587,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Context menu support
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
+		this._register(Gesture.addTarget(parent));
+		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, e => this.showContextMenu(e)));
 
 		// Initial status bar entries
 		this.createInitialStatusbarEntries();
@@ -645,7 +663,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 	}
 
-	private showContextMenu(e: MouseEvent): void {
+	private showContextMenu(e: MouseEvent | GestureEvent): void {
 		EventHelper.stop(e, true);
 
 		const event = new StandardMouseEvent(e);
@@ -821,6 +839,8 @@ class StatusbarEntryItem extends Disposable {
 	readonly labelContainer: HTMLElement;
 	private readonly label: StatusBarCodiconLabel;
 
+	private customHover: IDisposable | undefined;
+
 	private entry: IStatusbarEntry | undefined = undefined;
 	get name(): string { return assertIsDefined(this.entry).name; }
 
@@ -833,6 +853,7 @@ class StatusbarEntryItem extends Disposable {
 	constructor(
 		private container: HTMLElement,
 		entry: IStatusbarEntry,
+		private readonly customHoverDelegate: IHoverDelegate,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -881,12 +902,12 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		// Update: Tooltip (on the container, because label can be disabled)
-		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
-			if (entry.tooltip) {
-				this.container.title = entry.tooltip;
-			} else {
-				this.container.title = '';
+		if (!this.entry || !isEqualTooltip(this.entry, entry)) {
+			if (this.customHover) {
+				this.customHover.dispose();
+				this.customHover = undefined;
 			}
+			this.customHover = setupCustomHover(this.customHoverDelegate, this.labelContainer, { markdown: entry.tooltip, markdownNotSupportedFallback: undefined });
 		}
 
 		// Update: Command
@@ -993,34 +1014,49 @@ class StatusbarEntryItem extends Disposable {
 		dispose(this.backgroundListener);
 		dispose(this.commandMouseListener);
 		dispose(this.commandKeyboardListener);
+		if (this.customHover) {
+			this.customHover.dispose();
+		}
 	}
+}
+
+function isEqualTooltip(e1: IStatusbarEntry, e2: IStatusbarEntry) {
+	const t1 = e1.tooltip;
+	const t2 = e2.tooltip;
+	if (t1 === undefined) {
+		return t2 === undefined;
+	}
+	if (isMarkdownString(t1)) {
+		return isMarkdownString(t2) && markdownStringEqual(t1, t2);
+	}
+	return t1 === t2;
 }
 
 registerThemingParticipant((theme, collector) => {
 	if (theme.type !== ColorScheme.HIGH_CONTRAST) {
 		const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 		if (statusBarItemHoverBackground) {
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus { background-color: ${statusBarItemHoverBackground}; }`);
+			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
+			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus:not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
 		}
 
 		const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 		if (statusBarItemActiveBackground) {
-			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
+			collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) { background-color: ${statusBarItemActiveBackground}; }`);
 		}
 	}
 
 	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
 	if (activeContrastBorderColor) {
 		collector.addRule(`
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus,
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active {
+			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus:not(.disabled),
+			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active:not(.disabled) {
 				outline: 1px solid ${activeContrastBorderColor} !important;
 				outline-offset: -1px;
 			}
 		`);
 		collector.addRule(`
-			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover {
+			.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover:not(.disabled) {
 				outline: 1px dashed ${activeContrastBorderColor};
 				outline-offset: -1px;
 			}
@@ -1039,7 +1075,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const statusBarProminentItemHoverBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND);
 	if (statusBarProminentItemHoverBackground) {
-		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a.status-bar-info:hover { background-color: ${statusBarProminentItemHoverBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a.status-bar-info:hover:not(.disabled) { background-color: ${statusBarProminentItemHoverBackground}; }`);
 	}
 });
 

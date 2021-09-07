@@ -16,7 +16,11 @@
 			"request": "attach",
 			"restart": true,
 			"name": "Attach to Extension Host",
-			"timeout": 30000,
+			// set to a large number: if there is an issue we're debugging that keeps
+			// the extension host from coming up, or the renderer is paused/crashes
+			// before it happens, developers will get an annoying alert, e.g. #126826.
+			// This can be set to 0 in 1.59.
+			"timeout": 999999999,
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js",
@@ -71,7 +75,7 @@
 			"name": "VS Code Emmet Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/emmet/test-fixtures",
+				"${workspaceFolder}/extensions/emmet/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/emmet",
 				"--extensionTestsPath=${workspaceFolder}/extensions/emmet/out/test"
 			],
@@ -160,24 +164,6 @@
 		{
 			"type": "extensionHost",
 			"request": "launch",
-			"name": "VS Code Notebook Tests",
-			"runtimeExecutable": "${execPath}",
-			"args": [
-				"${workspaceFolder}/extensions/vscode-notebook-tests/test",
-				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-notebook-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-notebook-tests/out"
-			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"group": "5_tests",
-				"order": 6
-			}
-		},
-		{
-			"type": "extensionHost",
-			"request": "launch",
 			"name": "VS Code Custom Editor Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
@@ -199,7 +185,6 @@
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
 			"port": 9222,
-			"trace": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -232,12 +217,16 @@
 			"runtimeArgs": [
 				"--inspect=5875",
 				"--no-cached-data",
+				// for breakpoint freeze: https://github.com/microsoft/vscode/issues/122225#issuecomment-885377304
+				"--js-flags=\"--regexp_interpret_all\"",
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
+				"--disable-features=CalculateNativeWinOcclusion",
 			],
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
 			],
-			"userDataDir": false,
+			"userDataDir": "${workspaceFolder}/.profile-oss",
 			"pauseForSourceMap": false,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -258,15 +247,17 @@
 			}
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
 			"name": "Main Process",
+			"attachSimplePort": 5875,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
 			},
 			"runtimeArgs": [
-				"--no-cached-data"
+				"--inspect-brk=5875",
+				"--no-cached-data",
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"

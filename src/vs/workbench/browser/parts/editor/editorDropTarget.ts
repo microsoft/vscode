@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorIdentifier, EditorOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { GroupDirection, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -281,10 +281,10 @@ class DropOverlay extends Themable {
 					}
 
 					// Open in target group
-					const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({
+					const options = fillActiveEditorViewState(sourceGroup, draggedEditor.editor, {
 						pinned: true,										// always pin dropped editor
 						sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
-					}));
+					});
 
 					const copyEditor = this.isCopyOperation(event, draggedEditor);
 					if (!copyEditor) {
@@ -313,7 +313,7 @@ class DropOverlay extends Themable {
 
 						// Skip for very large files because this operation is unbuffered
 						if (file.size > DropOverlay.MAX_FILE_UPLOAD_SIZE) {
-							this.dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."), [localize('ok', 'OK')]);
+							this.dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
 							continue;
 						}
 
@@ -332,18 +332,16 @@ class DropOverlay extends Themable {
 									proposedFilePath = joinPath(defaultFilePath, name);
 								}
 
-								// Open as untitled text file with the provided contents
-								const untitledTextEditor = this.editorService.createEditorInput({
-									resource: proposedFilePath,
-									forceUntitled: true,
-									contents: VSBuffer.wrap(new Uint8Array(event.target.result)).toString()
-								});
-
 								if (!targetGroup) {
 									targetGroup = ensureTargetGroup();
 								}
 
-								await this.editorService.openEditor(untitledTextEditor, undefined, targetGroup.id);
+								// Open as untitled text file with the provided contents
+								await this.editorService.openEditor({
+									resource: proposedFilePath,
+									forceUntitled: true,
+									contents: VSBuffer.wrap(new Uint8Array(event.target.result)).toString()
+								}, targetGroup.id);
 							}
 						};
 					}
@@ -596,7 +594,7 @@ export class EditorDropTarget extends Themable {
 		if (
 			!this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) &&
 			!this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype) &&
-			event.dataTransfer && !event.dataTransfer.types.length // see https://github.com/microsoft/vscode/issues/25789
+			event.dataTransfer && !containsDragType(event, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS, CodeDataTransfers.EDITORS) // see https://github.com/microsoft/vscode/issues/25789
 		) {
 			event.dataTransfer.dropEffect = 'none';
 			return; // unsupported transfer

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroupModel, ISerializedEditorGroupModel, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorExtensions, IEditorInputFactoryRegistry, IFileEditorInput, IEditorInputSerializer, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -24,7 +24,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
-suite('Workbench editor group model', () => {
+suite('EditorGroupModel', () => {
 
 	function inst(): IInstantiationService {
 		let inst = new TestInstantiationService();
@@ -77,6 +77,7 @@ suite('Workbench editor group model', () => {
 	}
 
 	interface GroupEvents {
+		locked: number[],
 		opened: EditorInput[];
 		activated: EditorInput[];
 		closed: EditorCloseEvent[];
@@ -90,6 +91,7 @@ suite('Workbench editor group model', () => {
 
 	function groupListener(group: EditorGroupModel): GroupEvents {
 		const groupEvents: GroupEvents = {
+			locked: [],
 			opened: [],
 			closed: [],
 			activated: [],
@@ -101,6 +103,7 @@ suite('Workbench editor group model', () => {
 			disposed: []
 		};
 
+		group.onDidChangeLocked(() => groupEvents.locked.push(group.id));
 		group.onDidOpenEditor(e => groupEvents.opened.push(e));
 		group.onDidCloseEditor(e => groupEvents.closed.push(e));
 		group.onDidActivateEditor(e => groupEvents.activated.push(e));
@@ -159,6 +162,7 @@ suite('Workbench editor group model', () => {
 			super();
 		}
 		override get typeId() { return 'testFileEditorInputForGroups'; }
+		override get editorId() { return this.id; }
 		override async resolve(): Promise<IEditorModel | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
@@ -167,11 +171,15 @@ suite('Workbench editor group model', () => {
 		getEncoding() { return undefined; }
 		setPreferredEncoding(encoding: string) { }
 		setForceOpenAsBinary(): void { }
+		setPreferredContents(contents: string): void { }
 		setMode(mode: string) { }
 		setPreferredMode(mode: string) { }
 		isResolved(): boolean { return false; }
 
 		override matches(other: TestFileEditorInput): boolean {
+			if (super.matches(other)) {
+				return true;
+			}
 			return other && this.id === other.id && other instanceof TestFileEditorInput;
 		}
 	}
@@ -188,7 +196,7 @@ suite('Workbench editor group model', () => {
 		id: string;
 	}
 
-	class TestEditorInputSerializer implements IEditorInputSerializer {
+	class TestEditorInputSerializer implements IEditorSerializer {
 
 		static disableSerialize = false;
 		static disableDeserialize = false;
@@ -227,7 +235,7 @@ suite('Workbench editor group model', () => {
 		TestEditorInputSerializer.disableSerialize = false;
 		TestEditorInputSerializer.disableDeserialize = false;
 
-		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('testEditorInputForGroups', TestEditorInputSerializer));
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('testEditorInputForGroups', TestEditorInputSerializer));
 	});
 
 	teardown(() => {
@@ -252,12 +260,18 @@ suite('Workbench editor group model', () => {
 		group.stick(input2);
 		assert.ok(group.isSticky(input2));
 
+		// Locked
+		assert.strictEqual(group.isLocked, false);
+		group.lock(true);
+		assert.strictEqual(group.isLocked, true);
+
 		const clone = group.clone();
 		assert.notStrictEqual(group.id, clone.id);
 		assert.strictEqual(clone.count, 3);
+		assert.strictEqual(clone.isLocked, false); // locking does not clone over
 
 		let didEditorLabelChange = false;
-		const toDispose = clone.onDidEditorLabelChange(() => didEditorLabelChange = true);
+		const toDispose = clone.onDidChangeEditorLabel(() => didEditorLabelChange = true);
 		input1.setLabel();
 		assert.ok(didEditorLabelChange);
 
@@ -276,7 +290,112 @@ suite('Workbench editor group model', () => {
 		toDispose.dispose();
 	});
 
-	test('contains()', function () {
+	test('isActive - untyped', () => {
+		const group = createEditorGroupModel();
+		const input = new TestFileEditorInput('testInput', URI.file('fake'));
+		const input2 = new TestFileEditorInput('testInput2', URI.file('fake2'));
+		const untypedInput = { resource: URI.file('/fake'), options: { override: 'testInput' } };
+		const untypedNonActiveInput = { resource: URI.file('/fake2'), options: { override: 'testInput2' } };
+
+		group.openEditor(input, { pinned: true, active: true });
+		group.openEditor(input2, { active: false });
+
+		assert.ok(group.isActive(input));
+		assert.ok(group.isActive(untypedInput));
+		assert.ok(!group.isActive(untypedNonActiveInput));
+	});
+
+	test('contains() - untyped', function () {
+		const group = createEditorGroupModel();
+		const instantiationService = workbenchInstantiationService();
+
+		const input1 = input('input1', false, URI.file('/input1'));
+		const input2 = input('input2', false, URI.file('/input2'));
+
+		const untypedInput1 = { resource: URI.file('/input1'), options: { override: 'input1' } };
+		const untypedInput2 = { resource: URI.file('/input2'), options: { override: 'input2' } };
+
+		const diffInput1 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input1, input2, undefined);
+		const diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input2, input1, undefined);
+
+		const untypedDiffInput1: IResourceDiffEditorInput = {
+			original: untypedInput1,
+			modified: untypedInput2
+		};
+		const untypedDiffInput2: IResourceDiffEditorInput = {
+			original: untypedInput2,
+			modified: untypedInput1
+		};
+
+		group.openEditor(input1, { pinned: true, active: true });
+
+		assert.strictEqual(group.contains(untypedInput1), true);
+		assert.strictEqual(group.contains(untypedInput1, { strictEquals: true }), false);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput2), false);
+		assert.strictEqual(group.contains(untypedInput2, { strictEquals: true }), false);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(untypedDiffInput1), false);
+		assert.strictEqual(group.contains(untypedDiffInput2), false);
+
+		group.openEditor(input2, { pinned: true, active: true });
+
+		assert.strictEqual(group.contains(untypedInput1), true);
+		assert.strictEqual(group.contains(untypedInput2), true);
+		assert.strictEqual(group.contains(untypedDiffInput1), false);
+		assert.strictEqual(group.contains(untypedDiffInput2), false);
+
+		group.openEditor(diffInput1, { pinned: true, active: true });
+
+		assert.strictEqual(group.contains(untypedInput1), true);
+		assert.strictEqual(group.contains(untypedInput2), true);
+		assert.strictEqual(group.contains(untypedDiffInput1), true);
+		assert.strictEqual(group.contains(untypedDiffInput2), false);
+
+		group.openEditor(diffInput2, { pinned: true, active: true });
+
+		assert.strictEqual(group.contains(untypedInput1), true);
+		assert.strictEqual(group.contains(untypedInput2), true);
+		assert.strictEqual(group.contains(untypedDiffInput1), true);
+		assert.strictEqual(group.contains(untypedDiffInput2), true);
+
+		group.closeEditor(input1);
+
+		assert.strictEqual(group.contains(untypedInput1), false);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput2), true);
+		assert.strictEqual(group.contains(untypedDiffInput1), true);
+		assert.strictEqual(group.contains(untypedDiffInput2), true);
+
+		group.closeEditor(input2);
+
+		assert.strictEqual(group.contains(untypedInput1), false);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput2), false);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedDiffInput1), true);
+		assert.strictEqual(group.contains(untypedDiffInput2), true);
+
+		group.closeEditor(diffInput1);
+
+		assert.strictEqual(group.contains(untypedInput1), false);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput2), false);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedDiffInput1), false);
+		assert.strictEqual(group.contains(untypedDiffInput2), true);
+
+		group.closeEditor(diffInput2);
+
+		assert.strictEqual(group.contains(untypedInput1), false);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(untypedInput2), false);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(untypedDiffInput1), false);
+		assert.strictEqual(group.contains(untypedDiffInput2), false);
+	});
+
+	test('contains()', () => {
 		const group = createEditorGroupModel();
 		const instantiationService = workbenchInstantiationService();
 
@@ -367,7 +486,7 @@ suite('Workbench editor group model', () => {
 	});
 
 	test('group serialization', function () {
-		inst().invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+		inst().invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		const group = createEditorGroupModel();
 
 		const input1 = input();
@@ -411,7 +530,7 @@ suite('Workbench editor group model', () => {
 	});
 
 	test('group serialization (sticky editor)', function () {
-		inst().invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+		inst().invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		const group = createEditorGroupModel();
 
 		const input1 = input();
@@ -465,6 +584,40 @@ suite('Workbench editor group model', () => {
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 	});
 
+	test('group serialization (locked group)', function () {
+		const group = createEditorGroupModel();
+
+		const events = groupListener(group);
+
+		assert.strictEqual(events.locked.length, 0);
+
+		group.lock(true);
+		group.lock(true);
+
+		assert.strictEqual(events.locked.length, 1);
+
+		group.lock(false);
+		group.lock(false);
+
+		assert.strictEqual(events.locked.length, 2);
+	});
+
+	test('locked group', function () {
+		const group = createEditorGroupModel();
+		group.lock(true);
+
+		let deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(group.id, deserialized.id);
+		assert.strictEqual(deserialized.count, 0);
+		assert.strictEqual(deserialized.isLocked, true);
+
+		group.lock(false);
+		deserialized = createEditorGroupModel(group.serialize());
+		assert.strictEqual(group.id, deserialized.id);
+		assert.strictEqual(deserialized.count, 0);
+		assert.strictEqual(deserialized.isLocked, false);
+	});
+
 	test('One Editor', function () {
 		const group = createEditorGroupModel();
 		const events = groupListener(group);
@@ -488,8 +641,10 @@ suite('Workbench editor group model', () => {
 		assert.strictEqual(events.opened[0], input1);
 		assert.strictEqual(events.activated[0], input1);
 
-		let editor = group.closeEditor(input1);
-		assert.strictEqual(editor, input1);
+		let index = group.indexOf(input1);
+		let event = group.closeEditor(input1);
+		assert.strictEqual(event?.editor, input1);
+		assert.strictEqual(event?.index, index);
 		assert.strictEqual(group.count, 0);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 		assert.strictEqual(group.activeEditor, null);
@@ -519,8 +674,8 @@ suite('Workbench editor group model', () => {
 		assert.strictEqual(events.closed[1].index, 0);
 		assert.strictEqual(events.closed[1].replaced, false);
 
-		editor = group.closeEditor(input2);
-		assert.ok(!editor);
+		event = group.closeEditor(input2);
+		assert.ok(!event);
 		assert.strictEqual(group.count, 0);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 		assert.strictEqual(group.activeEditor, null);
@@ -1286,7 +1441,7 @@ suite('Workbench editor group model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+		inst.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		let group = createEditorGroupModel();
 
@@ -1320,7 +1475,7 @@ suite('Workbench editor group model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+		inst.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		let group1 = createEditorGroupModel();
 
@@ -1390,7 +1545,7 @@ suite('Workbench editor group model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+		inst.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		let group = createEditorGroupModel();
 
@@ -1434,7 +1589,7 @@ suite('Workbench editor group model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+		inst.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		let group = createEditorGroupModel();
 
@@ -1469,7 +1624,7 @@ suite('Workbench editor group model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+		inst.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		let group1 = createEditorGroupModel();
 		let group2 = createEditorGroupModel();
@@ -1559,12 +1714,12 @@ suite('Workbench editor group model', () => {
 		});
 
 		let label1ChangeCounter = 0;
-		group1.onDidEditorLabelChange(() => {
+		group1.onDidChangeEditorLabel(() => {
 			label1ChangeCounter++;
 		});
 
 		let label2ChangeCounter = 0;
-		group2.onDidEditorLabelChange(() => {
+		group2.onDidChangeEditorLabel(() => {
 			label2ChangeCounter++;
 		});
 

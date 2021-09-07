@@ -50,7 +50,7 @@ suite('Workbench - TextModelResolverService', () => {
 		});
 
 		let resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
-		let input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined);
+		let input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 
 		const model = await input.resolve();
 		assert.ok(model);

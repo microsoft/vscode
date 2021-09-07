@@ -13,7 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/resources';
-import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { Promises } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
@@ -98,7 +98,7 @@ suite('StoredFileWorkingCopy', function () {
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>;
 
 	function createWorkingCopy(uri: URI = resource) {
-		return new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
+		return new StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>('testStoredFileWorkingCopyType', uri, basename(uri), factory, accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
 	}
 
 	setup(() => {
@@ -118,10 +118,6 @@ suite('StoredFileWorkingCopy', function () {
 		workingCopy.dispose();
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
-	});
-
-	test('requires good file system URI', async () => {
-		assert.throws(() => createWorkingCopy(URI.from({ scheme: 'unknown', path: 'somePath' })));
 	});
 
 	test('orphaned tracking', async () => {
@@ -352,6 +348,37 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.model?.contents, 'Hello Html');
 	});
 
+	test('resolve (FILE_NOT_MODIFIED_SINCE still updates readonly state)', async () => {
+		let readonlyChangeCounter = 0;
+		workingCopy.onDidChangeReadonly(() => readonlyChangeCounter++);
+
+		await workingCopy.resolve();
+
+		assert.strictEqual(workingCopy.isReadonly(), false);
+
+		const stat = await accessor.fileService.resolve(workingCopy.resource, { resolveMetadata: true });
+
+		try {
+			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: true });
+			await workingCopy.resolve();
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+
+		assert.strictEqual(workingCopy.isReadonly(), true);
+		assert.strictEqual(readonlyChangeCounter, 1);
+
+		try {
+			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: false });
+			await workingCopy.resolve();
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+
+		assert.strictEqual(workingCopy.isReadonly(), false);
+		assert.strictEqual(readonlyChangeCounter, 2);
+	});
+
 	test('resolve does not alter content when model content changed in parallel', async () => {
 		await workingCopy.resolve();
 
@@ -572,6 +599,35 @@ suite('StoredFileWorkingCopy', function () {
 		}
 
 		assert.ok(error);
+	});
+
+	test('save participant', async () => {
+		await workingCopy.resolve();
+
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
+
+		let participationCounter = 0;
+		const disposable = accessor.workingCopyFileService.addSaveParticipant({
+			participate: async (wc) => {
+				if (workingCopy === wc) {
+					participationCounter++;
+				}
+			}
+		});
+
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, true);
+
+		await workingCopy.save({ force: true });
+		assert.strictEqual(participationCounter, 1);
+
+		await workingCopy.save({ force: true, skipSaveParticipants: true });
+		assert.strictEqual(participationCounter, 1);
+
+		disposable.dispose();
+		assert.strictEqual(accessor.workingCopyFileService.hasSaveParticipants, false);
+
+		await workingCopy.save({ force: true });
+		assert.strictEqual(participationCounter, 1);
 	});
 
 	test('revert', async () => {

@@ -30,7 +30,7 @@ export const editorActiveLineNumber = registerColor('editorLineNumber.activeFore
 
 export const editorRuler = registerColor('editorRuler.foreground', { dark: '#5A5A5A', light: Color.lightgrey, hc: Color.white }, nls.localize('editorRuler', 'Color of the editor rulers.'));
 
-export const editorCodeLensForeground = registerColor('editorCodeLens.foreground', { dark: '#999999', light: '#999999', hc: '#999999' }, nls.localize('editorCodeLensForeground', 'Foreground color of editor CodeLens'));
+export const editorCodeLensForeground = registerColor('editorCodeLens.foreground', { dark: '#999999', light: '#919191', hc: '#999999' }, nls.localize('editorCodeLensForeground', 'Foreground color of editor CodeLens'));
 
 export const editorBracketMatchBackground = registerColor('editorBracketMatch.background', { dark: '#0064001a', light: '#0064001a', hc: '#0064001a' }, nls.localize('editorBracketMatchBackground', 'Background color behind matching brackets'));
 export const editorBracketMatchBorder = registerColor('editorBracketMatch.border', { dark: '#888', light: '#B9B9B9', hc: contrastBorder }, nls.localize('editorBracketMatchBorder', 'Color for matching brackets boxes'));
@@ -43,14 +43,23 @@ export const editorGutter = registerColor('editorGutter.background', { dark: edi
 export const editorUnnecessaryCodeBorder = registerColor('editorUnnecessaryCode.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('unnecessaryCodeBorder', 'Border color of unnecessary (unused) source code in the editor.'));
 export const editorUnnecessaryCodeOpacity = registerColor('editorUnnecessaryCode.opacity', { dark: Color.fromHex('#000a'), light: Color.fromHex('#0007'), hc: null }, nls.localize('unnecessaryCodeOpacity', 'Opacity of unnecessary (unused) source code in the editor. For example, "#000000c0" will render the code with 75% opacity. For high contrast themes, use the  \'editorUnnecessaryCode.border\' theme color to underline unnecessary code instead of fading it out.'));
 
-export const editorSuggestPreviewBorder = registerColor('editorSuggestPreview.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('editorSuggestPreviewBorder', 'Border color of inline suggestion preview in the editor.'));
-export const editorSuggestPreviewOpacity = registerColor('editorSuggestPreview.opacity', { dark: Color.fromHex('#FFFa'), light: Color.fromHex('#0007'), hc: null }, nls.localize('editorSuggestPreviewOpacity', 'Opacity of inline suggestion preview in the editor. For example, "#000000c0" will render the code with 75% opacity. For high contrast themes, use the  \'editorSuggestPreview.border\' theme color instead of fading it out.'));
+export const ghostTextBorder = registerColor('editorGhostText.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('editorGhostTextBorder', 'Border color of ghost text in the editor.'));
+export const ghostTextForeground = registerColor('editorGhostText.foreground', { dark: Color.fromHex('#ffffff56'), light: Color.fromHex('#0007'), hc: null }, nls.localize('editorGhostTextForeground', 'Foreground color of the ghost text in the editor.'));
 
 const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
 export const overviewRulerRangeHighlight = registerColor('editorOverviewRuler.rangeHighlightForeground', { dark: rulerRangeDefault, light: rulerRangeDefault, hc: rulerRangeDefault }, nls.localize('overviewRulerRangeHighlight', 'Overview ruler marker color for range highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const overviewRulerError = registerColor('editorOverviewRuler.errorForeground', { dark: new Color(new RGBA(255, 18, 18, 0.7)), light: new Color(new RGBA(255, 18, 18, 0.7)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('overviewRuleError', 'Overview ruler marker color for errors.'));
 export const overviewRulerWarning = registerColor('editorOverviewRuler.warningForeground', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningBorder }, nls.localize('overviewRuleWarning', 'Overview ruler marker color for warnings.'));
 export const overviewRulerInfo = registerColor('editorOverviewRuler.infoForeground', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoBorder }, nls.localize('overviewRuleInfo', 'Overview ruler marker color for infos.'));
+
+export const editorBracketHighlightingForeground1 = registerColor('editorBracketHighlight.foreground1', { dark: '#FFD700', light: '#0431FAFF', hc: '#FFD700' }, nls.localize('editorBracketHighlightForeground1', 'Foreground color of brackets (1). Requires enabling bracket pair colorization.'));
+export const editorBracketHighlightingForeground2 = registerColor('editorBracketHighlight.foreground2', { dark: '#DA70D6', light: '#319331FF', hc: '#DA70D6' }, nls.localize('editorBracketHighlightForeground2', 'Foreground color of brackets (2). Requires enabling bracket pair colorization.'));
+export const editorBracketHighlightingForeground3 = registerColor('editorBracketHighlight.foreground3', { dark: '#179FFF', light: '#7B3814FF', hc: '#87CEFA' }, nls.localize('editorBracketHighlightForeground3', 'Foreground color of brackets (3). Requires enabling bracket pair colorization.'));
+export const editorBracketHighlightingForeground4 = registerColor('editorBracketHighlight.foreground4', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground4', 'Foreground color of brackets (4). Requires enabling bracket pair colorization.'));
+export const editorBracketHighlightingForeground5 = registerColor('editorBracketHighlight.foreground5', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground5', 'Foreground color of brackets (5). Requires enabling bracket pair colorization.'));
+export const editorBracketHighlightingForeground6 = registerColor('editorBracketHighlight.foreground6', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground6', 'Foreground color of brackets (6). Requires enabling bracket pair colorization.'));
+
+export const editorBracketHighlightingUnexpectedBracketForeground = registerColor('editorBracketHighlight.unexpectedBracket.foreground', { dark: new Color(new RGBA(255, 18, 18, 0.8)), light: new Color(new RGBA(255, 18, 18, 0.8)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('editorBracketHighlightUnexpectedBracketForeground', 'Foreground color of unexpected brackets.'));
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {

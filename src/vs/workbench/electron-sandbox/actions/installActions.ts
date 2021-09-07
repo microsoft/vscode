@@ -11,6 +11,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const shellCommandCategory: ILocalizedString = { value: localize('shellCommand', "Shell Command"), original: 'Shell Command' };
 
@@ -31,11 +32,14 @@ export class InstallShellScriptAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 		const dialogService = accessor.get(IDialogService);
+		const productService = accessor.get(IProductService);
 
 		try {
 			await nativeHostService.installShellCommand();
+
+			dialogService.show(Severity.Info, localize('successIn', "Shell command '{0}' successfully installed in PATH.", productService.applicationName));
 		} catch (error) {
-			dialogService.show(Severity.Error, toErrorMessage(error), [localize('ok', "OK"),]);
+			dialogService.show(Severity.Error, toErrorMessage(error));
 		}
 	}
 }
@@ -57,11 +61,14 @@ export class UninstallShellScriptAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 		const dialogService = accessor.get(IDialogService);
+		const productService = accessor.get(IProductService);
 
 		try {
 			await nativeHostService.uninstallShellCommand();
+
+			dialogService.show(Severity.Info, localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", productService.applicationName));
 		} catch (error) {
-			dialogService.show(Severity.Error, toErrorMessage(error), [localize('ok', "OK"),]);
+			dialogService.show(Severity.Error, toErrorMessage(error));
 		}
 	}
 }

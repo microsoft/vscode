@@ -19,6 +19,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isWeb } from 'vs/base/common/platform';
 
 export class EmptyView extends ViewPane {
 
@@ -52,28 +53,32 @@ export class EmptyView extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this._register(new DragAndDropObserver(container, {
-			onDrop: e => {
-				container.style.backgroundColor = '';
-				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
-				dropHandler.handleDrop(e, () => undefined, () => undefined);
-			},
-			onDragEnter: () => {
-				const color = this.themeService.getColorTheme().getColor(listDropBackground);
-				container.style.backgroundColor = color ? color.toString() : '';
-			},
-			onDragEnd: () => {
-				container.style.backgroundColor = '';
-			},
-			onDragLeave: () => {
-				container.style.backgroundColor = '';
-			},
-			onDragOver: e => {
-				if (e.dataTransfer) {
-					e.dataTransfer.dropEffect = 'copy';
+		if (!isWeb) {
+			// Only observe in desktop environments because accessing
+			// locally dragged files and folders is only possible there
+			this._register(new DragAndDropObserver(container, {
+				onDrop: e => {
+					container.style.backgroundColor = '';
+					const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
+					dropHandler.handleDrop(e, () => undefined, () => undefined);
+				},
+				onDragEnter: () => {
+					const color = this.themeService.getColorTheme().getColor(listDropBackground);
+					container.style.backgroundColor = color ? color.toString() : '';
+				},
+				onDragEnd: () => {
+					container.style.backgroundColor = '';
+				},
+				onDragLeave: () => {
+					container.style.backgroundColor = '';
+				},
+				onDragOver: e => {
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'copy';
+					}
 				}
-			}
-		}));
+			}));
+		}
 
 		this.refreshTitle();
 	}

@@ -24,6 +24,7 @@ export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	isBuiltin: false,
 });
 
+export type WebWorkerExtHostConfigValue = boolean | 'auto';
 export const webWorkerExtHostConfig = 'extensions.webWorker';
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
@@ -35,10 +36,18 @@ export interface IMessage {
 	extensionPointId: string;
 }
 
+export const enum ExtensionRunningLocation {
+	None,
+	LocalProcess,
+	LocalWebWorker,
+	Remote
+}
+
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
+	runningLocation: ExtensionRunningLocation;
 }
 
 export class MissingExtensionDependency {
@@ -94,6 +103,7 @@ export const enum ExtensionHostKind {
 export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
 	readonly remoteAuthority: string | null;
+	readonly lazyStart: boolean;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
@@ -288,12 +298,12 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 	};
 }
 
-export function toExtensionDescription(extension: IExtension): IExtensionDescription {
+export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
 	return {
 		identifier: new ExtensionIdentifier(extension.identifier.id),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
-		isUnderDevelopment: false,
+		isUnderDevelopment: !!isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid

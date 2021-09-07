@@ -203,7 +203,6 @@ export class Debugger implements IDebugger {
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
-			attributes.additionalProperties = false;
 			attributes.type = 'object';
 			if (!attributes.properties) {
 				attributes.properties = {};
@@ -239,15 +238,18 @@ export class Debugger implements IDebugger {
 					properties: {
 						windows: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes.")
+							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
+							required: [],
 						},
 						osx: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes.")
+							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
+							required: [],
 						},
 						linux: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes.")
+							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
+							required: [],
 						}
 					}
 				}]

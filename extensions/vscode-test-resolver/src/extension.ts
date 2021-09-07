@@ -135,9 +135,9 @@ export function activate(context: vscode.ExtensionContext) {
 					let remoteReady = true, localReady = true;
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
 
-					let isDisconnected = getConfiguration('pause') === true;
-					vscode.workspace.onDidChangeConfiguration(_ => {
-						let newIsDisconnected = getConfiguration('pause') === true;
+					let isDisconnected = connectionPaused;
+					connectionPausedEvent.event(_ => {
+						let newIsDisconnected = connectionPaused;
 						if (isDisconnected !== newIsDisconnected) {
 							outputChannel.appendLine(`Connection state: ${newIsDisconnected ? 'open' : 'paused'}`);
 							isDisconnected = newIsDisconnected;
@@ -215,6 +215,9 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	}
 
+	let connectionPaused = false;
+	let connectionPausedEvent = new vscode.EventEmitter<boolean>();
+
 	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
 		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
 			return vscode.Uri.file(uri.path);
@@ -256,6 +259,22 @@ export function activate(context: vscode.ExtensionContext) {
 		if (outputChannel) {
 			outputChannel.show();
 		}
+	}));
+
+	const pauseStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+	pauseStatusBarEntry.text = 'Remote connection paused. Click to undo';
+	pauseStatusBarEntry.command = 'vscode-testresolver.toggleConnectionPause';
+	pauseStatusBarEntry.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.toggleConnectionPause', () => {
+		if (!connectionPaused) {
+			connectionPaused = true;
+			pauseStatusBarEntry.show();
+		} else {
+			connectionPaused = false;
+			pauseStatusBarEntry.hide();
+		}
+		connectionPausedEvent.fire(connectionPaused);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', async () => {
@@ -363,13 +382,14 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 
 	return createTunnelService();
 
-	function newTunnel(localAddress: { host: string, port: number }) {
+	function newTunnel(localAddress: { host: string, port: number }): vscode.Tunnel {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
 		let isDisposed = false;
 		return {
 			localAddress,
 			remoteAddress: tunnelOptions.remoteAddress,
 			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') && tunnelOptions.public,
+			protocol: tunnelOptions.protocol,
 			onDidDispose: onDidDispose.event,
 			dispose: () => {
 				if (!isDisposed) {

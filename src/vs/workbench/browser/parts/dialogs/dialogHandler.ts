@@ -71,7 +71,7 @@ export class BrowserDialogHandler implements IDialogHandler {
 		return (severity === Severity.Info) ? 'question' : (severity === Severity.Error) ? 'error' : (severity === Severity.Warning) ? 'warning' : 'none';
 	}
 
-	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
+	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
 		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
@@ -82,7 +82,7 @@ export class BrowserDialogHandler implements IDialogHandler {
 		};
 	}
 
-	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInput[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
+	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInput[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
 		const renderBody = customOptions ? (parent: HTMLElement) => {

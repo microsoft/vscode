@@ -8,7 +8,6 @@ import * as platform from 'vs/base/common/platform';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 
 
@@ -36,11 +35,11 @@ let externalTerminalService: IExternalTerminalService | undefined = undefined;
 export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
 	if (!externalTerminalService) {
 		if (platform.isWindows) {
-			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
+			externalTerminalService = new WindowsExternalTerminalService();
 		} else if (platform.isMacintosh) {
-			externalTerminalService = new MacExternalTerminalService(<IConfigurationService><unknown>undefined);
+			externalTerminalService = new MacExternalTerminalService();
 		} else if (platform.isLinux) {
-			externalTerminalService = new LinuxExternalTerminalService(<IConfigurationService><unknown>undefined);
+			externalTerminalService = new LinuxExternalTerminalService();
 		} else {
 			throw new Error('external terminals not supported on this platform');
 		}

@@ -34,7 +34,10 @@ const configurationEntrySchema: IJSONSchema = {
 			},
 			additionalProperties: {
 				anyOf: [
-					{ $ref: 'http://json-schema.org/draft-07/schema#' },
+					{
+						title: nls.localize('vscode.extension.contributes.configuration.properties.schema', 'Schema of the configuration property.'),
+						$ref: 'http://json-schema.org/draft-07/schema#'
+					},
 					{
 						type: 'object',
 						properties: {
@@ -81,6 +84,16 @@ const configurationEntrySchema: IJSONSchema = {
 							markdownDeprecationMessage: {
 								type: 'string',
 								description: nls.localize('scope.markdownDeprecationMessage', 'If set, the property is marked as deprecated and the given message is shown as an explanation in the markdown format.')
+							},
+							editPresentation: {
+								type: 'string',
+								enum: ['singlelineText', 'multilineText'],
+								enumDescriptions: [
+									nls.localize('scope.singlelineText.description', 'The value will be shown in an inputbox.'),
+									nls.localize('scope.multilineText.description', 'The value will be shown in a textarea.')
+								],
+								default: 'singlelineText',
+								description: nls.localize('scope.editPresentation', 'When specified, controls the presentation format of the string setting.')
 							}
 						}
 					}
@@ -159,6 +172,8 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		configurationRegistry.deregisterConfigurations(removedConfigurations);
 	}
 
+	const seenProperties = new Set<string>();
+
 	function handleConfiguration(node: IConfigurationNode, extension: IExtensionPointUser<any>): IConfigurationNode[] {
 		const configurations: IConfigurationNode[] = [];
 		let configuration = objects.deepClone(node);
@@ -174,6 +189,60 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		configuration.title = configuration.title || extension.description.displayName || extension.description.identifier.value;
 		configurations.push(configuration);
 		return configurations;
+	}
+
+	function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
+		let properties = configuration.properties;
+		if (properties) {
+			if (typeof properties !== 'object') {
+				extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
+				configuration.properties = {};
+			}
+			for (let key in properties) {
+				const message = validateProperty(key);
+				if (message) {
+					delete properties[key];
+					extension.collector.warn(message);
+					continue;
+				}
+				if (seenProperties.has(key)) {
+					delete properties[key];
+					extension.collector.warn(nls.localize('config.property.duplicate', "Cannot register '{0}'. This property is already registered.", key));
+					continue;
+				}
+				const propertyConfiguration = properties[key];
+				if (!isObject(propertyConfiguration)) {
+					delete properties[key];
+					extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
+					continue;
+				}
+				seenProperties.add(key);
+				if (propertyConfiguration.scope) {
+					if (propertyConfiguration.scope.toString() === 'application') {
+						propertyConfiguration.scope = ConfigurationScope.APPLICATION;
+					} else if (propertyConfiguration.scope.toString() === 'machine') {
+						propertyConfiguration.scope = ConfigurationScope.MACHINE;
+					} else if (propertyConfiguration.scope.toString() === 'resource') {
+						propertyConfiguration.scope = ConfigurationScope.RESOURCE;
+					} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
+						propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
+					} else if (propertyConfiguration.scope.toString() === 'language-overridable') {
+						propertyConfiguration.scope = ConfigurationScope.LANGUAGE_OVERRIDABLE;
+					} else {
+						propertyConfiguration.scope = ConfigurationScope.WINDOW;
+					}
+				} else {
+					propertyConfiguration.scope = ConfigurationScope.WINDOW;
+				}
+			}
+		}
+		let subNodes = configuration.allOf;
+		if (subNodes) {
+			extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
+			for (let node of subNodes) {
+				validateProperties(node, extension);
+			}
+		}
 	}
 
 	if (added.length) {
@@ -195,54 +264,6 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 
 });
 // END VSCode extension point `configuration`
-
-function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
-	let properties = configuration.properties;
-	if (properties) {
-		if (typeof properties !== 'object') {
-			extension.collector.error(nls.localize('invalid.properties', "'configuration.properties' must be an object"));
-			configuration.properties = {};
-		}
-		for (let key in properties) {
-			const message = validateProperty(key);
-			if (message) {
-				delete properties[key];
-				extension.collector.warn(message);
-				continue;
-			}
-			const propertyConfiguration = properties[key];
-			if (!isObject(propertyConfiguration)) {
-				delete properties[key];
-				extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
-				continue;
-			}
-			if (propertyConfiguration.scope) {
-				if (propertyConfiguration.scope.toString() === 'application') {
-					propertyConfiguration.scope = ConfigurationScope.APPLICATION;
-				} else if (propertyConfiguration.scope.toString() === 'machine') {
-					propertyConfiguration.scope = ConfigurationScope.MACHINE;
-				} else if (propertyConfiguration.scope.toString() === 'resource') {
-					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
-				} else if (propertyConfiguration.scope.toString() === 'machine-overridable') {
-					propertyConfiguration.scope = ConfigurationScope.MACHINE_OVERRIDABLE;
-				} else if (propertyConfiguration.scope.toString() === 'language-overridable') {
-					propertyConfiguration.scope = ConfigurationScope.LANGUAGE_OVERRIDABLE;
-				} else {
-					propertyConfiguration.scope = ConfigurationScope.WINDOW;
-				}
-			} else {
-				propertyConfiguration.scope = ConfigurationScope.WINDOW;
-			}
-		}
-	}
-	let subNodes = configuration.allOf;
-	if (subNodes) {
-		extension.collector.error(nls.localize('invalid.allOf', "'configuration.allOf' is deprecated and should no longer be used. Instead, pass multiple configuration sections as an array to the 'configuration' contribution point."));
-		for (let node of subNodes) {
-			validateProperties(node, extension);
-		}
-	}
-}
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
@@ -321,6 +342,11 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 			type: 'string',
 			doNotSuggest: true,
 			description: nls.localize('workspaceConfig.remoteAuthority', "The remote server where the workspace is located."),
+		},
+		'transient': {
+			type: 'boolean',
+			doNotSuggest: true,
+			description: nls.localize('workspaceConfig.transient', "A transient workspace will disappear when restarting or reloading."),
 		}
 	},
 	errorMessage: nls.localize('unknownWorkspaceProperty', "Unknown workspace configuration property")

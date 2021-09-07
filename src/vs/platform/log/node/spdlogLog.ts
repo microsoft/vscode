@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel, ILogger, AbstractMessageLogger } from 'vs/platform/log/common/log';
 import * as spdlog from 'spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
+import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
 
 async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number): Promise<spdlog.Logger | null> {
 	// Do not crash if spdlog cannot be loaded
 	try {
 		const _spdlog = await import('spdlog');
-		_spdlog.setFlushOn(LogLevel.Info);
+		_spdlog.setFlushOn(LogLevel.Trace);
 		return _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
 	} catch (e) {
 		console.error(e);
@@ -21,7 +21,7 @@ async function createSpdLogLogger(name: string, logfilePath: string, filesize: n
 
 export function createRotatingLogger(name: string, filename: string, filesize: number, filecount: number): Promise<spdlog.Logger> {
 	const _spdlog: typeof spdlog = require.__$__nodeRequire('spdlog');
-	_spdlog.setFlushOn(LogLevel.Info);
+	_spdlog.setFlushOn(LogLevel.Trace);
 	return _spdlog.createRotatingLogger(name, filename, filesize, filecount);
 }
 

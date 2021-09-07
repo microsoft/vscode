@@ -4,38 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { mock } from 'vs/base/test/common/mock';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { Handler } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, CompletionList, CompletionItemProvider, LanguageIdentifier, MetadataConsts, CompletionProviderRegistry, CompletionTriggerKind, TokenizationRegistry, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionProviderRegistry, CompletionTriggerKind, IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
-import { ITestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
-import { ITextModel } from 'vs/editor/common/model';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
@@ -53,6 +56,8 @@ function createMockEditor(model: TextModel): ITestCodeEditor {
 					return -1;
 				}
 			}],
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		),
 	});
 	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
@@ -204,7 +209,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					}
 				},
 				NullTelemetryService,
-				new NullLogService()
+				new NullLogService(),
+				new MockContextKeyService(),
+				new TestConfigurationService()
 			);
 			disposables.push(oracle, editor);
 
@@ -858,6 +865,61 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 				assert.strictEqual(countA, 1); // should we keep the suggestions from the "active" provider?, Yes! See: #106573
 				assert.strictEqual(countB, 2);
+			});
+		});
+	});
+
+	test('registerCompletionItemProvider with letters as trigger characters block other completion items to show up #127815', async function () {
+
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'AAAA',
+						insertText: 'WordTriggerA',
+						range: new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			triggerCharacters: ['a', '.'],
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'AAAA',
+						insertText: 'AutoTriggerA',
+						range: new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+					}],
+				};
+			},
+		}));
+
+		return withOracle(async (model, editor) => {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: '.' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 1);
+			});
+
+
+			editor.getModel().setValue('');
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'a' });
+
+			}, event => {
+				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 2);
 			});
 		});
 	});

@@ -4,29 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
+import { timeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { mock } from 'vs/base/test/common/mock';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CompletionProviderRegistry, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
-import { Event } from 'vs/base/common/event';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { IMenuService, IMenu } from 'vs/platform/actions/common/actions';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Range } from 'vs/editor/common/core/range';
-import { timeout } from 'vs/base/common/async';
-import { NullLogService, ILogService } from 'vs/platform/log/common/log';
+import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { CompletionItemInsertTextRule, CompletionItemKind, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
+import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 suite('SuggestController', function () {
 
@@ -36,8 +38,11 @@ suite('SuggestController', function () {
 	let editor: ITestCodeEditor;
 	let model: TextModel;
 
-	setup(function () {
+	teardown(function () {
 		disposables.clear();
+	});
+
+	setup(function () {
 
 		const serviceCollection = new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
@@ -60,7 +65,9 @@ suite('SuggestController', function () {
 						override dispose() { }
 					};
 				}
-			}]
+			}],
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		);
 
 		model = createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' }));

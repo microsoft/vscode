@@ -9,7 +9,7 @@ import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCo
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { FileChangesEvent, FileChangeType, FileOperation, IFileService } from 'vs/platform/files/common/files';
+import { FileChangesEvent, FileChangeType, FileOperation, IFileService, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -25,9 +25,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { isWeb } from 'vs/base/common/platform';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -153,7 +153,6 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -171,39 +170,91 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		// Update working copies from file change events
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
+		// File system provider changes
+		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onDidChangeFileSystemProviderCapabilities(e)));
+		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onDidChangeFileSystemProviderRegistrations(e)));
+
 		// Working copy operations
 		this._register(this.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => this.onWillRunWorkingCopyFileOperation(e)));
 		this._register(this.workingCopyFileService.onDidFailWorkingCopyFileOperation(e => this.onDidFailWorkingCopyFileOperation(e)));
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.fileWorkingCopyManager'));
 		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.fileWorkingCopyManager'));
 	}
 
+	private onBeforeShutdown(): boolean {
+		if (isWeb) {
+			if (this.workingCopies.some(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))) {
+				// stored file working copies are pending to be saved:
+				// veto because web does not support long running shutdown
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private async onWillShutdown(): Promise<void> {
-		let fileWorkingCopies: IStoredFileWorkingCopy<M>[];
+		let pendingSavedWorkingCopies: IStoredFileWorkingCopy<M>[];
 
 		// As long as stored file working copies are pending to be saved, we prolong the shutdown
 		// until that has happened to ensure we are not shutting down in the middle of
 		// writing to the working copy (https://github.com/microsoft/vscode/issues/116600).
-		while ((fileWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))).length > 0) {
-			await Promises.settled(fileWorkingCopies.map(workingCopy => workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE)));
+		while ((pendingSavedWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))).length > 0) {
+			await Promises.settled(pendingSavedWorkingCopies.map(workingCopy => workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE)));
 		}
 	}
 
-	//#region Resolve from file changes
+	//#region Resolve from file or file provider changes
+
+	private onDidChangeFileSystemProviderCapabilities(e: IFileSystemProviderCapabilitiesChangeEvent): void {
+
+		// Resolve working copies again for file systems that changed
+		// capabilities to fetch latest metadata (e.g. readonly)
+		// into all working copies.
+		this.queueWorkingCopyResolves(e.scheme);
+	}
+
+	private onDidChangeFileSystemProviderRegistrations(e: IFileSystemProviderRegistrationEvent): void {
+		if (!e.added) {
+			return; // only if added
+		}
+
+		// Resolve working copies again for file systems that registered
+		// to account for capability changes: extensions may unregister
+		// and register the same provider with different capabilities,
+		// so we want to ensure to fetch latest metadata (e.g. readonly)
+		// into all working copies.
+		this.queueWorkingCopyResolves(e.scheme);
+	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
+
+		// Trigger a resolve for any update or add event that impacts
+		// the working copy. We also consider the added event
+		// because it could be that a file was added and updated
+		// right after.
+		this.queueWorkingCopyResolves(e);
+	}
+
+	private queueWorkingCopyResolves(scheme: string): void;
+	private queueWorkingCopyResolves(e: FileChangesEvent): void;
+	private queueWorkingCopyResolves(schemeOrEvent: string | FileChangesEvent): void {
 		for (const workingCopy of this.workingCopies) {
 			if (workingCopy.isDirty() || !workingCopy.isResolved()) {
 				continue; // require a resolved, saved working copy to continue
 			}
 
-			// Trigger a resolve for any update or add event that impacts
-			// the working copy. We also consider the added event
-			// because it could be that a file was added and updated
-			// right after.
-			if (e.contains(workingCopy.resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
+			let resolveWorkingCopy = false;
+			if (typeof schemeOrEvent === 'string') {
+				resolveWorkingCopy = schemeOrEvent === workingCopy.resource.scheme;
+			} else {
+				resolveWorkingCopy = schemeOrEvent.contains(workingCopy.resource, FileChangeType.UPDATED, FileChangeType.ADDED);
+			}
+
+			if (resolveWorkingCopy) {
 				this.queueWorkingCopyResolve(workingCopy);
 			}
 		}
@@ -402,7 +453,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				resource,
 				this.labelService.getUriBasenameLabel(resource),
 				this.modelFactory,
-				this.fileService, this.logService, this.textFileService, this.filesConfigurationService,
+				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
 				this.editorService, this.elevatedFileService
 			);

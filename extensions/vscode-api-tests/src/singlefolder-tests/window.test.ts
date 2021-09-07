@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, QuickPickItem, TextEditor, StatusBarAlignment } from 'vscode';
 import { join } from 'path';
-import { closeAllEditors, pathEquals, createRandomFile, assertNoRpc } from '../utils';
+import { CancellationTokenSource, commands, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, Uri, ViewColumn, window, workspace } from 'vscode';
+import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
 suite('vscode API - window', () => {
@@ -346,6 +346,75 @@ suite('vscode API - window', () => {
 			subscription.dispose();
 		}).then(passOncePlease, failOncePlease);
 	});
+
+	//#region Tabs API tests
+	test.skip('Tabs - Ensure tabs getter is correct', async () => {
+		assert.ok(workspace.workspaceFolders);
+		const workspaceRoot = workspace.workspaceFolders[0].uri;
+		const [docA, docB, docC, notebookDoc] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openNotebookDocument(Uri.joinPath(workspaceRoot, 'test.ipynb'))
+		]);
+
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+		await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
+
+		//TODO @lramos15 uncomment this once diff is fixed
+		//const leftDiff = await createRandomFile();
+		//const rightDiff = await createRandomFile();
+		//await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
+
+		const tabs = window.tabs;
+		assert.strictEqual(tabs.length, 4);
+
+		// All resources should match the text documents as they're the only tabs currently open
+		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
+		assert.strictEqual(tabs[1].resource?.toString(), notebookDoc.uri.toString());
+		assert.strictEqual(tabs[2].resource?.toString(), docB.uri.toString());
+		assert.strictEqual(tabs[3].resource?.toString(), docC.uri.toString());
+		//const diffResource = tabs[4].resource as { primary?: Uri, secondary?: Uri } | undefined;
+		//assert.strictEqual(diffResource?.primary?.toString(), leftDiff.toString());
+		//assert.strictEqual(diffResource?.secondary?.toString(), rightDiff.toString());
+
+		assert.strictEqual(tabs[0].viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[1].viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Two);
+		assert.strictEqual(tabs[3].viewColumn, ViewColumn.Three);
+		//assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
+	});
+
+	test('Tabs - ensure active tab is correct', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docA.uri.toString());
+
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docB.uri.toString());
+
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+		assert.ok(window.activeTab);
+		assert.strictEqual(window.activeTab.resource?.toString(), docC.uri.toString());
+
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+
+		assert.ok(!window.activeTab);
+
+	});
+
+	//#endregion
 
 	test('#7013 - input without options', function () {
 		const source = new CancellationTokenSource();

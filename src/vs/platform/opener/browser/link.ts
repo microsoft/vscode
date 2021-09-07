@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { $, EventHelper, EventLike } from 'vs/base/browser/dom';
-import { DomEmitter, domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
+import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export interface ILinkDescriptor {
 	readonly label: string;
@@ -67,11 +68,14 @@ export class Link extends Disposable {
 		}, link.label);
 
 		const onClickEmitter = this._register(new DomEmitter(this.el, 'click'));
-		const onEnterPress = Event.chain(domEvent(this.el, 'keypress'))
+		const onKeyPress = this._register(new DomEmitter(this.el, 'keypress'));
+		const onEnterPress = Event.chain(onKeyPress.event)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.Enter)
 			.event;
-		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress);
+		const onTap = this._register(new DomEmitter(this.el, TouchEventType.Tap)).event;
+		this._register(Gesture.addTarget(this.el));
+		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress, onTap);
 
 		this._register(onOpen(e => {
 			if (!this.enabled) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, TextmateSnippet, Choice, FormatString, Transform } from 'vs/editor/contrib/snippet/snippetParser';
+import { Choice, FormatString, Marker, Placeholder, Scanner, SnippetParser, Text, TextmateSnippet, TokenType, Transform, Variable } from 'vs/editor/contrib/snippet/snippetParser';
 
 suite('SnippetParser', () => {
 
@@ -656,6 +656,8 @@ suite('SnippetParser', () => {
 		assert.strictEqual(new FormatString(1, 'capitalize').resolve('bar no repeat'), 'Bar no repeat');
 		assert.strictEqual(new FormatString(1, 'pascalcase').resolve('bar-foo'), 'BarFoo');
 		assert.strictEqual(new FormatString(1, 'pascalcase').resolve('bar-42-foo'), 'Bar42Foo');
+		assert.strictEqual(new FormatString(1, 'camelcase').resolve('bar-foo'), 'barFoo');
+		assert.strictEqual(new FormatString(1, 'camelcase').resolve('bar-42-foo'), 'bar42Foo');
 		assert.strictEqual(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if

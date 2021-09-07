@@ -6,8 +6,18 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 
+
+export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnablementService {
+	_serviceBrand: undefined;
+
+	constructor(private isEnabled: boolean = true) { }
+
+	isWorkspaceTrustEnabled(): boolean {
+		return this.isEnabled;
+	}
+}
 
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
@@ -18,11 +28,13 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 	private _onDidChangeTrustedFolders = new Emitter<void>();
 	onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
-	private trusted: boolean;
+	private _onDidInitiateWorkspaceTrustRequestOnStartup = new Emitter<void>();
+	onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
 
-	constructor(trusted: boolean = true) {
-		this.trusted = trusted;
-	}
+
+	constructor(
+		private trusted: boolean = true
+	) { }
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
 		throw new Error('Method not implemented.');
@@ -36,7 +48,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	getTrustedFolders(): URI[] {
+	getTrustedUris(): URI[] {
 		throw new Error('Method not implemented.');
 	}
 
@@ -44,11 +56,11 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
+	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
 		throw new Error('Method not implemented.');
 	}
 
-	async setTrustedFolders(folders: URI[]): Promise<void> {
+	async setTrustedUris(folders: URI[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -64,8 +76,20 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	isWorkpaceTrusted(): boolean {
+	isWorkspaceTrusted(): boolean {
 		return this.trusted;
+	}
+
+	isWorkspaceTrustForced(): boolean {
+		return false;
+	}
+
+	get workspaceTrustInitialized(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	get workspaceResolved(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
@@ -79,11 +103,11 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
 	_serviceBrand: any;
 
+	private readonly _onDidInitiateOpenFilesTrustRequest = new Emitter<void>();
+	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
+
 	private readonly _onDidInitiateWorkspaceTrustRequest = new Emitter<WorkspaceTrustRequestOptions>();
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
-
-	private readonly _onDidCompleteWorkspaceTrustRequest = new Emitter<boolean>();
-	readonly onDidCompleteWorkspaceTrustRequest = this._onDidCompleteWorkspaceTrustRequest.event;
 
 	constructor(private readonly _trusted: boolean) { }
 
@@ -91,15 +115,19 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 		return WorkspaceTrustUriResponse.Open;
 	};
 
-	requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
+	requestOpenFilesTrust(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
 		return this.requestOpenUrisHandler(uris);
 	}
 
-	cancelRequest(): void {
+	async completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
-	async completeRequest(trusted?: boolean): Promise<void> {
+	cancelWorkspaceTrustRequest(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	async completeWorkspaceTrustRequest(trusted?: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 

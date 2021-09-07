@@ -16,14 +16,15 @@ import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resour
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileOperation, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToViewColumn, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -195,7 +196,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						title: webviewInput.getTitle(),
 						webviewOptions: webviewInput.webview.contentOptions,
 						panelOptions: webviewInput.webview.options,
-					}, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
+					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0), cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
@@ -445,14 +446,12 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	readonly onDidChangeReadonly = Event.None;
+
 	//#endregion
 
-	public isEditable(): boolean {
-		return this._editable;
-	}
-
-	public isOnReadonlyFileSystem(): boolean {
-		return this.fileService.hasCapability(this.editorResource, FileSystemProviderCapabilities.Readonly);
+	public isReadonly(): boolean {
+		return !this._editable;
 	}
 
 	public get viewType() {

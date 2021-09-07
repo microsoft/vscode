@@ -156,12 +156,12 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 	}
 
 	/**
-	 * returns 0 if the entire file is empty or whitespace only
+	 * returns 0 if the entire file is empty
 	 */
-	private findLastLineWithContent(model: ITextModel): number {
+	private findLastNonEmptyLine(model: ITextModel): number {
 		for (let lineNumber = model.getLineCount(); lineNumber >= 1; lineNumber--) {
 			const lineContent = model.getLineContent(lineNumber);
-			if (strings.lastNonWhitespaceIndex(lineContent) !== -1) {
+			if (lineContent.length > 0) {
 				// this line has content
 				return lineNumber;
 			}
@@ -193,8 +193,8 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 			}
 		}
 
-		const lastLineNumberWithContent = this.findLastLineWithContent(model);
-		const deleteFromLineNumber = Math.max(lastLineNumberWithContent + 1, cannotTouchLineNumber + 1);
+		const lastNonEmptyLine = this.findLastNonEmptyLine(model);
+		const deleteFromLineNumber = Math.max(lastNonEmptyLine + 1, cannotTouchLineNumber + 1);
 		const deletionRange = model.validateRange(new Range(deleteFromLineNumber, 1, lineCount, model.getLineMaxColumn(lineCount)));
 
 		if (deletionRange.isEmpty()) {
@@ -233,9 +233,10 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		const nestedProgress = new Progress<{ displayName?: string, extensionId?: ExtensionIdentifier }>(provider => {
 			progress.report({
 				message: localize(
-					'formatting',
-					"Running '{0}' Formatter ([configure](command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D)).",
-					provider.displayName || provider.extensionId && provider.extensionId.value || '???'
+					{ key: 'formatting2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
+					"Running '{0}' Formatter ([configure]({1})).",
+					provider.displayName || provider.extensionId && provider.extensionId.value || '???',
+					'command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D'
 				)
 			});
 		});
@@ -246,16 +247,25 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 
 		const editorOrModel = findEditor(textEditorModel, this.codeEditorService) || textEditorModel;
-		const mode = this.configurationService.getValue<'file' | 'modifications'>('editor.formatOnSaveMode', overrides);
-		if (mode === 'modifications') {
-			// format modifications
+		const mode = this.configurationService.getValue<'file' | 'modifications' | 'modificationsIfAvailable'>('editor.formatOnSaveMode', overrides);
+
+		// keeping things DRY :)
+		const formatWholeFile = async () => {
+			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+		};
+
+		if (mode === 'modifications' || mode === 'modificationsIfAvailable') {
+			// try formatting modifications
 			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
 			if (ranges) {
+				// version control reports changes
 				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
+			} else if (ranges === null) {
+				// version control not found
+				await formatWholeFile();
 			}
 		} else {
-			// format the whole file
-			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+			await formatWholeFile();
 		}
 	}
 }
@@ -336,9 +346,10 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			private _report(): void {
 				progress.report({
 					message: localize(
-						'codeaction.get',
-						"Getting code actions from '{0}' ([configure](command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D)).",
-						[...this._names].map(name => `'${name}'`).join(', ')
+						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
+						"Getting code actions from '{0}' ([configure]({1})).",
+						[...this._names].map(name => `'${name}'`).join(', '),
+						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
 					)
 				});
 			}

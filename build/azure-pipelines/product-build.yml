@@ -104,19 +104,35 @@ variables:
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
     value: ${{ and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+  - name: AZURE_CDN_URL
+    value: https://az764295.vo.msecnd.net
+  - name: AZURE_DOCUMENTDB_ENDPOINT
+    value: https://vscode.documents.azure.com:443/
+  - name: AZURE_STORAGE_ACCOUNT
+    value: ticino
+  - name: AZURE_STORAGE_ACCOUNT_2
+    value: vscode
+  - name: MOONCAKE_CDN_URL
+    value: https://vscode.cdn.azure.cn
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: skipComponentGovernanceDetection
+    value: true
 
 resources:
   containers:
     - container: vscode-x64
       image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
       endpoint: VSCodeHub
-      options: --user 0:0
+      options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-arm64
       image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-arm64
       endpoint: VSCodeHub
+      options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-armhf
       image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
       endpoint: VSCodeHub
+      options: --user 0:0 --cap-add SYS_ADMIN
     - container: snapcraft
       image: snapcore/snapcraft:stable
 
@@ -124,7 +140,7 @@ stages:
   - stage: Compile
     jobs:
       - job: Compile
-        pool: compile
+        pool: vscode-1es
         variables:
           VSCODE_ARCH: x64
         steps:
@@ -176,10 +192,11 @@ stages:
             variables:
               VSCODE_ARCH: x64
               NPM_ARCH: x64
+              DISPLAY: ":10"
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
           - job: LinuxSnap
             dependsOn:
               - Linux

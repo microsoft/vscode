@@ -45,6 +45,7 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
+import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -693,6 +694,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		workspaceService.acquireInstantiationService(instantiationService);
 	});
 
@@ -1321,6 +1323,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		instantiationService.stub(IKeybindingEditingService, instantiationService.createInstance(KeybindingsEditingService));
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 		workspaceService.acquireInstantiationService(instantiationService);
 
 		workspaceContextService = workspaceService;
@@ -1777,6 +1780,12 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.ok(target.called);
 	});
 
+	test('update machine overridable setting in folder', async () => {
+		const workspace = workspaceContextService.getWorkspace();
+		await testObject.updateValue('configurationService.workspace.machineOverridableSetting', 'workspaceFolderValue', { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
+		assert.strictEqual(testObject.getValue('configurationService.workspace.machineOverridableSetting', { resource: workspace.folders[0].uri }), 'workspaceFolderValue');
+	});
+
 	test('update memory configuration', async () => {
 		await testObject.updateValue('configurationService.workspace.testSetting', 'memoryValue', ConfigurationTarget.MEMORY);
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testSetting'), 'memoryValue');
@@ -1947,6 +1956,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		instantiationService.stub(IConfigurationService, testObject);
 		instantiationService.stub(IEnvironmentService, environmentService);
 		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IUserConfigurationFileService, new UserConfigurationFileService(environmentService, fileService, logService));
 	});
 
 	async function initialize(): Promise<void> {

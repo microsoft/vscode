@@ -23,8 +23,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -68,8 +67,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -110,8 +108,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -145,8 +142,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -185,10 +181,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor) => {
-				// await new Promise(c => setTimeout(c, 3000));
-
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -238,10 +231,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor) => {
-				// await new Promise(c => setTimeout(c, 3000));
-
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],
@@ -274,8 +264,7 @@ suite('NotebookCellList', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markup, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.restoreEditorViewState({
 					editingCells: [false, false, false, false, false],
 					editorViewStates: [null, null, null, null, null],

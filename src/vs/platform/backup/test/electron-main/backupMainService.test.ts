@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
+import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
-import { URI } from 'vs/base/common/uri';
-import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
-import { IBackupWorkspacesFormat, ISerializedWorkspace } from 'vs/platform/backup/node/backup';
-import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ConsoleMainLogger, LogService } from 'vs/platform/log/common/log';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { createHash } from 'crypto';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
+import * as path from 'vs/base/common/path';
+import * as platform from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import * as pfs from 'vs/base/node/pfs';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
+import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
+import { IBackupWorkspacesFormat, ISerializedWorkspace } from 'vs/platform/backup/node/backup';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import { HotExitConfiguration } from 'vs/platform/files/common/files';
+import { ConsoleMainLogger, LogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 flakySuite('BackupMainService', () => {
 
@@ -66,7 +66,7 @@ flakySuite('BackupMainService', () => {
 
 	async function ensureWorkspaceExists(workspace: IWorkspaceIdentifier): Promise<IWorkspaceIdentifier> {
 		if (!fs.existsSync(workspace.configPath.fsPath)) {
-			await pfs.writeFile(workspace.configPath.fsPath, 'Hello');
+			await pfs.Promises.writeFile(workspace.configPath.fsPath, 'Hello');
 		}
 
 		const backupFolder = service.toBackupPath(workspace.id);
@@ -79,7 +79,7 @@ flakySuite('BackupMainService', () => {
 		if (!fs.existsSync(backupFolder)) {
 			fs.mkdirSync(backupFolder);
 			fs.mkdirSync(path.join(backupFolder, Schemas.file));
-			await pfs.writeFile(path.join(backupFolder, Schemas.file, 'foo.txt'), 'Hello');
+			await pfs.Promises.writeFile(path.join(backupFolder, Schemas.file, 'foo.txt'), 'Hello');
 		}
 	}
 
@@ -132,7 +132,7 @@ flakySuite('BackupMainService', () => {
 	});
 
 	teardown(() => {
-		return pfs.rimraf(testDir);
+		return pfs.Promises.rm(testDir);
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
@@ -443,7 +443,7 @@ flakySuite('BackupMainService', () => {
 				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString()],
 				emptyWorkspaceInfos: []
 			};
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 
 			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
@@ -460,7 +460,7 @@ flakySuite('BackupMainService', () => {
 				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString().toLowerCase()],
 				emptyWorkspaceInfos: []
 			};
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
 			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -481,7 +481,7 @@ flakySuite('BackupMainService', () => {
 				folderURIWorkspaces: [],
 				emptyWorkspaceInfos: []
 			};
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 
 			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
@@ -596,7 +596,7 @@ flakySuite('BackupMainService', () => {
 			await ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
 
 			const workspacesJson: IBackupWorkspacesFormat = { rootURIWorkspaces: [], folderURIWorkspaces: [existingTestFolder1.toString()], emptyWorkspaceInfos: [] };
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 			service.unregisterFolderBackupSync(barFile);
 			service.unregisterEmptyWindowBackupSync('test');

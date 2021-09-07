@@ -15,26 +15,24 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 
 const $ = dom.$;
 
-const untitledTextEditorHintSetting = 'workbench.editor.untitledText.hint';
+const untitledTextEditorHintSetting = 'workbench.editor.untitled.hint';
 export class UntitledTextEditorHintContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.untitledTextEditorHint';
 
 	private toDispose: IDisposable[];
 	private untitledTextHintContentWidget: UntitledTextEditorHintContentWidget | undefined;
-	private experimentTreatment: 'text' | 'hidden' | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITASExperimentService private readonly experimentService: ITASExperimentService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 
 	) {
 		this.toDispose = [];
@@ -45,20 +43,14 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 				this.update();
 			}
 		}));
-		this.experimentService.getTreatment<'text' | 'hidden'>('untitledhint').then(treatment => {
-			this.experimentTreatment = treatment;
-			this.update();
-		});
 	}
 
 	private update(): void {
 		this.untitledTextHintContentWidget?.dispose();
-		const configValue = this.configurationService.getValue<'text' | 'hidden' | 'default'>(untitledTextEditorHintSetting);
-		const untitledHintMode = configValue === 'default' ? (this.experimentTreatment || 'text') : configValue;
-
+		const configValue = this.configurationService.getValue(untitledTextEditorHintSetting);
 		const model = this.editor.getModel();
 
-		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID && untitledHintMode === 'text') {
+		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID && configValue === 'text') {
 			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService);
 		}
 	}
@@ -110,7 +102,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.style.width = 'max-content';
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
-			language.innerText = localize('selectAlanguage', "Select a language");
+			language.innerText = localize('selectAlanguage2', "Select a language");
 			this.domNode.appendChild(language);
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
@@ -124,20 +116,26 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			const thisAgain = $('span');
 			thisAgain.innerText = localize('thisAgain', " this again.");
 			this.domNode.appendChild(thisAgain);
-
-			this.toDispose.push(dom.addDisposableListener(language, 'click', async e => {
+			this.toDispose.push(Gesture.addTarget(this.domNode));
+			const languageOnClickOrTap = async (e: MouseEvent) => {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
 				await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'hint' });
 				this.editor.focus();
-			}));
+			};
+			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));
+			this.toDispose.push(dom.addDisposableListener(language, GestureEventType.Tap, languageOnClickOrTap));
+			this.toDispose.push(Gesture.addTarget(language));
 
-			this.toDispose.push(dom.addDisposableListener(dontShow, 'click', () => {
+			const dontShowOnClickOrTap = () => {
 				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');
 				this.dispose();
 				this.editor.focus();
-			}));
+			};
+			this.toDispose.push(dom.addDisposableListener(dontShow, 'click', dontShowOnClickOrTap));
+			this.toDispose.push(dom.addDisposableListener(dontShow, GestureEventType.Tap, dontShowOnClickOrTap));
+			this.toDispose.push(Gesture.addTarget(dontShow));
 
 			this.toDispose.push(dom.addDisposableListener(this.domNode, 'click', () => {
 				this.editor.focus();

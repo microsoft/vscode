@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh, isLinux, isWeb, isNative } from 'vs/base/common/platform';
+import { PerformanceMark } from 'vs/base/common/performance';
+import { isLinux, isMacintosh, isNative, isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { PerformanceMark } from 'vs/base/common/performance';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -19,7 +19,12 @@ export const WindowMinimumSize = {
 };
 
 export interface IBaseOpenWindowsOptions {
+
+	/**
+	 * Whether to reuse the window or open a new one.
+	 */
 	readonly forceReuseWindow?: boolean;
+
 	/**
 	 * The remote authority to use when windows are opened with either
 	 * - no workspace (empty window)
@@ -56,8 +61,7 @@ export interface IOpenedWindow {
 	readonly dirty: boolean;
 }
 
-export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-}
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
@@ -162,11 +166,15 @@ export interface IPathData {
 	// the file path to open within the instance
 	readonly fileUri?: UriComponents;
 
-	// the line number in the file path to open
-	readonly lineNumber?: number;
-
-	// the column number in the file path to open
-	readonly columnNumber?: number;
+	/**
+	 * An optional selection to apply in the file
+	 */
+	readonly selection?: {
+		readonly startLineNumber: number;
+		readonly startColumn: number;
+		readonly endLineNumber?: number;
+		readonly endColumn?: number;
+	}
 
 	// a hint that the file exists. if true, the
 	// file exists, if false it does not. with

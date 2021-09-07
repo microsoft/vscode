@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import minimist = require('minimist');
 import { Application } from '../../../../automation';
+import { afterSuite, beforeSuite } from '../../utils';
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 	// https://github.com/microsoft/vscode/issues/115244
 	describe('Search', () => {
+		beforeSuite(opts);
+
 		after(function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
+
+		afterSuite(opts);
 
 		// https://github.com/microsoft/vscode/issues/124146
 		it.skip /* https://github.com/microsoft/vscode/issues/124335 */('has a tooltp with a keybinding', async function () {
@@ -68,6 +74,9 @@ export function setup() {
 	});
 
 	describe('Quick Access', () => {
+		beforeSuite(opts);
+		afterSuite(opts);
+
 		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;
 			const expectedNames = [

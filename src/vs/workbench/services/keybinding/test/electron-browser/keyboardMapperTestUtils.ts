@@ -8,7 +8,7 @@ import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { Promises, writeFile } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 
@@ -71,7 +71,7 @@ export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMa
 		const actual = mapper.dumpDebugInfo().replace(/\r\n/g, '\n');
 		if (actual !== expected && writeFileIfDifferent) {
 			const destPath = filePath.replace(/vscode[\/\\]out[\/\\]vs/, 'vscode/src/vs');
-			writeFile(destPath, actual);
+			Promises.writeFile(destPath, actual);
 		}
 		assert.deepStrictEqual(actual, expected);
 	});

@@ -62,6 +62,7 @@ export interface ICreateTerminalProcessArguments {
 	shouldPersistTerminal: boolean;
 	cols: number;
 	rows: number;
+	unicodeVersion: '6' | '11';
 	resolverEnv: { [key: string]: string | null; } | undefined
 }
 
@@ -114,8 +115,14 @@ export class RemoteTerminalChannelClient {
 	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
+	get onProcessDidChangeHasChildProcesses(): Event<{ id: number, event: boolean }> {
+		return this._channel.listen<{ id: number, event: boolean }>('$onProcessDidChangeHasChildProcesses');
+	}
 	get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
 		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
+	}
+	get onDidRequestDetach(): Event<{ requestId: number, workspaceId: string, instanceId: number }> {
+		return this._channel.listen<{ requestId: number, workspaceId: string, instanceId: number }>('$onDidRequestDetach');
 	}
 
 	constructor(
@@ -135,7 +142,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$restartPtyHost', []);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number): Promise<ICreateTerminalProcessResult> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, unicodeVersion: '6' | '11'): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
 
@@ -190,13 +197,23 @@ export class RemoteTerminalChannelClient {
 			shouldPersistTerminal,
 			cols,
 			rows,
+			unicodeVersion,
 			resolverEnv
 		};
 		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
 	}
 
+	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+		return this._channel.call('$requestDetachInstance', [workspaceId, instanceId]);
+	}
+	acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> {
+		return this._channel.call('$acceptDetachInstanceReply', [requestId, persistentProcessId]);
+	}
 	attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
+	}
+	detachFromProcess(id: number): Promise<void> {
+		return this._channel.call('$detachFromProcess', [id]);
 	}
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._channel.call('$listProcesses');
@@ -215,6 +232,9 @@ export class RemoteTerminalChannelClient {
 	}
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void> {
 		return this._channel.call('$acknowledgeDataEvent', [id, charCount]);
+	}
+	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
+		return this._channel.call('$setUnicodeVersion', [id, version]);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._channel.call('$shutdown', [id, immediate]);
@@ -238,11 +258,11 @@ export class RemoteTerminalChannelClient {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._channel.call('$getDefaultSystemShell', [osOverride]);
 	}
-	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._channel.call('$getProfiles', [includeDetectedProfiles]);
+	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		return this._channel.call('$getProfiles', [this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles]);
 	}
-	acceptPtyHostResolvedVariables(id: number, resolved: string[]) {
-		return this._channel.call('$acceptPtyHostResolvedVariables', [id, resolved]);
+	acceptPtyHostResolvedVariables(requestId: number, resolved: string[]) {
+		return this._channel.call('$acceptPtyHostResolvedVariables', [requestId, resolved]);
 	}
 
 	getEnvironment(): Promise<IProcessEnvironment> {

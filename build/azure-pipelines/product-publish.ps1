@@ -51,13 +51,12 @@ $stages = @(
 do {
 	Start-Sleep -Seconds 10
 
-	$res = Get-PipelineArtifact -Name 'vscode_*'
-
-	if (!$res) {
+	$artifacts = Get-PipelineArtifact -Name 'vscode_*'
+	if (!$artifacts) {
 		continue
 	}
 
-	$res | ForEach-Object {
+	$artifacts | ForEach-Object {
 		$artifactName = $_.name
 		if($set.Add($artifactName)) {
 			Write-Host "Processing artifact: '$artifactName. Downloading from: $($_.resource.downloadUrl)"
@@ -107,6 +106,9 @@ do {
 			break
 		}
 	}
-} while (!$otherStageFinished)
+
+	$artifacts = Get-PipelineArtifact -Name 'vscode_*'
+	$artifactsStillToProcess = $artifacts.Count -ne $set.Count
+} while (!$otherStageFinished -or $artifactsStillToProcess)
 
 Write-Host "Processed $($set.Count) artifacts."

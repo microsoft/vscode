@@ -65,7 +65,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
 				size: stat.size,
-				permissions: MainThreadFileSystem._asFilePermission(stat),
+				permissions: stat.readonly ? FilePermission.Readonly : undefined,
 				type: MainThreadFileSystem._asFileType(stat)
 			};
 		}).catch(MainThreadFileSystem._handleError);
@@ -94,13 +94,6 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 			res += FileType.SymbolicLink;
 		}
 		return res;
-	}
-
-	private static _asFilePermission(stat: IFileStat): FilePermission | undefined {
-		if (stat.readonly) {
-			return FilePermission.Readonly;
-		}
-		return undefined;
 	}
 
 	$readFile(uri: UriComponents): Promise<VSBuffer> {

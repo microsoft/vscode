@@ -14,22 +14,25 @@ import { pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IModifierKeyStatus, ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { domEvent } from 'vs/base/browser/event';
 import { memoize } from 'vs/base/common/decorators';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BeforeShutdownEvent, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, BeforeShutdownEvent, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { DomEmitter } from 'vs/base/browser/event';
+import { isUndefined } from 'vs/base/common/types';
+import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -104,13 +107,14 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
-		if (environmentService.options && environmentService.options.workspaceProvider) {
+		if (environmentService.options?.workspaceProvider) {
 			this.workspaceProvider = environmentService.options.workspaceProvider;
 		} else {
 			this.workspaceProvider = new class implements IWorkspaceProvider {
@@ -129,16 +133,24 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 
 		// Track modifier keys to detect keybinding usage
-		this._register(ModifierKeyEmitter.getInstance().event(e => this.updateShutdownReasonFromEvent(e)));
+		this._register(ModifierKeyEmitter.getInstance().event(() => this.updateShutdownReasonFromEvent()));
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
+
+		// Optimistically trigger a UI state flush
+		// without waiting for it. The browser does
+		// not guarantee that this is being executed
+		// but if a dialog opens, we have a chance
+		// to succeed.
+		this.storageService.flush(WillSaveStateReason.SHUTDOWN);
+
 		switch (this.shutdownReason) {
 
 			// Unknown / Keyboard shows veto depending on setting
 			case HostShutdownReason.Unknown:
 			case HostShutdownReason.Keyboard:
-				const confirmBeforeClose = this.configurationService.getValue<'always' | 'keyboardOnly' | 'never'>('window.confirmBeforeClose');
+				const confirmBeforeClose = this.configurationService.getValue('window.confirmBeforeClose');
 				if (confirmBeforeClose === 'always' || (confirmBeforeClose === 'keyboardOnly' && this.shutdownReason === HostShutdownReason.Keyboard)) {
 					e.veto(true, 'veto.confirmBeforeClose');
 				}
@@ -153,7 +165,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		this.shutdownReason = HostShutdownReason.Unknown;
 	}
 
-	private updateShutdownReasonFromEvent(e: IModifierKeyStatus): void {
+	private updateShutdownReasonFromEvent(): void {
 		if (this.shutdownReason === HostShutdownReason.Api) {
 			return; // do not overwrite any explicitly set shutdown reason
 		}
@@ -170,11 +182,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 	@memoize
 	get onDidChangeFocus(): Event<boolean> {
 		const focusTracker = this._register(trackFocus(window));
+		const onVisibilityChange = this._register(new DomEmitter(window.document, 'visibilitychange'));
 
 		return Event.latch(Event.any(
 			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
 			Event.map(focusTracker.onDidBlur, () => this.hasFocus),
-			Event.map(domEvent(window.document, 'visibilitychange'), () => this.hasFocus)
+			Event.map(onVisibilityChange.event, () => this.hasFocus)
 		));
 	}
 
@@ -256,8 +269,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
 						editorService.openEditor({
-							leftResource: editors[0].resource,
-							rightResource: editors[1].resource,
+							original: { resource: editors[0].resource },
+							modified: { resource: editors[1].resource },
 							options: { pinned: true }
 						});
 					}
@@ -285,14 +298,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 								const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
 								openables = [{
 									fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-									lineNumber: pathColumnAware.line,
-									columnNumber: pathColumnAware.column
+									selection: !isUndefined(pathColumnAware.line) ? { startLineNumber: pathColumnAware.line, startColumn: pathColumnAware.column || 1 } : undefined
 								}];
 							} else {
 								openables = [openable];
 							}
 
-							editorService.openEditors(await pathsToEditors(openables, this.fileService));
+							editorService.openEditors(await pathsToEditors(openables, this.fileService), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window
@@ -381,14 +393,14 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
-		// with `options.reuse` so we update `shutdownReason` to reflect that
+		// with `options.reuse` so we handle this expected shutdown
 		if (options?.reuse) {
-			this.shutdownReason = HostShutdownReason.Api;
+			await this.handleExpectedShutdown(ShutdownReason.LOAD);
 		}
 
 		const opened = await this.workspaceProvider.open(workspace, options);
 		if (!opened) {
-			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 2 });
+			const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."), [localize('open', "Open"), localize('cancel', "Cancel")], { cancelId: 1 });
 			if (showResult.choice === 0) {
 				await this.workspaceProvider.open(workspace, options);
 			}
@@ -438,23 +450,29 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async reload(): Promise<void> {
-		this.withExpectedShutdown(() => {
-			window.location.reload();
-		});
+		await this.handleExpectedShutdown(ShutdownReason.RELOAD);
+
+		window.location.reload();
 	}
 
 	async close(): Promise<void> {
-		this.withExpectedShutdown(() => {
-			window.close();
-		});
+		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
+
+		window.close();
 	}
 
-	private withExpectedShutdown(callback: () => void): void {
+	private async handleExpectedShutdown(reason: ShutdownReason): Promise<void> {
 
-		// Update shutdown reason in a way that we do not show a dialog
+		// Update shutdown reason in a way that we do
+		// not show a dialog because this is a expected
+		// shutdown.
 		this.shutdownReason = HostShutdownReason.Api;
 
-		callback();
+		// Signal shutdown reason to lifecycle
+		this.lifecycleService.withExpectedShutdown(reason);
+
+		// Ensure UI state is persisted
+		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 	}
 
 	//#endregion

@@ -14,7 +14,6 @@ import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID,
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -22,11 +21,10 @@ import { AutoSaveAfterShortDelayContext } from 'vs/workbench/services/filesConfi
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { Schemas } from 'vs/base/common/network';
-import { DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, HasWebFileSystemAccess, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorCanRevertContext, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
@@ -42,17 +40,6 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowActiveFileInExplo
 registry.registerWorkbenchAction(SyncActionDescriptor.from(CompareWithClipboardAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_C) }), 'File: Compare Active File with Clipboard', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAutoSaveAction), 'File: Toggle Auto Save', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowOpenedFileInNewWindow, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'File: Open Active File in New Window', category.value, EmptyWorkspaceSupportContext);
-
-const workspacesCategory = nls.localize('workspaces', "Workspaces");
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenWorkspaceAction), 'Workspaces: Open Workspace...', workspacesCategory);
-
-const fileCategory = nls.localize('file', "File");
-if (isMacintosh && !isWeb) {
-	registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenFileFolderAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open...', fileCategory);
-} else {
-	registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenFileAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_O }), 'File: Open File...', fileCategory);
-	registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenFolderAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_O) }), 'File: Open Folder...', fileCategory);
-}
 
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
@@ -112,7 +99,7 @@ const CUT_FILE_ID = 'filesExplorer.cut';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CUT_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 	handler: cutFileHandler,
 });
@@ -460,7 +447,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: CUT_FILE_ID,
 		title: nls.localize('cut', "Cut")
 	},
-	when: ExplorerRootContext.toNegated()
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -539,7 +526,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
 		title: ADD_ROOT_FOLDER_LABEL
 	},
-	when: ExplorerRootContext
+	when: ContextKeyExpr.and(ExplorerRootContext, ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -549,7 +536,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: REMOVE_ROOT_FOLDER_COMMAND_ID,
 		title: REMOVE_ROOT_FOLDER_LABEL
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext)
+	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext, ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace'))))
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
@@ -635,44 +622,6 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	order: 3
 });
 
-if (isMacintosh && !isWeb) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: OpenFileFolderAction.ID,
-			title: nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")
-		},
-		order: 1
-	});
-} else {
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: OpenFileAction.ID,
-			title: nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")
-		},
-		order: 1
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: '2_open',
-		command: {
-			id: OpenFolderAction.ID,
-			title: nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
-		},
-		order: 2
-	});
-}
-
-MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-	group: '2_open',
-	command: {
-		id: OpenWorkspaceAction.ID,
-		title: nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")
-	},
-	order: 3
-});
-
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '5_autosave',
 	command: {
@@ -688,7 +637,12 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"),
-		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(ExplorerViewletVisibleContext, SidebarFocusContext))
+		precondition: ContextKeyExpr.or(
+			// Active editor can revert
+			ContextKeyExpr.and(ActiveEditorCanRevertContext),
+			// Explorer focused but not on untitled
+			ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled), ExplorerViewletVisibleContext, SidebarFocusContext)
+		),
 	},
 	order: 1
 });

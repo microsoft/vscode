@@ -9,6 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
+import { CommandManager } from './commands/commandManager';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import LanguageProvider from './languageProvider';
@@ -20,16 +21,17 @@ import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import VersionStatus from './tsServer/versionStatus';
 import TypeScriptServiceClient from './typescriptServiceClient';
+import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { coalesce, flatten } from './utils/arrays';
-import { CommandManager } from './commands/commandManager';
+import { ServiceConfigurationProvider } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
+import * as ProjectStatus from './utils/largeProjectStatus';
+import { LogLevelMonitor } from './utils/logLevelMonitor';
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
-import * as ProjectStatus from './utils/largeProjectStatus';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -68,6 +70,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			versionProvider: ITypeScriptVersionProvider,
 			processFactory: TsServerProcessFactory,
 			activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+			serviceConfigurationProvider: ServiceConfigurationProvider,
 		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
@@ -147,6 +150,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
+		this._register(new LogLevelMonitor(context));
 	}
 
 	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {

@@ -12,7 +12,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand, INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionNormalizationAffinity } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -21,12 +21,12 @@ import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTok
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { Cursor } from 'vs/editor/common/controller/cursor';
+import { CursorsController } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
@@ -52,7 +52,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly _lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
-	private readonly _cursor: Cursor;
+	private readonly _cursor: CursorsController;
 	private readonly _decorations: ViewModelDecorations;
 
 	constructor(
@@ -90,6 +90,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
 			this._lines = new SplitLinesCollection(
+				this._editorId,
 				this.model,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
@@ -103,7 +104,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this.coordinatesConverter = this._lines.createCoordinatesConverter();
 
-		this._cursor = this._register(new Cursor(model, this, this.coordinatesConverter, this.cursorConfig));
+		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
 
 		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
@@ -250,7 +251,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _registerModelEvents(): void {
 
-		this._register(this.model.onDidChangeRawContentFast((e) => {
+		this._register(this.model.onDidChangeContentOrInjectedText((e) => {
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 
@@ -258,20 +259,29 @@ export class ViewModel extends Disposable implements IViewModel {
 				let hadModelLineChangeThatChangedLineMapping = false;
 
 				const changes = e.changes;
-				const versionId = e.versionId;
+				const versionId = (e instanceof textModelEvents.ModelRawContentChangedEvent ? e.versionId : null);
 
 				// Do a first pass to compute line mappings, and a second pass to actually interpret them
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							for (const line of change.detail) {
-								lineBreaksComputer.addRequest(line, null);
+							for (let lineIdx = 0; lineIdx < change.detail.length; lineIdx++) {
+								const line = change.detail[lineIdx];
+								let injectedText = change.injectedTexts[lineIdx];
+								if (injectedText) {
+									injectedText = injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+								}
+								lineBreaksComputer.addRequest(line, injectedText, null);
 							}
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							lineBreaksComputer.addRequest(change.detail, null);
+							let injectedText: textModelEvents.LineInjectedText[] | null = null;
+							if (change.injectedText) {
+								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+							}
+							lineBreaksComputer.addRequest(change.detail, injectedText, null);
 							break;
 						}
 					}
@@ -336,7 +346,10 @@ export class ViewModel extends Disposable implements IViewModel {
 						}
 					}
 				}
-				this._lines.acceptVersionId(versionId);
+
+				if (versionId !== null) {
+					this._lines.acceptVersionId(versionId);
+				}
 				this.viewLayout.onHeightMaybeChanged();
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
@@ -637,6 +650,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
+	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
+		return this._lines.getInjectedTextAt(viewPosition);
+	}
+
 	public getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
 		let mightContainRTL = this.model.mightContainRTL();
 		let mightContainNonBasicASCII = this.model.mightContainNonBasicASCII();
@@ -644,6 +661,15 @@ export class ViewModel extends Disposable implements IViewModel {
 		let lineData = this._lines.getViewLineData(lineNumber);
 		let allInlineDecorations = this._decorations.getDecorationsViewportData(visibleRange).inlineDecorations;
 		let inlineDecorations = allInlineDecorations[lineNumber - visibleRange.startLineNumber];
+
+		if (lineData.inlineDecorations) {
+			inlineDecorations = [
+				...inlineDecorations,
+				...lineData.inlineDecorations.map(d =>
+					d.toInlineDecoration(lineNumber)
+				)
+			];
+		}
 
 		return new ViewLineRenderingData(
 			lineData.minColumn,
@@ -1038,7 +1064,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 	}
 
-	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position {
+	normalizePosition(position: Position, affinity: PositionAffinity): Position {
 		return this._lines.normalizePosition(position, affinity);
 	}
 

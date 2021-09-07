@@ -8,9 +8,9 @@ import { sep } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IFileEditorInput, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
+import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { isNative, isWeb, isWindows } from 'vs/base/common/platform';
 import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -33,6 +33,7 @@ import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -54,8 +55,8 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 registerSingleton(IExplorerService, ExplorerService, true);
 
 // Register file editors
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		BinaryFileEditor,
 		BinaryFileEditor.ID,
 		nls.localize('binaryFileEditor', "Binary File Editor")
@@ -66,21 +67,21 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 // Register default file input factory
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerFileEditorInputFactory({
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFileEditorFactory({
 
 	typeId: FILE_EDITOR_INPUT_ID,
 
-	createFileEditorInput: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode);
+	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents);
 	},
 
-	isFileEditorInput: (obj): obj is IFileEditorInput => {
+	isFileEditor: (obj): obj is IFileEditorInput => {
 		return obj instanceof FileEditorInput;
 	}
 });
 
 // Register Editor Input Serializer & Handler
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(FILE_EDITOR_INPUT_ID, FileEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FILE_EDITOR_INPUT_ID, FileEditorInputSerializer);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
 // Register Explorer views
@@ -137,7 +138,10 @@ configurationRegistry.registerConfiguration({
 		[FILES_EXCLUDE_CONFIG]: {
 			'type': 'object',
 			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the file Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search specific excludes. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
-			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
+			'default': {
+				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true, '**/Thumbs.db': true },
+				...(isWeb ? { '**/*.crswap': true /* filter out swap files used for local file access */ } : undefined)
+			},
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
 				'anyOf': [
@@ -178,7 +182,7 @@ configurationRegistry.registerConfiguration({
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
-			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
+			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only `#files.encoding#` is respected."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.eol': {
@@ -239,8 +243,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.watcherExclude': {
 			'type': 'object',
-			'default': isWindows /* https://github.com/microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true, '**/.hg/store/**': true },
-			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths (i.e. prefix with ** or the full path to match properly). Changing this setting requires a restart. When you experience Code consuming lots of CPU time on startup, you can exclude large folders to reduce the initial load."),
+			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
+			'markdownDescription': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths, i.e. prefix with `**/` or the full path to match properly and suffix with `/**` to match files within a path (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). Changing this setting requires a restart. When you experience Code consuming lots of CPU time on startup, you can exclude large folders to reduce the initial load."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.hotExit': hotExitConfiguration,
@@ -294,11 +298,13 @@ configurationRegistry.registerConfiguration({
 			'default': 'file',
 			'enum': [
 				'file',
-				'modifications'
+				'modifications',
+				'modificationsIfAvailable'
 			],
 			'enumDescriptions': [
 				nls.localize({ key: 'everything', comment: ['This is the description of an option'] }, "Format the whole file."),
 				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications (requires source control)."),
+				nls.localize({ key: 'modificationIfAvailable', comment: ['This is the description of an option'] }, "Will attempt to format modifications only (requires source control). If source control can't be used, then the whole file will be formatted."),
 			],
 			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is enabled."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
@@ -376,7 +382,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrderLexicographicOptions.lower', 'Lowercase names are grouped together before uppercase names.'),
 				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in unicode order.')
 			],
-			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the explorer.")
+			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the Explorer.")
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',
@@ -389,6 +395,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'explorer.incrementalNaming': {
+			'type': 'string',
 			enum: ['simple', 'smart'],
 			enumDescriptions: [
 				nls.localize('simple', "Appends the word \"copy\" at the end of the duplicated name potentially followed by a number"),
@@ -402,6 +409,21 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
 			'default': true
 		},
+		'explorer.copyRelativePathSeparator': {
+			'type': 'string',
+			'enum': [
+				'/',
+				'\\',
+				'auto'
+			],
+			'enumDescriptions': [
+				nls.localize('copyRelativePathSeparator.slash', "Use slash as path separation character."),
+				nls.localize('copyRelativePathSeparator.backslash', "Use backslash as path separation character."),
+				nls.localize('copyRelativePathSeparator.auto', "Uses operating system specific path separation character."),
+			],
+			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
+			'default': 'auto'
+		}
 	}
 });
 
@@ -425,4 +447,10 @@ RedoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	}
 
 	return false;
+});
+
+ModesRegistry.registerLanguage({
+	id: BINARY_TEXT_FILE_MODE,
+	aliases: ['Binary'],
+	mimetypes: ['text/x-code-binary']
 });

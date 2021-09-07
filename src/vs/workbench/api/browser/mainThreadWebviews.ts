@@ -129,6 +129,7 @@ export function reviveWebviewExtension(extensionData: extHostProtocol.WebviewExt
 export function reviveWebviewContentOptions(webviewOptions: extHostProtocol.IWebviewOptions): WebviewContentOptions {
 	return {
 		allowScripts: webviewOptions.enableScripts,
+		allowForms: webviewOptions.enableForms,
 		enableCommandUris: webviewOptions.enableCommandUris,
 		localResourceRoots: Array.isArray(webviewOptions.localResourceRoots) ? webviewOptions.localResourceRoots.map(r => URI.revive(r)) : undefined,
 		portMapping: webviewOptions.portMapping,

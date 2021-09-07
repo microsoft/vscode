@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, IEditorInput, Verbosity, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, IEditorInput, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { EditorCommandsContextActionRunner, ITitleControlDimensions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorCommandsContextActionRunner, ITitleControlDimensions, IToolbarActions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -49,6 +49,8 @@ import { coalesce, insert } from 'vs/base/common/arrays';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -233,13 +235,14 @@ export class TabsTitleControl extends TitleControl {
 
 				EventHelper.stop(e);
 
-				this.group.openEditor(
-					this.editorService.createEditorInput({ forceUntitled: true }),
-					{
-						pinned: true,			// untitled is always pinned
-						index: this.group.count // always at the end
+				this.editorService.openEditor({
+					resource: undefined,
+					options: {
+						pinned: true,
+						index: this.group.count, // always at the end
+						override: DEFAULT_EDITOR_ASSOCIATION.id
 					}
-				);
+				}, this.group.id);
 			}));
 		});
 
@@ -322,7 +325,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Mouse-wheel support to switch to tabs optionally
-		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: MouseWheelEvent) => {
+		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: WheelEvent) => {
 			const activeEditor = this.group.activeEditor;
 			if (!activeEditor || this.group.count < 2) {
 				return;  // need at least 2 open editors
@@ -388,6 +391,14 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	openEditor(editor: IEditorInput): void {
+		this.handleOpenedEditors();
+	}
+
+	openEditors(editors: IEditorInput[]): void {
+		this.handleOpenedEditors();
+	}
+
+	private handleOpenedEditors(): void {
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
@@ -405,16 +416,15 @@ export class TabsTitleControl extends TitleControl {
 		this.breadcrumbsControl?.update();
 	}
 
-	closeEditor(editor: IEditorInput): void {
-		this.handleClosedEditors();
+	closeEditor(editor: IEditorInput, index: number | undefined): void {
+		this.handleClosedEditors(index);
 	}
 
 	closeEditors(editors: IEditorInput[]): void {
-		// Cleanup closed editors
 		this.handleClosedEditors();
 	}
 
-	private handleClosedEditors(): void {
+	private handleClosedEditors(index?: number): void {
 
 		// There are tabs to show
 		if (this.group.activeEditor) {
@@ -424,7 +434,7 @@ export class TabsTitleControl extends TitleControl {
 			while (tabsContainer.children.length > this.group.count) {
 
 				// Remove one tab from container (must be the last to keep indexes in order!)
-				(tabsContainer.lastChild as HTMLElement).remove();
+				tabsContainer.lastChild?.remove();
 
 				// Remove associated tab label and widget
 				dispose(this.tabDisposables.pop());
@@ -456,15 +466,18 @@ export class TabsTitleControl extends TitleControl {
 
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
 
-		// Swap the editor label
+		// Move the editor label
 		const editorLabel = this.tabLabels[fromIndex];
 		this.tabLabels.splice(fromIndex, 1);
 		this.tabLabels.splice(targetIndex, 0, editorLabel);
 
-		// As such we need to redraw each tab
+		// Redraw tabs in the range of the move
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
-		});
+		},
+			Math.min(fromIndex, targetIndex), 	// from: smallest of fromIndex/targetIndex
+			Math.max(fromIndex, targetIndex)	//   to: largest of fromIndex/targetIndex
+		);
 
 		// Moving an editor requires a layout to keep the active editor visible
 		this.layout(this.dimensions);
@@ -509,7 +522,11 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimensions);
 	}
 
-	private updateEditorLabelAggregator = this._register(new RunOnceScheduler(() => this.updateEditorLabels(), 0));
+	updateEditorCapabilities(editor: IEditorInput): void {
+		this.updateEditorLabel(editor);
+	}
+
+	private updateEditorLabelScheduler = this._register(new RunOnceScheduler(() => this.doUpdateEditorLabels(), 0));
 
 	updateEditorLabel(editor: IEditorInput): void {
 
@@ -518,10 +535,10 @@ export class TabsTitleControl extends TitleControl {
 		// individual editors, we collect all those requests and
 		// then run the update once because we have to update
 		// all opened tabs in the group at once.
-		this.updateEditorLabelAggregator.schedule();
+		this.updateEditorLabelScheduler.schedule();
 	}
 
-	updateEditorLabels(): void {
+	private doUpdateEditorLabels(): void {
 
 		// A change to a label requires to recompute all labels
 		this.computeTabLabels();
@@ -571,8 +588,16 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void, fromIndex?: number, toIndex?: number): void {
 		this.group.editors.forEach((editor, index) => {
+			if (typeof fromIndex === 'number' && fromIndex > index) {
+				return; // do nothing if we are not yet at `fromIndex`
+			}
+
+			if (typeof toIndex === 'number' && toIndex < index) {
+				return; // do nothing if we are beyond `toIndex`
+			}
+
 			this.doWithTab(index, editor, fn);
 		});
 	}
@@ -643,7 +668,7 @@ export class TabsTitleControl extends TitleControl {
 	private registerTabListeners(tab: HTMLElement, index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
 		const disposables = new DisposableStore();
 
-		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
+		const handleClickOrTouch = (e: MouseEvent | GestureEvent, preserveFocus: boolean): void => {
 			tab.blur(); // prevent flicker of focus outline on tab until editor got focus
 
 			if (e instanceof MouseEvent && e.button !== 0) {
@@ -661,7 +686,8 @@ export class TabsTitleControl extends TitleControl {
 			// Open tabs editor
 			const input = this.group.getEditorByIndex(index);
 			if (input) {
-				this.group.openEditor(input);
+				// Even if focus is preserved make sure to activate the group.
+				this.group.openEditor(input, { preserveFocus, activation: EditorActivation.ACTIVATE });
 			}
 
 			return undefined;
@@ -677,8 +703,8 @@ export class TabsTitleControl extends TitleControl {
 		};
 
 		// Open on Click / Touch
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e)));
-		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e, false)));
+		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e, true))); // Preserve focus on touch #125470
 
 		// Touch Scroll Support
 		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
@@ -1007,9 +1033,9 @@ export class TabsTitleControl extends TitleControl {
 
 			// Shorten descriptions
 			const shortenedDescriptions = shorten(descriptions, this.path.sep);
-			descriptions.forEach((description, i) => {
+			descriptions.forEach((description, index) => {
 				for (const label of mapDescriptionToDuplicates.get(description) || []) {
-					label.description = shortenedDescriptions[i];
+					label.description = shortenedDescriptions[index];
 				}
 			});
 		});
@@ -1067,6 +1093,7 @@ export class TabsTitleControl extends TitleControl {
 			if (!tabActionBar.isEmpty()) {
 				tabActionBar.clear();
 			}
+
 			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
 		}
 
@@ -1134,14 +1161,14 @@ export class TabsTitleControl extends TitleControl {
 			description = tabLabel.description || '';
 		}
 
-		const title = tabLabel.title || '';
-
 		if (tabLabel.ariaLabel) {
 			tabContainer.setAttribute('aria-label', tabLabel.ariaLabel);
 			// Set aria-description to empty string so that screen readers would not read the title as well
 			// More details https://github.com/microsoft/vscode/issues/95378
 			tabContainer.setAttribute('aria-description', '');
 		}
+
+		const title = tabLabel.title || '';
 		tabContainer.title = title;
 
 		// Label
@@ -1149,7 +1176,7 @@ export class TabsTitleControl extends TitleControl {
 			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
 			{
 				title,
-				extraClasses: coalesce(['tab-label', fileDecorationBadges ? 'tab-label-has-badge' : undefined]),
+				extraClasses: coalesce(['tab-label', fileDecorationBadges ? 'tab-label-has-badge' : undefined].concat(editor.getLabelExtraClasses())),
 				italic: !this.group.isPinned(editor),
 				forceLabel,
 				fileDecorations: {
@@ -1170,7 +1197,6 @@ export class TabsTitleControl extends TitleControl {
 
 	private redrawTabActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabActive = this.group.isActive(editor);
-
 		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
 
 		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabActionBar);
@@ -1279,6 +1305,23 @@ export class TabsTitleControl extends TitleControl {
 		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
 		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
+	}
+
+	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
+		const isGroupActive = this.accessor.activeGroup === this.group;
+
+		// Active: allow all actions
+		if (isGroupActive) {
+			return editorActions;
+		}
+
+		// Inactive: only show "Unlock" and secondary actions
+		else {
+			return {
+				primary: editorActions.primary.filter(action => action.id === UNLOCK_GROUP_COMMAND_ID),
+				secondary: editorActions.secondary
+			};
+		}
 	}
 
 	getHeight(): IEditorGroupTitleHeight {

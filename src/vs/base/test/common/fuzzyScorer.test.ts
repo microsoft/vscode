@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IItemAccessor, FuzzyScore, FuzzyScore2, IItemScore, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy, compareItemsByFuzzyScore, pieceToQuery } from 'vs/base/common/fuzzyScorer';
-import { URI } from 'vs/base/common/uri';
-import { basename, dirname, sep, posix, win32 } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
+import { compareItemsByFuzzyScore, FuzzyScore, FuzzyScore2, FuzzyScorerCache, IItemAccessor, IItemScore, pieceToQuery, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy } from 'vs/base/common/fuzzyScorer';
 import { Schemas } from 'vs/base/common/network';
+import { basename, dirname, posix, sep, win32 } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 class ResourceAccessorClass implements IItemAccessor<URI> {
 
@@ -76,10 +76,10 @@ class NullAccessorClass implements IItemAccessor<URI> {
 	}
 }
 
-function _doScore(target: string, query: string, fuzzy: boolean): FuzzyScore {
+function _doScore(target: string, query: string, allowNonContiguousMatches?: boolean): FuzzyScore {
 	const preparedQuery = prepareQuery(query);
 
-	return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
+	return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, allowNonContiguousMatches ?? !preparedQuery.expectContiguousMatch);
 }
 
 function _doScore2(target: string, query: string, matchOffset: number = 0): FuzzyScore2 {
@@ -88,12 +88,12 @@ function _doScore2(target: string, query: string, matchOffset: number = 0): Fuzz
 	return scoreFuzzy2(target, preparedQuery, 0, matchOffset);
 }
 
-function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): IItemScore {
-	return scoreItemFuzzy(item, prepareQuery(query), fuzzy, accessor, Object.create(null));
+function scoreItem<T>(item: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache = Object.create(null)): IItemScore {
+	return scoreItemFuzzy(item, prepareQuery(query), allowNonContiguousMatches, accessor, cache);
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): number {
-	return compareItemsByFuzzyScore(itemA, itemB, prepareQuery(query), fuzzy, accessor, Object.create(null));
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>): number {
+	return compareItemsByFuzzyScore(itemA, itemB, prepareQuery(query), allowNonContiguousMatches, accessor, Object.create(null));
 }
 
 const NullAccessor = new NullAccessorClass();
@@ -211,6 +211,13 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(!noRes.labelMatch);
 		assert.ok(!noRes.descriptionMatch);
 
+		// No Exact Match
+		const noExactRes = scoreItem(resource, '"sF"', true, ResourceAccessor);
+		assert.ok(!noExactRes.score);
+		assert.ok(!noExactRes.labelMatch);
+		assert.ok(!noExactRes.descriptionMatch);
+		assert.strictEqual(noRes.score, noExactRes.score);
+
 		// Verify Scores
 		assert.ok(identityRes.score > basenamePrefixRes.score);
 		assert.ok(basenamePrefixRes.score > basenameRes.score);
@@ -259,6 +266,17 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(res4.descriptionMatch![0].end, 4);
 		assert.strictEqual(res4.descriptionMatch![1].start, 10);
 		assert.strictEqual(res4.descriptionMatch![1].end, 14);
+	});
+
+	test('scoreItem - multiple with cache yields different results', function () {
+		const resource = URI.file('/xyz/some/path/someFile123.txt');
+		const cache = {};
+		let res1 = scoreItem(resource, 'xyz sm', true, ResourceAccessor, cache);
+		assert.ok(res1.score);
+
+		// from the cache's perspective this should be a totally different query
+		let res2 = scoreItem(resource, 'xyz "sm"', true, ResourceAccessor, cache);
+		assert.ok(!res2.score);
 	});
 
 	test('scoreItem - invalid input', function () {
@@ -1075,9 +1093,12 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
+		assert.strictEqual(prepareQuery('model Tester.ts').expectContiguousMatch, false); // doesn't have quotes in it
 		assert.strictEqual(prepareQuery('Model Tester.ts').normalizedLowercase, 'modeltester.ts');
 		assert.strictEqual(prepareQuery('ModelTester.ts').containsPathSeparator, false);
 		assert.strictEqual(prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
+		assert.strictEqual(prepareQuery('"hello"').expectContiguousMatch, true);
+		assert.strictEqual(prepareQuery('"hello"').normalized, 'hello');
 
 		// with spaces
 		let query = prepareQuery('He*llo World');
@@ -1204,5 +1225,22 @@ suite('Fuzzy Scorer', () => {
 		assert.ok(score);
 		assert.ok(typeof score[0] === 'number');
 		assert.ok(score[1].length > 0);
+	});
+
+	test('Using quotes should expect contiguous matches match', function () {
+		// missing the "i" in the query
+		assert.strictEqual(_doScore('contiguous', '"contguous"')[0], 0);
+
+		const score = _doScore('contiguous', '"contiguous"');
+		assert.strictEqual(score[0], 253);
+	});
+
+	test('Using quotes should highlight contiguous indexes', function () {
+		const score = _doScore('2021-7-26.md', '"26"');
+		assert.strictEqual(score[0], 13);
+
+		// The indexes of the 2 and 6 of "26"
+		assert.strictEqual(score[1][0], 7);
+		assert.strictEqual(score[1][1], 8);
 	});
 });

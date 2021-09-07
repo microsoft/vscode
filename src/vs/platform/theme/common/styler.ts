@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground, listFilterWidgetOutline, listFilterWidgetNoMatchesOutline, listFilterWidgetBackground, editorWidgetBackground, treeIndentGuidesStroke, editorWidgetForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, ColorValue, resolveColorValue, textLinkForeground, problemsWarningIconForeground, problemsErrorIconForeground, problemsInfoIconForeground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, listFocusOutline, listInactiveFocusOutline, tableColumnsBorder, quickInputListFocusBackground, buttonBorder, keybindingLabelForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, quickInputListFocusForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IThemable, styleFn } from 'vs/base/common/styler';
+import { activeContrastBorder, badgeBackground, badgeForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, breadcrumbsFocusForeground, breadcrumbsForeground, buttonBackground, buttonBorder, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, ColorIdentifier, ColorTransform, ColorValue, contrastBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, listActiveSelectionBackground, listActiveSelectionForeground, listActiveSelectionIconForeground, listDropBackground, listFilterWidgetBackground, listFilterWidgetNoMatchesOutline, listFilterWidgetOutline, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, listInactiveFocusBackground, listInactiveFocusOutline, listInactiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionIconForeground, menuBackground, menuBorder, menuForeground, menuSelectionBackground, menuSelectionBorder, menuSelectionForeground, menuSeparatorBackground, pickerGroupForeground, problemsErrorIconForeground, problemsInfoIconForeground, problemsWarningIconForeground, progressBarBackground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, resolveColorValue, selectBackground, selectBorder, selectForeground, selectListBackground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, tableColumnsBorder, textLinkForeground, treeIndentGuidesStroke, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IStyleOverrides {
 	[color: string]: ColorIdentifier | undefined;
@@ -130,6 +130,7 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 		selectBorder: style?.selectBorder || selectBorder,
 		focusBorder: style?.focusBorder || focusBorder,
 		listFocusBackground: style?.listFocusBackground || quickInputListFocusBackground,
+		listInactiveSelectionIconForeground: style?.listInactiveSelectionIconForeground || quickInputListFocusIconForeground,
 		listFocusForeground: style?.listFocusForeground || quickInputListFocusForeground,
 		listFocusOutline: style?.listFocusOutline || ((theme: IColorTheme) => theme.type === ColorScheme.HIGH_CONTRAST ? activeContrastBorder : Color.transparent),
 		listHoverBackground: style?.listHoverBackground || listHoverBackground,
@@ -166,9 +167,11 @@ export interface IListStyleOverrides extends IStyleOverrides {
 	listFocusOutline?: ColorIdentifier;
 	listActiveSelectionBackground?: ColorIdentifier;
 	listActiveSelectionForeground?: ColorIdentifier;
+	listActiveSelectionIconForeground?: ColorIdentifier;
 	listFocusAndSelectionBackground?: ColorIdentifier;
 	listFocusAndSelectionForeground?: ColorIdentifier;
 	listInactiveSelectionBackground?: ColorIdentifier;
+	listInactiveSelectionIconForeground?: ColorIdentifier;
 	listInactiveSelectionForeground?: ColorIdentifier;
 	listInactiveFocusBackground?: ColorIdentifier;
 	listInactiveFocusOutline?: ColorIdentifier;
@@ -195,9 +198,11 @@ export const defaultListStyles: IColorMapping = {
 	listFocusOutline,
 	listActiveSelectionBackground,
 	listActiveSelectionForeground,
+	listActiveSelectionIconForeground,
 	listFocusAndSelectionBackground: listActiveSelectionBackground,
 	listFocusAndSelectionForeground: listActiveSelectionForeground,
 	listInactiveSelectionBackground,
+	listInactiveSelectionIconForeground,
 	listInactiveSelectionForeground,
 	listInactiveFocusBackground,
 	listInactiveFocusOutline,
@@ -269,7 +274,7 @@ export function attachStylerCallback(themeService: IThemeService, colors: { [nam
 }
 
 export interface IBreadcrumbsWidgetStyleOverrides extends IColorMapping {
-	breadcrumbsBackground?: ColorIdentifier | ColorFunction;
+	breadcrumbsBackground?: ColorIdentifier | ColorTransform;
 	breadcrumbsForeground?: ColorIdentifier;
 	breadcrumbsHoverForeground?: ColorIdentifier;
 	breadcrumbsFocusForeground?: ColorIdentifier;

@@ -33,6 +33,16 @@ export function format(value: string, ...args: any[]): string {
 	});
 }
 
+const _format2Regexp = /{([^}]+)}/g;
+
+/**
+ * Helper to create a string from a template and a string record.
+ * Similar to `format` but with objects instead of positional arguments.
+ */
+export function format2(template: string, values: Record<string, unknown>): string {
+	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
+}
+
 /**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.
@@ -561,119 +571,6 @@ export function getCharContainingOffset(str: string, offset: number): [number, n
 		return _getCharContainingOffset(str, offset - 1);
 	}
 	return _getCharContainingOffset(str, offset);
-}
-
-/**
- * A manual encoding of `str` to UTF8.
- * Use only in environments which do not offer native conversion methods!
- */
-export function encodeUTF8(str: string): Uint8Array {
-	const strLen = str.length;
-
-	// See https://en.wikipedia.org/wiki/UTF-8
-
-	// first loop to establish needed buffer size
-	let neededSize = 0;
-	let strOffset = 0;
-	while (strOffset < strLen) {
-		const codePoint = getNextCodePoint(str, strLen, strOffset);
-		strOffset += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-		if (codePoint < 0x0080) {
-			neededSize += 1;
-		} else if (codePoint < 0x0800) {
-			neededSize += 2;
-		} else if (codePoint < 0x10000) {
-			neededSize += 3;
-		} else {
-			neededSize += 4;
-		}
-	}
-
-	// second loop to actually encode
-	const arr = new Uint8Array(neededSize);
-	strOffset = 0;
-	let arrOffset = 0;
-	while (strOffset < strLen) {
-		const codePoint = getNextCodePoint(str, strLen, strOffset);
-		strOffset += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-
-		if (codePoint < 0x0080) {
-			arr[arrOffset++] = codePoint;
-		} else if (codePoint < 0x0800) {
-			arr[arrOffset++] = 0b11000000 | ((codePoint & 0b00000000000000000000011111000000) >>> 6);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000000000111111) >>> 0);
-		} else if (codePoint < 0x10000) {
-			arr[arrOffset++] = 0b11100000 | ((codePoint & 0b00000000000000001111000000000000) >>> 12);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000111111000000) >>> 6);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000000000111111) >>> 0);
-		} else {
-			arr[arrOffset++] = 0b11110000 | ((codePoint & 0b00000000000111000000000000000000) >>> 18);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000111111000000000000) >>> 12);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000111111000000) >>> 6);
-			arr[arrOffset++] = 0b10000000 | ((codePoint & 0b00000000000000000000000000111111) >>> 0);
-		}
-	}
-
-	return arr;
-}
-
-/**
- * A manual decoding of a UTF8 string.
- * Use only in environments which do not offer native conversion methods!
- */
-export function decodeUTF8(buffer: Uint8Array): string {
-	// https://en.wikipedia.org/wiki/UTF-8
-
-	const len = buffer.byteLength;
-	const result: string[] = [];
-	let offset = 0;
-	while (offset < len) {
-		const v0 = buffer[offset];
-		let codePoint: number;
-		if (v0 >= 0b11110000 && offset + 3 < len) {
-			// 4 bytes
-			codePoint = (
-				(((buffer[offset++] & 0b00000111) << 18) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 12) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 6) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 0) >>> 0)
-			);
-		} else if (v0 >= 0b11100000 && offset + 2 < len) {
-			// 3 bytes
-			codePoint = (
-				(((buffer[offset++] & 0b00001111) << 12) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 6) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 0) >>> 0)
-			);
-		} else if (v0 >= 0b11000000 && offset + 1 < len) {
-			// 2 bytes
-			codePoint = (
-				(((buffer[offset++] & 0b00011111) << 6) >>> 0)
-				| (((buffer[offset++] & 0b00111111) << 0) >>> 0)
-			);
-		} else {
-			// 1 byte
-			codePoint = buffer[offset++];
-		}
-
-		if ((codePoint >= 0 && codePoint <= 0xD7FF) || (codePoint >= 0xE000 && codePoint <= 0xFFFF)) {
-			// Basic Multilingual Plane
-			result.push(String.fromCharCode(codePoint));
-		} else if (codePoint >= 0x010000 && codePoint <= 0x10FFFF) {
-			// Supplementary Planes
-			const uPrime = codePoint - 0x10000;
-			const w1 = 0xD800 + ((uPrime & 0b11111111110000000000) >>> 10);
-			const w2 = 0xDC00 + ((uPrime & 0b00000000001111111111) >>> 0);
-			result.push(String.fromCharCode(w1));
-			result.push(String.fromCharCode(w2));
-		} else {
-			// illegal code point
-			result.push(String.fromCharCode(0xFFFD));
-		}
-	}
-
-	return result.join('');
 }
 
 /**

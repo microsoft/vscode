@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client, PersistentProtocol, ISocket, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
-import { generateUuid } from 'vs/base/common/uuid';
-import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { ISignService } from 'vs/platform/sign/common/sign';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
+import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { ILogService } from 'vs/platform/log/common/log';
+import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
+import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ISignService } from 'vs/platform/sign/common/sign';
 
 const RECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
 
@@ -354,6 +354,7 @@ async function doConnectRemoteAgentExtensionHost(options: ISimpleConnectionOptio
 }
 
 export interface ITunnelConnectionStartParams {
+	host: string;
 	port: number;
 }
 
@@ -427,9 +428,9 @@ export async function connectRemoteAgentExtensionHost(options: IConnectionOption
 	}
 }
 
-export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunnelRemotePort: number): Promise<PersistentProtocol> {
+export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunnelRemoteHost: string, tunnelRemotePort: number): Promise<PersistentProtocol> {
 	const simpleOptions = await resolveConnectionOptions(options, generateUuid(), null);
-	const protocol = await doConnectRemoteAgentTunnel(simpleOptions, { port: tunnelRemotePort }, CancellationToken.None);
+	const protocol = await doConnectRemoteAgentTunnel(simpleOptions, { host: tunnelRemoteHost, port: tunnelRemotePort }, CancellationToken.None);
 	return protocol;
 }
 
@@ -532,8 +533,28 @@ abstract class PersistentConnection extends Disposable {
 
 		this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0));
 
-		this._register(protocol.onSocketClose(() => this._beginReconnecting()));
-		this._register(protocol.onSocketTimeout(() => this._beginReconnecting()));
+		this._register(protocol.onSocketClose((e) => {
+			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
+			if (!e) {
+				this._options.logService.info(`${logPrefix} received socket close event.`);
+			} else if (e.type === SocketCloseEventType.NodeSocketCloseEvent) {
+				this._options.logService.info(`${logPrefix} received socket close event (hadError: ${e.hadError}).`);
+				if (e.error) {
+					this._options.logService.error(e.error);
+				}
+			} else {
+				this._options.logService.info(`${logPrefix} received socket close event (wasClean: ${e.wasClean}, code: ${e.code}, reason: ${e.reason}).`);
+				if (e.event) {
+					this._options.logService.error(e.event);
+				}
+			}
+			this._beginReconnecting();
+		}));
+		this._register(protocol.onSocketTimeout(() => {
+			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
+			this._options.logService.trace(`${logPrefix} received socket timeout event.`);
+			this._beginReconnecting();
+		}));
 
 		PersistentConnection._instances.push(this);
 
@@ -564,7 +585,6 @@ abstract class PersistentConnection extends Disposable {
 		this._options.logService.info(`${logPrefix} starting reconnecting loop. You can get more information with the trace log level.`);
 		this._onDidStateChange.fire(new ConnectionLostEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData()));
 		const TIMES = [0, 5, 5, 10, 10, 10, 10, 10, 30];
-		const disconnectStartTime = Date.now();
 		let attempt = -1;
 		do {
 			attempt++;
@@ -602,7 +622,8 @@ abstract class PersistentConnection extends Disposable {
 					PersistentConnection.triggerPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
 					break;
 				}
-				if (Date.now() - disconnectStartTime > ProtocolConstants.ReconnectionGraceTime) {
+				if (attempt > 360) {
+					// ReconnectionGraceTime is 3hrs, with 30s between attempts that yields a maximum of 360 attempts
 					this._options.logService.error(`${logPrefix} An error occurred while reconnecting, but it will be treated as a permanent error because the reconnection grace time has expired! Will give up now! Error:`);
 					this._options.logService.error(err);
 					PersistentConnection.triggerPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);

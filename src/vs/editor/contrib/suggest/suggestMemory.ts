@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ITextModel } from 'vs/editor/common/model';
-import { IPosition } from 'vs/editor/common/core/position';
-import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
+import { IPosition } from 'vs/editor/common/core/position';
+import { ITextModel } from 'vs/editor/common/model';
+import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
 export abstract class Memory {
 

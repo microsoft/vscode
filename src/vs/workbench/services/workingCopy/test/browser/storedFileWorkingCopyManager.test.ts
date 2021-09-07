@@ -14,6 +14,7 @@ import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResu
 import { timeout } from 'vs/base/common/async';
 import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 
 suite('StoredFileWorkingCopyManager', () => {
 
@@ -31,7 +32,7 @@ suite('StoredFileWorkingCopyManager', () => {
 			new TestStoredFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService,
-			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService
 		);
 	});
@@ -379,6 +380,28 @@ suite('StoredFileWorkingCopyManager', () => {
 		});
 
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
+
+		await onDidResolve;
+
+		assert.strictEqual(didResolve, true);
+	});
+
+	test('file system provider change triggers working copy resolve', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		const workingCopy = await manager.resolve(resource);
+
+		let didResolve = false;
+		const onDidResolve = new Promise<void>(resolve => {
+			manager.onDidResolve(() => {
+				if (workingCopy.resource.toString() === resource.toString()) {
+					didResolve = true;
+					resolve();
+				}
+			});
+		});
+
+		accessor.fileService.fireFileSystemProviderCapabilitiesChangeEvent({ provider: new InMemoryFileSystemProvider(), scheme: resource.scheme });
 
 		await onDidResolve;
 

@@ -12,6 +12,8 @@
 		["[", "]"],
 		["(", ")"]
 	],
+	"colorizedBracketPairs": [
+	],
 	"autoClosingPairs": [
 		{
 			"open": "{",
@@ -49,5 +51,6 @@
 			"start": "^\\s*<!--\\s*#?region\\b.*-->",
 			"end": "^\\s*<!--\\s*#?endregion\\b.*-->"
 		}
-	}
+	},
+	"wordPattern": { "pattern": "(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})(((\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})|[_])?(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark}))*", "flags": "ug" },
 }

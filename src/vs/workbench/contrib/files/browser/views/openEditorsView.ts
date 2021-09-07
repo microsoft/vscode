@@ -17,7 +17,7 @@ import { IEditorInput, Verbosity, EditorResourceAccessor, SideBySideEditor, Edit
 import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -26,13 +26,12 @@ import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAn
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ResourcesDropHandler, fillResourceDragTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
@@ -80,7 +79,6 @@ export class OpenEditorsView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -163,6 +161,7 @@ export class OpenEditorsView extends ViewPane {
 					}
 					case GroupChangeKind.EDITOR_DIRTY:
 					case GroupChangeKind.EDITOR_LABEL:
+					case GroupChangeKind.EDITOR_CAPABILITIES:
 					case GroupChangeKind.EDITOR_STICKY:
 					case GroupChangeKind.EDITOR_PIN: {
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
@@ -361,7 +360,8 @@ export class OpenEditorsView extends ViewPane {
 			if (!preserveActivateGroup) {
 				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/microsoft/vscode/issues/6672
 			}
-			this.editorService.openEditor(element.editor, options, options.sideBySide ? SIDE_GROUP : element.group);
+			const targetGroup = options.sideBySide ? this.editorGroupService.sideGroup : this.editorGroupService.activeGroup;
+			targetGroup.openEditor(element.editor, options);
 		}
 	}
 
@@ -600,7 +600,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {
 			italic: openedEditor.isPreview(),
-			extraClasses: ['open-editor'],
+			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
 			title: editor.getTitle(Verbosity.LONG)
 		});
@@ -663,7 +663,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 		if (editors.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDragTransfers, editors, originalEvent);
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors, originalEvent);
 		}
 	}
 
@@ -726,7 +726,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 10
 			}
 		});
@@ -740,7 +740,7 @@ registerAction2(class extends Action2 {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: 'z_flip',
+	group: '4_flip',
 	command: {
 		id: toggleEditorGroupLayoutId,
 		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
@@ -758,7 +758,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 20
 			}
 		});
@@ -780,7 +780,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 30
 			}
 		});
@@ -803,7 +803,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', OpenEditorsView.ID),
+				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
 				order: 5
 			}
 		});

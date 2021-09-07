@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { tmpdir } from 'os';
 import { readFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
+import { URI } from 'vs/base/common/uri';
+import { Promises, writeFileSync } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
-import { Promises, rimraf, writeFileSync } from 'vs/base/node/pfs';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { FileStorage } from 'vs/platform/state/electron-main/stateMainService';
 
 flakySuite('StateMainService', () => {
 
@@ -40,7 +40,7 @@ flakySuite('StateMainService', () => {
 		fileService.dispose();
 		diskFileSystemProvider.dispose();
 
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('Basics', async function () {

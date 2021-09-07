@@ -10,9 +10,9 @@ import { once } from 'vs/base/common/functional';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { ExtensionRunTestsRequest, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
 
@@ -47,7 +47,7 @@ export interface ITestResultService {
 	/**
 	 * Creates a new, live test result.
 	 */
-	createLiveResult(req: RunTestsRequest | ExtensionRunTestsRequest): LiveTestResult;
+	createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest): LiveTestResult;
 
 	/**
 	 * Adds a new test result to the collection.
@@ -95,6 +95,7 @@ export class TestResultService implements ITestResultService {
 	public readonly onTestChanged = this.testChangeEmitter.event;
 
 	private readonly isRunning: IContextKey<boolean>;
+	private readonly hasAnyResults: IContextKey<boolean>;
 	private readonly loadResults = once(() => this.storage.read().then(loaded => {
 		for (let i = loaded.length - 1; i >= 0; i--) {
 			this.push(loaded[i]);
@@ -106,8 +107,10 @@ export class TestResultService implements ITestResultService {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestResultStorage private readonly storage: ITestResultStorage,
+		@ITestProfileService private readonly testProfiles: ITestProfileService,
 	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
+		this.hasAnyResults = TestingContextKeys.hasAnyResults.bindTo(contextKeyService);
 	}
 
 	/**
@@ -127,13 +130,34 @@ export class TestResultService implements ITestResultService {
 	/**
 	 * @inheritdoc
 	 */
-	public createLiveResult(req: RunTestsRequest | ExtensionRunTestsRequest) {
-		if ('id' in req) {
-			return this.push(new LiveTestResult(req.id, this.storage.getOutputController(req.id), req));
-		} else {
+	public createLiveResult(req: ResolvedTestRunRequest | ExtensionRunTestsRequest) {
+		if ('targets' in req) {
 			const id = generateUuid();
-			return this.push(new LiveTestResult(id, this.storage.getOutputController(id), req));
+			return this.push(new LiveTestResult(id, this.storage.getOutputController(id), true, req));
 		}
+
+		let profile: ITestRunProfile | undefined;
+		if (req.profile) {
+			const profiles = this.testProfiles.getControllerProfiles(req.controllerId);
+			profile = profiles.find(c => c.profileId === req.profile!.id);
+		}
+
+		const resolved: ResolvedTestRunRequest = {
+			targets: [],
+			exclude: req.exclude,
+			isAutoRun: false,
+		};
+
+		if (profile) {
+			resolved.targets.push({
+				profileGroup: profile.group,
+				profileId: profile.profileId,
+				controllerId: req.controllerId,
+				testIds: req.include,
+			});
+		}
+
+		return this.push(new LiveTestResult(req.id, this.storage.getOutputController(req.id), req.persist, resolved));
 	}
 
 	/**
@@ -148,6 +172,7 @@ export class TestResultService implements ITestResultService {
 			this.persistScheduler.schedule();
 		}
 
+		this.hasAnyResults.set(true);
 		if (this.results.length > RETAIN_MAX_RESULTS) {
 			this.results.pop();
 		}
@@ -200,6 +225,9 @@ export class TestResultService implements ITestResultService {
 
 		this._results = keep;
 		this.persistScheduler.schedule();
+		if (keep.length === 0) {
+			this.hasAnyResults.set(false);
+		}
 		this.changeResultEmitter.fire({ removed });
 	}
 

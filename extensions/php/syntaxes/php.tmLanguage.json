@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/2bf736a814e1a58aa63470c1a29590bd02e924e7",
+	"version": "https://github.com/atom/language-php/commit/e3054bdf1f488ae0dcac51a3bc254268e3f26f84",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -390,7 +390,7 @@
 			}
 		},
 		{
-			"begin": "(?i)\\b((?:require|include)(?:_once)?)\\s+",
+			"begin": "(?i)\\b((?:require|include)(?:_once)?)(\\s+|(?=\\())",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.import.include.php"
@@ -536,7 +536,7 @@
 					]
 				},
 				{
-					"match": "(?xi)\n(:)\\s*\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n)\n(?=\\s*(?:{|/[/*]|\\#|$))",
+					"match": "(?xi)\n(:)\\s*\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n)\n(?=\\s*(?:{|/[/*]|\\#|$))",
 					"captures": {
 						"1": {
 							"name": "keyword.operator.return-value.php"
@@ -591,7 +591,7 @@
 					]
 				},
 				{
-					"match": "(?xi)\n(:)\\s*\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n)\n(?=\\s*(?:=>|/[/*]|\\#|$))",
+					"match": "(?xi)\n(:)\\s*\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n)\n(?=\\s*(?:=>|/[/*]|\\#|$))",
 					"captures": {
 						"1": {
 							"name": "keyword.operator.return-value.php"
@@ -629,7 +629,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(?xi)\n(\\)) \\s* ( : \\s*\n  (?:\\?\\s*)? (?!\\s) [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\\\s\\|]+ (?<!\\s)\n)?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
+			"end": "(?xi)\n(\\)) \\s* ( : \\s*\n  (?:\\?\\s*)? (?!\\s) [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\\\s\\|&]+ (?<!\\s)\n)?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -648,10 +648,15 @@
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"begin": "(?xi)\n(public|private|protected) \\s+\n(?: (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) \\s+ )?\n((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference",
+					"begin": "(?xi)\n((?:(?:public|private|protected|readonly)(?:\\s+|(?=\\?)))++)\n(?: (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) \\s+ )?\n((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference",
 					"beginCaptures": {
 						"1": {
-							"name": "storage.modifier.php"
+							"patterns": [
+								{
+									"match": "public|private|protected|readonly",
+									"name": "storage.modifier.php"
+								}
+							]
 						},
 						"2": {
 							"patterns": [
@@ -722,7 +727,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(?xi)\n(\\)) (?: \\s* (:) \\s* (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) )?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
+			"end": "(?xi)\n(\\)) (?: \\s* (:) \\s* (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) )?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -735,6 +740,10 @@
 						{
 							"match": "\\b(static)\\b",
 							"name": "storage.type.php"
+						},
+						{
+							"match": "\\b(noreturn)\\b",
+							"name": "keyword.other.type.noreturn.php"
 						},
 						{
 							"include": "#php-types"
@@ -750,12 +759,12 @@
 			]
 		},
 		{
-			"match": "(?xi)\n((?:(?:public|private|protected|static)(?:\\s+|(?=\\?)))++)                     # At least one modifier\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n)?\n\\s+ ((\\$)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)          # Variable name",
+			"match": "(?xi)\n((?:(?:public|private|protected|static|readonly)(?:\\s+|(?=\\?)))++)                     # At least one modifier\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n)?\n\\s+ ((\\$)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)          # Variable name",
 			"captures": {
 				"1": {
 					"patterns": [
 						{
-							"match": "public|private|protected|static",
+							"match": "public|private|protected|static|readonly",
 							"name": "storage.modifier.php"
 						}
 					]
@@ -1315,7 +1324,7 @@
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"match": "(?xi)\n(?: (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) \\s+ )?\n((?:(&)\\s*)?(\\.\\.\\.)(\\$)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference\n(?=\\s*(?:,|\\)|/[/*]|\\#|$)) # A closing parentheses (end of argument list) or a comma or a comment",
+					"match": "(?xi)\n(?: (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n) \\s+ )?\n((?:(&)\\s*)?(\\.\\.\\.)(\\$)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference\n(?=\\s*(?:,|\\)|/[/*]|\\#|$)) # A closing parentheses (end of argument list) or a comma or a comment",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -1340,7 +1349,7 @@
 					"name": "meta.function.parameter.variadic.php"
 				},
 				{
-					"begin": "(?xi)\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*\\|\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n)\n\\s+ ((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference",
+					"begin": "(?xi)\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]+)+ # union type\n)\n\\s+ ((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*) # Variable name with possible reference",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -2283,6 +2292,10 @@
 					"name": "constant.numeric.binary.php"
 				},
 				{
+					"match": "0[oO][0-7]+(?:_[0-7]+)*",
+					"name": "constant.numeric.octal.php"
+				},
+				{
 					"match": "0(?:_?[0-7]+)+",
 					"name": "constant.numeric.octal.php"
 				},
@@ -2380,12 +2393,12 @@
 					"name": "keyword.operator.nullable-type.php"
 				},
 				{
-					"match": "\\|",
+					"match": "[|&]",
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"match": "(?i)\\b(null|int|float|bool|string|array|object|callable|iterable|false|mixed)\\b",
-					"name": "storage.type.php"
+					"match": "(?i)\\b(null|int|float|bool|string|array|object|callable|iterable|false|mixed|void)\\b",
+					"name": "keyword.other.type.php"
 				},
 				{
 					"match": "(?i)\\b(parent|self)\\b",
@@ -2557,7 +2570,7 @@
 			]
 		},
 		"php_doc_types": {
-			"match": "(?i)[a-z_\\x{7f}-\\x{7fffffff}\\\\][a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*(\\|[a-z_\\x{7f}-\\x{7fffffff}\\\\][a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)*",
+			"match": "(?i)[a-z_\\x{7f}-\\x{7fffffff}\\\\][a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*([|&][a-z_\\x{7f}-\\x{7fffffff}\\\\][a-z0-9_\\x{7f}-\\x{7fffffff}\\\\]*)*",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -2569,7 +2582,7 @@
 							"include": "#class-name"
 						},
 						{
-							"match": "\\|",
+							"match": "[|&]",
 							"name": "punctuation.separator.delimiter.php"
 						}
 					]
@@ -2603,7 +2616,7 @@
 					"include": "#php_doc_types"
 				},
 				{
-					"match": "\\|",
+					"match": "[|&]",
 					"name": "punctuation.separator.delimiter.php"
 				}
 			]
@@ -2809,7 +2822,7 @@
 			"name": "constant.character.escape.php"
 		},
 		"sql-string-double-quoted": {
-			"begin": "\"\\s*(?=(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|AND)\\b)",
+			"begin": "\"\\s*(?=(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|AND|WITH)\\b)",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.php"
@@ -2883,7 +2896,7 @@
 			]
 		},
 		"sql-string-single-quoted": {
-			"begin": "'\\s*(?=(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|AND)\\b)",
+			"begin": "'\\s*(?=(SELECT|INSERT|UPDATE|DELETE|CREATE|REPLACE|ALTER|AND|WITH)\\b)",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.string.begin.php"

@@ -10,14 +10,15 @@ import { Delayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
@@ -37,7 +38,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorInputCapabilities, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
@@ -49,16 +50,16 @@ import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contri
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IFileService } from 'vs/platform/files/common/files';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Link } from 'vs/platform/opener/browser/link';
-import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Schemas } from 'vs/base/common/network';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -200,7 +201,7 @@ export class SearchEditor extends BaseTextEditor {
 			this._register(attachInputBoxStyler(input, this.themeService, { inputBorder: searchEditorTextInputBorder })));
 
 		// Messages
-		this.messageBox = DOM.append(container, DOM.$('.messages'));
+		this.messageBox = DOM.append(container, DOM.$('.messages.text-search-provider-messages'));
 
 		[this.queryEditorWidget.searchInputFocusTracker, this.queryEditorWidget.replaceInputFocusTracker, this.inputPatternExcludes.inputFocusTracker, this.inputPatternIncludes.inputFocusTracker]
 			.forEach(tracker => {
@@ -220,6 +221,15 @@ export class SearchEditor extends BaseTextEditor {
 				this.searchResultEditor.focus();
 			}));
 		}
+	}
+
+	private _getContributions(): IEditorContributionDescription[] {
+		const skipContributions = [UnusualLineTerminatorsDetector.ID];
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+	}
+
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: this._getContributions() });
 	}
 
 	private registerEditorListeners() {
@@ -489,7 +499,7 @@ export class SearchEditor extends BaseTextEditor {
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: 10000,
+			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			excludePattern: config.filesToExclude,
@@ -554,37 +564,18 @@ export class SearchEditor extends BaseTextEditor {
 		const { resultsModel } = await input.getModels();
 		this.modelService.updateModel(resultsModel, results.text);
 
-		let warningMessage = '';
-
-		if (searchOperation && searchOperation.limitHit) {
-			warningMessage += localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.");
-		}
-
 		if (searchOperation && searchOperation.messages) {
 			for (const message of searchOperation.messages) {
-				if (message.type === TextSearchCompleteMessageType.Information) {
-					this.addMessage(message);
-				}
-				else if (message.type === TextSearchCompleteMessageType.Warning) {
-					warningMessage += (warningMessage ? ' - ' : '') + message.text;
-				}
+				this.addMessage(message);
 			}
 		}
-
-		if (warningMessage) {
-			this.queryEditorWidget.searchInput.showMessage({
-				content: warningMessage,
-				type: MessageType.WARNING
-			});
-		}
+		this.reLayout();
 
 		input.setDirty(!input.hasCapability(EditorInputCapabilities.Untitled));
 		input.setMatchRanges(results.matchRanges);
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {
-		const linkedText = parseLinkedText(message.text);
-
 		let messageBox: HTMLElement;
 		if (this.messageBox.firstChild) {
 			messageBox = this.messageBox.firstChild as HTMLElement;
@@ -592,37 +583,7 @@ export class SearchEditor extends BaseTextEditor {
 			messageBox = DOM.append(this.messageBox, DOM.$('.message'));
 		}
 
-		if (messageBox.innerText) {
-			DOM.append(messageBox, document.createTextNode(' - '));
-		}
-
-		for (const node of linkedText.nodes) {
-			if (typeof node === 'string') {
-				DOM.append(messageBox, document.createTextNode(node));
-			} else {
-				const link = this.instantiationService.createInstance(Link, node, {
-					opener: async href => {
-						const parsed = URI.parse(href, true);
-						if (parsed.scheme === Schemas.command && message.trusted) {
-							const result = await this.commandService.executeCommand(parsed.path);
-							if ((result as any)?.triggerSearch) {
-								this.triggerSearch();
-							}
-						} else if (parsed.scheme === Schemas.https) {
-							this.openerService.open(parsed);
-						} else {
-							if (parsed.scheme === Schemas.command && !message.trusted) {
-								this.notificationService.error(localize('unable to open trust', "Unable to open command link from untrusted source: {0}", href));
-							} else {
-								this.notificationService.error(localize('unable to open', "Unable to open unknown link: {0}", href));
-							}
-						}
-					}
-				});
-				DOM.append(messageBox, link.el);
-				this.messageDisposables.add(link);
-			}
-		}
+		DOM.append(messageBox, renderSearchMessage(message, this.instantiationService, this.notificationService, this.openerService, this.commandService, this.messageDisposables, () => this.triggerSearch()));
 	}
 
 	private async retrieveFileStats(searchResult: SearchResult): Promise<void> {
@@ -671,7 +632,7 @@ export class SearchEditor extends BaseTextEditor {
 		if (config.showIncludesExcludes !== undefined) { this.toggleIncludesExcludes(config.showIncludesExcludes); }
 	}
 
-	override async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(newInput: SearchEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, context, token);

@@ -27,10 +27,18 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 suite('Files - TextFileEditorTracker', () => {
 
 	const disposables = new DisposableStore();
+
+	class TestTextFileEditorTracker extends TextFileEditorTracker {
+
+		protected override getDirtyTextFileTrackerDelay(): number {
+			return 5; // encapsulated in a method for tests to override
+		}
+	}
 
 	setup(() => {
 		disposables.add(registerTestFileEditor());
@@ -57,8 +65,8 @@ suite('Files - TextFileEditorTracker', () => {
 		}
 
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
+
 		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
@@ -67,7 +75,7 @@ suite('Files - TextFileEditorTracker', () => {
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
 
-		disposables.add(instantiationService.createInstance(TextFileEditorTracker));
+		disposables.add(instantiationService.createInstance(TestTextFileEditorTracker));
 
 		return accessor;
 	}
@@ -119,7 +127,7 @@ suite('Files - TextFileEditorTracker', () => {
 	async function testDirtyTextFileModelOpensEditorDependingOnAutoSaveSetting(resource: URI, autoSave: boolean, error: boolean): Promise<void> {
 		const accessor = await createTracker(autoSave);
 
-		assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID }));
+		assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
 
 		if (error) {
 			accessor.textFileService.setWriteErrorOnce(new FileOperationError('fail to write', FileOperationResult.FILE_OTHER_ERROR));
@@ -131,22 +139,22 @@ suite('Files - TextFileEditorTracker', () => {
 
 		if (autoSave) {
 			await model.save();
-			await timeout(100);
+			await timeout(10);
 			if (error) {
-				assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID }));
+				assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
 			} else {
-				assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID }));
+				assert.ok(!accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
 			}
 		} else {
 			await awaitEditorOpening(accessor.editorService);
-			assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID }));
+			assert.ok(accessor.editorService.isOpened({ resource, typeId: FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id }));
 		}
 	}
 
 	test('dirty untitled text file model opens as editor', async function () {
 		const accessor = await createTracker();
 
-		const untitledTextEditor = accessor.editorService.createEditorInput({ forceUntitled: true }) as UntitledTextEditorInput;
+		const untitledTextEditor = accessor.textEditorService.createTextEditor({ resource: undefined, forceUntitled: true }) as UntitledTextEditorInput;
 		const model = disposables.add(await untitledTextEditor.resolve());
 
 		assert.ok(!accessor.editorService.isOpened(untitledTextEditor));
@@ -166,7 +174,7 @@ suite('Files - TextFileEditorTracker', () => {
 
 		const resource = toResource.call(this, '/path/index.txt');
 
-		await accessor.editorService.openEditor(accessor.editorService.createEditorInput({ resource, forceFile: true }));
+		await accessor.editorService.openEditor(accessor.textEditorService.createTextEditor({ resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }));
 
 		accessor.hostService.setFocus(false);
 		accessor.hostService.setFocus(true);

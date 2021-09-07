@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
 import { illegalArgument } from 'vs/base/common/errors';
-import { Modifiers, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { AriaLabelProvider, ElectronAcceleratorLabelProvider, Modifiers, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 export abstract class BaseResolvedKeybinding<T extends Modifiers> extends ResolvedKeybinding {
 

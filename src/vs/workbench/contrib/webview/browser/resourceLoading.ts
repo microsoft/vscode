@@ -22,6 +22,7 @@ export namespace WebviewResourceResponse {
 		constructor(
 			public readonly stream: VSBufferReadableStream,
 			public readonly etag: string | undefined,
+			public readonly mtime: number | undefined,
 			public readonly mimeType: string,
 		) { }
 	}
@@ -34,6 +35,7 @@ export namespace WebviewResourceResponse {
 
 		constructor(
 			public readonly mimeType: string,
+			public readonly mtime: number | undefined,
 		) { }
 	}
 
@@ -50,7 +52,7 @@ export async function loadLocalResource(
 	logService: ILogService,
 	token: CancellationToken,
 ): Promise<WebviewResourceResponse.StreamResponse> {
-	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
+	logService.debug(`loadLocalResource - begin. requestUri=${requestUri}`);
 
 	const resourceToLoad = getResourceToLoad(requestUri, options.roots);
 
@@ -64,14 +66,14 @@ export async function loadLocalResource(
 
 	try {
 		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch });
-		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, mime);
+		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime);
 	} catch (err) {
 		if (err instanceof FileOperationError) {
 			const result = err.fileOperationResult;
 
 			// NotModified status is expected and can be handled gracefully
 			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-				return new WebviewResourceResponse.NotModified(mime);
+				return new WebviewResourceResponse.NotModified(mime, err.options?.mtime);
 			}
 		}
 
@@ -97,6 +99,10 @@ function getResourceToLoad(
 }
 
 function containsResource(root: URI, resource: URI): boolean {
+	if (root.scheme !== resource.scheme) {
+		return true;
+	}
+
 	let rootPath = root.fsPath + (root.fsPath.endsWith(sep) ? '' : sep);
 	let resourceFsPath = resource.fsPath;
 

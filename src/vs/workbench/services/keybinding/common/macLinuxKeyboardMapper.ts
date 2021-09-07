@@ -993,6 +993,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			|| (keyCode === KeyCode.End)
 			|| (keyCode === KeyCode.PageDown)
 			|| (keyCode === KeyCode.PageUp)
+			|| (keyCode === KeyCode.Backspace)
 		) {
 			// "Dispatch" on keyCode for these key codes to workaround issues with remote desktoping software
 			// where the scan codes appear to be incorrect (see https://github.com/microsoft/vscode/issues/24107)

@@ -27,7 +27,7 @@ import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { fillResourceDragTransfers } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 
 interface IFolderMatchTemplate {
@@ -134,7 +134,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folderMatch));
 		}
 
-		actions.push(new RemoveAction(this.searchView.getControl(), folderMatch));
+		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folderMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
@@ -196,7 +196,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		if (this.searchModel.isReplaceActive() && count > 0) {
 			actions.push(this.instantiationService.createInstance(ReplaceAllAction, this.searchView, fileMatch));
 		}
-		actions.push(new RemoveAction(this.searchView.getControl(), fileMatch));
+		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), fileMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
@@ -270,9 +270,9 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		templateData.actions.clear();
 		if (this.searchModel.isReplaceActive()) {
-			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), new RemoveAction(this.searchView.getControl(), match)], { icon: true, label: false });
+			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), match)], { icon: true, label: false });
 		} else {
-			templateData.actions.push([new RemoveAction(this.searchView.getControl(), match)], { icon: true, label: false });
+			templateData.actions.push([this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), match)], { icon: true, label: false });
 		}
 	}
 
@@ -377,7 +377,7 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(accessor => fillResourceDragTransfers(accessor, resources, originalEvent));
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 

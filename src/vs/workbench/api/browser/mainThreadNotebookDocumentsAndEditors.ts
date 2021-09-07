@@ -9,9 +9,10 @@ import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThreadNotebookDocuments';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -19,6 +20,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 interface INotebookAndEditorDelta {
 	removedDocuments: URI[];
@@ -189,7 +191,7 @@ export class MainThreadNotebooksAndEditors {
 		};
 
 		// send to extension FIRST
-		this._proxy.$acceptDocumentAndEditorsDelta(dto);
+		this._proxy.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers(dto));
 
 		// handle internally
 		this._onDidRemoveEditors.fire(delta.removedEditors);
@@ -226,17 +228,7 @@ export class MainThreadNotebooksAndEditors {
 			uri: e.uri,
 			metadata: e.metadata,
 			versionId: e.versionId,
-			cells: e.cells.map(cell => ({
-				handle: cell.handle,
-				uri: cell.uri,
-				source: cell.textBuffer.getLinesContent(),
-				eol: cell.textBuffer.getEOL(),
-				language: cell.language,
-				cellKind: cell.cellKind,
-				outputs: cell.outputs,
-				metadata: cell.metadata,
-				internalMetadata: cell.internalMetadata,
-			}))
+			cells: e.cells.map(NotebookDto.toNotebookCellDto)
 		};
 	}
 
@@ -246,10 +238,10 @@ export class MainThreadNotebooksAndEditors {
 
 		return {
 			id: add.getId(),
-			documentUri: add.viewModel.uri,
+			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
-			viewColumn: pane && editorGroupToViewColumn(this._editorGroupService, pane.group)
+			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group)
 		};
 	}
 }

@@ -18,6 +18,7 @@ import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_S
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
+import { EditPresentationTypes } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -227,7 +228,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = SettingValueType.Enum;
 		} else if (this.setting.type === 'string') {
-			this.valueType = SettingValueType.String;
+			if (this.setting.editPresentation === EditPresentationTypes.Multiline) {
+				this.valueType = SettingValueType.MultilineString;
+			} else {
+				this.valueType = SettingValueType.String;
+			}
 		} else if (isExcludeSetting(this.setting)) {
 			this.valueType = SettingValueType.Exclude;
 		} else if (this.setting.type === 'integer') {
@@ -236,18 +241,22 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = SettingValueType.Number;
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = SettingValueType.Boolean;
-		} else if (this.setting.type === 'array' && this.setting.arrayItemType === 'string') {
-			this.valueType = SettingValueType.ArrayOfString;
-		} else if (isArray(this.setting.type) && this.setting.type.indexOf(SettingValueType.Null) > -1 && this.setting.type.length === 2) {
-			if (this.setting.type.indexOf(SettingValueType.Integer) > -1) {
+		} else if (this.setting.type === 'array' && (this.setting.arrayItemType === 'string' || this.setting.arrayItemType === 'enum')) {
+			this.valueType = SettingValueType.StringOrEnumArray;
+		} else if (isArray(this.setting.type) && this.setting.type.includes(SettingValueType.Null) && this.setting.type.length === 2) {
+			if (this.setting.type.includes(SettingValueType.Integer)) {
 				this.valueType = SettingValueType.NullableInteger;
-			} else if (this.setting.type.indexOf(SettingValueType.Number) > -1) {
+			} else if (this.setting.type.includes(SettingValueType.Number)) {
 				this.valueType = SettingValueType.NullableNumber;
 			} else {
 				this.valueType = SettingValueType.Complex;
 			}
 		} else if (isObjectSetting(this.setting)) {
-			this.valueType = SettingValueType.Object;
+			if (this.setting.allKeysAreBoolean) {
+				this.valueType = SettingValueType.BooleanObject;
+			} else {
+				this.valueType = SettingValueType.Object;
+			}
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}
@@ -588,7 +597,7 @@ function isObjectSetting({
 	}
 
 	// object additional properties allow it to have any shape
-	if (objectAdditionalProperties === true) {
+	if (objectAdditionalProperties === true || objectAdditionalProperties === undefined) {
 		return false;
 	}
 
@@ -606,15 +615,13 @@ function isObjectSetting({
 		return [schema];
 	}));
 
-
-	// This should not render boolean only objects
-	return flatSchemas.every(isObjectRenderableSchema) && flatSchemas.some(({ type }) => type === 'string');
+	return flatSchemas.every(isObjectRenderableSchema);
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
 	const enumRenderableSettingTypes = ['string', 'boolean', 'null', 'integer', 'number'];
 	const type = isArray(_type) ? _type : [_type];
-	return type.every(type => enumRenderableSettingTypes.indexOf(type) > -1);
+	return type.every(type => enumRenderableSettingTypes.includes(type));
 }
 
 export const enum SearchResultIdx {

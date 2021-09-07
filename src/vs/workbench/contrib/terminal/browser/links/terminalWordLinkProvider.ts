@@ -18,6 +18,7 @@ import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/l
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 import { normalize } from 'vs/base/common/path';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { isWindows } from 'vs/base/common/platform';
 
 const MAX_LENGTH = 2000;
 
@@ -130,7 +131,17 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private async _activate(link: string) {
 		// Normalize the link and remove any leading ./ or ../ since quick access doesn't understand
 		// that format
-		link = normalize(link).replace(/^(\.+\/)+/, '');
+		link = normalize(link).replace(/^(\.+[\\/])+/, '');
+
+		// If any of the names of the folders in the workspace matches
+		// a prefix of the link, remove that prefix and continue
+		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {
+			if (link.substr(0, folder.name.length + 1) === folder.name + (isWindows ? '\\' : '/')) {
+				link = link.substring(folder.name.length + 1);
+				return;
+			}
+		});
+
 		const results = await this._searchService.fileSearch(
 			this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
 				filePattern: link,
