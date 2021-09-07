@@ -367,13 +367,13 @@ suite('vscode API - window', () => {
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
-		// Wait for the tab change event to fire
-		await new Promise<void>((resolve) => {
+		// Wait for the tab change event to fire or 500ms
+		await Promise.race([new Promise<void>((resolve) => {
 			const dispsable = window.onDidChangeTabs(() => {
 				dispsable.dispose();
 				resolve();
 			});
-		});
+		}), new Promise(c => setTimeout(c, 500))]);
 
 		const tabs = window.tabs;
 		assert.strictEqual(tabs.length, 5);
