@@ -514,7 +514,7 @@ class NotebookEditorManager implements IWorkbenchContribution {
 	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
 		const result: IResourceEditorInput[] = [];
 		for (let model of models) {
-			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType })) {
+			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType }) && model.resource.scheme !== Schemas.vscodeInteractive) {
 				result.push({
 					resource: model.resource,
 					options: { inactive: true, preserveFocus: true, pinned: true, override: model.viewType }
