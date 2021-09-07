@@ -9,6 +9,20 @@ import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAU
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
+let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
+terminalTitleDescription += '\n- ' + [
+	localize('process', "`\${process}`: the name of the terminal process"),
+	localize('sequence', "`\${sequence}`: a sequence"),
+	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
+].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
+
+let terminalDescriptionDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
+terminalDescriptionDescription += '\n- ' + [
+	localize('task', "`\${process}`: indicates this terminal is associated with a task"),
+	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
+	localize('cwd', "`\${cwd}`: the terminal's current working directory"),
+	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
+].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -246,6 +260,28 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
+		},
+		[TerminalSettingId.TerminalTitleSeparator]: {
+			'type': 'string',
+			'default': isMacintosh ? ' — ' : ' - ',
+			'markdownDescription': localize("terminal.integrated.spacer", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
+		},
+		[TerminalSettingId.TerminalTitle]: {
+			'type': 'string',
+			'default': (() => {
+				const base = '${process}';
+				return base;
+			})(),
+			'markdownDescription': terminalTitleDescription
+		},
+		[TerminalSettingId.TerminalDescription]: {
+			'type': 'string',
+			'default': (() => {
+				const base = '${task}${separator}${local}${separator}${cwd}';
+				return base;
+			})(),
+			'markdownDescription': terminalDescriptionDescription
+
 		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',

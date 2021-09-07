@@ -563,6 +563,9 @@ export interface ITerminalInstance {
 
 	readonly navigationMode: INavigationMode | undefined;
 
+	description: string | undefined;
+	name: string | undefined;
+
 	/**
 	 * Shows the environment information hover if the widget exists.
 	 */

@@ -23,7 +23,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -50,6 +50,7 @@ import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workben
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { template } from 'vs/base/common/labels';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -255,6 +256,12 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this._refreshAvailableProfiles();
+			} else if (
+				e.affectsConfiguration(TerminalSettingId.TerminalTitle) ||
+				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator)) {
+				this._updateTitles();
+			} else if (e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
+				this._updateDescriptions();
 			}
 		});
 
@@ -305,6 +312,45 @@ export class TerminalService implements ITerminalService {
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
+		this.onDidChangeActiveInstance(async () => {
+			this._updateTitles();
+			await this._updateDescriptions();
+		});
+	}
+
+	private _updateTitles(): void {
+		for (const terminal of this.instances) {
+			const title = this._configHelper.config.title;
+			const separator = this._configHelper.config.spacer;
+			const newTitle = template(title, {
+				process: terminal.name,
+				sequence: 'fsdfsdf',
+				separator: { label: separator }
+			});
+			if (terminal.title !== newTitle) {
+				terminal.setTitle(newTitle, TitleEventSource.Api);
+				const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+				pane?.terminalTabbedView?.rerenderTabs();
+			}
+		}
+	}
+
+	private async _updateDescriptions(): Promise<void> {
+		for (const terminal of this.instances) {
+			const description = this._configHelper.config.description;
+			const separator = this._configHelper.config.spacer;
+			const cwd = await terminal.getCwd();
+			if (description !== terminal.shellLaunchConfig.description) {
+				terminal.description = template(description, {
+					task: terminal.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+					local: !!terminal.isRemote ? 'Local' : undefined,
+					cwd,
+					separator: { label: separator }
+				});
+			}
+			const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+			pane?.terminalTabbedView?.rerenderTabs();
+		}
 	}
 
 	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
@@ -451,7 +497,9 @@ export class TerminalService implements ITerminalService {
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
 		this.onDidReceiveProcessId(() => this._saveState());
-		this.onDidChangeInstanceTitle(instance => this._updateTitle(instance));
+		this.onDidChangeInstanceTitle(instance => {
+			this._updateTitle(instance);
+		});
 		this.onDidChangeInstanceIcon(instance => this._updateIcon(instance));
 	}
 
