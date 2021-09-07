@@ -348,7 +348,7 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	test('Tabs - Ensure tabs getter is correct', async () => {
+	test.skip('Tabs - Ensure tabs getter is correct', async () => {
 		assert.ok(workspace.workspaceFolders);
 		const workspaceRoot = workspace.workspaceFolders[0].uri;
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
@@ -367,13 +367,13 @@ suite('vscode API - window', () => {
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
-		// Wait for the tab change event to fire or 500ms
-		await Promise.race([new Promise<void>((resolve) => {
+		// Wait for the tab change event to fire
+		await new Promise<void>((resolve) => {
 			const dispsable = window.onDidChangeTabs(() => {
 				dispsable.dispose();
 				resolve();
 			});
-		}), new Promise(c => setTimeout(c, 500))]);
+		});
 
 		const tabs = window.tabs;
 		assert.strictEqual(tabs.length, 5);
@@ -394,7 +394,7 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
 	});
 
-	test('Tabs - ensure active tab is correct', async () => {
+	test.skip('Tabs - ensure active tab is correct', async () => {
 
 		function createActiveTabListenerPromise(): Promise<void> {
 			return new Promise<void>((resolve) => {
