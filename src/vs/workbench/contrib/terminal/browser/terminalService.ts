@@ -507,6 +507,20 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	private async _initAvailableProfiles(): Promise<void> {
+		const result = await this._detectProfiles();
+		const profilesChanged = !equals(result, this._availableProfiles);
+		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
+		if (profilesChanged || contributedProfilesChanged) {
+			this._availableProfiles = result;
+			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
+			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
+			this._profilesReadyBarrier.open();
+			await this._refreshPlatformConfig(result);
+		}
+	}
+
+
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
 		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles }, this._terminalContributionService.terminalProfiles);
@@ -1144,7 +1158,7 @@ export class TerminalService implements ITerminalService {
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		if (!this._availableProfiles) {
-			await this._refreshAvailableProfiles();
+			await this._initAvailableProfiles();
 		}
 		const config = options?.config || this._availableProfiles?.find(p => p.profileName === this._defaultProfileName);
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
