@@ -348,7 +348,7 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	test.skip('Tabs - Ensure tabs getter is correct', async () => {
+	test('Tabs - Ensure tabs getter is correct', async () => {
 		assert.ok(workspace.workspaceFolders);
 		const workspaceRoot = workspace.workspaceFolders[0].uri;
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
@@ -363,28 +363,27 @@ suite('vscode API - window', () => {
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
 		await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
 
-		//TODO @lramos15 uncomment this once diff is fixed
-		//const leftDiff = await createRandomFile();
-		//const rightDiff = await createRandomFile();
-		//await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
+		const leftDiff = await createRandomFile();
+		const rightDiff = await createRandomFile();
+		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
 		const tabs = window.tabs;
-		assert.strictEqual(tabs.length, 4);
+		assert.strictEqual(tabs.length, 5);
 
 		// All resources should match the text documents as they're the only tabs currently open
 		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
 		assert.strictEqual(tabs[1].resource?.toString(), notebookDoc.uri.toString());
 		assert.strictEqual(tabs[2].resource?.toString(), docB.uri.toString());
 		assert.strictEqual(tabs[3].resource?.toString(), docC.uri.toString());
-		//const diffResource = tabs[4].resource as { primary?: Uri, secondary?: Uri } | undefined;
-		//assert.strictEqual(diffResource?.primary?.toString(), leftDiff.toString());
-		//assert.strictEqual(diffResource?.secondary?.toString(), rightDiff.toString());
+		const diffResource = tabs[4].resource as { primary?: Uri, secondary?: Uri } | undefined;
+		assert.strictEqual(diffResource?.secondary?.toString(), leftDiff.toString());
+		assert.strictEqual(diffResource?.primary?.toString(), rightDiff.toString());
 
 		assert.strictEqual(tabs[0].viewColumn, ViewColumn.One);
 		assert.strictEqual(tabs[1].viewColumn, ViewColumn.One);
 		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Two);
 		assert.strictEqual(tabs[3].viewColumn, ViewColumn.Three);
-		//assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
+		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
 	});
 
 	test('Tabs - ensure active tab is correct', async () => {

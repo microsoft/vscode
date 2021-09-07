@@ -27,8 +27,7 @@ export class MainThreadEditorTabs {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
-		//this._dispoables.add(editorService.onDidEditorsChange(this._pushEditorTabs, this));
-		this._dispoables.add(editorService.onDidVisibleEditorsChange(this._pushEditorTabs, this));
+		this._dispoables.add(editorService.onDidEditorsChange(this._pushEditorTabs, this));
 		this._editorGroupsService.whenReady.then(() => this._pushEditorTabs());
 	}
 
