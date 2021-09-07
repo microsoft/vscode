@@ -98,7 +98,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: MenuId.NotebookEditorLayoutConfigure,
 	rememberDefaultAction: false,
 	title: { value: localize('customizeNotebook', "Customize Notebook..."), original: 'Customize Notebook...', },
-	icon: Codicon.settingsGear,
+	icon: Codicon.gear,
 	group: 'navigation',
 	order: -1,
 	when: NOTEBOOK_IS_ACTIVE_EDITOR

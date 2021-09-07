@@ -1806,10 +1806,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._listViewInfoAccessor.revealRangeInCenterIfOutsideViewportAsync(cell, range);
 	}
 
-	getViewIndex(cell: ICellViewModel): number {
+	getViewIndexByModelIndex(index: number): number {
 		if (!this._listViewInfoAccessor) {
 			return -1;
 		}
+		const cell = this.viewModel?.viewCells[index];
+		if (!cell) {
+			return -1;
+		}
+
 		return this._listViewInfoAccessor.getViewIndex(cell);
 	}
 
@@ -2066,20 +2071,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const focused = this._list.getFocusedElements();
 		const selections = this._list.getSelectedElements();
 		return this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused[0]?.handle ?? null, selections);
-	}
-
-	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
-		if (!this.viewModel) {
-			return null;
-		}
-
-		if (this.viewModel.options.isReadOnly) {
-			return null;
-		}
-
-		const index = this.viewModel.getCellIndex(cell);
-
-		return this.viewModel.splitNotebookCell(index);
 	}
 
 	getActiveCell() {
