@@ -217,7 +217,7 @@ export class OutletPart extends Part implements IActivityBarService {
 	}
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer, location: ViewContainerLocation; }[], removed: readonly { container: ViewContainer, location: ViewContainerLocation; }[]) {
-		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
+		removed.filter(({ location }) => location === ViewContainerLocation.ThirdPanel).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
 		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.ThirdPanel).map(({ container }) => container));
 	}
 

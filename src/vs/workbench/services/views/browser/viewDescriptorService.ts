@@ -448,7 +448,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		// Deregister the container
 		if (viewContainer) {
-			this.viewContainersRegistry.deregisterViewContainer(viewContainer);
+			this.viewContainersRegistry.deregisterViewContainer(viewContainer); // FIXME: not deregistered for outlet bar
 		}
 
 		// Clean up caches of container
