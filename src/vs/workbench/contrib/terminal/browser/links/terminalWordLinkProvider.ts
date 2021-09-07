@@ -152,7 +152,10 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		// If there was exactly one match, open it
 		if (results.results.length === 1) {
 			const match = results.results[0];
-			await this._editorService.openEditor({ resource: match.resource, options: { pinned: true } });
+			await this._editorService.openEditor({
+				resource: match.resource,
+				options: { pinned: true, revealIfOpened: true }
+			});
 			return;
 		}
 

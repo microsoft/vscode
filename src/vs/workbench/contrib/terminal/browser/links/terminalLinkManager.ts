@@ -188,7 +188,10 @@ export class TerminalLinkManager extends DisposableStore {
 			startLineNumber: lineColumnInfo.lineNumber,
 			startColumn: lineColumnInfo.columnNumber
 		};
-		await this._editorService.openEditor({ resource: resolvedLink.uri, options: { pinned: true, selection } });
+		await this._editorService.openEditor({
+			resource: resolvedLink.uri,
+			options: { pinned: true, selection, revealIfOpened: true }
+		});
 	}
 
 	private _handleHypertextLink(url: string): void {
