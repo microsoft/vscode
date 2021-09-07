@@ -54,8 +54,6 @@ export class BareFontInfo {
 		if (lineHeight === 0) {
 			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
 		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
-			// Enforce integer
-			lineHeight = Math.round(lineHeight);
 			// Values too small to be line heights in pixels are probably in ems. Accept them gracefully.
 			lineHeight = lineHeight * fontSize;
 		}
