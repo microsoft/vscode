@@ -494,17 +494,8 @@ export class TerminalService implements ITerminalService {
 	}
 
 	@throttle(2000)
-	private async _refreshAvailableProfiles(): Promise<void> {
-		const result = await this._detectProfiles();
-		const profilesChanged = !equals(result, this._availableProfiles);
-		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
-		if (profilesChanged || contributedProfilesChanged) {
-			this._availableProfiles = result;
-			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
-			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
-			this._profilesReadyBarrier.open();
-			await this._refreshPlatformConfig(result);
-		}
+	private _refreshAvailableProfiles(): void {
+		this._refreshAvailableProfilesNow();
 	}
 
 	private async _refreshAvailableProfilesNow(): Promise<void> {
