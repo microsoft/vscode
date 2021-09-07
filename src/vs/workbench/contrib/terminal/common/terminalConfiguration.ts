@@ -18,7 +18,7 @@ terminalTitleDescription += '\n- ' + [
 
 let terminalDescriptionDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
 terminalDescriptionDescription += '\n- ' + [
-	localize('task', "`\${process}`: indicates this terminal is associated with a task"),
+	localize('task', "`\${task}`: indicates this terminal is associated with a task"),
 	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
 	localize('cwd', "`\${cwd}`: the terminal's current working directory"),
 	localize('cwdFolder', "`\${cwdFolder}`: the terminal's current folder"),
