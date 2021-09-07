@@ -283,6 +283,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
+
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
@@ -1780,7 +1781,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		title = template(this._configHelper.config.title, {
 			process: this._processName,
 			sequence: this._sequence,
-			separator: { label: this._configHelper.config.spacer }
+			separator: { label: this._configHelper.config.separator }
 		});
 
 		this.getCwd().then(cwd => {
@@ -1789,7 +1790,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				local: !!this.isRemote ? 'Local' : undefined,
 				cwd,
 				cwdFolder: path.basename(cwd),
-				separator: { label: this._configHelper.config.spacer }
+				separator: { label: this._configHelper.config.separator }
 			});
 			const titleChanged = title !== this._title || description !== this.description;
 			if (!title || !titleChanged) {

@@ -64,7 +64,7 @@ export const enum TerminalSettingId {
 	DetectLocale = 'terminal.integrated.detectLocale',
 	DefaultLocation = 'terminal.integrated.defaultLocation',
 	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
-	TerminalTitleSeparator = 'terminal.integrated.spacer',
+	TerminalTitleSeparator = 'terminal.integrated.separator',
 	TerminalTitle = 'terminal.integrated.title',
 	TerminalDescription = 'terminal.integrated.description',
 	RightClickBehavior = 'terminal.integrated.rightClickBehavior',

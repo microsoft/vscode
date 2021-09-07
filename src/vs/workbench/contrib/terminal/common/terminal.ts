@@ -207,7 +207,7 @@ export interface ITerminalConfiguration {
 	customGlyphs: boolean;
 	title: string;
 	description: string;
-	spacer: string;
+	separator: string;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];

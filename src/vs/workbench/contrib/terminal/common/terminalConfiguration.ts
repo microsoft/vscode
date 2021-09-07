@@ -265,21 +265,19 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
 			'default': isMacintosh ? ' — ' : ' - ',
-			'markdownDescription': localize("terminal.integrated.spacer", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
+			'markdownDescription': localize("terminal.integrated.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
 			'default': (() => {
-				const base = '${process}';
-				return base;
+				return '${process}';
 			})(),
 			'markdownDescription': terminalTitleDescription
 		},
 		[TerminalSettingId.TerminalDescription]: {
 			'type': 'string',
 			'default': (() => {
-				const base = '${task}${separator}${local}${separator}${cwdFolder}';
-				return base;
+				return '${task}${separator}${local}${separator}${cwdFolder}';
 			})(),
 			'markdownDescription': terminalDescriptionDescription
 
