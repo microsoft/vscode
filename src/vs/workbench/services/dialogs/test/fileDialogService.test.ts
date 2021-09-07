@@ -30,6 +30,8 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
@@ -48,10 +50,12 @@ class TestFileDialogService extends FileDialogService {
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService labelService: ILabelService,
 		@IPathService pathService: IPathService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
+		@IEditorService editorService: IEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService,
-			openerService, nativeHostService, dialogService, modeService, workspacesService, labelService, pathService, commandService);
+			openerService, nativeHostService, dialogService, modeService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
 	}
 
 	protected override getSimpleFileDialog() {

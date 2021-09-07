@@ -21,7 +21,7 @@ import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/com
 import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
 
 import 'vs/workbench/api/common/extHost.common.services';
@@ -115,8 +115,8 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
 			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
-			const disconnectRunner1 = new RunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
-			const disconnectRunner2 = new RunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
+			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
+			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {

@@ -300,12 +300,12 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput {
 
 	/**
-	 * The left hand side editor to open inside a side-by-side editor.
+	 * The right hand side editor to open inside a side-by-side editor.
 	 */
 	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 
 	/**
-	 * The right hand side editor to open inside a side-by-side editor.
+	 * The left hand side editor to open inside a side-by-side editor.
 	 */
 	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }

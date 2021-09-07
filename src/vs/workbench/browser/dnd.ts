@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { VSBuffer } from 'vs/base/common/buffer';
+import Severity from 'vs/base/common/severity';
 import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { basename, isEqual } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -28,6 +32,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 //#region Editor / Resources DND
 
@@ -127,6 +132,44 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 		}
 	}
 	return editors;
+}
+
+export interface IFileDropData {
+	name: string;
+	data: VSBuffer;
+}
+
+export function extractFilesDropData(accessor: ServicesAccessor, files: FileList, onResult: (file: IFileDropData) => void): void {
+	const dialogService = accessor.get(IDialogService);
+
+	for (let i = 0; i < files.length; i++) {
+		const file = files.item(i);
+		if (file) {
+
+			// Skip for very large files because this operation is unbuffered
+			if (file.size > 100 * ByteSize.MB) {
+				dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
+				continue;
+			}
+
+			// Read file fully and open as untitled editor
+			const reader = new FileReader();
+			reader.readAsArrayBuffer(file);
+			reader.onload = async event => {
+				const name = file.name;
+				const result = withNullAsUndefined(event.target?.result);
+				if (typeof name !== 'string' || typeof result === 'undefined') {
+					return;
+				}
+
+				// Yield result
+				onResult({
+					name,
+					data: typeof result === 'string' ? VSBuffer.fromString(result) : VSBuffer.wrap(new Uint8Array(result))
+				});
+			};
+		}
+	}
 }
 
 export interface IResourcesDropHandlerOptions {
