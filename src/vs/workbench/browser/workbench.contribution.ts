@@ -383,7 +383,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('rootPath', "`\${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
 		localize('appName', "`\${appName}`: e.g. VS Code."),
 		localize('remoteName', "`\${remoteName}`: e.g. SSH"),
-		localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
+		localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is unsaved."),
 		localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
