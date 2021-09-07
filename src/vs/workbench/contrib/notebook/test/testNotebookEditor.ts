@@ -220,7 +220,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 				selections: selections
 			});
 		}
-		override getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
+		override getViewIndexByModelIndex(index: number) { return listViewInfoAccessor.getViewIndex(viewModel.viewCells[index]); }
 		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
 		override revealCellRangeInView() { }
 		override setHiddenAreas(_ranges: ICellRange[]): boolean {
