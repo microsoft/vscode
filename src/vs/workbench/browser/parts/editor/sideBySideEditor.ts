@@ -24,7 +24,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
+import { EDITOR_PANE_BORDER } from 'vs/workbench/common/theme';
 
 export class SideBySideEditor extends EditorPane {
 
@@ -278,13 +278,13 @@ export class SideBySideEditor extends EditorPane {
 			if (this.orientation === Orientation.HORIZONTAL) {
 				this.primaryEditorContainer.style.borderLeftWidth = '1px';
 				this.primaryEditorContainer.style.borderLeftStyle = 'solid';
-				this.primaryEditorContainer.style.borderLeftColor = this.getColor(EDITOR_GROUP_BORDER)?.toString() ?? '';
+				this.primaryEditorContainer.style.borderLeftColor = this.getColor(EDITOR_PANE_BORDER)?.toString() ?? '';
 
 				this.primaryEditorContainer.style.borderTopWidth = '0';
 			} else {
 				this.primaryEditorContainer.style.borderTopWidth = '1px';
 				this.primaryEditorContainer.style.borderTopStyle = 'solid';
-				this.primaryEditorContainer.style.borderTopColor = this.getColor(EDITOR_GROUP_BORDER)?.toString() ?? '';
+				this.primaryEditorContainer.style.borderTopColor = this.getColor(EDITOR_PANE_BORDER)?.toString() ?? '';
 
 				this.primaryEditorContainer.style.borderLeftWidth = '0';
 			}

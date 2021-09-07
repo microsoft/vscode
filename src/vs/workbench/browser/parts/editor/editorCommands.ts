@@ -955,7 +955,12 @@ function registerSplitEditorInGroupCommands(): void {
 				title: localize('splitEditorInGroup', "Split Active Editor in Group"),
 				category: CATEGORIES.View,
 				precondition: ActiveEditorCanSplitInGroupContext,
-				f1: true
+				f1: true,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ActiveEditorCanSplitInGroupContext,
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH)
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
@@ -981,7 +986,12 @@ function registerSplitEditorInGroupCommands(): void {
 				title: localize('joinEditorInGroup', "Join Active Editor in Group"),
 				category: CATEGORIES.View,
 				precondition: ActiveEditorContext.isEqualTo(SideBySideEditor.ID),
-				f1: true
+				f1: true,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ActiveEditorContext.isEqualTo(SideBySideEditor.ID),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH)
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {

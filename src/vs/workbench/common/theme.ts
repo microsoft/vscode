@@ -195,12 +195,6 @@ export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
 	hc: editorBackground
 }, localize('editorPaneBackground', "Background color of the editor pane visible on the left and right side of the centered editor layout."));
 
-registerColor('editorGroup.background', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('editorGroupBackground', "Deprecated background color of an editor group."), false, localize('deprecatedEditorGroupBackground', "Deprecated: Background color of an editor group is no longer being supported with the introduction of the grid editor layout. You can use editorGroup.emptyBackground to set the background color of empty editor groups."));
-
 export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBackground', {
 	dark: null,
 	light: null,
@@ -242,6 +236,12 @@ export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 	light: '#E7E7E7',
 	hc: contrastBorder
 }, localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
+
+export const EDITOR_PANE_BORDER = registerColor('editorPane.border', {
+	dark: EDITOR_GROUP_BORDER,
+	light: EDITOR_GROUP_BORDER,
+	hc: EDITOR_GROUP_BORDER
+}, localize('editorPane.border', "Color to separate multiple editors from each other in an editor group."));
 
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBackground', {
 	dark: Color.fromHex('#53595D').transparent(0.5),
