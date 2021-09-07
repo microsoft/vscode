@@ -494,7 +494,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	@throttle(2000)
-	private async _refreshAvailableProfiles(): Promise<void> {
+	private _refreshAvailableProfiles(): void {
+		this._refreshAvailableProfilesNow();
+	}
+
+	private async _refreshAvailableProfilesNow(): Promise<void> {
 		const result = await this._detectProfiles();
 		const profilesChanged = !equals(result, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
@@ -506,6 +510,7 @@ export class TerminalService implements ITerminalService {
 			await this._refreshPlatformConfig(result);
 		}
 	}
+
 
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
@@ -1143,6 +1148,9 @@ export class TerminalService implements ITerminalService {
 
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
+		if (!this._availableProfiles) {
+			await this._refreshAvailableProfilesNow();
+		}
 		const config = options?.config || this._availableProfiles?.find(p => p.profileName === this._defaultProfileName);
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
 
