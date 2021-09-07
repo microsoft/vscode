@@ -231,6 +231,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onTitleChanged = this._onTitleChanged.event;
 	private readonly _onIconChanged = this._register(new Emitter<ITerminalInstance>());
 	readonly onIconChanged = this._onIconChanged.event;
+	private readonly _onCwdChanged = this._register(new Emitter<ITerminalInstance>());
+	readonly onCwdChanged = this._onCwdChanged.event;
 	private readonly _onData = this._register(new Emitter<string>());
 	readonly onData = this._onData.event;
 	private readonly _onBinary = this._register(new Emitter<string>());
@@ -1492,7 +1494,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// reset cwd if it has changed, so file based url paths can be resolved
 		const cwd = await this.getCwd();
 		if (cwd && this._linkManager) {
-			this._linkManager.processCwd = cwd;
+			if (this._linkManager.processCwd !== cwd) {
+				this._linkManager.processCwd = cwd;
+				this.setTitle(this.title, TitleEventSource.Api);
+			}
 		}
 		return cwd;
 	}
@@ -1787,7 +1792,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.getCwd().then(cwd => {
 			const description = template(this._configHelper.config.description, {
 				task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-				local: !!this.isRemote ? 'Local' : undefined,
+				local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
 				cwd,
 				cwdFolder: path.basename(cwd),
 				separator: { label: this._configHelper.config.separator }
