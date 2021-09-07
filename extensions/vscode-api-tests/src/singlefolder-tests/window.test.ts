@@ -367,6 +367,14 @@ suite('vscode API - window', () => {
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
+		// Wait for the tab change event to fire
+		await new Promise<void>((resolve) => {
+			const dispsable = window.onDidChangeTabs(() => {
+				dispsable.dispose();
+				resolve();
+			});
+		});
+
 		const tabs = window.tabs;
 		assert.strictEqual(tabs.length, 5);
 
@@ -387,6 +395,15 @@ suite('vscode API - window', () => {
 	});
 
 	test('Tabs - ensure active tab is correct', async () => {
+
+		function createActiveTabListenerPromise(): Promise<void> {
+			return new Promise<void>((resolve) => {
+				const dispsable = window.onDidChangeActiveTab(() => {
+					dispsable.dispose();
+					resolve();
+				});
+			});
+		}
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -394,20 +411,24 @@ suite('vscode API - window', () => {
 		]);
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docA.uri.toString());
 
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docB.uri.toString());
 
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docC.uri.toString());
 
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await createActiveTabListenerPromise();
 
 		assert.ok(!window.activeTab);
 
