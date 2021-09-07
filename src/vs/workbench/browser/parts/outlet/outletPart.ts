@@ -289,23 +289,12 @@ export class OutletPart extends Part implements IActivityBarService {
 		}
 
 		this.removeComposite(viewContainer.id);
-		this.viewContainerDisposables.delete(viewContainer.id); // TODO: fix this and rollback sequence
+		this.viewContainerDisposables.delete(viewContainer.id);
 	}
 
 	private addComposite(viewContainer: ViewContainer): void {
 		this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 	}
-
-	// private hideComposite(compositeId: string): void {
-	// 	this.compositeBar.hideComposite(compositeId);
-
-	// 	const compositeActions = this.compositeActions.get(compositeId);
-	// 	if (compositeActions) {
-	// 		compositeActions.activityAction.dispose();
-	// 		compositeActions.pinnedAction.dispose();
-	// 		this.compositeActions.delete(compositeId);
-	// 	}
-	// }
 
 	private removeComposite(compositeId: string): void {
 		this.compositeBar.removeComposite(compositeId);
@@ -464,7 +453,6 @@ export class OutletPart extends Part implements IActivityBarService {
 		parent.appendChild(this.content);
 
 		// Create composite bar
-		// this.compositeBarContainer = this.compositeBar.create(this.content);
 		this.compositeBar.create(this.content);
 
 		return this.content;

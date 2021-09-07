@@ -94,7 +94,7 @@ export class ToggleOutletBarVisibilityAction extends Action2 {
 			id: ToggleOutletBarVisibilityAction.ID,
 			title: {
 				value: localize('toggleOutletBar', "Toggle Outlet Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miShowOutletBar', comment: ['&& denotes a mnemonic'] }, "Show &&Outlet Bar"),
+				mnemonicTitle: localize({ key: 'miShowOutletBar', comment: ['&& denotes a mnemonic'] }, "Show Outlet Bar"),
 				original: 'Toggle Outlet Bar Visibility'
 			},
 			category: CATEGORIES.View,

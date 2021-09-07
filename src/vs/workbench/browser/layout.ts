@@ -435,7 +435,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Outlet bar visibility
 			const newOutletBarHiddenValue = !this.configurationService.getValue<boolean>(Settings.OUTLETBAR_VISIBLE);
 			if (newOutletBarHiddenValue !== this.state.outletBar.hidden) {
-				this.setOutletBarHidden(newActivityBarHiddenValue);
+				this.setOutletBarHidden(newOutletBarHiddenValue);
 			}
 		}
 

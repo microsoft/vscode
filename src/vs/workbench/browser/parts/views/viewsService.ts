@@ -167,6 +167,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			return this.viewletService.openViewlet(compositeId, focus);
 		} else if (location === ViewContainerLocation.Panel) {
 			return this.panelService.openPanel(compositeId, focus) as Promise<IPaneComposite>;
+		} else if (location === ViewContainerLocation.ThirdPanel) {
+			return this.secondViewletService.openViewlet(compositeId, focus);
 		}
 		return undefined;
 	}
@@ -176,6 +178,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			return this.viewletService.getViewlet(compositeId);
 		} else if (location === ViewContainerLocation.Panel) {
 			return this.panelService.getPanel(compositeId);
+		} else if (location === ViewContainerLocation.ThirdPanel) {
+			return this.secondViewletService.getViewlet(compositeId);
 		}
 
 		return undefined;
@@ -413,6 +417,7 @@ export class ViewsService extends Disposable implements IViewsService {
 								viewsService.closeViewContainer(viewContainer.id);
 							}
 							break;
+						// TODO@wendellhu95: for third panel case
 					}
 				}
 			}));
