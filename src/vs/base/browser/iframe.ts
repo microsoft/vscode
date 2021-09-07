@@ -30,7 +30,7 @@ function getParentWindowIfSameOrigin(w: Window): Window | null {
 		let location = w.location;
 		let parentLocation = w.parent.location;
 		if (location.origin !== 'null' && parentLocation.origin !== 'null') {
-			if (location.protocol !== parentLocation.protocol || location.hostname !== parentLocation.hostname || location.port !== parentLocation.port) {
+			if (location.href != parentLocation.href) {
 				hasDifferentOriginAncestorFlag = true;
 				return null;
 			}
