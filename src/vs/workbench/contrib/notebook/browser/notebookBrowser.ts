@@ -473,8 +473,6 @@ export interface INotebookEditor {
 	 */
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 
-	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
-
 	/**
 	 * Execute the given notebook cells
 	 */
@@ -624,7 +622,6 @@ export interface INotebookEditor {
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getCellIndexByHandle(handle: number): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 }
 
 /**
@@ -666,7 +663,7 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 /**
  * A mix of public interface and internal one (used by internal rendering code, e.g., cellRenderer)
  */
-export interface INotebookEditorDelegate extends INotebookEditor, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell' | 'focusNextNotebookCell'> {
+export interface INotebookEditorDelegate extends INotebookEditor, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell'> {
 	hasModel(): this is IActiveNotebookEditorDelegate;
 
 	readonly creationOptions: INotebookEditorCreationOptions;
@@ -687,7 +684,7 @@ export interface INotebookEditorDelegate extends INotebookEditor, Omit<ICommonNo
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
 }
 
-export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell' | 'focusNextNotebookCell'> {
+export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell'> {
 	_getViewModel(): NotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
