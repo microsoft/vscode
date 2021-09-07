@@ -911,9 +911,9 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 function logWorkspaceTrustDialogResult(telemetryService: ITelemetryService, eventName: string, duration: number, result: IShowResult): void {
 	type WorkspaceTrustDialogResultEventClassification = {
-		duration: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-		choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-		checkboxChecked?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		duration: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
+		choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
+		checkboxChecked?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
 	};
 
 	type WorkspaceTrustDialogResultEvent = {
