@@ -1237,6 +1237,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		}
 	}
+	
+	
+	private async _validateCwd(): Promise<undefined | ITerminalLaunchError> {
+			try {
+				const result = await Promises.stat(this._initialCwd);
+				if (!result.isDirectory()) {
+					return { message: nls.localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
+				}
+			} catch (err) {
+				if (err?.code === 'ENOENT') {
+					return { message: nls.localize('launchFail.cwdDoesNotExist', "Starting directory (cwd) \"{0}\" does not exist", this._initialCwd.toString()) };
+				}
+			}
+			return undefined;
+	}
 
 	/**
 	 * Called when either a process tied to a terminal has exited or when a terminal renderer
@@ -1256,7 +1271,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
 		let exitCodeMessage: string | undefined;
-
+	
+	
 		// Create exit code message
 		switch (typeof exitCodeOrError) {
 			case 'number':
@@ -1277,6 +1293,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 
 				if (this._processManager.processState === ProcessState.KilledDuringLaunch) {
+				
+					// https://github.com/microsoft/vscode/issues/132578 
+					if (this._exitCode === 267){
+						const result = await _validateCwd()
+						result = result !== undefined && result
+						if (result){
+							exitCodeMessage = result.message
+							break;
+						}
+					}
+				
+				
 					if (commandLine) {
 						exitCodeMessage = nls.localize('launchFailed.exitCodeAndCommandLine', "The terminal process \"{0}\" failed to launch (exit code: {1}).", commandLine, this._exitCode);
 						break;
