@@ -237,17 +237,17 @@ export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 	hc: contrastBorder
 }, localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
 
-export const EDITOR_PANE_BORDER = registerColor('editorPane.border', {
-	dark: EDITOR_GROUP_BORDER,
-	light: EDITOR_GROUP_BORDER,
-	hc: EDITOR_GROUP_BORDER
-}, localize('editorPane.border', "Color to separate multiple editors from each other in an editor group."));
-
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBackground', {
 	dark: Color.fromHex('#53595D').transparent(0.5),
 	light: Color.fromHex('#2677CB').transparent(0.18),
 	hc: null
 }, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
+
+export const SIDE_BY_SIDE_EDITOR_BORDER = registerColor('sideBySideEditor.border', {
+	dark: EDITOR_GROUP_BORDER,
+	light: EDITOR_GROUP_BORDER,
+	hc: EDITOR_GROUP_BORDER
+}, localize('sideBySideEditor.border', "Color to separate two editors from each other when shown side by side in an editor group."));
 
 // < --- Panels --- >
 
