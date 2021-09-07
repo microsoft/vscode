@@ -65,7 +65,6 @@ const disassemblyNotAvailable: IDisassembledInstructionEntry = {
 export class DisassemblyView extends EditorPane {
 
 	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
-	private _loadingLock: boolean = false;
 
 	// Used in instruction renderer
 	private _fontInfo: BareFontInfo;
@@ -74,12 +73,13 @@ export class DisassemblyView extends EditorPane {
 	private _previousDebuggingState: State;
 	private _instructionBpList: readonly IInstructionBreakpoint[] = [];
 	private _enableSourceCodeRender: boolean = true;
+	private _loadingLock: boolean = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDebugService private readonly _debugService: IDebugService,
 		@IEditorService readonly editorService: IEditorService,
@@ -95,16 +95,14 @@ export class DisassemblyView extends EditorPane {
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = new Emitter<void>();
 		this._previousDebuggingState = _debugService.state;
-		this._enableSourceCodeRender = this.configurationService.getValue('editor.debug.disassemblyview.showSourceCode');
 
-		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
-		this._register(configurationService.onDidChangeConfiguration(e => {
+		this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
-				this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+				this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 
-				// WorkbenchTable doesn't support dynamic height, thus force the toggle to require restart.
-				// this._enableSourceCodeRender = configurationService.getValue('editor.debug.disassemblyview.showSourceCode');
-				const newValue = this.configurationService.getValue<boolean>('editor.debug.disassemblyview.showSourceCode');
+				// show/hide source code requires changing height which WorkbenchTable doesn't support dynamic height, thus force a total reload.
+				const newValue = this._configurationService.getValue<boolean>('editor.debug.disassemblyview.showSourceCode');
 				if (this._enableSourceCodeRender !== newValue) {
 					this._enableSourceCodeRender = newValue;
 					this.reloadDisassembly(undefined);
@@ -143,12 +141,13 @@ export class DisassemblyView extends EditorPane {
 	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
 
 	protected createEditor(parent: HTMLElement): void {
+		this._enableSourceCodeRender = this._configurationService.getValue('editor.debug.disassemblyview.showSourceCode');
 		const lineHeight = this.fontInfo.lineHeight;
 		const thisOM = this;
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
-				if (thisOM._enableSourceCodeRender && row.instruction.location?.path && row.instruction.line) {
+				if (thisOM.isSourceCodeRender && row.instruction.location?.path && row.instruction.line) {
 					if (row.instruction.endLine) {
 						return lineHeight * (row.instruction.endLine - row.instruction.line + 2);
 					} else {
@@ -268,7 +267,7 @@ export class DisassemblyView extends EditorPane {
 				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
 				// Just started debugging, clear the view
 				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
-				this._enableSourceCodeRender = this.configurationService.getValue('editor.debug.disassemblyview.showSourceCode');
+				this._enableSourceCodeRender = this._configurationService.getValue('editor.debug.disassemblyview.showSourceCode');
 			}
 			this._previousDebuggingState = e;
 		}));
@@ -363,7 +362,7 @@ export class DisassemblyView extends EditorPane {
 				const found = this._instructionBpList.find(p => p.instructionReference === resultEntries[i].address);
 				const instruction = resultEntries[i];
 
-				// forward fill location if missing.
+				// Forward fill the missing location as detailed in the DAP spec.
 				if (instruction.location) {
 					lastLocation = instruction.location;
 					lastLine = undefined;
@@ -377,7 +376,7 @@ export class DisassemblyView extends EditorPane {
 						endColumn: instruction.endColumn ?? 0,
 					};
 
-					// if no location and line is present, then add last location.
+					// Add location only to the first unique range. This will give the appearance of grouping of instructions.
 					if (!Range.equalsRange(currentLine, lastLine ?? null)) {
 						lastLine = currentLine;
 						instruction.location = lastLocation;
@@ -456,7 +455,7 @@ export class DisassemblyView extends EditorPane {
 	 */
 	private reloadDisassembly(targetAddress?: string) {
 		if (this._disassembledInstructions) {
-			this._loadingLock = true;
+			this._loadingLock = true; // stop scrolling during the load.
 			this._disassembledInstructions.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
 			this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
 			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
@@ -469,7 +468,6 @@ export class DisassemblyView extends EditorPane {
 					this._disassembledInstructions!.domFocus();
 					this._disassembledInstructions!.setFocus([targetIndex]);
 				}
-
 				this._loadingLock = false;
 			});
 		}

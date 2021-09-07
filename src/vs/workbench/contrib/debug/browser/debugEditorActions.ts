@@ -176,8 +176,6 @@ class OpenDisassemblyViewAction extends EditorAction2 {
 	}
 }
 
-
-// Doesn't make sense to have a toggle if the toggle requires restart.  Leave this action here for the
 class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 
 	public static readonly ID = 'editor.debug.action.toggleDisassemblyViewSourceCode';
