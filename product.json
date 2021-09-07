@@ -503,6 +503,19 @@
 	"extensionAllowedBadgeProvidersRegex": [
 		"^https:\\/\\/github\\.com\\/[^/]+\\/[^/]+\\/workflows\\/.*badge\\.svg"
 	],
+	"extensionKind": {
+		"Shan.code-settings-sync": ["ui"],
+		"shalldie.background": ["ui"],
+		"CoenraadS.bracket-pair-colorizer": ["ui", "workspace"],
+		"CoenraadS.bracket-pair-colorizer-2": ["ui"],
+		"wayou.vscode-todo-highlight": ["ui", "workspace"],
+		"aaron-bond.better-comments": ["ui", "workspace"],
+		"vscodevim.vim": ["ui"],
+		"tuttieee.emacs-mcx": ["ui"]
+	},
+	"extensionPointExtensionKind": {
+		"typescriptServerPlugins": ["workspace"]
+	},
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.references-view",
