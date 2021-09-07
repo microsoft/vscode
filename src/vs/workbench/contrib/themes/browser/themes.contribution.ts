@@ -58,7 +58,6 @@ export class SelectColorThemeAction extends Action {
 				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
 					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-					console.log(`setColorTheme apply: ` + applyTheme);
 					this.themeService.setColorTheme(themeId, applyTheme ? 'auto' : 'preview').then(undefined,
 						err => {
 							onUnexpectedError(err);
