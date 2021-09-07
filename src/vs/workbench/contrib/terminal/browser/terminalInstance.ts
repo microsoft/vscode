@@ -69,6 +69,7 @@ import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { isSafari } from 'vs/base/browser/browser';
+import { template } from 'vs/base/common/labels';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -162,10 +163,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hasHadInput: boolean;
 
 	readonly statusList: ITerminalStatusList;
-	disableLayout: boolean = false;
-	description: string | undefined = undefined;
-	name: string | undefined = undefined;
+	private _description: string | undefined = undefined;
+	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
+	private _processName: string | undefined = undefined;
+	private _sequence: string | undefined = undefined;
+
 	target?: TerminalLocation;
+	disableLayout: boolean = false;
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
 	get cols(): number {
@@ -279,7 +283,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
-
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
@@ -1752,7 +1755,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						title = title.substring(0, firstSpaceIndex);
 					}
 				}
-				this.name = title;
+				this._processName = title;
 				break;
 			case TitleEventSource.Api:
 				// If the title has not been set by the API or the rename command, unregister the handler that
@@ -1766,6 +1769,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// absolute Windows file path
 				if (this._processManager.os === OperatingSystem.Windows && title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
 					title = path.win32.parse(title).name;
+					this._sequence = title;
 				}
 				break;
 		}
@@ -1773,10 +1777,27 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
 
-		const didTitleChange = title !== this._title;
-		this._title = title;
-		this._titleSource = eventSource;
-		if (didTitleChange) {
+		title = template(this._configHelper.config.title, {
+			process: this._processName,
+			sequence: this._sequence,
+			separator: { label: this._configHelper.config.spacer }
+		});
+
+		this.getCwd().then(cwd => {
+			const description = template(this._configHelper.config.description, {
+				task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+				local: !!this.isRemote ? 'Local' : undefined,
+				cwd,
+				cwdFolder: path.basename(cwd),
+				separator: { label: this._configHelper.config.spacer }
+			});
+			const titleChanged = title !== this._title || description !== this.description;
+			if (!title || !titleChanged) {
+				return;
+			}
+			this._title = title;
+			this._description = description;
+			this._titleSource = eventSource;
 			this._setAriaLabel(this._xterm, this._instanceId, this._title);
 
 			if (this._titleReadyComplete) {
@@ -1784,7 +1805,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._titleReadyComplete = undefined;
 			}
 			this._onTitleChanged.fire(this);
-		}
+		});
 	}
 
 	waitForTitle(): Promise<string> {

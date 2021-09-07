@@ -21,6 +21,7 @@ terminalDescriptionDescription += '\n- ' + [
 	localize('task', "`\${process}`: indicates this terminal is associated with a task"),
 	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
 	localize('cwd', "`\${cwd}`: the terminal's current working directory"),
+	localize('cwdFolder', "`\${cwdFolder}`: the terminal's current folder"),
 	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -277,7 +278,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalDescription]: {
 			'type': 'string',
 			'default': (() => {
-				const base = '${task}${separator}${local}${separator}${cwd}';
+				const base = '${task}${separator}${local}${separator}${cwdFolder}';
 				return base;
 			})(),
 			'markdownDescription': terminalDescriptionDescription
