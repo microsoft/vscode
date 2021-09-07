@@ -13,19 +13,19 @@ import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/c
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',
 	light: '#f14c4c',
-	hc: '#000000'
+	hc: '#f14c4c'
 }, localize('testing.iconFailed', "Color for the 'failed' icon in the test explorer."));
 
 export const testingColorIconErrored = registerColor('testing.iconErrored', {
 	dark: '#f14c4c',
 	light: '#f14c4c',
-	hc: '#000000'
+	hc: '#f14c4c'
 }, localize('testing.iconErrored', "Color for the 'Errored' icon in the test explorer."));
 
 export const testingColorIconPassed = registerColor('testing.iconPassed', {
 	dark: '#73c991',
 	light: '#73c991',
-	hc: '#000000'
+	hc: '#73c991'
 }, localize('testing.iconPassed', "Color for the 'passed' icon in the test explorer."));
 
 export const testingColorRunAction = registerColor('testing.runAction', {
@@ -37,7 +37,7 @@ export const testingColorRunAction = registerColor('testing.runAction', {
 export const testingColorIconQueued = registerColor('testing.iconQueued', {
 	dark: '#cca700',
 	light: '#cca700',
-	hc: '#000000'
+	hc: '#cca700'
 }, localize('testing.iconQueued', "Color for the 'Queued' icon in the test explorer."));
 
 export const testingColorIconUnset = registerColor('testing.iconUnset', {
