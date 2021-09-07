@@ -20,7 +20,7 @@ import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost, ExtensionHostKind, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Barrier, timeout } from 'vs/base/common/async';
@@ -60,17 +60,19 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 export type ExtensionHostStartupClassification = {
 	time: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 	action: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	err?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	message?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	stackTrace?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	errorName?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	errorMessage?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	errorStack?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
 };
 
 export type ExtensionHostStartupEvent = {
 	time: number;
-	action: string;
-	err?: string;
-	message?: string;
-	stackTrace?: string;
+	action: 'starting' | 'success' | 'error';
+	kind: string;
+	errorName?: string;
+	errorMessage?: string;
+	errorStack?: string;
 };
 
 class ExtensionHostManager extends Disposable implements IExtensionHostManager {
@@ -104,21 +106,31 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	) {
 		super();
 		this._cachedActivationEvents = new Map<string, Promise<void>>();
-		this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('ExtensionHostStartup', { time: Date.now(), action: 'starting' });
 		this._rpcProtocol = null;
 		this._customers = [];
 
 		this._extensionHost = extensionHost;
 		this.kind = this._extensionHost.kind;
 		this.onDidExit = this._extensionHost.onExit;
+
+		const startingTelemetryEvent: ExtensionHostStartupEvent = {
+			time: Date.now(),
+			action: 'starting',
+			kind: extensionHostKindToString(this.kind)
+		};
+		this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', startingTelemetryEvent);
+
 		this._proxy = this._extensionHost.start()!.then(
 			(protocol) => {
 				this._hasStarted = true;
 
-				// Track health extension host startup
-				let success: ExtensionHostStartupEvent = { time: Date.now(), action: 'success' };
-				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('ExtensionHostStartup', success);
-				console.log(`EXTENSION HOST STARTUP: ${JSON.stringify(success)}`);
+				// Track healthy extension host startup
+				const successTelemetryEvent: ExtensionHostStartupEvent = {
+					time: Date.now(),
+					action: 'success',
+					kind: extensionHostKindToString(this.kind)
+				};
+				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', successTelemetryEvent);
 
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
@@ -127,14 +139,22 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				console.error(err);
 
 				// Track errors during extension host startup
-				let failure: ExtensionHostStartupEvent = { time: Date.now(), action: 'error', err };
-				if (err instanceof Error) {
-					failure.err = err.name;
-					failure.message = err.message;
-					failure.stackTrace = (<any>err).stacktrace || (<any>err).stack;
+				const failureTelemetryEvent: ExtensionHostStartupEvent = {
+					time: Date.now(),
+					action: 'error',
+					kind: extensionHostKindToString(this.kind)
+				};
+
+				if (err && err.name) {
+					failureTelemetryEvent.errorName = err.name;
 				}
-				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('ExtensionHostStartup', failure);
-				console.log(`EXTENSION HOST STARTUP: ${JSON.stringify(failure)}`);
+				if (err && err.message) {
+					failureTelemetryEvent.errorMessage = err.message;
+				}
+				if (err && err.stack) {
+					failureTelemetryEvent.errorStack = err.stack;
+				}
+				this._telemetryService.publicLog2<ExtensionHostStartupEvent, ExtensionHostStartupClassification>('extensionHostStartup', failureTelemetryEvent, true);
 
 				return null;
 			}
