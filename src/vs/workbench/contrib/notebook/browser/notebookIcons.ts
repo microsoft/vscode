@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-export const configureKernelIcon = registerIcon('notebook-kernel-configure', Codicon.settingsGear, localize('configureKernel', 'Configure icon in kernel configuration widget in notebook editors.'));
+export const configureKernelIcon = registerIcon('notebook-kernel-configure', Codicon.gear, localize('configureKernel', 'Configure icon in kernel configuration widget in notebook editors.'));
 export const selectKernelIcon = registerIcon('notebook-kernel-select', Codicon.serverEnvironment, localize('selectKernelIcon', 'Configure icon to select a kernel in notebook editors.'));
 
 export const executeIcon = registerIcon('notebook-execute', Codicon.play, localize('executeIcon', 'Icon to execute in notebook editors.'));
