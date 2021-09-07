@@ -507,7 +507,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private async _initAvailableProfiles(): Promise<void> {
+	private async _refreshAvailableProfilesNow(): Promise<void> {
 		const result = await this._detectProfiles();
 		const profilesChanged = !equals(result, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
@@ -1158,7 +1158,7 @@ export class TerminalService implements ITerminalService {
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		if (!this._availableProfiles) {
-			await this._initAvailableProfiles();
+			await this._refreshAvailableProfilesNow();
 		}
 		const config = options?.config || this._availableProfiles?.find(p => p.profileName === this._defaultProfileName);
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
