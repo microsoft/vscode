@@ -61,6 +61,37 @@ export function isSerializedEditorGroupModel(group?: unknown): group is ISeriali
 	return !!(candidate && typeof candidate === 'object' && Array.isArray(candidate.editors) && Array.isArray(candidate.mru));
 }
 
+export enum SideBySideMatchingStrategy {
+
+	/**
+	 * Consider an editor to match a side by side
+	 * editor if any of the two sides match.
+	 */
+	ANY_SIDE = 1,
+
+	/**
+	 * Consider an editor to match a side by side
+	 * editor if both sides match.
+	 */
+	BOTH_SIDES
+}
+
+export interface IMatchOptions {
+
+	/**
+	 * Whether to support side by side editors when
+	 * considering a match.
+	 */
+	supportSideBySide?: SideBySideMatchingStrategy;
+
+	/**
+	 * Only consider an editor to match when the
+	 * `candidate === editor` but not when
+	 * `candidate.matches(editor)`.
+	 */
+	strictEquals?: boolean;
+}
+
 export class EditorGroupModel extends Disposable {
 
 	private static IDS = 0;
@@ -189,7 +220,13 @@ export class EditorGroupModel extends Disposable {
 		const makePinned = options?.pinned || options?.sticky;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
-		const existingEditorAndIndex = this.findEditor(candidate);
+		const existingEditorAndIndex = this.findEditor(candidate, {
+			// Allow to match on a side-by-side editor when same
+			// editor is opened on both sides. In that case we
+			// do not want to open a new editor but reuse that one.
+			// For: https://github.com/microsoft/vscode/issues/36700
+			supportSideBySide: SideBySideMatchingStrategy.BOTH_SIDES
+		});
 
 		// New editor
 		if (!existingEditorAndIndex) {
@@ -687,13 +724,13 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	indexOf(candidate: IEditorInput | null, editors = this.editors): number {
+	indexOf(candidate: IEditorInput | null, editors = this.editors, options?: IMatchOptions): number {
 		if (!candidate) {
 			return -1;
 		}
 
 		for (let i = 0; i < editors.length; i++) {
-			if (this.matches(editors[i], candidate)) {
+			if (this.matches(editors[i], candidate, options)) {
 				return i;
 			}
 		}
@@ -701,8 +738,8 @@ export class EditorGroupModel extends Disposable {
 		return -1;
 	}
 
-	private findEditor(candidate: EditorInput | null): [EditorInput, number /* index */] | undefined {
-		const index = this.indexOf(candidate, this.editors);
+	private findEditor(candidate: EditorInput | null, options?: IMatchOptions): [EditorInput, number /* index */] | undefined {
+		const index = this.indexOf(candidate, this.editors, options);
 		if (index === -1) {
 			return undefined;
 		}
@@ -710,29 +747,39 @@ export class EditorGroupModel extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	contains(candidate: EditorInput | IUntypedEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchOptions): boolean {
 		for (const editor of this.editors) {
-			if (this.matches(editor, candidate, options?.strictEquals)) {
+			if (this.matches(editor, candidate, options)) {
 				return true;
-			}
-
-			if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
-				if (this.matches(editor.primary, candidate, options?.strictEquals) || this.matches(editor.secondary, candidate, options?.strictEquals)) {
-					return true;
-				}
 			}
 		}
 
 		return false;
 	}
 
-	private matches(editor: IEditorInput | null, candidate: IEditorInput | IUntypedEditorInput | null, strictEquals?: boolean): boolean {
+	private matches(editor: IEditorInput | null, candidate: IEditorInput | IUntypedEditorInput | null, options?: IMatchOptions): boolean {
 		if (!editor || !candidate) {
 			return false;
 		}
 
-		if (strictEquals) {
+		if (options?.strictEquals) {
 			return editor === candidate;
+		}
+
+		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput && !(candidate instanceof SideBySideEditorInput)) {
+			switch (options.supportSideBySide) {
+				case SideBySideMatchingStrategy.ANY_SIDE:
+					if (this.matches(editor.primary, candidate, options) || this.matches(editor.secondary, candidate, options)) {
+						return true;
+					}
+					break;
+				case SideBySideMatchingStrategy.BOTH_SIDES:
+					if (this.matches(editor.primary, candidate, options) && this.matches(editor.secondary, candidate, options)) {
+						return true;
+					}
+					break;
+			}
+
 		}
 
 		return editor.matches(candidate);
