@@ -13,6 +13,7 @@ import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -27,12 +28,17 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { editorInlayHintBackground, editorInlayHintForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const MAX_DECORATORS = 500;
 
 export interface InlayHintsData {
 	list: InlayHint[];
 	provider: InlayHintsProvider;
+}
+
+function isCtrlOrAltEvent(e: IKeyboardEvent) {
+	return e.keyCode === KeyCode.Ctrl || e.keyCode === KeyCode.Alt;
 }
 
 export async function getInlayHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHintsData[]> {
@@ -65,6 +71,8 @@ export class InlayHintsController implements IEditorContribution {
 	private _decorationsTypeIds: string[] = [];
 	private _decorationIds: string[] = [];
 
+	private _isCtrlAndAltPressed = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
@@ -77,6 +85,18 @@ export class InlayHintsController implements IEditorContribution {
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.inlayHints)) {
+				this._update();
+			}
+		}));
+		this._disposables.add(_editor.onKeyDown(e => {
+			if (e.ctrlKey && e.altKey && isCtrlOrAltEvent(e) && !this._isCtrlAndAltPressed) {
+				this._isCtrlAndAltPressed = true;
+				this._update();
+			}
+		}));
+		this._disposables.add(_editor.onKeyUp(e => {
+			if (isCtrlOrAltEvent(e) && this._isCtrlAndAltPressed) {
+				this._isCtrlAndAltPressed = false;
 				this._update();
 			}
 		}));
@@ -93,7 +113,7 @@ export class InlayHintsController implements IEditorContribution {
 	private _update(): void {
 		this._sessionDisposables.clear();
 
-		if (!this._editor.getOption(EditorOption.inlayHints).enabled) {
+		if (!this._editor.getOption(EditorOption.inlayHints).enabled && !this._isCtrlAndAltPressed) {
 			this._removeAllDecorations();
 			return;
 		}
