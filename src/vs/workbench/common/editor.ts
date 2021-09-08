@@ -14,7 +14,7 @@ import { IInstantiationService, IConstructorSignature0, ServicesAccessor, Brande
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IGroupChangeEvent } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
@@ -888,6 +888,7 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 	sticky: boolean;
 }
 
+export type IEditorChangeEvent = { groupId: GroupIdentifier } & IGroupChangeEvent;
 export interface IEditorMoveEvent extends IEditorIdentifier {
 	target: GroupIdentifier;
 }

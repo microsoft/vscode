@@ -5,11 +5,11 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorResolution, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isEditorInputWithOptionsAndGroup, IEditorChangeEvent } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { Event, Emitter, DebounceEmitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -46,7 +46,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
 	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
-	private readonly _onDidEditorsChange = this._register(new DebounceEmitter<void>({ delay: 0, merge: () => undefined }));
+	private readonly _onDidEditorsChange = this._register(new Emitter<IEditorChangeEvent>());
 	readonly onDidEditorsChange = this._onDidEditorsChange.event;
 
 	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
@@ -127,7 +127,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return; // empty groups do not change structure of editors
 		}
 
-		this._onDidEditorsChange.fire();
+		this._onDidEditorsChange.fire({ groupId: group.id, kind: GroupChangeKind.GROUP_INDEX });
 	}
 
 	private handleActiveEditorChange(group: IEditorGroup): void {
@@ -150,7 +150,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
-		this._onDidEditorsChange.fire();
+		this._onDidEditorsChange.fire({ groupId: activeGroup.id, editor: this.lastActiveEditor, kind: GroupChangeKind.EDITOR_ACTIVE });
 	}
 
 	private registerGroupListeners(group: IEditorGroupView): void {
@@ -162,10 +162,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					this.handleActiveEditorChange(group);
 					this._onDidVisibleEditorsChange.fire();
 					break;
-				case GroupChangeKind.EDITOR_CLOSE:
-				case GroupChangeKind.EDITOR_OPEN:
-				case GroupChangeKind.EDITOR_MOVE:
-					this._onDidEditorsChange.fire();
+				default:
+					this._onDidEditorsChange.fire({ groupId: group.id, ...e });
 					break;
 			}
 		}));

@@ -6,7 +6,7 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorChangeEvent, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -18,6 +18,7 @@ export class MainThreadEditorTabs {
 
 	private readonly _dispoables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
+	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -35,7 +36,7 @@ export class MainThreadEditorTabs {
 		this._dispoables.dispose();
 	}
 
-	private _pushEditorTabs(): void {
+	private _pushEditorTabs(event?: IEditorChangeEvent): void {
 		const tabs: IEditorTabDto[] = [];
 		for (const group of this._editorGroupsService.groups) {
 			for (const editor of group.editors) {
