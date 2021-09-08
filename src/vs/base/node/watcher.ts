@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { watch } from 'fs';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalizeNFC } from 'vs/base/common/normalization';
@@ -201,4 +202,70 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 
 		watcherDisposables = dispose(watcherDisposables);
 	});
+}
+
+/**
+ * Watch the provided `path` for changes and return
+ * the data in chunks of `Uint8Array` for further use.
+ */
+export async function watchFileContents(path: string, onData: (chunk: Uint8Array) => void, token: CancellationToken, bufferSize = 512): Promise<void> {
+	const handle = await Promises.open(path, 'r');
+	const buffer = Buffer.allocUnsafe(bufferSize);
+
+	const cts = new CancellationTokenSource(token);
+
+	let error: Error | undefined = undefined;
+	let isReading = false;
+
+	const watcher = watchFile(path, async type => {
+		if (type === 'changed') {
+
+			if (isReading) {
+				return; // return early if we are already reading the output
+			}
+
+			isReading = true;
+
+			try {
+				// Consume the new contents of the file until finished
+				// everytime there is a change event signalling a change
+				while (!cts.token.isCancellationRequested) {
+					const { bytesRead } = await Promises.read(handle, buffer, 0, bufferSize, null);
+					if (!bytesRead || cts.token.isCancellationRequested) {
+						break;
+					}
+
+					onData(buffer.slice(0, bytesRead));
+				}
+			} catch (err) {
+				error = new Error(err);
+				cts.dispose(true);
+			} finally {
+				isReading = false;
+			}
+		}
+	}, err => {
+		error = new Error(err);
+		cts.dispose(true);
+	});
+
+	let resolveFn: Function;
+	let rejectFn: Function;
+	const promise = new Promise<void>((resolve, reject) => {
+		resolveFn = resolve;
+		rejectFn = reject;
+	});
+
+	cts.token.onCancellationRequested(async () => {
+		watcher.dispose();
+		await Promises.close(handle);
+
+		if (error) {
+			rejectFn(error);
+		} else {
+			resolveFn();
+		}
+	});
+
+	return promise;
 }

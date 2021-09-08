@@ -14,13 +14,14 @@ import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
-import { CliVerboseLogger } from 'vs/code/node/cliVerboseLogger';
+import { watchFileContents } from 'vs/base/node/watcher';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -350,59 +351,66 @@ export async function main(argv: string[]): Promise<any> {
 			// On mac, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
 			// https://github.com/microsoft/vscode/issues/102975
-			const openArgs: string[] = ['-n'];
+
+			const spawnArgs = ['-n'];				// -n: launches even when opened already
+			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
 
 			if (verbose || hasReadStdinArg || args.wait) {
-				openArgs.push('-W');
+				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
 			}
 
 			if (verbose) {
 				// The open command only allows for redirecting stderr and stdout to files,
 				// so we make it redirect those to temp files, and then use a logger to
 				// redirect the file output to the console
-				function createLoggerPromise(logger: CliVerboseLogger, filename: string, stream: NodeJS.WriteStream): (child: ChildProcess) => Promise<void> {
-					return async (child: ChildProcess) => {
-						await Promise.race([
-							logger.streamFile(filename, stream),
-							Event.toPromise(Event.fromNodeEventEmitter(child, 'close'))
-						]).finally(() => {
-							unlinkSync(filename);
-						});
-					};
-				}
-
 				for (const outputType of ['stdout', 'stderr']) {
-					const stream = outputType === 'stdout' ? process.stdout : process.stderr;
+
+					// Tmp file to target output to
 					const tmpName = createFileName(tmpdir(), `code-${outputType}`);
-					const tmpLogger = new CliVerboseLogger();
 					writeFileSync(tmpName, '');
-					openArgs.push(`--${outputType}`, tmpName);
-					const outputPromise = createLoggerPromise(tmpLogger, tmpName, stream);
-					processCallbacks.push(outputPromise);
+					spawnArgs.push(`--${outputType}`, tmpName);
+
+					// Listener to redirect content to stdout/stderr
+					processCallbacks.push(async (child: ChildProcess) => {
+						try {
+							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
+
+							const cts = new CancellationTokenSource();
+							await Promise.race([
+								watchFileContents(tmpName, chunk => stream.write(chunk), cts.token),
+								Event.toPromise(Event.fromNodeEventEmitter(child, 'close')).then(() => cts.dispose(true))
+							]);
+						} finally {
+							unlinkSync(tmpName);
+						}
+					});
 				}
 			}
-			const argsArr: string[] = [];
-			argsArr.push('-a', process.execPath);
-			argsArr.push(...openArgs, '--args', ...argv.slice(2));
+
+			spawnArgs.push('--args', ...argv.slice(2)); // pass on our arguments
+
 			if (env['VSCODE_DEV']) {
 				// If we're in development mode, replace the . arg with the
 				// vscode source arg. Because the OSS app isn't bundled,
 				// it needs the full vscode source arg to launch properly.
 				const curdir = '.';
-				const launchDirIndex = argsArr.indexOf(curdir);
-				argsArr[launchDirIndex] = resolve(curdir);
+				const launchDirIndex = spawnArgs.indexOf(curdir);
+				spawnArgs[launchDirIndex] = resolve(curdir);
 			}
-			child = spawn('open', argsArr, options);
+
+			child = spawn('open', spawnArgs, options);
 		}
 
 		if (args.wait && waitMarkerFilePath) {
 			const waitPromise = (child: ChildProcess) => new Promise<void>(resolve => {
+
 				// Complete when process exits
 				child.once('exit', () => resolve(undefined));
 
 				// Or, complete when wait marker file is deleted
 				whenDeleted(waitMarkerFilePath!).finally(resolve);
 			}).then(() => {
+
 				// Make sure to delete the tmp stdin file if we have any
 				if (stdinFilePath) {
 					unlinkSync(stdinFilePath);
