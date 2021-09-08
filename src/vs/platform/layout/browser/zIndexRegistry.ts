@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { clearNode, createCSSRule, createStyleSheet } from 'vs/base/browser/dom';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export enum ZIndex {
 	Base = 0,
@@ -31,10 +32,13 @@ function findBase(z: number) {
 class ZIndexRegistry {
 	private styleSheet: HTMLStyleElement;
 	private zIndexMap: Map<string, number>;
+	private scheduler: RunOnceScheduler;
 	constructor() {
 		this.styleSheet = createStyleSheet();
 		this.zIndexMap = new Map<string, number>();
+		this.scheduler = new RunOnceScheduler(() => this.updateStyleElement(), 200);
 	}
+
 	registerZIndex(relativeLayer: ZIndex, z: number, name: string): string {
 		if (this.zIndexMap.get(name)) {
 			throw new Error(`z-index with name ${name} has already been registered.`);
@@ -46,7 +50,7 @@ class ZIndexRegistry {
 		}
 
 		this.zIndexMap.set(name, proposedZValue);
-		this.updateStyleElement();
+		this.scheduler.schedule();
 		return this.getVarName(name);
 	}
 
