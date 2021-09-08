@@ -211,10 +211,22 @@ export async function main(argv: string[]): Promise<any> {
 			// - the wait marker file has been deleted (e.g. when closing the editor)
 			// - the launched process terminates (e.g. due to a crash)
 			processCallbacks.push(async child => {
+				let childExitPromise = Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
+				if (isMacintosh) {
+					childExitPromise = new Promise<void>((resolve) => {
+						// Only resolve this promise if the child (i.e. open) exited with an error
+						child.on('exit', (code, signal) => {
+							if (code !== 0 || signal) {
+								resolve();
+							}
+						});
+					});
+				}
 				try {
 					await Promise.race([
 						whenDeleted(waitMarkerFilePath!),
-						Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'))
+						Event.toPromise(Event.fromNodeEventEmitter(child, 'error')),
+						childExitPromise
 					]);
 				} finally {
 					if (stdinFilePath) {
