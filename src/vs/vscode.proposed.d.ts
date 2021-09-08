@@ -2313,7 +2313,7 @@ declare module 'vscode' {
 
 		/**
 		 * The resource represented by the tab if availble.
-		 * If the tab contains more than one resource then primary will represent the left resource, and secondary the right one.
+		 * If the tab contains more than one resource then primary will represent the right resource, and secondary the left one.
 		 * Note: Not all editor types have a resource associated with them
 		 */
 		readonly resource?: Uri | { primary?: Uri, secondary?: Uri };
