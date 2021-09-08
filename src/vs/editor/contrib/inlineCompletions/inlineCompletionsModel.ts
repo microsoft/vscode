@@ -204,6 +204,10 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			}
 		}));
 
+		this._register(toDisposable(() => {
+			this.cache.clear();
+		}));
+
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
 			if (this.cache.value) {
 				this.onDidChangeEmitter.fire();
