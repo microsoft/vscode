@@ -318,6 +318,8 @@ export class TerminalService implements ITerminalService {
 
 		//TODO:@meganrogge better way to do this?
 		this.onDidCreateInstance(async () => await this._refreshDescriptionCwd());
+		this.onDidReceiveProcessId(async () => await this._refreshDescriptionCwd());
+		this.onDidDisposeInstance(async () => await this._refreshDescriptionCwd());
 	}
 
 	private async _refreshDescriptionCwd(): Promise<void> {
@@ -339,18 +341,56 @@ export class TerminalService implements ITerminalService {
 					}
 				}
 			}
-			//TODO:@meganrogge backtrack instead of using full cwd
-			//TODO:@meganrogge on delete of a terminal, update
 			for (const folder of foldersToDistinguish) {
-				const terms = folderToTerminals.get(folder);
+				let terms = folderToTerminals.get(folder);
 				if (!terms) {
 					return;
 				}
+				terms = this._shortenCwds(terms);
 				for (const term of terms) {
-					term.instance.setTitle(term.cwd, TitleEventSource.Api, true);
+					//TODO:@meganrogge better way to do this? maybe a new TitleEventSource?
+					term.instance.setTitle(term.cwd, TitleEventSource.Api, term.cwd);
 				}
 			}
 		}
+	}
+
+	private _shortenCwds(terms: InstanceCwd[]): InstanceCwd[] {
+		const uniqueCwds = Array.from(new Set(terms.map(t => t.cwd)));
+		const paths = [];
+		const cwdToPath: Map<string, string[]> = new Map();
+		for (const uniqueCwd of uniqueCwds) {
+			paths.push(uniqueCwd.split(isWindows ? '\\' : '/'));
+			cwdToPath.set(uniqueCwd, uniqueCwd.split(isWindows ? '\\' : '/'));
+		}
+		let index = 1;
+		const minLength = paths.sort((a, b) => a.length - b.length)[0].length;
+		while (new Set(paths.map(p => p[p.length - index])).size !== paths.length && minLength > index) {
+			index++;
+		}
+
+		const result = [];
+		for (const term of terms) {
+			const path = cwdToPath.get(term.cwd);
+			if (!path) {
+				continue;
+			}
+			term.cwd = this._joinTruncatedPath(index, path);
+			result.push(term);
+		}
+		return result;
+	}
+
+	private _joinTruncatedPath(index: number, path: string[]): string {
+		let s = '';
+		for (let i = path.length - index; i < path.length; i++) {
+			if (i === path.length - index) {
+				s += `${path[i]}`;
+			} else {
+				s += `${isWindows ? '\\' : '/'}${path[i]}`;
+			}
+		}
+		return s;
 	}
 
 	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
