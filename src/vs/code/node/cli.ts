@@ -355,11 +355,9 @@ export async function main(argv: string[]): Promise<any> {
 			const spawnArgs = ['-n'];				// -n: launches even when opened already
 			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
 
-			if (verbose || hasReadStdinArg || args.wait) {
-				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
-			}
-
 			if (verbose) {
+				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
+
 				// The open command only allows for redirecting stderr and stdout to files,
 				// so we make it redirect those to temp files, and then use a logger to
 				// redirect the file output to the console
