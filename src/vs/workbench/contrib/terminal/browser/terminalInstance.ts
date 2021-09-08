@@ -1784,7 +1784,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		title = title.replace(/[\n\r\t]/g, '');
 
 		title = template(this._configHelper.config.title, {
-			process: this._processName,
+			process: this._processName || title,
 			sequence: this._sequence,
 			separator: { label: this._configHelper.config.separator }
 		});

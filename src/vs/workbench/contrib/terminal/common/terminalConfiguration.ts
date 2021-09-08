@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
 terminalTitleDescription += '\n- ' + [
 	localize('process', "`\${process}`: the name of the terminal process"),
-	localize('sequence', "`\${sequence}`: a sequence"),
+	localize('sequence', "`\${sequence}`: the name provided to xterm.js by the process"),
 	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
