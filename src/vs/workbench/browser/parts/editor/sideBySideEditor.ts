@@ -111,13 +111,25 @@ export class SideBySideEditor extends EditorPane {
 		const container = assertIsDefined(this.getContainer());
 
 		// Clear old (if any)
+		let ratio: number | undefined = undefined;
 		if (this.splitview) {
+
+			// Keep ratio to restore later but only when
+			// the sizes differ significantly enough
+			const leftViewSize = this.splitview.getViewSize(0);
+			const rightViewSize = this.splitview.getViewSize(1);
+			if (Math.abs(leftViewSize - rightViewSize) > 1) {
+				const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
+				ratio = leftViewSize / totalSize;
+			}
+
+			// Remove from container
 			container.removeChild(this.splitview.el);
 			this.splitviewDisposables.clear();
 		}
 
 		// Create new
-		this.createSplitView(container);
+		this.createSplitView(container, ratio);
 
 		this.layout(this.dimension);
 	}
@@ -133,11 +145,24 @@ export class SideBySideEditor extends EditorPane {
 		this.createSplitView(parent);
 	}
 
-	private createSplitView(parent: HTMLElement): void {
+	private createSplitView(parent: HTMLElement, ratio?: number): void {
 
 		// Splitview widget
 		this.splitview = this.splitviewDisposables.add(new SplitView(parent, { orientation: this.orientation }));
 		this.splitviewDisposables.add(this.splitview.onDidSashReset(() => this.splitview?.distributeViewSizes()));
+
+		// Figure out sizing
+		let leftSizing: number | Sizing = Sizing.Distribute;
+		let rightSizing: number | Sizing = Sizing.Distribute;
+		if (ratio) {
+			const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
+
+			leftSizing = Math.round(totalSize * ratio);
+			rightSizing = totalSize - leftSizing;
+
+			// We need to call `layout` for the `ratio` to have any effect
+			this.splitview.layout(this.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height);
+		}
 
 		// Secondary (left)
 		const secondaryEditorContainer = assertIsDefined(this.secondaryEditorContainer);
@@ -147,7 +172,7 @@ export class SideBySideEditor extends EditorPane {
 			minimumSize: this.orientation === Orientation.HORIZONTAL ? DEFAULT_EDITOR_MIN_DIMENSIONS.width : DEFAULT_EDITOR_MIN_DIMENSIONS.height,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
-		}, Sizing.Distribute);
+		}, leftSizing);
 
 		// Primary (right)
 		const primaryEditorContainer = assertIsDefined(this.primaryEditorContainer);
@@ -157,7 +182,7 @@ export class SideBySideEditor extends EditorPane {
 			minimumSize: this.orientation === Orientation.HORIZONTAL ? DEFAULT_EDITOR_MIN_DIMENSIONS.width : DEFAULT_EDITOR_MIN_DIMENSIONS.height,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
-		}, Sizing.Distribute);
+		}, rightSizing);
 
 		this.updateStyles();
 	}

@@ -72,8 +72,8 @@ export const TOGGLE_SPLIT_EDITOR_IN_GROUP = 'workbench.action.toggleSplitEditorI
 export const JOIN_EDITOR_IN_GROUP = 'workbench.action.joinEditorInGroup';
 export const TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT = 'workbench.action.toggleSplitEditorInGroupLayout';
 
-export const FOCUS_LEFT_SIDE_EDITOR = 'workbench.action.focusLeftSideEditor';
-export const FOCUS_RIGHT_SIDE_EDITOR = 'workbench.action.focusRightSideEditor';
+export const FOCUS_FIRST_SIDE_EDITOR = 'workbench.action.focusFirstSideEditor';
+export const FOCUS_SECOND_SIDE_EDITOR = 'workbench.action.focusSecondSideEditor';
 export const FOCUS_OTHER_SIDE_EDITOR = 'workbench.action.focusOtherSideEditor';
 
 export const FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusLeftGroupWithoutWrap';
@@ -1072,8 +1072,8 @@ function registerFocusSideEditorsCommands(): void {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: FOCUS_LEFT_SIDE_EDITOR,
-				title: localize('focusLeftSideEditor', "Focus Left Side in Active Editor"),
+				id: FOCUS_FIRST_SIDE_EDITOR,
+				title: localize('focusLeftSideEditor', "Focus First Side in Active Editor"),
 				category: CATEGORIES.View,
 				precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
 				f1: true
@@ -1095,8 +1095,8 @@ function registerFocusSideEditorsCommands(): void {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: FOCUS_RIGHT_SIDE_EDITOR,
-				title: localize('focusRightSideEditor', "Focus Right Side in Active Editor"),
+				id: FOCUS_SECOND_SIDE_EDITOR,
+				title: localize('focusRightSideEditor', "Focus Second Side in Active Editor"),
 				category: CATEGORIES.View,
 				precondition: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
 				f1: true
