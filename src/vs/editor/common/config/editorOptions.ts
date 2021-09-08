@@ -2552,11 +2552,6 @@ export interface IEditorMinimapOptions {
 	 */
 	scale?: number;
 	/**
-	 * Set the transparency of the minimap's background.
-	 * Defaults to 255.
-	 */
-	backgroundAlpha?: number;
-	/**
 	 * Set the transparency of the minimap's text.
 	 * Defaults to 255.
 	 */
@@ -2576,7 +2571,6 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
-			backgroundAlpha: 255,
 			textAlpha: 255,
 		};
 		super(
@@ -2628,11 +2622,6 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					default: defaults.maxColumn,
 					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
 				},
-				'editor.minimap.backgroundAlpha': {
-					type: 'number',
-					default: defaults.backgroundAlpha,
-					description: nls.localize('minimap.backgroundAlpha', "Controls the opacity of the minimap background.")
-				},
 				'editor.minimap.textAlpha': {
 					type: 'number',
 					default: defaults.textAlpha,
@@ -2655,7 +2644,6 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			renderCharacters: boolean(input.renderCharacters, this.defaultValue.renderCharacters),
 			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
-			backgroundAlpha: EditorIntOption.clampedInt(input.backgroundAlpha, this.defaultValue.backgroundAlpha, 0, 255),
 			textAlpha: EditorIntOption.clampedInt(input.textAlpha, this.defaultValue.textAlpha, 0, 255),
 		};
 	}

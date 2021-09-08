@@ -91,10 +91,6 @@ class MinimapOptions {
 	 */
 	public readonly canvasOuterHeight: number;
 	/**
-	 * background alpha (0 - 255)
-	 */
-	public readonly backgroundAlpha: number;
-	/**
 	 * text alpha (0 - 255)
 	 */
 	public readonly textAlpha: number;
@@ -121,7 +117,6 @@ class MinimapOptions {
 		this.minimapHeightIsEditorHeight = minimapLayout.minimapHeightIsEditorHeight;
 		this.scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
 		this.showSlider = minimapOpts.showSlider;
-		this.backgroundAlpha = minimapOpts.backgroundAlpha;
 		this.textAlpha = minimapOpts.textAlpha;
 		this.pixelRatio = pixelRatio;
 		this.typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
@@ -148,7 +143,7 @@ class MinimapOptions {
 	private static _getMinimapBackground(theme: EditorTheme, tokensColorTracker: MinimapTokensColorTracker): RGBA8 {
 		const themeColor = theme.getColor(minimapBackground);
 		if (themeColor) {
-			return new RGBA8(themeColor.rgba.r, themeColor.rgba.g, themeColor.rgba.b, themeColor.rgba.a);
+			return new RGBA8(themeColor.rgba.r, themeColor.rgba.g, themeColor.rgba.b, Math.round(255 * themeColor.rgba.a));
 		}
 		return tokensColorTracker.getColor(ColorId.DefaultBackground);
 	}
@@ -175,7 +170,6 @@ class MinimapOptions {
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
 			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
-			&& this.backgroundAlpha === other.backgroundAlpha
 			&& this.textAlpha === other.textAlpha
 		);
 	}
@@ -1269,18 +1263,11 @@ class InnerMinimap extends Disposable {
 	private _getBuffer(): ImageData | null {
 		if (!this._buffers) {
 			if (this._model.options.canvasInnerWidth > 0 && this._model.options.canvasInnerHeight > 0) {
-				const defaultBackground = this._model.options.backgroundColor;
-				const backgroundColor = new RGBA8(
-					defaultBackground.r,
-					defaultBackground.g,
-					defaultBackground.b,
-					this._model.options.backgroundAlpha
-				);
 				this._buffers = new MinimapBuffers(
 					this._canvas.domNode.getContext('2d')!,
 					this._model.options.canvasInnerWidth,
 					this._model.options.canvasInnerHeight,
-					backgroundColor
+					this._model.options.backgroundColor
 				);
 			}
 		}
@@ -1756,10 +1743,6 @@ class InnerMinimap extends Disposable {
 }
 
 registerThemingParticipant((theme, collector) => {
-	const minimapBackgroundValue = theme.getColor(minimapBackground);
-	if (minimapBackgroundValue) {
-		collector.addRule(`.monaco-editor .minimap > canvas { opacity: ${minimapBackgroundValue.rgba.a}; will-change: opacity; }`);
-	}
 	const sliderBackground = theme.getColor(minimapSliderBackground);
 	if (sliderBackground) {
 		collector.addRule(`.monaco-editor .minimap-slider .minimap-slider-horizontal { background: ${sliderBackground}; }`);

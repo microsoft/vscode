@@ -50,9 +50,10 @@ export class MinimapCharRenderer {
 
 		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
-		const backgroundR = backgroundColor.r;
-		const backgroundG = backgroundColor.g;
-		const backgroundB = backgroundColor.b;
+		const backgroundA = backgroundColor.a / 255;
+		const backgroundR = Math.round((backgroundColor.r - 255) * backgroundA + 255);
+		const backgroundG = Math.round((backgroundColor.g - 255) * backgroundA + 255);
+		const backgroundB = Math.round((backgroundColor.b - 255) * backgroundA + 255);
 
 		const deltaR = color.r - backgroundR;
 		const deltaG = color.g - backgroundG;

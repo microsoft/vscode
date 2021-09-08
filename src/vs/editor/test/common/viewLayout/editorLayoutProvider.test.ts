@@ -53,7 +53,6 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			maxColumn: input.minimapMaxColumn,
 			showSlider: EditorOptions.minimap.defaultValue.showSlider,
 			scale: 1,
-			backgroundAlpha: EditorOptions.minimap.defaultValue.backgroundAlpha,
 			textAlpha: EditorOptions.minimap.defaultValue.textAlpha
 		};
 		options._write(EditorOption.minimap, minimapOptions);

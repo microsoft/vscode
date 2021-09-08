@@ -3708,11 +3708,6 @@ declare namespace monaco.editor {
 		 */
 		scale?: number;
 		/**
-		 * Set the transparency of the minimap's background.
-		 * Defaults to 255.
-		 */
-		backgroundAlpha?: number;
-		/**
 		 * Set the transparency of the minimap's text.
 		 * Defaults to 255.
 		 */
