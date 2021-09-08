@@ -506,6 +506,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		icon.style.display = 'flex';
 		icon.style.alignItems = 'center';
 		icon.style.justifyContent = 'center';
+		icon.style.height = this._disassemblyView.fontInfo.lineHeight + 'px';
 
 		const currentElement: { element?: IDisassembledInstructionEntry } = { element: undefined };
 
