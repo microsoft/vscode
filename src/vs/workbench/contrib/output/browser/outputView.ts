@@ -39,6 +39,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { OutputChannel } from 'vs/workbench/contrib/output/browser/outputServices';
 
 export class OutputViewPane extends ViewPane {
 
@@ -146,6 +147,9 @@ export class OutputViewPane extends ViewPane {
 
 	private setInput(channel: IOutputChannel): void {
 		this.channelId = channel.id;
+		if (channel instanceof OutputChannel) {
+			channel.setActive(true);
+		}
 		const descriptor = this.outputService.getChannelDescriptor(channel.id);
 		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
 
@@ -161,6 +165,10 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	private clearInput(): void {
+		const channel = this.channelId ? this.outputService.getChannel(this.channelId) : undefined;
+		if (channel instanceof OutputChannel) {
+			channel.setActive(false);
+		}
 		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
 		this.editor.clearInput();
 		this.editorPromise = null;
