@@ -726,7 +726,7 @@ export interface ITerminalInstance {
 	/**
 	 * Sets the title of the terminal instance.
 	 */
-	setTitle(title: string, eventSource: TitleEventSource): void;
+	setTitle(title: string, eventSource: TitleEventSource, useFullCwd?: boolean): void;
 
 	waitForTitle(): Promise<string>;
 

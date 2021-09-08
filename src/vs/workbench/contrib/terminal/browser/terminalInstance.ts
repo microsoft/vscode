@@ -1743,7 +1743,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	setTitle(title: string | undefined, eventSource: TitleEventSource): void {
+	setTitle(title: string | undefined, eventSource: TitleEventSource, useFullCwd?: boolean): void {
 		if (!title) {
 			return;
 		}
@@ -1794,10 +1794,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
 				local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
 				cwd,
-				cwdFolder: path.basename(cwd),
+				cwdFolder: useFullCwd ? cwd : path.basename(cwd),
 				separator: { label: this._configHelper.config.separator }
 			});
-			const titleChanged = title !== this._title || description !== this.description;
+			const titleChanged = title !== this._title || description !== this.description || useFullCwd;
 			if (!title || !titleChanged) {
 				return;
 			}

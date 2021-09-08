@@ -50,6 +50,9 @@ import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workben
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { basename } from 'vs/base/common/path';
+
+type InstanceCwd = { instance: ITerminalInstance, cwd: string };
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -312,6 +315,42 @@ export class TerminalService implements ITerminalService {
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
+
+		//TODO:@meganrogge better way to do this?
+		this.onDidCreateInstance(async () => await this._refreshDescriptionCwd());
+	}
+
+	private async _refreshDescriptionCwd(): Promise<void> {
+		const folderToTerminals: Map<string, InstanceCwd[]> = new Map();
+		const foldersToDistinguish: string[] = [];
+		for (const instance of this.instances) {
+			const cwd = await instance.getCwd();
+			const folder = basename(cwd);
+			const terms = folderToTerminals.get(folder);
+			if (!terms) {
+				folderToTerminals.set(folder, [{ instance, cwd }]);
+			} else {
+				let shouldDistinguish = terms.find(t => t.cwd !== cwd);
+				if (shouldDistinguish || terms.length === 1) {
+					terms.push({ instance, cwd });
+					folderToTerminals.set(folder, terms);
+					if (!foldersToDistinguish.includes(folder)) {
+						foldersToDistinguish.push(folder);
+					}
+				}
+			}
+			//TODO:@meganrogge backtrack instead of using full cwd
+			//TODO:@meganrogge on delete of a terminal, update
+			for (const folder of foldersToDistinguish) {
+				const terms = folderToTerminals.get(folder);
+				if (!terms) {
+					return;
+				}
+				for (const term of terms) {
+					term.instance.setTitle(term.cwd, TitleEventSource.Api, true);
+				}
+			}
+		}
 	}
 
 	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
@@ -1209,11 +1248,13 @@ export class TerminalService implements ITerminalService {
 		this._evaluateLocalCwd(shellLaunchConfig);
 		const location = this.resolveLocation(options?.location) || this.defaultLocation;
 		const parent = this._getSplitParent(options?.location);
+		let instance;
 		if (parent) {
-			return this._splitTerminal(shellLaunchConfig, location, parent);
+			instance = this._splitTerminal(shellLaunchConfig, location, parent);
 		} else {
-			return this._createTerminal(shellLaunchConfig, location, options);
+			instance = this._createTerminal(shellLaunchConfig, location, options);
 		}
+		return instance;
 	}
 
 	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {
