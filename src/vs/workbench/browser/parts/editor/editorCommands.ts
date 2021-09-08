@@ -1005,7 +1005,7 @@ function registerSplitEditorInGroupCommands(): void {
 			let options: IEditorOptions | undefined = undefined;
 			for (const pane of [activeEditorPane.getPrimaryEditorPane(), activeEditorPane.getSecondaryEditorPane()]) {
 				if (pane?.hasFocus()) {
-					options = { viewState: pane.getViewState?.() };
+					options = { viewState: pane.getViewState() };
 					break;
 				}
 			}

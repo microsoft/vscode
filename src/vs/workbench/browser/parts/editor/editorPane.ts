@@ -166,6 +166,12 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		return editorMemento;
 	}
 
+	getViewState(): object | undefined {
+
+		// Subclasses to override
+		return undefined;
+	}
+
 	protected override saveState(): void {
 
 		// Save all editor memento for this editor type

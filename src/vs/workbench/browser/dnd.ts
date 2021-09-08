@@ -410,8 +410,9 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 						viewState: (() => {
 							for (const visibleEditorPane of editorService.visibleEditorPanes) {
 								if (isEqual(visibleEditorPane.input.resource, resource)) {
-									if (typeof visibleEditorPane.getViewState === 'function') {
-										return visibleEditorPane.getViewState?.();
+									const viewState = visibleEditorPane.getViewState();
+									if (viewState) {
+										return viewState;
 									}
 								}
 							}

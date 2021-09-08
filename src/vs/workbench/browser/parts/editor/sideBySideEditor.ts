@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/sidebysideeditor';
+import { localize } from 'vs/nls';
 import { Dimension, $, clearNode } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions } from 'vs/workbench/common/editor';
@@ -187,7 +188,17 @@ export class SideBySideEditor extends EditorPane {
 		this.updateStyles();
 	}
 
+	override getTitle(): string {
+		if (this.input) {
+			return this.input.getName();
+		}
+
+		return localize('sideBySideEditor', "Side by Side Editor");
+	}
+
 	override async setInput(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+
+		// Set input and resolve
 		const oldInput = this.input;
 		await super.setInput(input, options, context, token);
 
@@ -206,9 +217,13 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
+
+		// Forward to both sides
 		this.primaryEditorPane?.clearInput();
 		this.secondaryEditorPane?.clearInput();
 
+		// Since we do not keep side editors alive
+		// we dispose any editor created for recreation
 		this.disposeEditors();
 
 		super.clearInput();
@@ -226,11 +241,7 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	private layoutPane(pane: EditorPane | undefined, size: number): void {
-		if (this.orientation === Orientation.HORIZONTAL) {
-			pane?.layout(new Dimension(size, this.dimension.height));
-		} else {
-			pane?.layout(new Dimension(this.dimension.width, size));
-		}
+		pane?.layout(this.orientation === Orientation.HORIZONTAL ? new Dimension(size, this.dimension.height) : new Dimension(this.dimension.width, size));
 	}
 
 	override getControl(): IEditorControl | undefined {
@@ -246,6 +257,8 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	private async updateInput(oldInput: EditorInput | undefined, newInput: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+
+		// Create new side by side editors for new input
 		if (!oldInput || !newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
@@ -258,13 +271,16 @@ export class SideBySideEditor extends EditorPane {
 			return;
 		}
 
+		// Otherwise set to existing editor panes if matching
 		await Promise.all([
-			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, undefined, context, token),
+			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, options, context, token),
 			this.primaryEditorPane.setInput(newInput.primary as EditorInput, options, context, token)
 		]);
 	}
 
 	private async setNewInput(newInput: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+
+		// Create editors
 		this.secondaryEditorPane = this.doCreateEditor(newInput.secondary as EditorInput, assertIsDefined(this.secondaryEditorContainer));
 		this.primaryEditorPane = this.doCreateEditor(newInput.primary as EditorInput, assertIsDefined(this.primaryEditorContainer));
 
@@ -277,8 +293,9 @@ export class SideBySideEditor extends EditorPane {
 
 		this.onDidCreateEditors.fire(undefined);
 
+		// Set input to all
 		await Promise.all([
-			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, undefined, context, token),
+			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, options, context, token),
 			this.primaryEditorPane.setInput(newInput.primary as EditorInput, options, context, token)]
 		);
 	}
@@ -289,6 +306,7 @@ export class SideBySideEditor extends EditorPane {
 			throw new Error('No editor pane descriptor for editor found');
 		}
 
+		// Create editor pane and make visible
 		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService);
 		editorPane.create(container);
 		editorPane.setVisible(this.isVisible(), this.group);
@@ -316,6 +334,12 @@ export class SideBySideEditor extends EditorPane {
 		}
 	}
 
+	override dispose(): void {
+		this.disposeEditors();
+
+		super.dispose();
+	}
+
 	private disposeEditors(): void {
 		this.secondaryEditorPane?.dispose();
 		this.secondaryEditorPane = undefined;
@@ -330,11 +354,5 @@ export class SideBySideEditor extends EditorPane {
 		if (this.primaryEditorContainer) {
 			clearNode(this.primaryEditorContainer);
 		}
-	}
-
-	override dispose(): void {
-		this.disposeEditors();
-
-		super.dispose();
 	}
 }

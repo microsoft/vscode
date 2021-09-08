@@ -162,11 +162,11 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * Returns the current view state of the editor if any.
 	 *
-	 * This method is optional to implement for the editor pane
-	 * and should only be implemented when the pane can deal with
+	 * This method is optional to override for the editor pane
+	 * and should only be overridden when the pane can deal with
 	 * `IEditorOptions.viewState` to be applied when opening.
 	 */
-	getViewState?(): object | undefined;
+	getViewState(): object | undefined;
 
 	/**
 	 * Finds out if this editor is visible or not.

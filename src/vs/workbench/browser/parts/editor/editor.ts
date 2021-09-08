@@ -149,7 +149,7 @@ export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEdi
 	if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
 		const options: IEditorOptions = {
 			...presetOptions,
-			viewState: group.activeEditorPane?.getViewState?.()
+			viewState: group.activeEditorPane?.getViewState()
 		};
 
 		return options;
