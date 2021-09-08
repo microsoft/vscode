@@ -51,9 +51,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			side: input.minimapSide,
 			renderCharacters: input.minimapRenderCharacters,
 			maxColumn: input.minimapMaxColumn,
-			showSlider: EditorOptions.minimap.defaultValue.showSlider,
+			showSlider: 'mouseover',
 			scale: 1,
-			textAlpha: EditorOptions.minimap.defaultValue.textAlpha
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {

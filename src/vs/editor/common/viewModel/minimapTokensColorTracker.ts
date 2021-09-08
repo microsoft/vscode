@@ -10,23 +10,21 @@ import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 
 export class MinimapTokensColorTracker extends Disposable {
 	private static _INSTANCE: MinimapTokensColorTracker | null = null;
-	public static getInstance(tokenAlpha: number): MinimapTokensColorTracker {
+	public static getInstance(): MinimapTokensColorTracker {
 		if (!this._INSTANCE) {
-			this._INSTANCE = markAsSingleton(new MinimapTokensColorTracker(tokenAlpha));
+			this._INSTANCE = markAsSingleton(new MinimapTokensColorTracker());
 		}
 		return this._INSTANCE;
 	}
 
 	private _colors!: RGBA8[];
 	private _backgroundIsLight!: boolean;
-	private _tokenAlpha: number;
 
 	private readonly _onDidChange = new Emitter<void>();
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private constructor(tokenAlpha: number) {
+	private constructor() {
 		super();
-		this._tokenAlpha = tokenAlpha;
 		this._updateColorMap();
 		this._register(TokenizationRegistry.onDidChange(e => {
 			if (e.changedColorMap) {
@@ -46,7 +44,7 @@ export class MinimapTokensColorTracker extends Disposable {
 		for (let colorId = 1; colorId < colorMap.length; colorId++) {
 			const source = colorMap[colorId].rgba;
 			// Use a VM friendly data-type
-			this._colors[colorId] = new RGBA8(source.r, source.g, source.b, this._tokenAlpha);
+			this._colors[colorId] = new RGBA8(source.r, source.g, source.b, Math.round(source.a * 255));
 		}
 		let backgroundLuminosity = colorMap[ColorId.DefaultBackground].getRelativeLuminance();
 		this._backgroundIsLight = backgroundLuminosity >= 0.5;

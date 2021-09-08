@@ -3707,11 +3707,6 @@ declare namespace monaco.editor {
 		 * Relative size of the font in the minimap. Defaults to 1.
 		 */
 		scale?: number;
-		/**
-		 * Set the transparency of the minimap's text.
-		 * Defaults to 255.
-		 */
-		textAlpha?: number;
 	}
 
 	export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;

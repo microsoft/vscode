@@ -2551,11 +2551,6 @@ export interface IEditorMinimapOptions {
 	 * Relative size of the font in the minimap. Defaults to 1.
 	 */
 	scale?: number;
-	/**
-	 * Set the transparency of the minimap's text.
-	 * Defaults to 255.
-	 */
-	textAlpha?: number;
 }
 
 export type EditorMinimapOptions = Readonly<Required<IEditorMinimapOptions>>;
@@ -2571,7 +2566,6 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
-			textAlpha: 255,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -2621,11 +2615,6 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 					type: 'number',
 					default: defaults.maxColumn,
 					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
-				},
-				'editor.minimap.textAlpha': {
-					type: 'number',
-					default: defaults.textAlpha,
-					description: nls.localize('minimap.textAlpha', "Controls the opacity of the minimap text.")
 				}
 			}
 		);
@@ -2644,7 +2633,6 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 			renderCharacters: boolean(input.renderCharacters, this.defaultValue.renderCharacters),
 			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
-			textAlpha: EditorIntOption.clampedInt(input.textAlpha, this.defaultValue.textAlpha, 0, 255),
 		};
 	}
 }

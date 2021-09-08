@@ -32,6 +32,7 @@ export class MinimapCharRenderer {
 		dy: number,
 		chCode: number,
 		color: RGBA8,
+		foregroundAlpha: number,
 		backgroundColor: RGBA8,
 		fontScale: number,
 		useLighterFont: boolean,
@@ -50,15 +51,13 @@ export class MinimapCharRenderer {
 
 		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
-		const backgroundA = backgroundColor.a / 255;
-		const backgroundR = Math.round((backgroundColor.r - 255) * backgroundA + 255);
-		const backgroundG = Math.round((backgroundColor.g - 255) * backgroundA + 255);
-		const backgroundB = Math.round((backgroundColor.b - 255) * backgroundA + 255);
+		const backgroundR = backgroundColor.r;
+		const backgroundG = backgroundColor.g;
+		const backgroundB = backgroundColor.b;
 
 		const deltaR = color.r - backgroundR;
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
-		const colorA = color.a;
 
 		const dest = target.data;
 		let sourceOffset = charIndex * charWidth * charHeight;
@@ -71,7 +70,7 @@ export class MinimapCharRenderer {
 				dest[column++] = backgroundR + deltaR * c;
 				dest[column++] = backgroundG + deltaG * c;
 				dest[column++] = backgroundB + deltaB * c;
-				dest[column++] = colorA;
+				dest[column++] = foregroundAlpha;
 			}
 
 			row += destWidth;
@@ -83,8 +82,8 @@ export class MinimapCharRenderer {
 		dx: number,
 		dy: number,
 		color: RGBA8,
+		foregroundAlpha: number,
 		backgroundColor: RGBA8,
-		useLighterFont: boolean,
 		force1pxHeight: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
@@ -110,7 +109,6 @@ export class MinimapCharRenderer {
 		const colorR = backgroundR + deltaR * c;
 		const colorG = backgroundG + deltaG * c;
 		const colorB = backgroundB + deltaB * c;
-		const colorA = color.a;
 
 		const dest = target.data;
 
@@ -121,7 +119,7 @@ export class MinimapCharRenderer {
 				dest[column++] = colorR;
 				dest[column++] = colorG;
 				dest[column++] = colorB;
-				dest[column++] = colorA;
+				dest[column++] = foregroundAlpha;
 			}
 
 			row += destWidth;

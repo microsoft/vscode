@@ -136,8 +136,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}));
 
-		const minimapTokenAlpha = this._configuration.options.get(EditorOption.minimap).textAlpha;
-		this._register(MinimapTokensColorTracker.getInstance(minimapTokenAlpha).onDidChange(() => {
+		this._register(MinimapTokensColorTracker.getInstance().onDidChange(() => {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
