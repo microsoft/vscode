@@ -41,11 +41,19 @@ export class Logger {
 
 	public log(message: string, data?: any): void {
 		if (this.trace === Trace.Verbose) {
-			this.appendLine(`[Log - ${(new Date().toLocaleTimeString())}] ${message}`);
+			this.appendLine(`[Log - ${this.now()}] ${message}`);
 			if (data) {
 				this.appendLine(Logger.data2String(data));
 			}
 		}
+	}
+
+
+	private now(): string {
+		const now = new Date();
+		return padLeft(now.getUTCHours() + '', 2, '0')
+			+ ':' + padLeft(now.getMinutes() + '', 2, '0')
+			+ ':' + padLeft(now.getUTCSeconds() + '', 2, '0') + '.' + now.getMilliseconds();
 	}
 
 	public updateConfiguration() {
@@ -72,4 +80,8 @@ export class Logger {
 		}
 		return JSON.stringify(data, undefined, 2);
 	}
+}
+
+function padLeft(s: string, n: number, pad = ' ') {
+	return pad.repeat(Math.max(0, n - s.length)) + s;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, TimeoutTimer, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
@@ -11,23 +11,23 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ColorProviderRegistry } from 'vs/editor/common/modes';
-import { IColorData, getColors } from 'vs/editor/contrib/colorPicker/color';
+import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const MAX_DECORATORS = 500;
 
 export class ColorDetector extends Disposable implements IEditorContribution {
 
-	private static readonly ID: string = 'editor.contrib.colorDetector';
+	public static readonly ID: string = 'editor.contrib.colorDetector';
 
-	static RECOMPUTE_TIME = 1000; // ms
+	static readonly RECOMPUTE_TIME = 1000; // ms
 
 	private readonly _localToDispose = this._register(new DisposableStore());
 	private _computePromise: CancelablePromise<IColorData[]> | null;
@@ -46,13 +46,13 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
-		this._register(_editor.onDidChangeModel((e) => {
+		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
 			this.onModelChanged();
 		}));
-		this._register(_editor.onDidChangeModelLanguage((e) => this.onModelChanged()));
-		this._register(ColorProviderRegistry.onDidChange((e) => this.onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration((e) => {
+		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
+		this._register(ColorProviderRegistry.onDidChange(() => this.onModelChanged()));
+		this._register(_editor.onDidChangeConfiguration(() => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
@@ -77,8 +77,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		}
 		const languageId = model.getLanguageIdentifier();
 		// handle deprecated settings. [languageId].colorDecorators.enable
-		const deprecatedConfig = this._configurationService.getValue<{}>(languageId.language);
-		if (deprecatedConfig) {
+		const deprecatedConfig = this._configurationService.getValue(languageId.language);
+		if (deprecatedConfig && typeof deprecatedConfig === 'object') {
 			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
@@ -88,15 +88,11 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		return this._editor.getOption(EditorOption.colorDecorators);
 	}
 
-	getId(): string {
-		return ColorDetector.ID;
-	}
-
 	static get(editor: ICodeEditor): ColorDetector {
 		return editor.getContribution<ColorDetector>(this.ID);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.stop();
 		this.removeAllDecorations();
 		super.dispose();
@@ -114,7 +110,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
+		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			if (!this._timeoutTimer) {
 				this._timeoutTimer = new TimeoutTimer();
 				this._timeoutTimer.cancelAndSet(() => {
@@ -177,12 +173,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
 			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-			let subKey = hash(rgba).toString(16);
+			let subKey = hash(`rgba(${rgba.r},${rgba.g},${rgba.b},${rgba.a})`).toString(16);
 			let color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
 			let key = 'colorBox-' + subKey;
 
 			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
-				this._codeEditorService.registerDecorationType(key, {
+				this._codeEditorService.registerDecorationType('color-detector-color', key, {
 					before: {
 						contentText: ' ',
 						border: 'solid 0.1em #000',
@@ -196,7 +192,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 							border: 'solid 0.1em #eee'
 						}
 					}
-				});
+				}, undefined, this._editor);
 			}
 
 			newDecorationsTypes[key] = true;
@@ -247,4 +243,4 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(ColorDetector);
+registerEditorContribution(ColorDetector.ID, ColorDetector);

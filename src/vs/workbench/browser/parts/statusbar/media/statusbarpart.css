@@ -10,6 +10,7 @@
 	height: 22px;
 	font-size: 12px;
 	display: flex;
+	overflow: visible;
 }
 
 .monaco-workbench .part.statusbar.status-border-top::after {
@@ -27,11 +28,11 @@
 .monaco-workbench .part.statusbar > .left-items,
 .monaco-workbench .part.statusbar > .right-items {
 	display: flex;
-	flex-wrap: wrap; /* individual entries should not shrink since we do not control their content */
 }
 
 .monaco-workbench .part.statusbar > .right-items {
-	flex-direction: row-reverse; /* ensures that the most right elements wrap last when space is little */
+	flex-direction: row-reverse;
+	flex-wrap: wrap /* ensures that the most right elements wrap last when space is little */;
 }
 
 .monaco-workbench .part.statusbar > .left-items {
@@ -43,6 +44,7 @@
 	line-height: 22px;
 	height: 100%;
 	vertical-align: top;
+	max-width: 40vw;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak {
@@ -52,7 +54,7 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
 	content: '';
 	position: absolute;
-	left: calc(50% - 8px); /* 3px (margin) + 5px (padding) = 8px */
+	left: 10px;
 	top: -5px;
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
@@ -89,21 +91,26 @@
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
 	cursor: pointer;
-	display: inline-block;
+	display: flex;
 	height: 100%;
 	padding: 0 5px 0 5px;
 	white-space: pre; /* gives some degree of styling */
+	align-items: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	outline-width: 0px; /* do not render focus outline, we already have background */
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {
 	text-decoration: none;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a.disabled {
-	pointer-events: none;
+	cursor: default;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.octicon {
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item  span.codicon {
 	text-align: center;
 	font-size: 14px;
+	color: inherit;
 }

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
-import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import product from 'vs/platform/product/node/product';
-import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { getMigratedSettingValue, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
 
-export function createUpdateURL(platform: string, quality: string): string {
-	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
+export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
+	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
 }
 
 export type UpdateNotAvailableClassification = {
@@ -24,13 +24,13 @@ export type UpdateNotAvailableClassification = {
 
 export abstract class AbstractUpdateService implements IUpdateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	protected readonly url: string | undefined;
+	protected url: string | undefined;
 
 	private _state: State = State.Uninitialized;
 
-	private _onStateChange = new Emitter<State>();
+	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
@@ -44,18 +44,30 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
-	) {
-		if (this.environmentService.disableUpdates) {
+		@IProductService protected readonly productService: IProductService
+	) { }
+
+	/**
+	 * This must be called before any other call. This is a performance
+	 * optimization, to avoid using extra CPU cycles before first window open.
+	 * https://github.com/microsoft/vscode/issues/89784
+	 */
+	initialize(): void {
+		if (!this.environmentMainService.isBuilt) {
+			return; // updates are never enabled when running out of sources
+		}
+
+		if (this.environmentMainService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
-		if (!product.updateUrl || !product.commit) {
+		if (!this.productService.updateUrl || !this.productService.commit) {
 			this.logService.info('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
@@ -85,7 +97,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
 
 			// Check for updates only once after 30 seconds
-			setTimeout(() => this.checkForUpdates(null), 30 * 1000);
+			setTimeout(() => this.checkForUpdates(false), 30 * 1000);
 		} else {
 			// Start checking for updates after 30 seconds
 			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
@@ -93,26 +105,26 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
-		return updateMode === 'none' ? undefined : product.quality;
+		return updateMode === 'none' ? undefined : this.productService.quality;
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
-			.then(() => this.checkForUpdates(null))
+			.then(() => this.checkForUpdates(false))
 			.then(() => {
 				// Check again after 1 hour
 				return this.scheduleCheckForUpdates(60 * 60 * 1000);
 			});
 	}
 
-	async checkForUpdates(context: any): Promise<void> {
+	async checkForUpdates(explicit: boolean): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
-		this.doCheckForUpdates(context);
+		this.doCheckForUpdates(explicit);
 	}
 
 	async downloadUpdate(): Promise<void> {
@@ -152,7 +164,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).then(vetod => {
+		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
@@ -169,6 +181,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		if (!this.url) {
 			return Promise.resolve(undefined);
 		}
+
 		return this.requestService.request({ url: this.url }, CancellationToken.None).then(context => {
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.

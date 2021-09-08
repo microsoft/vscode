@@ -18,7 +18,6 @@
 	opacity: 0;
 	position: absolute;
 	line-height: 22px;
-	margin: 10px 0; /* 10px top and bottom */
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 }
 
@@ -32,39 +31,15 @@
 /** Notification: Icon */
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon {
+	display: flex;
+	align-items: center;
 	flex: 0 0 16px;
 	height: 22px;
 	margin-right: 4px;
 	margin-left: 4px;
+	font-size: 18px;
 	background-position: center;
 	background-repeat: no-repeat;
-}
-
-.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
-	background-image: url('info-light.svg');
-}
-
-.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
-	background-image: url('warning-light.svg');
-}
-
-.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
-	background-image: url('error-light.svg');
-}
-
-.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info,
-.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-info {
-	background-image: url('info-dark.svg');
-}
-
-.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning,
-.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-warning {
-	background-image: url('warning-dark.svg');
-}
-
-.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error,
-.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-icon.icon-error {
-	background-image: url('error-dark.svg');
 }
 
 /** Notification: Message */
@@ -75,6 +50,7 @@
 	text-overflow: ellipsis;
 	flex: 1; /* let the message always grow */
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
@@ -129,13 +105,27 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
-	max-width: fit-content;
-	padding: 5px 10px;
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container > .monaco-button-dropdown,
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container > .monaco-button {
 	margin: 4px 5px; /* allows button focus outline to be visible */
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
+	outline-offset: 2px !important;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-text-button {
+	width: fit-content;
+	width: -moz-fit-content;
+	padding: 5px 10px;
+	display: inline-block;	/* to enable ellipsis in text overflow */
 	font-size: 12px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-dropdown-button {
+	padding: 5px
 }
 
 /** Notification: Progress */
@@ -143,4 +133,16 @@
 .monaco-workbench .notifications-list-container .progress-bit {
 	height: 2px;
 	bottom: 0;
+}
+
+.monaco-workbench.mac:not(.web) .notifications-list-container .monaco-progress-container.infinite .progress-bit {
+	/** macOS native: reduce animation steps for reduced CPU load (https://github.com/microsoft/vscode/issues/97900) */
+	animation-timing-function: steps(100);
+}
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+	/** macOS native: do not change the animation-timing-function on highDPI screens to reduce stutter */
+	.monaco-workbench.mac:not(.web) .notifications-list-container .monaco-progress-container.infinite .progress-bit {
+		animation-timing-function: linear;
+	}
 }

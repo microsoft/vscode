@@ -22,13 +22,9 @@ export interface IResourceCreator {
 }
 
 export class OutputLinkComputer {
-	private ctx: IWorkerContext;
-	private patterns: Map<URI /* folder uri */, RegExp[]>;
+	private patterns = new Map<URI /* folder uri */, RegExp[]>();
 
-	constructor(ctx: IWorkerContext, createData: ICreateData) {
-		this.ctx = ctx;
-		this.patterns = new Map<URI, RegExp[]>();
-
+	constructor(private ctx: IWorkerContext, createData: ICreateData) {
 		this.computePatterns(createData);
 	}
 
@@ -37,35 +33,33 @@ export class OutputLinkComputer {
 		// Produce patterns for each workspace root we are configured with
 		// This means that we will be able to detect links for paths that
 		// contain any of the workspace roots as segments.
-		const workspaceFolders = createData.workspaceFolders.map(r => URI.parse(r));
-		workspaceFolders.forEach(workspaceFolder => {
+		const workspaceFolders = createData.workspaceFolders
+			.sort((resourceStrA, resourceStrB) => resourceStrB.length - resourceStrA.length) // longest paths first (for https://github.com/microsoft/vscode/issues/88121)
+			.map(resourceStr => URI.parse(resourceStr));
+
+		for (const workspaceFolder of workspaceFolders) {
 			const patterns = OutputLinkComputer.createPatterns(workspaceFolder);
 			this.patterns.set(workspaceFolder, patterns);
-		});
-	}
-
-	private getModel(uri: string): IMirrorModel | null {
-		const models = this.ctx.getMirrorModels();
-		for (const model of models) {
-			if (model.uri.toString() === uri) {
-				return model;
-			}
 		}
-
-		return null;
 	}
 
-	public computeLinks(uri: string): Promise<ILink[]> {
+	private getModel(uri: string): IMirrorModel | undefined {
+		const models = this.ctx.getMirrorModels();
+
+		return models.find(model => model.uri.toString() === uri);
+	}
+
+	computeLinks(uri: string): ILink[] {
 		const model = this.getModel(uri);
 		if (!model) {
-			return Promise.resolve([]);
+			return [];
 		}
 
 		const links: ILink[] = [];
-		const lines = model.getValue().split(/\r\n|\r|\n/);
+		const lines = strings.splitLines(model.getValue());
 
 		// For each workspace root patterns
-		this.patterns.forEach((folderPatterns, folderUri) => {
+		for (const [folderUri, folderPatterns] of this.patterns) {
 			const resourceCreator: IResourceCreator = {
 				toResource: (folderRelativePath: string): URI | null => {
 					if (typeof folderRelativePath === 'string') {
@@ -79,12 +73,12 @@ export class OutputLinkComputer {
 			for (let i = 0, len = lines.length; i < len; i++) {
 				links.push(...OutputLinkComputer.detectLinks(lines[i], i + 1, folderPatterns, resourceCreator));
 			}
-		});
+		}
 
-		return Promise.resolve(links);
+		return links;
 	}
 
-	public static createPatterns(workspaceFolder: URI): RegExp[] {
+	static createPatterns(workspaceFolder: URI): RegExp[] {
 		const patterns: RegExp[] = [];
 
 		const workspaceFolderPath = workspaceFolder.scheme === Schemas.file ? workspaceFolder.fsPath : workspaceFolder.path;
@@ -93,7 +87,7 @@ export class OutputLinkComputer {
 			workspaceFolderVariants.push(extpath.toSlashes(workspaceFolderPath));
 		}
 
-		workspaceFolderVariants.forEach(workspaceFolderVariant => {
+		for (const workspaceFolderVariant of workspaceFolderVariants) {
 			const validPathCharacterPattern = '[^\\s\\(\\):<>"]';
 			const validPathCharacterOrSpacePattern = `(?:${validPathCharacterPattern}| ${validPathCharacterPattern})`;
 			const pathPattern = `${validPathCharacterOrSpacePattern}+\\.${validPathCharacterPattern}+`;
@@ -116,15 +110,15 @@ export class OutputLinkComputer {
 			// Example: at /workspaces/mankala/Game.ts:336
 			// Example: at /workspaces/mankala/Game.ts:336:9
 			patterns.push(new RegExp(strings.escapeRegExpCharacters(workspaceFolderVariant) + `(${strictPathPattern})(:(\\d+))?(:(\\d+))?`, 'gi'));
-		});
+		}
 
 		return patterns;
 	}
 
 	/**
-	 * Detect links. Made public static to allow for tests.
+	 * Detect links. Made static to allow for tests.
 	 */
-	public static detectLinks(line: string, lineIndex: number, patterns: RegExp[], resourceCreator: IResourceCreator): ILink[] {
+	static detectLinks(line: string, lineIndex: number, patterns: RegExp[], resourceCreator: IResourceCreator): ILink[] {
 		const links: ILink[] = [];
 
 		patterns.forEach(pattern => {
@@ -161,7 +155,7 @@ export class OutputLinkComputer {
 				const fullMatch = strings.rtrim(match[0], '.'); // remove trailing "." that likely indicate end of sentence
 
 				const index = line.indexOf(fullMatch, offset);
-				offset += index + fullMatch.length;
+				offset = index + fullMatch.length;
 
 				const linkRange = {
 					startColumn: index + 1,

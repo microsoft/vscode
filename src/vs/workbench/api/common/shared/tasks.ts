@@ -19,6 +19,7 @@ export interface TaskPresentationOptionsDTO {
 	showReuseMessage?: boolean;
 	clear?: boolean;
 	group?: string;
+	close?: boolean;
 }
 
 export interface RunOptionsDTO {
@@ -66,8 +67,8 @@ export interface ShellExecutionDTO {
 	options?: ShellExecutionOptionsDTO;
 }
 
-export interface CustomExecution2DTO {
-	customExecution: 'customExecution2';
+export interface CustomExecutionDTO {
+	customExecution: 'customExecution';
 }
 
 export interface TaskSourceDTO {
@@ -78,17 +79,23 @@ export interface TaskSourceDTO {
 
 export interface TaskHandleDTO {
 	id: string;
-	workspaceFolder: UriComponents;
+	workspaceFolder: UriComponents | string;
+}
+
+export interface TaskGroupDTO {
+	isDefault?: boolean;
+	_id: string;
 }
 
 export interface TaskDTO {
 	_id: string;
 	name?: string;
-	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomExecution2DTO | undefined;
+	execution: ProcessExecutionDTO | ShellExecutionDTO | CustomExecutionDTO | undefined;
 	definition: TaskDefinitionDTO;
 	isBackground?: boolean;
 	source: TaskSourceDTO;
-	group?: string;
+	group?: TaskGroupDTO;
+	detail?: string;
 	presentationOptions?: TaskPresentationOptionsDTO;
 	problemMatchers: string[];
 	hasDefinedMatchers: boolean;
@@ -112,7 +119,7 @@ export interface TaskProcessStartedDTO {
 
 export interface TaskProcessEndedDTO {
 	id: string;
-	exitCode: number;
+	exitCode: number | undefined;
 }
 
 

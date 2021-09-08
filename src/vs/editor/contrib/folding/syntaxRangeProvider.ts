@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FoldingRangeProvider, FoldingRange, FoldingContext } from 'vs/editor/common/modes';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { ITextModel } from 'vs/editor/common/model';
-import { RangeProvider } from './folding';
-import { MAX_LINE_NUMBER, FoldingRegions } from './foldingRanges';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ITextModel } from 'vs/editor/common/model';
+import { FoldingContext, FoldingRange, FoldingRangeProvider } from 'vs/editor/common/modes';
+import { RangeProvider } from './folding';
+import { FoldingRegions, MAX_LINE_NUMBER } from './foldingRanges';
 
 const MAX_FOLDING_REGIONS = 5000;
 
@@ -25,7 +26,17 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	readonly id = ID_SYNTAX_PROVIDER;
 
-	constructor(private readonly editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
+	readonly disposables: DisposableStore | undefined;
+
+	constructor(private readonly editorModel: ITextModel, private providers: FoldingRangeProvider[], handleFoldingRangesChange: () => void, private limit = MAX_FOLDING_REGIONS) {
+		for (const provider of providers) {
+			if (typeof provider.onDidChange === 'function') {
+				if (!this.disposables) {
+					this.disposables = new DisposableStore();
+				}
+				this.disposables.add(provider.onDidChange(handleFoldingRangesChange));
+			}
+		}
 	}
 
 	compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
@@ -39,8 +50,8 @@ export class SyntaxRangeProvider implements RangeProvider {
 	}
 
 	dispose() {
+		this.disposables?.dispose();
 	}
-
 }
 
 function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Promise<IFoldingRangeData[] | null> {

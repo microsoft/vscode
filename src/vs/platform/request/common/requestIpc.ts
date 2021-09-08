@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
+import { bufferToStream, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { VSBuffer, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
+import { Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 type RequestResponse = [
 	{
@@ -40,12 +40,16 @@ export class RequestChannel implements IServerChannel {
 
 export class RequestChannelClient {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) { }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		const [res, buffer] = await this.channel.call<RequestResponse>('request', [options]);
+		return RequestChannelClient.request(this.channel, options, token);
+	}
+
+	static async request(channel: IChannel, options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		const [res, buffer] = await channel.call<RequestResponse>('request', [options]);
 		return { res, stream: bufferToStream(buffer) };
 	}
 

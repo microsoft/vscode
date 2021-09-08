@@ -73,29 +73,19 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar {
 	display: none;
+	height: 35px;
 }
 
 .monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-container-toolbar {
 	display: block;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .action-label {
-	display: block;
-	height: 35px;
-	line-height: 35px;
-	min-width: 28px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .actions-container {
+	justify-content: flex-end;
 }
 
-.vs .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
-	background-image: url('close-light.svg');
-}
-
-.vs-dark .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
-.hc-black .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
-	background-image: url('close-dark.svg');
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .action-item {
+	margin-right: 4px;
 }
 
 /* Editor */

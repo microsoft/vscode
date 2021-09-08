@@ -16,7 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -24,7 +24,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IProductService } from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export interface IEndpointDetails {
@@ -33,7 +33,7 @@ export interface IEndpointDetails {
 }
 
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _installedExtensions: Promise<ILocalExtension[]>;
 
@@ -42,7 +42,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super();
 
@@ -402,7 +402,7 @@ class RemoteSearchProvider implements ISearchProvider {
 		const uuid = ext.identifier.uuid;
 		const versionString = ext.manifest.version
 			.split('.')
-			.map(versionPart => strings.pad(<any>versionPart, 10))
+			.map(versionPart => String(versionPart).padStart(10), '0')
 			.join('');
 
 		return `(packageid eq '${uuid}' and startbuildno le '${versionString}' and endbuildno ge '${versionString}')`;
@@ -519,7 +519,7 @@ export class SettingMatches {
 			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
 		} else {
-			valueRanges = this.valuesMatcher ? this.valuesMatcher(searchString, setting) : [];
+			valueRanges = this.valuesMatcher(searchString, setting);
 		}
 
 		return [...descriptionRanges, ...keyRanges, ...valueRanges];

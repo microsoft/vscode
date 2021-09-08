@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { SkinnyTextDocument, SkinnyTextLine } from '../tableOfContentsProvider';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
-import { SkinnyTextDocument } from '../tableOfContentsProvider';
-import { flatten } from '../util/arrays';
 
 export interface WorkspaceMarkdownDocumentProvider {
 	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
@@ -27,10 +26,25 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
 
-	async getAllMarkdownDocuments() {
+	private readonly utf8Decoder = new TextDecoder('utf-8');
+
+	/**
+	 * Reads and parses all .md documents in the workspace.
+	 * Files are processed in batches, to keep the number of open files small.
+	 *
+	 * @returns Array of processed .md files.
+	 */
+	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
+		const maxConcurrent = 20;
+		const docList: SkinnyTextDocument[] = [];
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
-		const docs = await Promise.all(resources.map(doc => this.getMarkdownDocument(doc)));
-		return docs.filter(doc => !!doc) as SkinnyTextDocument[];
+
+		for (let i = 0; i < resources.length; i += maxConcurrent) {
+			const resourceBatch = resources.slice(i, i + maxConcurrent);
+			const documentBatch = (await Promise.all(resourceBatch.map(this.getMarkdownDocument))).filter((doc) => !!doc) as SkinnyTextDocument[];
+			docList.push(...documentBatch);
+		}
+		return docList;
 	}
 
 	public get onDidChangeMarkdownDocument() {
@@ -81,11 +95,38 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	}
 
 	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		const doc = await vscode.workspace.openTextDocument(resource);
-		return doc && isMarkdownFile(doc) ? doc : undefined;
+		const matchingDocuments = vscode.workspace.textDocuments.filter((doc) => doc.uri.toString() === resource.toString());
+		if (matchingDocuments.length !== 0) {
+			return matchingDocuments[0];
+		}
+
+		const bytes = await vscode.workspace.fs.readFile(resource);
+
+		// We assume that markdown is in UTF-8
+		const text = this.utf8Decoder.decode(bytes);
+
+		const lines: SkinnyTextLine[] = [];
+		const parts = text.split(/(\r?\n)/);
+		const lineCount = Math.floor(parts.length / 2) + 1;
+		for (let line = 0; line < lineCount; line++) {
+			lines.push({
+				text: parts[line * 2]
+			});
+		}
+
+		return {
+			uri: resource,
+			version: 0,
+			lineCount: lineCount,
+			lineAt: (index) => {
+				return lines[index];
+			},
+			getText: () => {
+				return text;
+			}
+		};
 	}
 }
-
 
 export default class MarkdownWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
 	private _symbolCache = new Map<string, Lazy<Thenable<vscode.SymbolInformation[]>>>();
@@ -108,8 +149,8 @@ export default class MarkdownWorkspaceSymbolProvider extends Disposable implemen
 			this._workspaceMarkdownDocumentProvider.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this, this._disposables);
 		}
 
-		const allSymbolsSets = await Promise.all(Array.from(this._symbolCache.values()).map(x => x.value));
-		const allSymbols = flatten(allSymbolsSets);
+		const allSymbolsSets = await Promise.all(Array.from(this._symbolCache.values(), x => x.value));
+		const allSymbols = allSymbolsSets.flat();
 		return allSymbols.filter(symbolInformation => symbolInformation.name.toLowerCase().indexOf(query.toLowerCase()) !== -1);
 	}
 

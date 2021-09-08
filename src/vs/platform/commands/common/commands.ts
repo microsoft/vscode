@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
-import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { LinkedList } from 'vs/base/common/linkedList';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { keys } from 'vs/base/common/map';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LinkedList } from 'vs/base/common/linkedList';
+import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
 
@@ -19,7 +19,7 @@ export interface ICommandEvent {
 }
 
 export interface ICommandService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	onWillExecuteCommand: Event<ICommandEvent>;
 	onDidExecuteCommand: Event<ICommandEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
@@ -38,9 +38,15 @@ export interface ICommand {
 }
 
 export interface ICommandHandlerDescription {
-	description: string;
-	args: { name: string; description?: string; constraint?: TypeConstraint; schema?: IJSONSchema; }[];
-	returns?: string;
+	readonly description: string;
+	readonly args: ReadonlyArray<{
+		readonly name: string;
+		readonly isOptional?: boolean;
+		readonly description?: string;
+		readonly constraint?: TypeConstraint;
+		readonly schema?: IJSONSchema;
+	}>;
+	readonly returns?: string;
 }
 
 export interface ICommandRegistry {
@@ -99,7 +105,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		let ret = toDisposable(() => {
 			removeFn();
 			const command = this._commands.get(id);
-			if (command && command.isEmpty()) {
+			if (command?.isEmpty()) {
 				this._commands.delete(id);
 			}
 		});
@@ -119,12 +125,12 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		if (!list || list.isEmpty()) {
 			return undefined;
 		}
-		return list.iterator().next().value;
+		return Iterable.first(list);
 	}
 
 	getCommands(): ICommandsMap {
 		const result = new Map<string, ICommand>();
-		for (const key of keys(this._commands)) {
+		for (const key of this._commands.keys()) {
 			const command = this.getCommand(key);
 			if (command) {
 				result.set(key, command);
@@ -136,9 +142,11 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 
 export const NullCommandService: ICommandService = {
 	_serviceBrand: undefined,
-	onWillExecuteCommand: () => ({ dispose: () => { } }),
-	onDidExecuteCommand: () => ({ dispose: () => { } }),
+	onWillExecuteCommand: () => Disposable.None,
+	onDidExecuteCommand: () => Disposable.None,
 	executeCommand() {
 		return Promise.resolve(undefined);
 	}
 };
+
+CommandsRegistry.registerCommand('noop', () => { });

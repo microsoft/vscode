@@ -3,27 +3,63 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
+import { localize } from 'vs/nls';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class NotificationService extends Disposable implements INotificationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private _model: INotificationsModel = this._register(new NotificationsModel());
+	readonly model = this._register(new NotificationsModel());
 
-	get model(): INotificationsModel {
-		return this._model;
+	private readonly _onDidAddNotification = this._register(new Emitter<INotification>());
+	readonly onDidAddNotification = this._onDidAddNotification.event;
+
+	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
+	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
+
+	constructor(
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		super();
+
+		this.registerListeners();
 	}
 
-	constructor(@IStorageService private readonly storageService: IStorageService) {
-		super();
+	private registerListeners(): void {
+		this._register(this.model.onDidChangeNotification(e => {
+			switch (e.kind) {
+				case NotificationChangeType.ADD:
+				case NotificationChangeType.REMOVE: {
+					const notification: INotification = {
+						message: e.item.message.original,
+						severity: e.item.severity,
+						source: typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source,
+						silent: e.item.silent
+					};
+
+					if (e.kind === NotificationChangeType.ADD) {
+						this._onDidAddNotification.fire(notification);
+					}
+
+					if (e.kind === NotificationChangeType.REMOVE) {
+						this._onDidRemoveNotification.fire(notification);
+					}
+
+					break;
+				}
+			}
+		}));
+	}
+
+	setFilter(filter: NotificationsFilter): void {
+		this.model.setFilter(filter);
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
@@ -63,34 +99,35 @@ export class NotificationService extends Disposable implements INotificationServ
 		let handle: INotificationHandle;
 		if (notification.neverShowAgain) {
 			const scope = notification.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const id = notification.neverShowAgain.id;
 
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
-			const id = notification.neverShowAgain.id;
 			if (this.storageService.getBoolean(id, scope)) {
 				return new NoOpNotification();
 			}
 
 			const neverShowAgainAction = toDispose.add(new Action(
 				'workbench.notification.neverShowAgain',
-				nls.localize('neverShowAgain', "Don't Show Again"),
-				undefined, true, () => {
+				localize('neverShowAgain', "Don't Show Again"),
+				undefined, true, async () => {
 
 					// Close notification
 					handle.close();
 
 					// Remember choice
-					this.storageService.store(id, true, scope);
-
-					return Promise.resolve();
+					this.storageService.store(id, true, scope, StorageTarget.USER);
 				}));
 
 			// Insert as primary or secondary action
-			const actions = notification.actions || { primary: [], secondary: [] };
+			const actions = {
+				primary: notification.actions?.primary || [],
+				secondary: notification.actions?.secondary || []
+			};
 			if (!notification.neverShowAgain.isSecondary) {
-				actions.primary = [neverShowAgainAction, ...(actions.primary || [])]; // action comes first
+				actions.primary = [neverShowAgainAction, ...actions.primary]; // action comes first
 			} else {
-				actions.secondary = [...(actions.secondary || []), neverShowAgainAction]; // actions comes last
+				actions.secondary = [...actions.secondary, neverShowAgainAction]; // actions comes last
 			}
 
 			notification.actions = actions;
@@ -109,19 +146,19 @@ export class NotificationService extends Disposable implements INotificationServ
 		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
-		if (options && options.neverShowAgain) {
+		if (options?.neverShowAgain) {
 			const scope = options.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const id = options.neverShowAgain.id;
 
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
-			const id = options.neverShowAgain.id;
 			if (this.storageService.getBoolean(id, scope)) {
 				return new NoOpNotification();
 			}
 
 			const neverShowAgainChoice = {
-				label: nls.localize('neverShowAgain', "Don't Show Again"),
-				run: () => this.storageService.store(id, true, scope),
+				label: localize('neverShowAgain', "Don't Show Again"),
+				run: () => this.storageService.store(id, true, scope, StorageTarget.USER),
 				isSecondary: options.neverShowAgain.isSecondary
 			};
 
@@ -162,7 +199,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		handle = this.notify({ severity, message, actions, sticky: options && options.sticky, silent: options && options.silent });
+		handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
 
 		Event.once(handle.onDidClose)(() => {
 

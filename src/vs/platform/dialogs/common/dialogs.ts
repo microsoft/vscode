@@ -3,15 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
+import { Codicon } from 'vs/base/common/codicons';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { basename } from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { FileFilter } from 'vs/platform/windows/common/windows';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
+export interface FileFilter {
+	extensions: string[];
+	name: string;
+}
+
 export type DialogType = 'none' | 'info' | 'error' | 'question' | 'warning';
+
+export interface ICheckbox {
+	label: string;
+	checked?: boolean;
+}
+
+export interface IConfirmDialogArgs {
+	confirmation: IConfirmation;
+}
+
+export interface IShowDialogArgs {
+	severity: Severity;
+	message: string;
+	buttons?: string[];
+	options?: IDialogOptions;
+}
+
+export interface IInputDialogArgs extends IShowDialogArgs {
+	buttons: string[];
+	inputs: IInput[];
+}
+
+export interface IDialog {
+	confirmArgs?: IConfirmDialogArgs;
+	showArgs?: IShowDialogArgs;
+	inputArgs?: IInputDialogArgs;
+}
+
+export type IDialogResult = IConfirmationResult | IInputResult | IShowResult;
 
 export interface IConfirmation {
 	title?: string;
@@ -20,10 +55,7 @@ export interface IConfirmation {
 	detail?: string;
 	primaryButton?: string;
 	secondaryButton?: string;
-	checkbox?: {
-		label: string;
-		checked?: boolean;
-	};
+	checkbox?: ICheckbox;
 }
 
 export interface IConfirmationResult {
@@ -41,11 +73,37 @@ export interface IConfirmationResult {
 	checkboxChecked?: boolean;
 }
 
+export interface IShowResult {
+
+	/**
+	 * Selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
+	 */
+	choice: number;
+
+	/**
+	 * This will only be defined if the confirmation was created
+	 * with the checkbox option defined.
+	 */
+	checkboxChecked?: boolean;
+}
+
+export interface IInputResult extends IShowResult {
+
+	/**
+	 * Values for the input fields as provided by the user
+	 * or `undefined` if none.
+	 */
+	values?: string[];
+}
+
 export interface IPickAndOpenOptions {
 	forceNewWindow?: boolean;
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
 	availableFileSystems?: string[];
+	remoteAuthority?: string | null;
 }
 
 export interface ISaveDialogOptions {
@@ -74,7 +132,7 @@ export interface ISaveDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
 export interface IOpenDialogOptions {
@@ -118,15 +176,69 @@ export interface IOpenDialogOptions {
 	 * Specifies a list of schemas for the file systems the user can load from. If not specified, uses the schema of the defaultURI or, if also not available,
 	 * the schema of the current window.
 	 */
-	availableFileSystems?: string[];
+	availableFileSystems?: readonly string[];
 }
 
-
 export const IDialogService = createDecorator<IDialogService>('dialogService');
+
+export interface ICustomDialogOptions {
+	buttonDetails?: string[];
+	markdownDetails?: ICustomDialogMarkdown[];
+	classes?: string[];
+	icon?: Codicon;
+	disableCloseAction?: boolean;
+}
+
+export interface ICustomDialogMarkdown {
+	markdown: IMarkdownString,
+	classes?: string[]
+}
 
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
+	checkbox?: ICheckbox;
+	custom?: boolean | ICustomDialogOptions;
+}
+
+export interface IInput {
+	placeholder?: string;
+	type?: 'text' | 'password'
+	value?: string;
+}
+
+/**
+ * A handler to bring up modal dialogs.
+ */
+export interface IDialogHandler {
+	/**
+	 * Ask the user for confirmation with a modal dialog.
+	 */
+	confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
+
+	/**
+	 * Present a modal dialog to the user.
+	 *
+	 * @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned.
+	 */
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
+
+	/**
+	 * Present a modal dialog to the user asking for input.
+	 *
+	 *  @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned. In addition, the values for the
+	 * inputs are returned as well.
+	 */
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
+
+	/**
+	 * Present the about dialog to the user.
+	 */
+	about(): Promise<void>;
 }
 
 /**
@@ -137,7 +249,7 @@ export interface IDialogOptions {
  */
 export interface IDialogService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
@@ -151,7 +263,22 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<number>;
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
+
+	/**
+	 * Present a modal dialog to the user asking for input.
+	 *
+	 *  @returns A promise with the selected choice index. If the user refused to choose,
+	 * then a promise with index of `cancelId` option is returned. If there is no such
+	 * option then promise with index `0` is returned. In addition, the values for the
+	 * inputs are returned as well.
+	 */
+	input(severity: Severity, message: string, buttons: string[], inputs: IInput[], options?: IDialogOptions): Promise<IInputResult>;
+
+	/**
+	 * Present the about dialog to the user.
+	 */
+	about(): Promise<void>;
 }
 
 export const IFileDialogService = createDecorator<IFileDialogService>('fileDialogService');
@@ -161,25 +288,28 @@ export const IFileDialogService = createDecorator<IFileDialogService>('fileDialo
  */
 export interface IFileDialogService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * The default path for a new file based on previously used files.
 	 * @param schemeFilter The scheme of the file path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultFilePath(schemeFilter?: string): URI | undefined;
+	defaultFilePath(schemeFilter?: string): Promise<URI>;
 
 	/**
 	 * The default path for a new folder based on previously used folders.
 	 * @param schemeFilter The scheme of the folder path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultFolderPath(schemeFilter?: string): URI | undefined;
+	defaultFolderPath(schemeFilter?: string): Promise<URI>;
 
 	/**
 	 * The default path for a new workspace based on previously used workspaces.
 	 * @param schemeFilter The scheme of the workspace path. If no filter given, the scheme of the current window is used.
+	 * Falls back to user home in the absence of enough information to find a better URI.
 	 */
-	defaultWorkspacePath(schemeFilter?: string): URI | undefined;
+	defaultWorkspacePath(schemeFilter?: string, filename?: string): Promise<URI>;
 
 	/**
 	 * Shows a file-folder selection dialog and opens the selected entry.
@@ -202,9 +332,9 @@ export interface IFileDialogService {
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
-	 * Shows a save file file dialog and save the file at the chosen file URI.
+	 * Shows a save file dialog and save the file at the chosen file URI.
 	 */
-	pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
+	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.
@@ -212,26 +342,44 @@ export interface IFileDialogService {
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 
 	/**
+	 * Shows a confirm dialog for saving 1-N files.
+	 */
+	showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult>;
+
+	/**
 	 * Shows a open file dialog and returns the chosen file URI.
 	 */
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;
+}
 
+export const enum ConfirmResult {
+	SAVE,
+	DONT_SAVE,
+	CANCEL
 }
 
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, resourcesToConfirm: URI[]): string {
-	const message = [start];
-	message.push('');
-	message.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => basename(r)));
+export function getFileNamesMessage(fileNamesOrResources: readonly (string | URI)[]): string {
+	const message: string[] = [];
+	message.push(...fileNamesOrResources.slice(0, MAX_CONFIRM_FILES).map(fileNameOrResource => typeof fileNameOrResource === 'string' ? fileNameOrResource : basename(fileNameOrResource)));
 
-	if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
-		if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {
+	if (fileNamesOrResources.length > MAX_CONFIRM_FILES) {
+		if (fileNamesOrResources.length - MAX_CONFIRM_FILES === 1) {
 			message.push(localize('moreFile', "...1 additional file not shown"));
 		} else {
-			message.push(localize('moreFiles', "...{0} additional files not shown", resourcesToConfirm.length - MAX_CONFIRM_FILES));
+			message.push(localize('moreFiles', "...{0} additional files not shown", fileNamesOrResources.length - MAX_CONFIRM_FILES));
 		}
 	}
 
 	message.push('');
 	return message.join('\n');
+}
+
+export interface INativeOpenDialogOptions {
+	forceNewWindow?: boolean;
+
+	defaultPath?: string;
+
+	telemetryEventName?: string;
+	telemetryExtraData?: ITelemetryData;
 }

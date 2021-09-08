@@ -12,7 +12,7 @@ The JSON Language server provides language-specific smarts for editing, validati
 
 The JSON language server supports requests on documents of language id `json` and `jsonc`.
 - `json` documents are parsed and validated following the [JSON specification](https://tools.ietf.org/html/rfc7159).
-- `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`) and accepts trailing commas. JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
+- `jsonc` documents additionally accept single line (`//`) and multi-line comments (`/* ... */`). JSONC is a VSCode specific file format, intended for VSCode configuration files, without any aspirations to define a new common file format.
 
 The server implements the following capabilities of the language server protocol:
 
@@ -23,6 +23,7 @@ The server implements the following capabilities of the language server protocol
 - [Code Formatting](https://microsoft.github.io/language-server-protocol/specification#textDocument_rangeFormatting) supporting ranges and formatting the whole document.
 - [Folding Ranges](https://microsoft.github.io/language-server-protocol/specification#textDocument_foldingRange) for all folding ranges in the document.
 - Semantic Selection for semantic selection for one or multiple cursor positions.
+- [Goto Definition](https://microsoft.github.io/language-server-protocol/specification#textDocument_definition) for $ref references in JSON schemas
 - [Diagnostics (Validation)](https://microsoft.github.io/language-server-protocol/specification#textDocument_publishDiagnostics) are pushed for all open documents
    - syntax errors
    - structural validation based on the document's [JSON schema](http://json-schema.org/).
@@ -40,6 +41,15 @@ The JSON language server has the following dependencies on the client's capabili
 
 ## Configuration
 
+### Initialization options
+
+The client can send the following initialization options to the server:
+
+- `provideFormatter: boolean | undefined`. If defined, the value defines whether the server provides the `documentRangeFormattingProvider` capability on initialization. If undefined, the setting `json.format.enable` is used to determine whether formatting is provided. The formatter will then be registered through dynamic registration. If the client does not support dynamic registration, no formatter will be available.
+- `handledSchemaProtocols`: The URI schemas handles by the server. See section `Schema configuration` below.
+- `customCapabilities`: Additional non-LSP client capabilities:
+  - `rangeFormatting: { editLimit: x } }`: For performance reasons, limit the number of edits returned by the range formatter to `x`.
+
 ### Settings
 
 Clients may send a `workspace/didChangeConfiguration` notification to notify the server of settings changes.
@@ -51,14 +61,15 @@ The server supports the following settings:
 
 - json
   - `format`
-    - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting*
-    - `schema`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
-	  - `fileMatch`: an array or file names or paths (separated by `/`). `*` can be used as a wildcard.
-	  - `url`: The URL of the schema, optional when also a schema is provided.
-	  - `schema`: The schema content.
+    - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting* and `initializationOptions.provideFormatter` is not defined.
+  - `schemas`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
+    - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard. Exclusion patterns can also be defined and start with '!'. A file matches when there is at least one matching pattern and the last matching pattern is not an exclusion pattern.
+    - `url`: The URL of the schema, optional when also a schema is provided.
+    - `schema`: The schema content.
+  - `resultLimit`: The max number folding ranges and outline symbols to be computed (for performance reasons)
 
 ```json
-	{
+    {
         "http": {
             "proxy": "",
             "proxyStrictSSL": true
@@ -75,7 +86,7 @@ The server supports the following settings:
                     ],
                     "url": "http://json.schemastore.org/foo",
                     "schema": {
-                    	"type": "array"
+                        "type": "array"
                     }
                 }
             ]
@@ -92,9 +103,9 @@ To find the schema for a given JSON document, the server uses the following mech
 - The settings define a schema association based on the documents URL. Settings can either associate a schema URL to a file or path pattern, and they can directly provide a schema.
 - Additionally, schema associations can also be provided by a custom 'schemaAssociations' configuration call.
 
-Schemas are identified by URLs. To load the content of a schema, the JSON language server either tries to load from that URI or path itself, or delegates to the client.
+Schemas are identified by URLs. To load the content of a schema, the JSON language server either tries to load from that URI or path itself or delegates to the client.
 
-The `initializationOptions.handledSchemaProtocols` initialization option defines which URLs are handled by the server. Requests for all other URIs are send to the client.
+The `initializationOptions.handledSchemaProtocols` initialization option defines which URLs are handled by the server. Requests for all other URIs are sent to the client.
 
 `handledSchemaProtocols` is part of the initialization options and can't be changed while the server is running.
 
@@ -114,7 +125,7 @@ If `handledSchemaProtocols` is not set, the JSON language server will load the f
 
 #### Schema content request
 
-Requests for schemas with URLs not handled by the server are forwarded to the client through an LSP request. This request is a JSON language server specific, non-standardized, extension to the LSP.
+Requests for schemas with URLs not handled by the server are forwarded to the client through an LSP request. This request is a JSON language server-specific, non-standardized, extension to the LSP.
 
 Request:
 - method: 'vscode/content'
@@ -123,28 +134,64 @@ Request:
 
 #### Schema content change notification
 
-When the client is aware that a schema content has changed, it will notify the server through a notification. This notification is a JSON language server specific, non-standardized, extension to the LSP.
+When the client is aware that a schema content has changed, it will notify the server through a notification. This notification is a JSON language server-specific, non-standardized, extension to the LSP.
 The server will, as a response, clear the schema content from the cache and reload the schema content when required again.
 
 #### Schema associations notification
 
-In addition to the settings, schemas associations can also be provided through a notification from the client to the server. This notification is a JSON language server specific, non-standardized, extension to the LSP.
+In addition to the settings, schemas associations can also be provided through a notification from the client to the server. This notification is a JSON language server-specific, non-standardized, extension to the LSP.
 
 Notification:
 - method: 'json/schemaAssociations'
-- params: `ISchemaAssociations` defined as follows
+- params: `ISchemaAssociations` or `ISchemaAssociation[]` defined as follows
 
 ```ts
 interface ISchemaAssociations {
-	[pattern: string]: string[];
+  /**
+   * An object where:
+   *  - keys are file names or file paths (using `/` as path separator). `*` can be used as a wildcard.
+   *  - values are an arrays of schema URIs
+   */
+  [pattern: string]: string[];
 }
+
+interface ISchemaAssociation {
+  /**
+   * The URI of the schema, which is also the identifier of the schema.
+   */
+  uri: string;
+
+  /**
+   * A list of file path patterns that are associated to the schema. The '*' wildcard can be used. Exclusion patterns starting with '!'.
+   * For example '*.schema.json', 'package.json', '!foo*.schema.json'.
+   * A match succeeds when there is at least one pattern matching and last matching pattern does not start with '!'.
+   */
+  fileMatch: string[];
+  /*
+   * The schema for the given URI.
+   * If no schema is provided, the schema will be fetched with the schema request service (if available).
+   */
+  schema?: JSONSchema;
+}
+
 ```
+`ISchemaAssociations`
   - keys: a file names or file path (separated by `/`). `*` can be used as a wildcard.
   - values: An array of schema URLs
 
 Notification:
 - method: 'json/schemaContent'
 - params: `string` the URL of the schema that has changed.
+
+### Item Limit
+
+If the setting `resultLimit` is set, the JSON language server will limit the number of folding ranges and document symbols computed.
+When the limit is reached, a notification `json/resultLimitReached` is sent that can be shown that can be shown to the user.
+
+Notification:
+- method: 'json/resultLimitReached'
+- params: a human readable string to show to the user.
+
 
 ## Try
 
@@ -155,30 +202,30 @@ The JSON language server is shipped with [Visual Studio Code](https://code.visua
 If you plan to integrate the JSON language server into an editor and IDE, check out [this page](https://microsoft.github.io/language-server-protocol/implementors/tools/) if there's already an LSP client integration available.
 
 You can also launch the language server as a command and connect to it.
-For that, install the `json-language-server` npm module:
+For that, install the `vscode-json-languageserver` npm module:
 
-`npm install -g json-language-server`
+`npm install -g vscode-json-languageserver`
 
-Start the language server with the `json-language-server` command. Use a command line argument to specify the prefered communication channel:
+Start the language server with the `vscode-json-languageserver` command. Use a command line argument to specify the preferred communication channel:
 
 ```
-json-language-server --node-ipc
-json-language-server --stdio
-json-language-server --socket=<port>
+vscode-json-languageserver --node-ipc
+vscode-json-languageserver --stdio
+vscode-json-languageserver --socket=<port>
 ```
 
 To connect to the server from NodeJS, see Remy Suen's great write-up on [how to communicate with the server](https://github.com/rcjsuen/dockerfile-language-server-nodejs#communicating-with-the-server) through the available communication channels.
 
 ## Participate
 
-The source code of the JSON language server can be found in the [VSCode repository](https://github.com/Microsoft/vscode) at [extensions/json-language-features/server](https://github.com/Microsoft/vscode/tree/master/extensions/json-language-features/server).
+The source code of the JSON language server can be found in the [VSCode repository](https://github.com/microsoft/vscode) at [extensions/json-language-features/server](https://github.com/microsoft/vscode/tree/master/extensions/json-language-features/server).
 
-File issues and pull requests in the [VSCode GitHub Issues](https://github.com/Microsoft/vscode/issues). See the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute) on how to build and run from source.
+File issues and pull requests in the [VSCode GitHub Issues](https://github.com/microsoft/vscode/issues). See the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) on how to build and run from source.
 
 Most of the functionality of the server is located in libraries:
-- [jsonc-parser](https://github.com/Microsoft/node-jsonc-parser) contains the JSON parser and scanner.
-- [vscode-json-languageservice](https://github.com/Microsoft/vscode-json-languageservice) contains the implementation of all features as a re-usable library.
-- [vscode-languageserver-node](https://github.com/Microsoft/vscode-languageserver-node) contains the implementation of language server for NodeJS.
+- [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) contains the JSON parser and scanner.
+- [vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice) contains the implementation of all features as a re-usable library.
+- [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) contains the implementation of language server for NodeJS.
 
 Help on any of these projects is very welcome.
 

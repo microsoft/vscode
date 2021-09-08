@@ -380,7 +380,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 		if (startColumn !== undefined) {
 			return { startLineNumber: startLine, startCharacter: startColumn, endLineNumber: startLine, endCharacter: startColumn };
 		}
-		return { startLineNumber: startLine, startCharacter: 1, endLineNumber: startLine, endCharacter: Number.MAX_VALUE };
+		return { startLineNumber: startLine, startCharacter: 1, endLineNumber: startLine, endCharacter: 2 ** 31 - 1 }; // See https://github.com/microsoft/vscode/issues/80288#issuecomment-650636442 for discussion
 	}
 
 	private getSeverity(data: ProblemData): MarkerSeverity {
@@ -424,7 +424,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 		return 1;
 	}
 
-	public handle(lines: string[], start: number = 0): HandleResult {
+	public override handle(lines: string[], start: number = 0): HandleResult {
 		Assert.ok(lines.length - start === 1);
 		let data: ProblemData = Object.create(null);
 		if (this.pattern.kind !== undefined) {
@@ -441,7 +441,7 @@ class SingleLineMatcher extends AbstractLineMatcher {
 		return { match: null, continue: false };
 	}
 
-	public next(line: string): ProblemMatch | null {
+	public override next(line: string): ProblemMatch | null {
 		return null;
 	}
 }
@@ -460,7 +460,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		return this.patterns.length;
 	}
 
-	public handle(lines: string[], start: number = 0): HandleResult {
+	public override handle(lines: string[], start: number = 0): HandleResult {
 		Assert.ok(lines.length - start === this.patterns.length);
 		this.data = Object.create(null);
 		let data = this.data!;
@@ -486,7 +486,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 		return { match: markerMatch ? markerMatch : null, continue: loop };
 	}
 
-	public next(line: string): ProblemMatch | null {
+	public override next(line: string): ProblemMatch | null {
 		let pattern = this.patterns[this.patterns.length - 1];
 		Assert.ok(pattern.loop === true && this.data !== null);
 		let matches = pattern.regexp.exec(line);
@@ -790,6 +790,12 @@ export namespace Config {
 		*    the current working directory. This is the default.
 		*  - ["relative", "path value"]: the filename is always
 		*    treated relative to the given path value.
+		*  - "autodetect": the filename is treated relative to
+		*    the current workspace directory, and if the file
+		*    does not exist, it is treated as absolute.
+		*  - ["autodetect", "path value"]: the filename is treated
+		*    relative to the given path value, and if it does not
+		*    exist, it is treated as absolute.
 		*/
 		fileLocation?: string | string[];
 
@@ -1200,7 +1206,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private fillDefaults(): void {
 		this.add('msCompile', {
-			regexp: /^(?:\s+\d+\>)?([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w{1,2}\d+)\s*:\s*(.*)$/,
+			regexp: /^(?:\s+\d+\>)?([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
@@ -1288,7 +1294,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		});
 		this.add('eslint-stylish', [
 			{
-				regexp: /^([^\s].*)$/,
+				regexp: /^((?:[a-zA-Z]:)*[\\\/.]+.*?)$/,
 				kind: ProblemLocationKind.Location,
 				file: 1
 			},
@@ -1608,7 +1614,7 @@ export namespace Schemas {
 						}
 					}
 				],
-				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted.')
+				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path the relative file location.')
 			},
 			background: {
 				type: 'object',

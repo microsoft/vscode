@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare var Buffer: any;
-export const hasBuffer = (typeof Buffer !== 'undefined');
+import * as streams from 'vs/base/common/stream';
+
+declare const Buffer: any;
+
+const hasBuffer = (typeof Buffer !== 'undefined');
 
 let textEncoder: TextEncoder | null;
 let textDecoder: TextDecoder | null;
@@ -28,8 +31,9 @@ export class VSBuffer {
 		return new VSBuffer(actual);
 	}
 
-	static fromString(source: string): VSBuffer {
-		if (hasBuffer) {
+	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean; }): VSBuffer {
+		const dontUseNodeBuffer = options?.dontUseNodeBuffer || false;
+		if (!dontUseNodeBuffer && hasBuffer) {
 			return new VSBuffer(Buffer.from(source));
 		} else {
 			if (!textEncoder) {
@@ -80,12 +84,18 @@ export class VSBuffer {
 	slice(start?: number, end?: number): VSBuffer {
 		// IMPORTANT: use subarray instead of slice because TypedArray#slice
 		// creates shallow copy and NodeBuffer#slice doesn't. The use of subarray
-		// ensures the same, performant, behaviour.
-		return new VSBuffer(this.buffer.subarray(start!/*bad lib.d.ts*/, end));
+		// ensures the same, performance, behaviour.
+		return new VSBuffer(this.buffer.subarray(start, end));
 	}
 
-	set(array: VSBuffer, offset?: number): void {
-		this.buffer.set(array.buffer, offset);
+	set(array: VSBuffer, offset?: number): void;
+	set(array: Uint8Array, offset?: number): void;
+	set(array: VSBuffer | Uint8Array, offset?: number): void {
+		if (array instanceof VSBuffer) {
+			this.buffer.set(array.buffer, offset);
+		} else {
+			this.buffer.set(array, offset);
+		}
 	}
 
 	readUInt32BE(offset: number): number {
@@ -96,6 +106,14 @@ export class VSBuffer {
 		writeUInt32BE(this.buffer, value, offset);
 	}
 
+	readUInt32LE(offset: number): number {
+		return readUInt32LE(this.buffer, offset);
+	}
+
+	writeUInt32LE(value: number, offset: number): void {
+		writeUInt32LE(this.buffer, value, offset);
+	}
+
 	readUInt8(offset: number): number {
 		return readUInt8(this.buffer, offset);
 	}
@@ -103,6 +121,19 @@ export class VSBuffer {
 	writeUInt8(value: number, offset: number): void {
 		writeUInt8(this.buffer, value, offset);
 	}
+}
+
+export function readUInt16LE(source: Uint8Array, offset: number): number {
+	return (
+		((source[offset + 0] << 0) >>> 0) |
+		((source[offset + 1] << 8) >>> 0)
+	);
+}
+
+export function writeUInt16LE(destination: Uint8Array, value: number, offset: number): void {
+	destination[offset + 0] = (value & 0b11111111);
+	value = value >>> 8;
+	destination[offset + 1] = (value & 0b11111111);
 }
 
 export function readUInt32BE(source: Uint8Array, offset: number): number {
@@ -124,343 +155,84 @@ export function writeUInt32BE(destination: Uint8Array, value: number, offset: nu
 	destination[offset] = value;
 }
 
-function readUInt8(source: Uint8Array, offset: number): number {
+export function readUInt32LE(source: Uint8Array, offset: number): number {
+	return (
+		((source[offset + 0] << 0) >>> 0) |
+		((source[offset + 1] << 8) >>> 0) |
+		((source[offset + 2] << 16) >>> 0) |
+		((source[offset + 3] << 24) >>> 0)
+	);
+}
+
+export function writeUInt32LE(destination: Uint8Array, value: number, offset: number): void {
+	destination[offset + 0] = (value & 0b11111111);
+	value = value >>> 8;
+	destination[offset + 1] = (value & 0b11111111);
+	value = value >>> 8;
+	destination[offset + 2] = (value & 0b11111111);
+	value = value >>> 8;
+	destination[offset + 3] = (value & 0b11111111);
+}
+
+export function readUInt8(source: Uint8Array, offset: number): number {
 	return source[offset];
 }
 
-function writeUInt8(destination: Uint8Array, value: number, offset: number): void {
+export function writeUInt8(destination: Uint8Array, value: number, offset: number): void {
 	destination[offset] = value;
 }
 
-export interface VSBufferReadable {
+export interface VSBufferReadable extends streams.Readable<VSBuffer> { }
 
-	/**
-	 * Read data from the underlying source. Will return
-	 * null to indicate that no more data can be read.
-	 */
-	read(): VSBuffer | null;
-}
+export interface VSBufferReadableStream extends streams.ReadableStream<VSBuffer> { }
 
-export interface ReadableStream<T> {
+export interface VSBufferWriteableStream extends streams.WriteableStream<VSBuffer> { }
 
-	/**
-	 * The 'data' event is emitted whenever the stream is
-	 * relinquishing ownership of a chunk of data to a consumer.
-	 */
-	on(event: 'data', callback: (chunk: T) => void): void;
+export interface VSBufferReadableBufferedStream extends streams.ReadableBufferedStream<VSBuffer> { }
 
-	/**
-	 * Emitted when any error occurs.
-	 */
-	on(event: 'error', callback: (err: any) => void): void;
-
-	/**
-	 * The 'end' event is emitted when there is no more data
-	 * to be consumed from the stream. The 'end' event will
-	 * not be emitted unless the data is completely consumed.
-	 */
-	on(event: 'end', callback: () => void): void;
-
-	/**
-	 * Stops emitting any events until resume() is called.
-	 */
-	pause?(): void;
-
-	/**
-	 * Starts emitting events again after pause() was called.
-	 */
-	resume?(): void;
-
-	/**
-	 * Destroys the stream and stops emitting any event.
-	 */
-	destroy?(): void;
-}
-
-/**
- * A readable stream that sends data via VSBuffer.
- */
-export interface VSBufferReadableStream extends ReadableStream<VSBuffer> {
-	pause(): void;
-	resume(): void;
-	destroy(): void;
-}
-
-export function isVSBufferReadableStream(obj: any): obj is VSBufferReadableStream {
-	const candidate: VSBufferReadableStream = obj;
-
-	return candidate && [candidate.on, candidate.pause, candidate.resume, candidate.destroy].every(fn => typeof fn === 'function');
-}
-
-/**
- * Helper to fully read a VSBuffer readable into a single buffer.
- */
 export function readableToBuffer(readable: VSBufferReadable): VSBuffer {
-	const chunks: VSBuffer[] = [];
-
-	let chunk: VSBuffer | null;
-	while (chunk = readable.read()) {
-		chunks.push(chunk);
-	}
-
-	return VSBuffer.concat(chunks);
+	return streams.consumeReadable<VSBuffer>(readable, chunks => VSBuffer.concat(chunks));
 }
 
-/**
- * Helper to convert a buffer into a readable buffer.
- */
 export function bufferToReadable(buffer: VSBuffer): VSBufferReadable {
-	let done = false;
-
-	return {
-		read: () => {
-			if (done) {
-				return null;
-			}
-
-			done = true;
-
-			return buffer;
-		}
-	};
+	return streams.toReadable<VSBuffer>(buffer);
 }
 
-/**
- * Helper to fully read a VSBuffer stream into a single buffer.
- */
-export function streamToBuffer(stream: VSBufferReadableStream): Promise<VSBuffer> {
-	return new Promise((resolve, reject) => {
-		const chunks: VSBuffer[] = [];
-
-		stream.on('data', chunk => chunks.push(chunk));
-		stream.on('error', error => reject(error));
-		stream.on('end', () => resolve(VSBuffer.concat(chunks)));
-	});
+export function streamToBuffer(stream: streams.ReadableStream<VSBuffer>): Promise<VSBuffer> {
+	return streams.consumeStream<VSBuffer>(stream, chunks => VSBuffer.concat(chunks));
 }
 
-/**
- * Helper to create a VSBufferStream from an existing VSBuffer.
- */
-export function bufferToStream(buffer: VSBuffer): VSBufferReadableStream {
-	const stream = writeableBufferStream();
+export async function bufferedStreamToBuffer(bufferedStream: streams.ReadableBufferedStream<VSBuffer>): Promise<VSBuffer> {
+	if (bufferedStream.ended) {
+		return VSBuffer.concat(bufferedStream.buffer);
+	}
 
-	stream.end(buffer);
+	return VSBuffer.concat([
 
-	return stream;
+		// Include already read chunks...
+		...bufferedStream.buffer,
+
+		// ...and all additional chunks
+		await streamToBuffer(bufferedStream.stream)
+	]);
 }
 
-/**
- * Helper to create a VSBufferStream from a Uint8Array stream.
- */
-export function toVSBufferReadableStream(stream: ReadableStream<Uint8Array | string>): VSBufferReadableStream {
-	const vsbufferStream = writeableBufferStream();
-
-	stream.on('data', data => vsbufferStream.write(typeof data === 'string' ? VSBuffer.fromString(data) : VSBuffer.wrap(data)));
-	stream.on('end', () => vsbufferStream.end());
-	stream.on('error', error => vsbufferStream.error(error));
-
-	return vsbufferStream;
+export function bufferToStream(buffer: VSBuffer): streams.ReadableStream<VSBuffer> {
+	return streams.toStream<VSBuffer>(buffer, chunks => VSBuffer.concat(chunks));
 }
 
-/**
- * Helper to create a VSBufferStream that can be pushed
- * buffers to. Will only start to emit data when a listener
- * is added.
- */
-export function writeableBufferStream(): VSBufferWriteableStream {
-	return new VSBufferWriteableStreamImpl();
+export function streamToBufferReadableStream(stream: streams.ReadableStreamEvents<Uint8Array | string>): streams.ReadableStream<VSBuffer> {
+	return streams.transform<Uint8Array | string, VSBuffer>(stream, { data: data => typeof data === 'string' ? VSBuffer.fromString(data) : VSBuffer.wrap(data) }, chunks => VSBuffer.concat(chunks));
 }
 
-export interface VSBufferWriteableStream extends VSBufferReadableStream {
-	write(chunk: VSBuffer): void;
-	error(error: Error): void;
-	end(result?: VSBuffer | Error): void;
+export function newWriteableBufferStream(options?: streams.WriteableStreamOptions): streams.WriteableStream<VSBuffer> {
+	return streams.newWriteableStream<VSBuffer>(chunks => VSBuffer.concat(chunks), options);
 }
 
-class VSBufferWriteableStreamImpl implements VSBufferWriteableStream {
+export function prefixedBufferReadable(prefix: VSBuffer, readable: VSBufferReadable): VSBufferReadable {
+	return streams.prefixedReadable(prefix, readable, chunks => VSBuffer.concat(chunks));
+}
 
-	private readonly state = {
-		flowing: false,
-		ended: false,
-		destroyed: false
-	};
-
-	private readonly buffer = {
-		data: [] as VSBuffer[],
-		error: [] as Error[]
-	};
-
-	private readonly listeners = {
-		data: [] as { (chunk: VSBuffer): void }[],
-		error: [] as { (error: Error): void }[],
-		end: [] as { (): void }[]
-	};
-
-	pause(): void {
-		if (this.state.destroyed) {
-			return;
-		}
-
-		this.state.flowing = false;
-	}
-
-	resume(): void {
-		if (this.state.destroyed) {
-			return;
-		}
-
-		if (!this.state.flowing) {
-			this.state.flowing = true;
-
-			// emit buffered events
-			this.flowData();
-			this.flowErrors();
-			this.flowEnd();
-		}
-	}
-
-	write(chunk: VSBuffer): void {
-		if (this.state.destroyed) {
-			return;
-		}
-
-		// flowing: directly send the data to listeners
-		if (this.state.flowing) {
-			this.listeners.data.forEach(listener => listener(chunk));
-		}
-
-		// not yet flowing: buffer data until flowing
-		else {
-			this.buffer.data.push(chunk);
-		}
-	}
-
-	error(error: Error): void {
-		if (this.state.destroyed) {
-			return;
-		}
-
-		// flowing: directly send the error to listeners
-		if (this.state.flowing) {
-			this.listeners.error.forEach(listener => listener(error));
-		}
-
-		// not yet flowing: buffer errors until flowing
-		else {
-			this.buffer.error.push(error);
-		}
-	}
-
-	end(result?: VSBuffer | Error): void {
-		if (this.state.destroyed) {
-			return;
-		}
-
-		// end with data or error if provided
-		if (result instanceof Error) {
-			this.error(result);
-		} else if (result) {
-			this.write(result);
-		}
-
-		// flowing: send end event to listeners
-		if (this.state.flowing) {
-			this.listeners.end.forEach(listener => listener());
-
-			this.destroy();
-		}
-
-		// not yet flowing: remember state
-		else {
-			this.state.ended = true;
-		}
-	}
-
-	on(event: 'data', callback: (chunk: VSBuffer) => void): void;
-	on(event: 'error', callback: (err: any) => void): void;
-	on(event: 'end', callback: () => void): void;
-	on(event: 'data' | 'error' | 'end', callback: (arg0?: any) => void): void {
-		if (this.state.destroyed) {
-			return;
-		}
-
-		switch (event) {
-			case 'data':
-				this.listeners.data.push(callback);
-
-				// switch into flowing mode as soon as the first 'data'
-				// listener is added and we are not yet in flowing mode
-				this.resume();
-
-				break;
-
-			case 'end':
-				this.listeners.end.push(callback);
-
-				// emit 'end' event directly if we are flowing
-				// and the end has already been reached
-				//
-				// finish() when it went through
-				if (this.state.flowing && this.flowEnd()) {
-					this.destroy();
-				}
-
-				break;
-
-			case 'error':
-				this.listeners.error.push(callback);
-
-				// emit buffered 'error' events unless done already
-				// now that we know that we have at least one listener
-				if (this.state.flowing) {
-					this.flowErrors();
-				}
-
-				break;
-		}
-	}
-
-	private flowData(): void {
-		if (this.buffer.data.length > 0) {
-			const fullDataBuffer = VSBuffer.concat(this.buffer.data);
-
-			this.listeners.data.forEach(listener => listener(fullDataBuffer));
-
-			this.buffer.data.length = 0;
-		}
-	}
-
-	private flowErrors(): void {
-		if (this.listeners.error.length > 0) {
-			for (const error of this.buffer.error) {
-				this.listeners.error.forEach(listener => listener(error));
-			}
-
-			this.buffer.error.length = 0;
-		}
-	}
-
-	private flowEnd(): boolean {
-		if (this.state.ended) {
-			this.listeners.end.forEach(listener => listener());
-
-			return this.listeners.end.length > 0;
-		}
-
-		return false;
-	}
-
-	destroy(): void {
-		if (!this.state.destroyed) {
-			this.state.destroyed = true;
-			this.state.ended = true;
-
-			this.buffer.data.length = 0;
-			this.buffer.error.length = 0;
-
-			this.listeners.data.length = 0;
-			this.listeners.error.length = 0;
-			this.listeners.end.length = 0;
-		}
-	}
+export function prefixedBufferStream(prefix: VSBuffer, stream: VSBufferReadableStream): VSBufferReadableStream {
+	return streams.prefixedStream(prefix, stream, chunks => VSBuffer.concat(chunks));
 }

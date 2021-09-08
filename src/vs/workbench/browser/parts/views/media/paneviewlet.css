@@ -1,0 +1,79 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header {
+	border-top: none !important; /* less clutter: do not show any border for first views in a pane */
+}
+
+.monaco-pane-view .split-view-view:first-of-type > .pane {
+	border-left: none !important; /* less clutter: do not show any border for first views in a pane */
+}
+
+.monaco-pane-view .pane > .pane-header {
+	position: relative;
+}
+
+.monaco-pane-view .pane > .pane-header > .actions.show {
+	display: initial;
+}
+
+.monaco-pane-view .pane > .pane-header > .icon {
+	display: none;
+	width: 16px;
+	height: 16px;
+}
+
+.monaco-pane-view .pane.pane.horizontal:not(.expanded) > .pane-header > .icon {
+	display: inline;
+	margin-top: 4px;
+}
+
+.monaco-pane-view .pane > .pane-header h3.title {
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	font-size: 11px;
+	min-width: 3ch;
+	-webkit-margin-before: 0;
+	-webkit-margin-after: 0;
+}
+
+.monaco-pane-view .pane > .pane-header .description {
+	display: block;
+	font-weight: normal;
+	margin-left: 10px;
+	opacity: 0.6;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-transform: none;
+	white-space: nowrap;
+	flex-shrink: 100000;
+}
+
+.monaco-pane-view .pane > .pane-header .description .codicon {
+	font-size: 9px;
+	margin-left: 2px;
+}
+
+.monaco-pane-view .pane > .pane-header:not(.expanded) .description {
+	display: none;
+}
+
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header h3.title,
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header .description {
+	display: none;
+}
+
+.monaco-pane-view .pane .monaco-progress-container {
+	position: absolute;
+	left: 0;
+	top: -2px;
+	z-index: 5;
+	height: 2px;
+}
+
+.monaco-pane-view .pane:not(.merged-header) .monaco-progress-container {
+	top: 20px;
+}

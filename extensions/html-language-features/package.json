@@ -15,11 +15,17 @@
     "onLanguage:html",
     "onLanguage:handlebars"
   ],
-  "main": "./client/out/htmlMain",
+  "main": "./client/out/node/htmlClientMain",
+  "browser": "./client/dist/browser/htmlClientMain",
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
-    "watch": "gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
-    "postinstall": "cd server && yarn install",
+    "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
+    "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "categories": [
@@ -40,16 +46,6 @@
             "type": "string"
           },
           "scope": "resource"
-        },
-        "html.experimental.customData": {
-          "type": "array",
-          "description": "A list of JSON file paths that define custom tags, properties and other HTML syntax constructs. Only workspace folder setting will be read.",
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "scope": "resource",
-          "deprecationMessage": "This setting is no longe experimental. Use `html.customData` instead."
         },
         "html.format.enable": {
           "type": "boolean",
@@ -147,6 +143,27 @@
           ],
           "description": "%html.format.wrapAttributes.desc%"
         },
+        "html.format.wrapAttributesIndentSize": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "scope": "resource",
+          "default": null,
+          "description": "%html.format.wrapAttributesIndentSize.desc%"
+        },
+        "html.format.templating": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%html.format.templating.desc%"
+        },
+        "html.format.unformattedContentDelimiter": {
+          "type": "string",
+          "scope": "resource",
+          "default": "",
+          "markdownDescription": "%html.format.unformattedContentDelimiter.desc%"
+        },
         "html.suggest.html5": {
           "type": "boolean",
           "scope": "resource",
@@ -171,6 +188,25 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
+        "html.hover.documentation": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%html.hover.documentation%"
+        },
+        "html.hover.references": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%html.hover.references%"
+        },
+        "html.mirrorCursorOnMatchingTag": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%html.mirrorCursorOnMatchingTag%",
+          "deprecationMessage": "%html.mirrorCursorOnMatchingTagDeprecationMessage%"
+        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",
@@ -184,10 +220,18 @@
         }
       }
     },
+    "configurationDefaults": {
+      "[html]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[handlebars]": {
+        "editor.suggest.insertMode": "replace"
+      }
+    },
     "jsonValidation": [
       {
         "fileMatch": "*.html-data.json",
-        "url": "https://raw.githubusercontent.com/Microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
+        "url": "https://raw.githubusercontent.com/microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
       },
       {
         "fileMatch": "package.json",
@@ -196,11 +240,15 @@
     ]
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^5.3.0-next.6",
-    "vscode-nls": "^4.1.1"
+    "vscode-extension-telemetry": "0.3.2",
+    "vscode-languageclient": "^7.0.0",
+    "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "14.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

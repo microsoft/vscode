@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "c6a08e5368de4352903e702cde750b33239a50ab"
+					"commitHash": "8a33e05d162c4f39afa2dcb150e8c2548aa4ccea"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "69.0.3497.128"
+			"version": "91.0.4472.164"
 		},
 		{
 			"component": {
@@ -48,11 +48,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "8c70b2084ce5f76ea1e3b3c4ccdeee4483fe338b"
+					"commitHash": "bd60e93357a118204ea238d94e7a9e4209d93062"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "10.11.0"
+			"version": "14.16.0"
 		},
 		{
 			"component": {
@@ -60,12 +60,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "4e4c7527c63fcf27dffaeb58bde996b8d859c0ed"
+					"commitHash": "0436a27d4f0fd7d1cb8246137a07fa0c8eb9337e"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "4.2.10"
+			"version": "13.1.8"
 		},
 		{
 			"component": {
@@ -77,6 +77,40 @@
 				}
 			},
 			"isOnlyProductionDependency": true,
+			"licenseDetail": [
+				"Inno Setup License",
+				"==================",
+				"",
+				"Except where otherwise noted, all of the documentation and software included in the Inno Setup",
+				"package is copyrighted by Jordan Russell.",
+				"",
+				"Copyright (C) 1997-2020 Jordan Russell. All rights reserved.",
+				"Portions Copyright (C) 2000-2020 Martijn Laan. All rights reserved.",
+				"",
+				"This software is provided \"as-is,\" without any express or implied warranty. In no event shall the",
+				"author be held liable for any damages arising from the use of this software.",
+				"",
+				"Permission is granted to anyone to use this software for any purpose, including commercial",
+				"applications, and to alter and redistribute it, provided that the following conditions are met:",
+				"",
+				"1. All redistributions of source code files must retain all copyright notices that are currently in",
+				"   place, and this list of conditions without modification.",
+				"",
+				"2. All redistributions in binary form must retain all occurrences of the above copyright notice and",
+				"   web site addresses that are currently in place (for example, in the About boxes).",
+				"",
+				"3. The origin of this software must not be misrepresented; you must not claim that you wrote the",
+				"   original software. If you use this software to distribute a product, an acknowledgment in the",
+				"   product documentation would be appreciated but is not required.",
+				"",
+				"4. Modified versions in source or binary form must be plainly marked as such, and must not be",
+				"   misrepresented as being the original software.",
+				"",
+				"",
+				"Jordan Russell",
+				"jr-2010 AT jrsoftware.org",
+				"https://jrsoftware.org/"
+			],
 			"version": "5.5.6"
 		},
 		{
@@ -96,25 +130,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "vscode-octicons-font",
-					"repositoryUrl": "https://github.com/Microsoft/vscode-octicons-font",
-					"commitHash": "415cd5b42ab699b6b46c0bf011ada0a2ae50bfb4"
+					"name": "vscode-codicons",
+					"repositoryUrl": "https://github.com/microsoft/vscode-codicons",
+					"commitHash": "ccdcf91d57d3a5a1d6b620d95d518bab4d75984d"
 				}
 			},
-			"license": "MIT",
-			"version": "1.3.1"
-		},
-		{
-			"component": {
-				"type": "git",
-				"git": {
-					"name": "octicons",
-					"repositoryUrl": "https://github.com/primer/octicons",
-					"commitHash": "d120bf97bc9a12fb415f69fedaf31fe58427ca56"
-				}
-			},
-			"license": "MIT",
-			"version": "8.3.0"
+			"license": "MIT and Creative Commons Attribution 4.0",
+			"version": "0.0.14"
 		},
 		{
 			"component": {
@@ -511,7 +533,7 @@
 				"git": {
 					"name": "ripgrep",
 					"repositoryUrl": "https://github.com/BurntSushi/ripgrep",
-					"commitHash": "8a7db1a918e969b85cd933d8ed9fa5285b281ba4"
+					"commitHash": "973de50c9ef451da2cfcdfa86f2b2711d8d6ff48"
 				}
 			},
 			"isOnlyProductionDependency": true,

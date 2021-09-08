@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import 'mocha';
-
+import * as vscode from 'vscode';
 import MarkdownFoldingProvider from '../features/foldingProvider';
-import { InMemoryDocument } from './inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
+import { InMemoryDocument } from './inMemoryDocument';
+
 
 const testFileName = vscode.Uri.file('test.md');
 
@@ -174,6 +174,18 @@ a`);
 		const firstFold = folds[0];
 		assert.strictEqual(firstFold.start, 1);
 		assert.strictEqual(firstFold.end, 3);
+	});
+
+	test('Should fold html block comments', async () => {
+		const folds = await getFoldsForDocument(`x
+<!--
+fa
+-->`);
+		assert.strictEqual(folds.length, 1);
+		const firstFold = folds[0];
+		assert.strictEqual(firstFold.start, 1);
+		assert.strictEqual(firstFold.end, 3);
+		assert.strictEqual(firstFold.kind, vscode.FoldingRangeKind.Comment);
 	});
 });
 

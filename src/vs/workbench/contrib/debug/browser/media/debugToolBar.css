@@ -5,37 +5,44 @@
 
 .monaco-workbench .debug-toolbar {
 	position: absolute;
-	z-index: 200;
+	z-index: 39;
 	height: 32px;
 	display: flex;
 	padding-left: 7px;
 }
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item {
-	height: 32px;
+	margin-right: 4px;
 }
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container {
 	margin-right: 7px;
 }
 
+.monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container .monaco-select-box,
+.monaco-workbench .start-debug-action-item .select-container .monaco-select-box {
+	padding: 0 22px 0 6px;
+}
+
 .monaco-workbench .debug-toolbar .drag-area {
 	cursor: grab;
-	height: 32px;
 	width: 16px;
-	background: url('drag.svg') center center no-repeat;
-	background-size: 16px 16px;
+	opacity: 0.5;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .monaco-workbench .debug-toolbar .drag-area.dragged {
 	cursor: grabbing;
 }
 
-.monaco-workbench  .debug-toolbar .monaco-action-bar .action-item > .action-label {
-	width: 32px;
-	height: 32px;
+.monaco-workbench  .debug-toolbar .monaco-action-bar .action-item .action-label {
 	margin-right: 0;
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }

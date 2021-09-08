@@ -9,8 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceMap, TernarySearchTree, values } from 'vs/base/common/map';
-import * as objects from 'vs/base/common/objects';
+import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
 import { lcut } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,14 +19,19 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IPatternInfo, ISearchComplete, ISearchProgressItem, ISearchConfigurationProperties, ISearchService, ITextQuery, ITextSearchPreviewOptions, ITextSearchMatch, ITextSearchStats, resultIsMatch, ISearchRange, OneLineRange, ITextSearchContext, ITextSearchResult, SearchSortOrder, SearchCompletionExitCode } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { overviewRulerFindMatchForeground, minimapFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/workbench/services/search/common/searchHelpers';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class Match {
 
@@ -107,12 +111,12 @@ export class Match {
 
 		// If match string is not matching then regex pattern has a lookahead expression
 		if (replaceString === null) {
-			const fullMatchTextWithTrailingContent = this.fullMatchText(true);
-			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithTrailingContent, searchModel.preserveCase);
+			const fullMatchTextWithSurroundingContent = this.fullMatchText(true);
+			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithSurroundingContent, searchModel.preserveCase);
 
 			// Search/find normalize line endings - check whether \r prevents regex from matching
 			if (replaceString === null) {
-				const fullMatchTextWithoutCR = fullMatchTextWithTrailingContent.replace(/\r\n/g, '\n');
+				const fullMatchTextWithoutCR = fullMatchTextWithSurroundingContent.replace(/\r\n/g, '\n');
 				replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCase);
 			}
 		}
@@ -125,18 +129,26 @@ export class Match {
 		return replaceString;
 	}
 
-	fullMatchText(includeTrailing = false): string {
+	fullMatchText(includeSurrounding = false): string {
 		let thisMatchPreviewLines: string[];
-		if (includeTrailing) {
-			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber);
+		if (includeSurrounding) {
+			thisMatchPreviewLines = this._fullPreviewLines;
 		} else {
 			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
 			thisMatchPreviewLines[thisMatchPreviewLines.length - 1] = thisMatchPreviewLines[thisMatchPreviewLines.length - 1].slice(0, this._fullPreviewRange.endColumn);
-
+			thisMatchPreviewLines[0] = thisMatchPreviewLines[0].slice(this._fullPreviewRange.startColumn);
 		}
 
-		thisMatchPreviewLines[0] = thisMatchPreviewLines[0].slice(this._fullPreviewRange.startColumn);
 		return thisMatchPreviewLines.join('\n');
+	}
+
+	rangeInPreview() {
+		// convert to editor's base 1 positions.
+		return {
+			...this._fullPreviewRange,
+			startColumn: this._fullPreviewRange.startColumn + 1,
+			endColumn: this._fullPreviewRange.endColumn + 1
+		};
 	}
 
 	fullPreviewLines(): string[] {
@@ -151,6 +163,7 @@ export class Match {
 export class FileMatch extends Disposable implements IFileMatch {
 
 	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
+		description: 'search-current-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 13,
 		className: 'currentFindMatch',
@@ -165,6 +178,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	});
 
 	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
+		description: 'search-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
@@ -181,13 +195,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return (selected ? FileMatch._CURRENT_FIND_MATCH : FileMatch._FIND_MATCH);
 	}
 
-	private _onChange = this._register(new Emitter<boolean>());
-	readonly onChange: Event<boolean> = this._onChange.event;
+	private _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean }>());
+	readonly onChange: Event<{ didRemove?: boolean; forceUpdateModel?: boolean }> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
+	private _fileStat?: IFileStatWithMetadata;
 	private _model: ITextModel | null = null;
 	private _modelListener: IDisposable | null = null;
 	private _matches: Map<string, Match>;
@@ -197,7 +212,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
-	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions, private _maxResults: number, private _parent: FolderMatch, private rawMatch: IFileMatch,
+	private _context: Map<number, string> = new Map();
+	public get context(): Map<number, string> {
+		return new Map(this._context);
+	}
+
+	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions | undefined, private _maxResults: number | undefined, private _parent: FolderMatch, private rawMatch: IFileMatch,
 		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
 	) {
 		super();
@@ -221,6 +241,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 					textSearchResultToMatches(rawMatch, this)
 						.forEach(m => this.add(m));
 				});
+
+			this.addContext(this.rawMatch.results);
 		}
 	}
 
@@ -274,7 +296,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			endLineNumber: lineNumber,
 			endColumn: this._model.getLineMaxColumn(lineNumber)
 		};
-		const oldMatches = values(this._matches).filter(match => match.range().startLineNumber === lineNumber);
+		const oldMatches = Array.from(this._matches.values()).filter(match => match.range().startLineNumber === lineNumber);
 		oldMatches.forEach(match => this._matches.delete(match.id()));
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
@@ -299,7 +321,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 			});
 		});
 
-		this._onChange.fire(modelChange);
+		this.addContext(
+			addContextToEditorMatches(textSearchResults, this._model, this.parent().parent().query!)
+				.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
+				.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
+
+		this._onChange.fire({ forceUpdateModel: modelChange });
 		this.updateHighlights();
 	}
 
@@ -327,18 +354,21 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	matches(): Match[] {
-		return values(this._matches);
+		return Array.from(this._matches.values());
 	}
 
 	remove(match: Match): void {
 		this.removeMatch(match);
 		this._removedMatches.add(match.id());
-		this._onChange.fire(false);
+		this._onChange.fire({ didRemove: true });
 	}
 
-	replace(toReplace: Match): Promise<void> {
-		return this.replaceService.replace(toReplace)
-			.then(() => this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false));
+	private replaceQ = Promise.resolve();
+	async replace(toReplace: Match): Promise<void> {
+		return this.replaceQ = this.replaceQ.finally(async () => {
+			await this.replaceService.replace(toReplace);
+			this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
+		});
 	}
 
 	setSelectedMatch(match: Match | null): void {
@@ -375,10 +405,18 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return getBaseLabel(this.resource);
 	}
 
+	addContext(results: ITextSearchResult[] | undefined) {
+		if (!results) { return; }
+
+		results
+			.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
+			.forEach(context => this._context.set(context.lineNumber, context.text));
+	}
+
 	add(match: Match, trigger?: boolean) {
 		this._matches.set(match.id(), match);
 		if (trigger) {
-			this._onChange.fire(true);
+			this._onChange.fire({ forceUpdateModel: true });
 		}
 	}
 
@@ -391,7 +429,19 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
-	dispose(): void {
+	async resolveFileStat(fileService: IFileService): Promise<void> {
+		this._fileStat = await fileService.resolve(this.resource, { resolveMetadata: true }).catch(() => undefined);
+	}
+
+	public get fileStat(): IFileStatWithMetadata | undefined {
+		return this._fileStat;
+	}
+
+	public set fileStat(stat: IFileStatWithMetadata | undefined) {
+		this._fileStat = stat;
+	}
+
+	override dispose(): void {
 		this.setSelectedMatch(null);
 		this.unbindModel();
 		this._onDispose.fire();
@@ -479,11 +529,13 @@ export class FolderMatch extends Disposable {
 							.forEach(m => existingFileMatch.add(m));
 					});
 				updated.push(existingFileMatch);
+
+				existingFileMatch.addContext(rawFileMatch.results);
 			} else {
 				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
 				added.push(fileMatch);
-				const disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
+				const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 				fileMatch.onDispose(() => disposable.dispose());
 			}
 		});
@@ -506,19 +558,17 @@ export class FolderMatch extends Disposable {
 
 	replace(match: FileMatch): Promise<any> {
 		return this.replaceService.replace([match]).then(() => {
-			this.doRemove(match, false, true);
+			this.doRemove(match);
 		});
 	}
 
 	replaceAll(): Promise<any> {
 		const matches = this.matches();
-		return this.replaceService.replace(matches).then(() => {
-			matches.forEach(match => this.doRemove(match, false, true));
-		});
+		return this.replaceService.replace(matches).then(() => this.doRemove(matches));
 	}
 
 	matches(): FileMatch[] {
-		return this._fileMatches.values();
+		return [...this._fileMatches.values()];
 	}
 
 	isEmpty(): boolean {
@@ -533,9 +583,8 @@ export class FolderMatch extends Disposable {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
-	private onFileChange(fileMatch: FileMatch): void {
-		let added: boolean = false;
-		let removed: boolean = false;
+	private onFileChange(fileMatch: FileMatch, removed = false): void {
+		let added = false;
 		if (!this._fileMatches.has(fileMatch.resource)) {
 			this.doAdd(fileMatch);
 			added = true;
@@ -562,7 +611,7 @@ export class FolderMatch extends Disposable {
 			fileMatches = [fileMatches];
 		}
 
-		for (let match of fileMatches) {
+		for (const match of fileMatches as FileMatch[]) {
 			this._fileMatches.delete(match.resource);
 			if (dispose) {
 				match.dispose();
@@ -577,13 +626,13 @@ export class FolderMatch extends Disposable {
 	}
 
 	private disposeMatches(): void {
-		this._fileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
-		this._unDisposedFileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
+		[...this._fileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
+		[...this._unDisposedFileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
 		this._fileMatches.clear();
 		this._unDisposedFileMatches.clear();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disposeMatches();
 		this._onDispose.fire();
 		super.dispose();
@@ -602,7 +651,7 @@ export class FolderMatchWithResource extends FolderMatch {
 		super(_resource, _id, _index, _query, _parent, _searchModel, replaceService, instantiationService);
 	}
 
-	get resource(): URI {
+	override get resource(): URI {
 		return this._resource!;
 	}
 }
@@ -611,13 +660,31 @@ export class FolderMatchWithResource extends FolderMatch {
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
  */
-export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch): number {
+export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
 	if (elementA instanceof FolderMatch && elementB instanceof FolderMatch) {
 		return elementA.index() - elementB.index();
 	}
 
 	if (elementA instanceof FileMatch && elementB instanceof FileMatch) {
-		return elementA.resource.fsPath.localeCompare(elementB.resource.fsPath) || elementA.name().localeCompare(elementB.name());
+		switch (sortOrder) {
+			case SearchSortOrder.CountDescending:
+				return elementB.count() - elementA.count();
+			case SearchSortOrder.CountAscending:
+				return elementA.count() - elementB.count();
+			case SearchSortOrder.Type:
+				return compareFileExtensions(elementA.name(), elementB.name());
+			case SearchSortOrder.FileNames:
+				return compareFileNames(elementA.name(), elementB.name());
+			case SearchSortOrder.Modified:
+				const fileStatA = elementA.fileStat;
+				const fileStatB = elementB.fileStat;
+				if (fileStatA && fileStatB) {
+					return fileStatB.mtime - fileStatA.mtime;
+				}
+			// Fall through otherwise
+			default:
+				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
+		}
 	}
 
 	if (elementA instanceof Match && elementB instanceof Match) {
@@ -634,11 +701,14 @@ export class SearchResult extends Disposable {
 
 	private _folderMatches: FolderMatchWithResource[] = [];
 	private _otherFilesMatch: FolderMatch | null = null;
-	private _folderMatchesMap: TernarySearchTree<FolderMatchWithResource> = TernarySearchTree.forPaths<FolderMatchWithResource>();
+	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 	private _showHighlights: boolean = false;
 	private _query: ITextQuery | null = null;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
+	private disposePastResults: () => void = () => { };
+
+	private _isDirty = false;
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -646,11 +716,22 @@ export class SearchResult extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
+
+		this._register(this.onChange(e => {
+			if (e.removed) {
+				this._isDirty = !this.isEmpty();
+			}
+		}));
+	}
+
+	get isDirty(): boolean {
+		return this._isDirty;
 	}
 
 	get query(): ITextQuery | null {
@@ -658,8 +739,16 @@ export class SearchResult extends Disposable {
 	}
 
 	set query(query: ITextQuery | null) {
-		// When updating the query we could change the roots, so ensure we clean up the old roots first.
-		this.clear();
+		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
+		const oldFolderMatches = this.folderMatches();
+		new Promise<void>(resolve => this.disposePastResults = resolve)
+			.then(() => oldFolderMatches.forEach(match => match.clear()))
+			.then(() => oldFolderMatches.forEach(match => match.dispose()))
+			.then(() => this._isDirty = false);
+
+		this._rangeHighlightDecorations.removeHighlightRange();
+		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
+
 		if (!query) {
 			return;
 		}
@@ -668,14 +757,14 @@ export class SearchResult extends Disposable {
 			.map(fq => fq.folder)
 			.map((resource, index) => this.createFolderMatchWithResource(resource, resource.toString(), index, query));
 
-		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource.toString(), fm));
+		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
 		this._otherFilesMatch = this.createOtherFilesFolderMatch('otherFiles', this._folderMatches.length + 1, query);
 
 		this._query = query;
 	}
 
 	private onModelAdded(model: ITextModel): void {
-		const folderMatch = this._folderMatchesMap.findSubstr(model.uri.toString());
+		const folderMatch = this._folderMatchesMap.findSubstr(model.uri);
 		if (folderMatch) {
 			folderMatch.bindModel(model);
 		}
@@ -715,7 +804,8 @@ export class SearchResult extends Disposable {
 			}
 		});
 
-		this._otherFilesMatch!.add(other, silent);
+		this._otherFilesMatch?.add(other, silent);
+		this.disposePastResults();
 	}
 
 	clear(): void {
@@ -759,14 +849,17 @@ export class SearchResult extends Disposable {
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any> {
 		this.replacingAll = true;
 
+		const start = Date.now();
 		const promise = this.replaceService.replace(this.matches(), progress);
-		const onDone = Event.stopwatch(Event.fromPromise(promise));
-		/* __GDPR__
-			"replaceAll.started" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
+
+		promise.finally(() => {
+			/* __GDPR__
+				"replaceAll.started" : {
+					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('replaceAll.started', { duration: Date.now() - start });
+		});
 
 		return promise.then(() => {
 			this.replacingAll = false;
@@ -840,7 +933,7 @@ export class SearchResult extends Disposable {
 	}
 
 	private getFolderMatch(resource: URI): FolderMatch {
-		const folderMatch = this._folderMatchesMap.findSubstr(resource.toString());
+		const folderMatch = this._folderMatchesMap.findSubstr(resource);
 		return folderMatch ? folderMatch : this._otherFilesMatch!;
 	}
 
@@ -879,11 +972,12 @@ export class SearchResult extends Disposable {
 	private disposeMatches(): void {
 		this.folderMatches().forEach(folderMatch => folderMatch.dispose());
 		this._folderMatches = [];
-		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatchWithResource>();
+		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
-	dispose(): void {
+	override dispose(): void {
+		this.disposePastResults();
 		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();
 		super.dispose();
@@ -898,15 +992,19 @@ export class SearchModel extends Disposable {
 	private _replaceString: string | null = null;
 	private _replacePattern: ReplacePattern | null = null;
 	private _preserveCase: boolean = false;
+	private _startStreamDelay: Promise<void> = Promise.resolve();
+	private _resultQueue: IFileMatch[] = [];
 
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
+	private searchCancelledForNewSearch: boolean = false;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -950,14 +1048,20 @@ export class SearchModel extends Disposable {
 	}
 
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		this.cancelSearch();
+		this.cancelSearch(true);
 
 		this._searchQuery = query;
-		this.searchResult.clear();
+		if (!this.searchConfig.searchOnType) {
+			this.searchResult.clear();
+		}
+
 		this._searchResult.query = this._searchQuery;
 
 		const progressEmitter = new Emitter<void>();
 		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
+
+		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
+		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
 		const currentRequest = this.searchService.textSearch(this._searchQuery, this.currentCancelTokenSource.token, p => {
@@ -972,17 +1076,17 @@ export class SearchModel extends Disposable {
 		const dispose = () => tokenSource.dispose();
 		currentRequest.then(dispose, dispose);
 
-		const onDone = Event.fromPromise(currentRequest);
-		const onFirstRender = Event.any<any>(onDone, progressEmitter.event);
-		const onFirstRenderStopwatch = Event.stopwatch(onFirstRender);
-		/* __GDPR__
-			"searchResultsFirstRender" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
-
 		const start = Date.now();
+
+		Promise.race([currentRequest, Event.toPromise(progressEmitter.event)]).finally(() => {
+			/* __GDPR__
+				"searchResultsFirstRender" : {
+					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
+		});
+
 		currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));
@@ -1002,14 +1106,17 @@ export class SearchModel extends Disposable {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
 
-		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
-		delete options.pattern;
+		this._searchResult.add(this._resultQueue);
+		this._resultQueue = [];
+
+		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
+		delete (options as any).pattern;
 
 		const stats = completed && completed.stats as ITextSearchStats;
 
-		const fileSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme === 'file');
-		const otherSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme !== 'file');
-		const scheme = fileSchemeOnly ? 'file' :
+		const fileSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
+		const otherSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
+		const scheme = fileSchemeOnly ? Schemas.file :
 			otherSchemeOnly ? 'other' :
 				'mixed';
 
@@ -1020,7 +1127,8 @@ export class SearchModel extends Disposable {
 				"options": { "${inline}": [ "${IPatternInfo}" ] },
 				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"type" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"scheme" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"searchOnTypeEnabled" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.telemetryService.publicLog('searchResultsShown', {
@@ -1029,32 +1137,48 @@ export class SearchModel extends Disposable {
 			options,
 			duration,
 			type: stats && stats.type,
-			scheme
+			scheme,
+			searchOnTypeEnabled: this.searchConfig.searchOnType
 		});
 		return completed;
 	}
 
 	private onSearchError(e: any, duration: number): void {
 		if (errors.isPromiseCanceledError(e)) {
-			this.onSearchCompleted(null, duration);
+			this.onSearchCompleted(
+				this.searchCancelledForNewSearch
+					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
+					: null,
+				duration);
+			this.searchCancelledForNewSearch = false;
 		}
 	}
 
-	private onSearchProgress(p: ISearchProgressItem): void {
+	private async onSearchProgress(p: ISearchProgressItem) {
 		if ((<IFileMatch>p).resource) {
-			this._searchResult.add([<IFileMatch>p], true);
+			this._resultQueue.push(<IFileMatch>p);
+			await this._startStreamDelay;
+			if (this._resultQueue.length) {
+				this._searchResult.add(this._resultQueue, true);
+				this._resultQueue = [];
+			}
 		}
 	}
 
-	cancelSearch(): boolean {
+	private get searchConfig() {
+		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
+	}
+
+	cancelSearch(cancelledForNewSearch = false): boolean {
 		if (this.currentCancelTokenSource) {
+			this.searchCancelledForNewSearch = cancelledForNewSearch;
 			this.currentCancelTokenSource.cancel();
 			return true;
 		}
 		return false;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.cancelSearch();
 		this.searchResult.dispose();
 		super.dispose();
@@ -1067,7 +1191,7 @@ export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch 
 
 export class SearchWorkbenchService implements ISearchWorkbenchService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private _searchModel: SearchModel | null = null;
 
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
@@ -1084,7 +1208,7 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
 
 export interface ISearchWorkbenchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly searchModel: SearchModel;
 }
@@ -1160,6 +1284,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		description: 'search-range-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true

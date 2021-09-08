@@ -3,29 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent } from 'vs/workbench/services/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export interface ICredentialsProvider {
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
-}
+export class BrowserCredentialsService extends Disposable implements ICredentialsService {
 
-export class BrowserCredentialsService implements ICredentialsService {
+	declare readonly _serviceBrand: undefined;
 
-	_serviceBrand: undefined;
+	private _onDidChangePassword = this._register(new Emitter<ICredentialsChangeEvent>());
+	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	private credentialsProvider: ICredentialsProvider;
 
 	constructor(@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService) {
+		super();
+
 		if (environmentService.options && environmentService.options.credentialsProvider) {
 			this.credentialsProvider = environmentService.options.credentialsProvider;
 		} else {
-			this.credentialsProvider = new LocalStorageCredentialsProvider();
+			this.credentialsProvider = new InMemoryCredentialsProvider();
 		}
 	}
 
@@ -33,19 +32,26 @@ export class BrowserCredentialsService implements ICredentialsService {
 		return this.credentialsProvider.getPassword(service, account);
 	}
 
-	setPassword(service: string, account: string, password: string): Promise<void> {
-		return this.credentialsProvider.setPassword(service, account, password);
+	async setPassword(service: string, account: string, password: string): Promise<void> {
+		await this.credentialsProvider.setPassword(service, account, password);
+
+		this._onDidChangePassword.fire({ service, account });
 	}
 
-	deletePassword(service: string, account: string): Promise<boolean> {
-		return this.credentialsProvider.deletePassword(service, account);
+	async deletePassword(service: string, account: string): Promise<boolean> {
+		const didDelete = await this.credentialsProvider.deletePassword(service, account);
+		if (didDelete) {
+			this._onDidChangePassword.fire({ service, account });
+		}
+
+		return didDelete;
 	}
 
 	findPassword(service: string): Promise<string | null> {
 		return this.credentialsProvider.findPassword(service);
 	}
 
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	findCredentials(service: string): Promise<Array<{ account: string, password: string; }>> {
 		return this.credentialsProvider.findCredentials(service);
 	}
 }
@@ -56,83 +62,42 @@ interface ICredential {
 	password: string;
 }
 
-class LocalStorageCredentialsProvider implements ICredentialsProvider {
+class InMemoryCredentialsProvider implements ICredentialsProvider {
 
-	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
-
-	private _credentials: ICredential[] | undefined;
-	private get credentials(): ICredential[] {
-		if (!this._credentials) {
-			try {
-				const serializedCredentials = window.localStorage.getItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
-				if (serializedCredentials) {
-					this._credentials = JSON.parse(serializedCredentials);
-				}
-			} catch (error) {
-				// ignore
-			}
-
-			if (!Array.isArray(this._credentials)) {
-				this._credentials = [];
-			}
-		}
-
-		return this._credentials;
-	}
-
-	private save(): void {
-		window.localStorage.setItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY, JSON.stringify(this.credentials));
-	}
+	private credentials: ICredential[] = [];
 
 	async getPassword(service: string, account: string): Promise<string | null> {
-		return this.doGetPassword(service, account);
-	}
+		const credential = this.doFindPassword(service, account);
 
-	private async doGetPassword(service: string, account?: string): Promise<string | null> {
-		for (const credential of this.credentials) {
-			if (credential.service === service) {
-				if (typeof account !== 'string' || account === credential.account) {
-					return credential.password;
-				}
-			}
-		}
-
-		return null;
+		return credential ? credential.password : null;
 	}
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
 		this.deletePassword(service, account);
-
 		this.credentials.push({ service, account, password });
-
-		this.save();
 	}
 
 	async deletePassword(service: string, account: string): Promise<boolean> {
-		let found = false;
-
-		this._credentials = this.credentials.filter(credential => {
-			if (credential.service === service && credential.account === account) {
-				found = true;
-
-				return false;
-			}
-
-			return true;
-		});
-
-		if (found) {
-			this.save();
+		const credential = this.doFindPassword(service, account);
+		if (credential) {
+			this.credentials = this.credentials.splice(this.credentials.indexOf(credential), 1);
 		}
 
-		return found;
+		return !!credential;
 	}
 
 	async findPassword(service: string): Promise<string | null> {
-		return this.doGetPassword(service);
+		const credential = this.doFindPassword(service);
+
+		return credential ? credential.password : null;
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	private doFindPassword(service: string, account?: string): ICredential | undefined {
+		return this.credentials.find(credential =>
+			credential.service === service && (typeof account !== 'string' || credential.account === account));
+	}
+
+	async findCredentials(service: string): Promise<Array<{ account: string, password: string; }>> {
 		return this.credentials
 			.filter(credential => credential.service === service)
 			.map(({ account, password }) => ({ account, password }));

@@ -4,12 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from './descriptors';
-import { ServiceIdentifier, IConstructorSignature0 } from './instantiation';
+import { BrandedService, ServiceIdentifier } from './instantiation';
 
 const _registry: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
 
-export function registerSingleton<T>(id: ServiceIdentifier<T>, ctor: IConstructorSignature0<T>, supportsDelayedInstantiation?: boolean): void {
-	_registry.push([id, new SyncDescriptor<T>(ctor, [], supportsDelayedInstantiation)]);
+export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, ctor: new (...services: Services) => T, supportsDelayedInstantiation?: boolean): void;
+export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, descriptor: SyncDescriptor<any>): void;
+export function registerSingleton<T, Services extends BrandedService[]>(id: ServiceIdentifier<T>, ctorOrDescriptor: { new(...services: Services): T } | SyncDescriptor<any>, supportsDelayedInstantiation?: boolean): void {
+	if (!(ctorOrDescriptor instanceof SyncDescriptor)) {
+		ctorOrDescriptor = new SyncDescriptor<T>(ctorOrDescriptor as new (...args: any[]) => T, [], supportsDelayedInstantiation);
+	}
+
+	_registry.push([id, ctorOrDescriptor]);
 }
 
 export function getSingletonServiceDescriptors(): [ServiceIdentifier<any>, SyncDescriptor<any>][] {

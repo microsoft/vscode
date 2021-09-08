@@ -6,6 +6,10 @@ description: |
   simplicity of a code editor with what developers need for the core
   edit-build-debug cycle.
 
+architectures:
+  - build-on: amd64
+    run-on: @@ARCHITECTURE@@
+
 grade: stable
 confinement: classic
 
@@ -24,12 +28,14 @@ parts:
     plugin: dump
     source: .
     stage-packages:
+      - ibus-gtk3
       - fcitx-frontend-gtk3
       - gvfs-libs
       - libasound2
       - libgconf-2-4
       - libglib2.0-bin
       - libgnome-keyring0
+      - libgbm1
       - libgtk-3-0
       - libnotify4
       - libnspr4
@@ -49,16 +55,14 @@ parts:
 
 apps:
   @@NAME@@:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
-    desktop: usr/share/applications/@@NAME@@.desktop
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --no-sandbox
     common-id: @@NAME@@.desktop
     environment:
       DISABLE_WAYLAND: 1
       GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
 
   url-handler:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url
-    desktop: usr/share/applications/@@NAME@@-url-handler.desktop
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox
     environment:
       DISABLE_WAYLAND: 1
       GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas

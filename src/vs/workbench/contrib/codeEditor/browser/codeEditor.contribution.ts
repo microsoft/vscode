@@ -5,13 +5,18 @@
 
 import './menuPreventer';
 import './accessibility/accessibility';
+import './diffEditorHelper';
 import './inspectKeybindings';
 import './largeFileOptimizations';
-import './selectionClipboard';
-import './inspectTMScopes/inspectTMScopes';
+import './inspectEditorTokens/inspectEditorTokens';
+import './quickaccess/gotoLineQuickAccess';
+import './quickaccess/gotoSymbolQuickAccess';
+import './saveParticipants';
+import './toggleColumnSelection';
 import './toggleMinimap';
 import './toggleMultiCursorModifier';
 import './toggleRenderControlCharacter';
 import './toggleRenderWhitespace';
 import './toggleWordWrap';
+import './untitledTextEditorHint';
 import './workbenchReferenceSearch';

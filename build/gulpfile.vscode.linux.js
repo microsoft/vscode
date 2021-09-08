@@ -23,7 +23,7 @@ const commit = util.getVersion(root);
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
 function getDebPackageArch(arch) {
-	return { x64: 'amd64', arm: 'armhf', arm64: "arm64" }[arch];
+	return { x64: 'amd64', armhf: 'armhf', arm64: 'arm64' }[arch];
 }
 
 function prepareDebPackage(arch) {
@@ -42,6 +42,7 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
 			.pipe(replace('@@ICON@@', product.linuxIconName))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
@@ -50,6 +51,11 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
+
+		const workspaceMime = gulp.src('resources/linux/code-workspace.xml', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('usr/share/mime/packages/' + product.applicationName + '-workspace.xml'));
 
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('usr/share/pixmaps/' + product.linuxIconName + '.png'));
@@ -89,14 +95,9 @@ function prepareDebPackage(arch) {
 
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ARCHITECTURE@@', debArch))
-			// @ts-ignore JSON checking: quality is optional
-			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
-			// @ts-ignore JSON checking: updateUrl is optional
-			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'));
 
-		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, icon, bash_completion, zsh_completion, code);
+		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
 
 		return all.pipe(vfs.dest(destination));
 	};
@@ -116,7 +117,7 @@ function getRpmBuildPath(rpmArch) {
 }
 
 function getRpmPackageArch(arch) {
-	return { x64: 'x86_64', arm: 'armhf', arm64: "arm64" }[arch];
+	return { x64: 'x86_64', armhf: 'armv7hl', arm64: 'aarch64' }[arch];
 }
 
 function prepareRpmPackage(arch) {
@@ -134,6 +135,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(replace('@@EXEC@@', `/usr/share/${product.applicationName}/${product.applicationName}`))
 			.pipe(replace('@@ICON@@', product.linuxIconName))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
@@ -142,6 +144,11 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
+
+		const workspaceMime = gulp.src('resources/linux/code-workspace.xml', { base: '.' })
+			.pipe(replace('@@NAME_LONG@@', product.nameLong))
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('BUILD/usr/share/mime/packages/' + product.applicationName + '-workspace.xml'));
 
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('BUILD/usr/share/pixmaps/' + product.linuxIconName + '.png'));
@@ -165,9 +172,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
-			// @ts-ignore JSON checking: quality is optional
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
-			// @ts-ignore JSON checking: updateUrl is optional
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(replace('@@DEPENDENCIES@@', rpmDependencies[rpmArch].join(', ')))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
@@ -175,7 +180,7 @@ function prepareRpmPackage(arch) {
 		const specIcon = gulp.src('resources/linux/rpm/code.xpm', { base: '.' })
 			.pipe(rename('SOURCES/' + product.applicationName + '.xpm'));
 
-		const all = es.merge(code, desktops, appdata, icon, bash_completion, zsh_completion, spec, specIcon);
+		const all = es.merge(code, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, spec, specIcon);
 
 		return all.pipe(vfs.dest(getRpmBuildPath(rpmArch)));
 	};
@@ -203,21 +208,25 @@ function prepareSnapPackage(arch) {
 	const destination = getSnapBuildPath(arch);
 
 	return function () {
+		// A desktop file that is placed in snap/gui will be placed into meta/gui verbatim.
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
-			.pipe(rename(`usr/share/applications/${product.applicationName}.desktop`));
+			.pipe(rename(`snap/gui/${product.applicationName}.desktop`));
 
+		// A desktop file that is placed in snap/gui will be placed into meta/gui verbatim.
 		const desktopUrlHandler = gulp.src('resources/linux/code-url-handler.desktop', { base: '.' })
-			.pipe(rename(`usr/share/applications/${product.applicationName}-url-handler.desktop`));
+			.pipe(rename(`snap/gui/${product.applicationName}-url-handler.desktop`));
 
 		const desktops = es.merge(desktop, desktopUrlHandler)
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@NAME_SHORT@@', product.nameShort))
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@ICON@@', `/usr/share/pixmaps/${product.linuxIconName}.png`))
+			.pipe(replace('@@EXEC@@', `${product.applicationName} --force-user-env`))
+			.pipe(replace('@@ICON@@', `\${SNAP}/meta/gui/${product.linuxIconName}.png`))
 			.pipe(replace('@@URLPROTOCOL@@', product.urlProtocol));
 
+		// An icon that is placed in snap/gui will be placed into meta/gui verbatim.
 		const icon = gulp.src('resources/linux/code.png', { base: '.' })
-			.pipe(rename(`usr/share/pixmaps/${product.linuxIconName}.png`));
+			.pipe(rename(`snap/gui/${product.linuxIconName}.png`));
 
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
@@ -225,6 +234,8 @@ function prepareSnapPackage(arch) {
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit.substr(0, 8)))
+			// Possible run-on values https://snapcraft.io/docs/architectures
+			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
@@ -238,38 +249,29 @@ function prepareSnapPackage(arch) {
 
 function buildSnapPackage(arch) {
 	const snapBuildPath = getSnapBuildPath(arch);
-	return shell.task(`cd ${snapBuildPath} && snapcraft build`);
+	// Default target for snapcraft runs: pull, build, stage and prime, and finally assembles the snap.
+	return shell.task(`cd ${snapBuildPath} && snapcraft`);
 }
 
 const BUILD_TARGETS = [
 	{ arch: 'x64' },
-	{ arch: 'arm' },
+	{ arch: 'armhf' },
 	{ arch: 'arm64' },
 ];
 
-BUILD_TARGETS.forEach((buildTarget) => {
-	const arch = buildTarget.arch;
+BUILD_TARGETS.forEach(({ arch }) => {
+	const debArch = getDebPackageArch(arch);
+	const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(util.rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
+	const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, task.series(prepareDebTask, buildDebPackage(arch)));
+	gulp.task(buildDebTask);
 
-	{
-		const debArch = getDebPackageArch(arch);
-		const prepareDebTask = task.define(`vscode-linux-${arch}-prepare-deb`, task.series(util.rimraf(`.build/linux/deb/${debArch}`), prepareDebPackage(arch)));
-		// gulp.task(prepareDebTask);
-		const buildDebTask = task.define(`vscode-linux-${arch}-build-deb`, task.series(prepareDebTask, buildDebPackage(arch)));
-		gulp.task(buildDebTask);
-	}
+	const rpmArch = getRpmPackageArch(arch);
+	const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(util.rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
+	const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, task.series(prepareRpmTask, buildRpmPackage(arch)));
+	gulp.task(buildRpmTask);
 
-	{
-		const rpmArch = getRpmPackageArch(arch);
-		const prepareRpmTask = task.define(`vscode-linux-${arch}-prepare-rpm`, task.series(util.rimraf(`.build/linux/rpm/${rpmArch}`), prepareRpmPackage(arch)));
-		// gulp.task(prepareRpmTask);
-		const buildRpmTask = task.define(`vscode-linux-${arch}-build-rpm`, task.series(prepareRpmTask, buildRpmPackage(arch)));
-		gulp.task(buildRpmTask);
-	}
-
-	{
-		const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(util.rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
-		gulp.task(prepareSnapTask);
-		const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
-		gulp.task(buildSnapTask);
-	}
+	const prepareSnapTask = task.define(`vscode-linux-${arch}-prepare-snap`, task.series(util.rimraf(`.build/linux/snap/${arch}`), prepareSnapPackage(arch)));
+	gulp.task(prepareSnapTask);
+	const buildSnapTask = task.define(`vscode-linux-${arch}-build-snap`, task.series(prepareSnapTask, buildSnapPackage(arch)));
+	gulp.task(buildSnapTask);
 });

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./countBadge';
 import { $, append } from 'vs/base/browser/dom';
-import { format } from 'vs/base/common/strings';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { format } from 'vs/base/common/strings';
+import { IThemable } from 'vs/base/common/styler';
+import 'vs/css!./countBadge';
 
 export interface ICountBadgeOptions extends ICountBadgetyles {
 	count?: number;
@@ -26,7 +27,7 @@ const defaultOpts = {
 	badgeForeground: Color.fromHex('#FFFFFF')
 };
 
-export class CountBadge {
+export class CountBadge implements IThemable {
 
 	private element: HTMLElement;
 	private count: number = 0;
@@ -85,15 +86,15 @@ export class CountBadge {
 
 	private applyStyles(): void {
 		if (this.element) {
-			const background = this.badgeBackground ? this.badgeBackground.toString() : null;
-			const foreground = this.badgeForeground ? this.badgeForeground.toString() : null;
-			const border = this.badgeBorder ? this.badgeBorder.toString() : null;
+			const background = this.badgeBackground ? this.badgeBackground.toString() : '';
+			const foreground = this.badgeForeground ? this.badgeForeground.toString() : '';
+			const border = this.badgeBorder ? this.badgeBorder.toString() : '';
 
 			this.element.style.backgroundColor = background;
 			this.element.style.color = foreground;
 
-			this.element.style.borderWidth = border ? '1px' : null;
-			this.element.style.borderStyle = border ? 'solid' : null;
+			this.element.style.borderWidth = border ? '1px' : '';
+			this.element.style.borderStyle = border ? 'solid' : '';
 			this.element.style.borderColor = border;
 		}
 	}

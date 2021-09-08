@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/tree';
-import { Iterator, ISequence } from 'vs/base/common/iterator';
-import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
-import { ISpliceable } from 'vs/base/common/sequence';
-import { IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
+import { IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { Iterable } from 'vs/base/common/iterator';
+import 'vs/css!./media/tree';
 
 export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
 export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterData, number[]> {
 
-	protected model!: IndexTreeModel<T, TFilterData>;
+	protected override model!: IndexTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,
@@ -28,8 +27,8 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		super(user, container, delegate, renderers, options);
 	}
 
-	splice(location: number[], deleteCount: number, toInsert: ISequence<ITreeElement<T>> = Iterator.empty()): Iterator<ITreeElement<T>> {
-		return this.model.splice(location, deleteCount, toInsert);
+	splice(location: number[], deleteCount: number, toInsert: Iterable<ITreeElement<T>> = Iterable.empty()): void {
+		this.model.splice(location, deleteCount, toInsert);
 	}
 
 	rerender(location?: number[]): void {
@@ -41,7 +40,11 @@ export class IndexTree<T, TFilterData = void> extends AbstractTree<T, TFilterDat
 		this.model.rerender(location);
 	}
 
-	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
+	updateElementHeight(location: number[], height: number): void {
+		this.model.updateElementHeight(location, height);
+	}
+
+	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: IIndexTreeOptions<T, TFilterData>): ITreeModel<T, TFilterData, number[]> {
 		return new IndexTreeModel(user, view, this.rootElement, options);
 	}
 }

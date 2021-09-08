@@ -3,34 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdir, open, close, read, write, fdatasync } from 'fs';
-import { promisify } from 'util';
-import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { statLink, readdir, unlink, move, copy, readFile, truncate, rimraf, RimRafMode, exists } from 'vs/base/node/pfs';
-import { normalize, basename, dirname } from 'vs/base/common/path';
-import { joinPath } from 'vs/base/common/resources';
-import { isEqual } from 'vs/base/common/extpath';
+import { Stats } from 'fs';
+import { insert } from 'vs/base/common/arrays';
 import { retry, ThrottledDelayer } from 'vs/base/common/async';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { isEqual } from 'vs/base/common/extpath';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { basename, dirname, normalize } from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
+import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
+import { URI } from 'vs/base/common/uri';
+import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { IDiskFileChange, toFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
-import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
-import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
+import { createFileSystemProviderError, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
+import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
+import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
+import { IDiskFileChange, ILogMessage, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
+import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
-	usePolling: boolean;
+	usePolling: boolean | string[];
 }
 
-export class DiskFileSystemProvider extends Disposable implements IFileSystemProvider {
+export interface IDiskFileSystemProviderOptions {
+	bufferSize?: number;
+	watcher?: IWatcherOptions;
+}
 
-	constructor(private logService: ILogService, private watcherOptions?: IWatcherOptions) {
+export class DiskFileSystemProvider extends Disposable implements
+	IFileSystemProviderWithFileReadWriteCapability,
+	IFileSystemProviderWithOpenReadWriteCloseCapability,
+	IFileSystemProviderWithFileReadStreamCapability,
+	IFileSystemProviderWithFileFolderCopyCapability {
+
+	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
+
+	constructor(
+		protected readonly logService: ILogService,
+		private readonly options?: IDiskFileSystemProviderOptions
+	) {
 		super();
 	}
 
@@ -44,7 +62,9 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			this._capabilities =
 				FileSystemProviderCapabilities.FileReadWrite |
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
-				FileSystemProviderCapabilities.FileFolderCopy;
+				FileSystemProviderCapabilities.FileReadStream |
+				FileSystemProviderCapabilities.FileFolderCopy |
+				FileSystemProviderCapabilities.FileWriteUnlock;
 
 			if (isLinux) {
 				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -60,18 +80,11 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
-
-			let type: number;
-			if (isSymbolicLink) {
-				type = FileType.SymbolicLink | (stat.isDirectory() ? FileType.Directory : FileType.File);
-			} else {
-				type = stat.isFile() ? FileType.File : stat.isDirectory() ? FileType.Directory : FileType.Unknown;
-			}
+			const { stat, symbolicLink } = await SymlinkSupport.stat(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
 			return {
-				type,
-				ctime: stat.ctime.getTime(),
+				type: this.toType(stat, symbolicLink),
+				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size
 			};
@@ -82,13 +95,19 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		try {
-			const children = await readdir(this.toFilePath(resource));
+			const children = await Promises.readdir(this.toFilePath(resource), { withFileTypes: true });
 
 			const result: [string, FileType][] = [];
 			await Promise.all(children.map(async child => {
 				try {
-					const stat = await this.stat(joinPath(resource, child));
-					result.push([child, stat.type]);
+					let type: FileType;
+					if (child.isSymbolicLink()) {
+						type = (await this.stat(joinPath(resource, child.name))).type; // always resolve target the link points to if any
+					} else {
+						type = this.toType(child);
+					}
+
+					result.push([child.name, type]);
 				} catch (error) {
 					this.logService.trace(error); // ignore errors for individual entries that can arise from permission denied
 				}
@@ -100,6 +119,30 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
+	private toType(entry: Stats | IDirent, symbolicLink?: { dangling: boolean }): FileType {
+
+		// Signal file type by checking for file / directory, except:
+		// - symbolic links pointing to non-existing files are FileType.Unknown
+		// - files that are neither file nor directory are FileType.Unknown
+		let type: FileType;
+		if (symbolicLink?.dangling) {
+			type = FileType.Unknown;
+		} else if (entry.isFile()) {
+			type = FileType.File;
+		} else if (entry.isDirectory()) {
+			type = FileType.Directory;
+		} else {
+			type = FileType.Unknown;
+		}
+
+		// Always signal symbolic link as file type additionally
+		if (symbolicLink) {
+			type |= FileType.SymbolicLink;
+		}
+
+		return type;
+	}
+
 	//#endregion
 
 	//#region File Reading/Writing
@@ -108,10 +151,21 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const filePath = this.toFilePath(resource);
 
-			return await readFile(filePath);
+			return await Promises.readFile(filePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
+	}
+
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+
+		readFileIntoStream(this, resource, stream, data => data.buffer, {
+			...opts,
+			bufferSize: this.BUFFER_SIZE
+		}, token);
+
+		return stream;
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
@@ -119,21 +173,27 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 			const filePath = this.toFilePath(resource);
 
-			// Validate target
-			const fileExists = await exists(filePath);
-			if (fileExists && !opts.overwrite) {
-				throw createFileSystemProviderError(new Error(localize('fileExists', "File already exists")), FileSystemProviderErrorCode.FileExists);
-			} else if (!fileExists && !opts.create) {
-				throw createFileSystemProviderError(new Error(localize('fileNotExists', "File does not exist")), FileSystemProviderErrorCode.FileNotFound);
+			// Validate target unless { create: true, overwrite: true }
+			if (!opts.create || !opts.overwrite) {
+				const fileExists = await Promises.exists(filePath);
+				if (fileExists) {
+					if (!opts.overwrite) {
+						throw createFileSystemProviderError(localize('fileExists', "File already exists"), FileSystemProviderErrorCode.FileExists);
+					}
+				} else {
+					if (!opts.create) {
+						throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
+					}
+				}
 			}
 
 			// Open
-			handle = await this.open(resource, { create: true });
+			handle = await this.open(resource, { create: true, unlock: opts.unlock });
 
 			// Write content at once
 			await this.write(handle, 0, content, 0, content.byteLength);
 		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			throw await this.toFileSystemProviderWriteError(resource, error);
 		} finally {
 			if (typeof handle === 'number') {
 				await this.close(handle);
@@ -141,29 +201,44 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 	}
 
-	private mapHandleToPos: Map<number, number> = new Map();
+	private readonly mapHandleToPos: Map<number, number> = new Map();
 
-	private writeHandles: Set<number> = new Set();
+	private readonly writeHandles = new Map<number, URI>();
 	private canFlush: boolean = true;
 
 	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
 		try {
 			const filePath = this.toFilePath(resource);
 
+			// Determine wether to unlock the file (write only)
+			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
+				try {
+					const { stat } = await SymlinkSupport.stat(filePath);
+					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
+						await Promises.chmod(filePath, stat.mode | 0o200);
+					}
+				} catch (error) {
+					this.logService.trace(error); // ignore any errors here and try to just write
+				}
+			}
+
+			// Determine file flags for opening (read vs write)
 			let flags: string | undefined = undefined;
-			if (opts.create) {
-				if (isWindows && await exists(filePath)) {
+			if (isFileOpenForWriteOptions(opts)) {
+				if (isWindows) {
 					try {
 						// On Windows and if the file exists, we use a different strategy of saving the file
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
-						// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
-						// (see https://github.com/Microsoft/vscode/issues/6363)
-						await truncate(filePath, 0);
+						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
+						// (see https://github.com/microsoft/vscode/issues/6363)
+						await Promises.truncate(filePath, 0);
 
 						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
 						flags = 'r+';
 					} catch (error) {
-						this.logService.trace(error);
+						if (error.code !== 'ENOENT') {
+							this.logService.trace(error);
+						}
 					}
 				}
 
@@ -180,7 +255,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				flags = 'r';
 			}
 
-			const handle = await promisify(open)(filePath, flags);
+			const handle = await Promises.open(filePath, flags);
 
 			// remember this handle to track file position of the handle
 			// we init the position to 0 since the file descriptor was
@@ -190,13 +265,17 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			this.mapHandleToPos.set(handle, 0);
 
 			// remember that this handle was used for writing
-			if (opts.create) {
-				this.writeHandles.add(handle);
+			if (isFileOpenForWriteOptions(opts)) {
+				this.writeHandles.set(handle, resource);
 			}
 
 			return handle;
 		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			if (isFileOpenForWriteOptions(opts)) {
+				throw await this.toFileSystemProviderWriteError(resource, error);
+			} else {
+				throw this.toFileSystemProviderError(error);
+			}
 		}
 	}
 
@@ -210,7 +289,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && this.canFlush) {
 				try {
-					await promisify(fdatasync)(fd);
+					await Promises.fdatasync(fd);
 				} catch (error) {
 					// In some exotic setups it is well possible that node fails to sync
 					// In that case we disable flushing and log the error to our logger
@@ -219,7 +298,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				}
 			}
 
-			return await promisify(close)(fd);
+			return await Promises.close(fd);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -230,7 +309,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 		let bytesRead: number | null = null;
 		try {
-			const result = await promisify(read)(fd, data, offset, length, normalizedPos);
+			const result = await Promises.read(fd, data, offset, length, normalizedPos);
 
 			if (typeof result === 'number') {
 				bytesRead = result; // node.d.ts fail
@@ -316,7 +395,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 		let bytesWritten: number | null = null;
 		try {
-			const result = await promisify(write)(fd, data, offset, length, normalizedPos);
+			const result = await Promises.write(fd, data, offset, length, normalizedPos);
 
 			if (typeof result === 'number') {
 				bytesWritten = result; // node.d.ts fail
@@ -326,7 +405,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 			return bytesWritten;
 		} catch (error) {
-			throw this.toFileSystemProviderError(error);
+			throw await this.toFileSystemProviderWriteError(this.writeHandles.get(fd), error);
 		} finally {
 			this.updatePos(fd, normalizedPos, bytesWritten);
 		}
@@ -338,7 +417,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	async mkdir(resource: URI): Promise<void> {
 		try {
-			await promisify(mkdir)(this.toFilePath(resource));
+			await Promises.mkdir(this.toFilePath(resource));
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -356,9 +435,9 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
 		if (opts.recursive) {
-			await rimraf(filePath, RimRafMode.MOVE);
+			await Promises.rm(filePath, RimRafMode.MOVE);
 		} else {
-			await unlink(filePath);
+			await Promises.unlink(filePath);
 		}
 	}
 
@@ -373,10 +452,10 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 
 			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'move', opts && opts.overwrite);
+			await this.validateTargetDeleted(from, to, 'move', opts.overwrite);
 
 			// Move
-			await move(fromFilePath, toFilePath);
+			await Promises.move(fromFilePath, toFilePath);
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks
@@ -400,10 +479,10 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		try {
 
 			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'copy', opts && opts.overwrite);
+			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
 
 			// Copy
-			await copy(fromFilePath, toFilePath);
+			await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks
@@ -417,24 +496,23 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 	}
 
 	private async validateTargetDeleted(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
-		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
 		let isSameResourceWithDifferentPathCase = false;
+		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 		if (!isPathCaseSensitive) {
 			isSameResourceWithDifferentPathCase = isEqual(fromFilePath, toFilePath, true /* ignore case */);
 		}
 
 		if (isSameResourceWithDifferentPathCase && mode === 'copy') {
-			throw createFileSystemProviderError(new Error('File cannot be copied to same path with different path case'), FileSystemProviderErrorCode.FileExists);
+			throw createFileSystemProviderError(localize('fileCopyErrorPathCase', "'File cannot be copied to same path with different path case"), FileSystemProviderErrorCode.FileExists);
 		}
 
 		// handle existing target (unless this is a case change)
-		if (!isSameResourceWithDifferentPathCase && await exists(toFilePath)) {
+		if (!isSameResourceWithDifferentPathCase && await Promises.exists(toFilePath)) {
 			if (!overwrite) {
-				throw createFileSystemProviderError(new Error('File at target already exists'), FileSystemProviderErrorCode.FileExists);
+				throw createFileSystemProviderError(localize('fileCopyErrorExists', "File at target already exists"), FileSystemProviderErrorCode.FileExists);
 			}
 
 			// Delete target
@@ -446,15 +524,15 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 	//#region File Watching
 
-	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;
+	private readonly _onDidWatchErrorOccur = this._register(new Emitter<string>());
+	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
 
-	private _onDidChangeFile: Emitter<IFileChange[]> = this._register(new Emitter<IFileChange[]>());
-	get onDidChangeFile(): Event<IFileChange[]> { return this._onDidChangeFile.event; }
+	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
-	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
-	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(0));
+	private readonly recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
+	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	private recursiveWatcherLogLevelListener: IDisposable | undefined;
 
@@ -463,14 +541,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			return this.watchRecursive(resource, opts.excludes);
 		}
 
-		return this.watchNonRecursive(resource); // TODO@ben ideally the same watcher can be used in both cases
+		return this.watchNonRecursive(resource);
 	}
 
 	private watchRecursive(resource: URI, excludes: string[]): IDisposable {
 
 		// Add to list of folders to watch recursively
 		const folderToWatch = { path: this.toFilePath(resource), excludes };
-		this.recursiveFoldersToWatch.push(folderToWatch);
+		const remove = insert(this.recursiveFoldersToWatch, folderToWatch);
 
 		// Trigger update
 		this.refreshRecursiveWatchers();
@@ -478,7 +556,7 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		return toDisposable(() => {
 
 			// Remove from list of folders to watch recursively
-			this.recursiveFoldersToWatch.splice(this.recursiveFoldersToWatch.indexOf(folderToWatch), 1);
+			remove();
 
 			// Trigger update
 			this.refreshRecursiveWatchers();
@@ -489,10 +567,8 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 
 		// Buffer requests for recursive watching to decide on right watcher
 		// that supports potentially watching more than one folder at once
-		this.recursiveWatchRequestDelayer.trigger(() => {
+		this.recursiveWatchRequestDelayer.trigger(async () => {
 			this.doRefreshRecursiveWatchers();
-
-			return Promise.resolve();
 		});
 	}
 
@@ -525,13 +601,14 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 				let watcherOptions: IWatcherOptions | undefined = undefined;
 
 				// requires a polling watcher
-				if (this.watcherOptions && this.watcherOptions.usePolling) {
+				if (this.options?.watcher?.usePolling) {
 					watcherImpl = UnixWatcherService;
-					watcherOptions = this.watcherOptions;
+					watcherOptions = this.options?.watcher;
 				}
 
-				// Single Folder Watcher
 				else {
+
+					// Single Folder Watcher
 					if (this.recursiveFoldersToWatch.length === 1) {
 						if (isWindows) {
 							watcherImpl = WindowsWatcherService;
@@ -614,6 +691,9 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 			case 'EISDIR':
 				code = FileSystemProviderErrorCode.FileIsADirectory;
 				break;
+			case 'ENOTDIR':
+				code = FileSystemProviderErrorCode.FileNotADirectory;
+				break;
 			case 'EEXIST':
 				code = FileSystemProviderErrorCode.FileExists;
 				break;
@@ -628,9 +708,29 @@ export class DiskFileSystemProvider extends Disposable implements IFileSystemPro
 		return createFileSystemProviderError(error, code);
 	}
 
+	private async toFileSystemProviderWriteError(resource: URI | undefined, error: NodeJS.ErrnoException): Promise<FileSystemProviderError> {
+		let fileSystemProviderWriteError = this.toFileSystemProviderError(error);
+
+		// If the write error signals permission issues, we try
+		// to read the file's mode to see if the file is write
+		// locked.
+		if (resource && fileSystemProviderWriteError.code === FileSystemProviderErrorCode.NoPermissions) {
+			try {
+				const { stat } = await SymlinkSupport.stat(this.toFilePath(resource));
+				if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
+					fileSystemProviderWriteError = createFileSystemProviderError(error, FileSystemProviderErrorCode.FileWriteLocked);
+				}
+			} catch (error) {
+				this.logService.trace(error); // ignore - return original error
+			}
+		}
+
+		return fileSystemProviderWriteError;
+	}
+
 	//#endregion
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		dispose(this.recursiveWatcher);

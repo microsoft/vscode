@@ -32,7 +32,7 @@ export function createScopedLineTokens(context: LineTokens, offset: number): Sco
 }
 
 export class ScopedLineTokens {
-	_scopedLineTokensBrand: void;
+	_scopedLineTokensBrand: void = undefined;
 
 	public readonly languageId: modes.LanguageId;
 	private readonly _actual: LineTokens;
@@ -60,6 +60,11 @@ export class ScopedLineTokens {
 	public getLineContent(): string {
 		const actualLineContent = this._actual.getLineContent();
 		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
+	}
+
+	public getActualLineContentBefore(offset: number): string {
+		const actualLineContent = this._actual.getLineContent();
+		return actualLineContent.substring(0, this.firstCharOffset + offset);
 	}
 
 	public getTokenCount(): number {

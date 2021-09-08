@@ -3,58 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { sep } from 'vs/base/common/path';
-import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
-import { VIEWLET_ID, SortOrderConfiguration, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
-import { SaveErrorHandler } from 'vs/workbench/contrib/files/browser/saveErrorHandler';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
+import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
+import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE } from 'vs/workbench/contrib/files/common/files';
+import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
+import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
-import { DirtyFilesTracker } from 'vs/workbench/contrib/files/common/dirtyFilesTracker';
-import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { isNative, isWeb, isWindows } from 'vs/base/common/platform';
+import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/browser/explorerViewlet';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
+import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
+import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
-
-// Viewlet Action
-export class OpenExplorerViewletAction extends ShowViewletAction {
-	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService viewletService: IViewletService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
-	}
-}
+import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
+import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -64,8 +43,8 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 			formatting: {
 				label: '${authority}${path}',
 				separator: sep,
-				tildify: !platform.isWindows,
-				normalizeDriveLetter: platform.isWindows,
+				tildify: !isWindows,
+				normalizeDriveLetter: isWindows,
 				authorityPrefix: sep + sep,
 				workspaceSuffix: ''
 			}
@@ -73,134 +52,69 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 	}
 }
 
-// Register Viewlet
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	ExplorerViewlet,
-	VIEWLET_ID,
-	nls.localize('explore', "Explorer"),
-	'explore',
-	0
-));
-
 registerSingleton(IExplorerService, ExplorerService, true);
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).setDefaultViewletId(VIEWLET_ID);
-
-const openViewletKb: IKeybindings = {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E
-};
-
-// Register Action to Open Viewlet
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(
-	new SyncActionDescriptor(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
-	'View: Show Explorer',
-	nls.localize('view', "View")
-);
-
 // Register file editors
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
-		TextFileEditor,
-		TextFileEditor.ID,
-		nls.localize('textFileEditor', "Text File Editor")
-	),
-	[
-		new SyncDescriptor<EditorInput>(FileEditorInput)
-	]
-);
-
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	new EditorDescriptor(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		BinaryFileEditor,
 		BinaryFileEditor.ID,
 		nls.localize('binaryFileEditor', "Binary File Editor")
 	),
 	[
-		new SyncDescriptor<EditorInput>(FileEditorInput),
-		new SyncDescriptor<EditorInput>(DataUriEditorInput)
+		new SyncDescriptor(FileEditorInput)
 	]
 );
 
 // Register default file input factory
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileInputFactory({
-	createFileInput: (resource, encoding, mode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, encoding, mode);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFileEditorFactory({
+
+	typeId: FILE_EDITOR_INPUT_ID,
+
+	createFileEditor: (resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, preferredEncoding, preferredMode, preferredContents);
 	},
 
-	isFileInput: (obj): obj is IFileEditorInput => {
+	isFileEditor: (obj): obj is IFileEditorInput => {
 		return obj instanceof FileEditorInput;
 	}
 });
 
-interface ISerializedFileInput {
-	resource: string;
-	resourceJSON: object;
-	encoding?: string;
-	modeId?: string;
-}
-
-// Register Editor Input Factory
-class FileEditorInputFactory implements IEditorInputFactory {
-
-	constructor() { }
-
-	serialize(editorInput: EditorInput): string {
-		const fileEditorInput = <FileEditorInput>editorInput;
-		const resource = fileEditorInput.getResource();
-		const fileInput: ISerializedFileInput = {
-			resource: resource.toString(), // Keep for backwards compatibility
-			resourceJSON: resource.toJSON(),
-			encoding: fileEditorInput.getEncoding(),
-			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
-		};
-
-		return JSON.stringify(fileInput);
-	}
-
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
-		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
-			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
-			const resource = !!fileInput.resourceJSON ? URI.revive(<UriComponents>fileInput.resourceJSON) : URI.parse(fileInput.resource);
-			const encoding = fileInput.encoding;
-			const mode = fileInput.modeId;
-
-			return accessor.get(IEditorService).createInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
-		});
-	}
-}
-
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
+// Register Editor Input Serializer & Handler
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(FILE_EDITOR_INPUT_ID, FileEditorInputSerializer);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
 // Register Explorer views
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExplorerViewletViewsContribution, LifecyclePhase.Starting);
 
-// Register File Editor Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileEditorTracker, LifecyclePhase.Starting);
+// Register Text File Editor Tracker
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileEditorTracker, LifecyclePhase.Starting);
 
-// Register Save Error Handler
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SaveErrorHandler, LifecyclePhase.Starting);
-
-// Register Dirty Files Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
+// Register Text File Save Error Handler
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileSaveErrorHandler, LifecyclePhase.Starting);
 
 // Register uri display for file uris
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileUriLabelContribution, LifecyclePhase.Starting);
 
+// Register Workspace Watcher
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceWatcher, LifecyclePhase.Restored);
+
+// Register Dirty Files Indicator
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesIndicator, LifecyclePhase.Starting);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
-const hotExitConfiguration = platform.isNative ?
+const hotExitConfiguration: IConfigurationPropertySchema = isNative ?
 	{
 		'type': 'string',
 		'scope': ConfigurationScope.APPLICATION,
 		'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 		'default': HotExitConfiguration.ON_EXIT,
 		'markdownEnumDescriptions': [
-			nls.localize('hotExit.off', 'Disable hot exit.'),
-			nls.localize('hotExit.onExit', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu). All windows with backups will be restored upon next launch.'),
-			nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set `#window.restoreWindows#` to `all`.')
+			nls.localize('hotExit.off', 'Disable hot exit. A prompt will show when attempting to close a window with dirty files.'),
+			nls.localize('hotExit.onExit', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu). All windows without folders opened will be restored upon next launch. A list of previously opened windows with unsaved files can be accessed via `File > Open Recent > More...`'),
+			nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. A list of previously opened windows with unsaved files can be accessed via `File > Open Recent > More...`')
 		],
 		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 	} : {
@@ -209,7 +123,7 @@ const hotExitConfiguration = platform.isNative ?
 		'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 		'default': HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE,
 		'markdownEnumDescriptions': [
-			nls.localize('hotExit.off', 'Disable hot exit.'),
+			nls.localize('hotExit.off', 'Disable hot exit. A prompt will show when attempting to close a window with dirty files.'),
 			nls.localize('hotExit.onExitAndWindowCloseBrowser', 'Hot exit will be triggered when the browser quits or the window or tab is closed.')
 		],
 		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
@@ -221,10 +135,13 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('filesConfigurationTitle', "Files"),
 	'type': 'object',
 	'properties': {
-		'files.exclude': {
+		[FILES_EXCLUDE_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
-			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
+			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the file Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search specific excludes. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			'default': {
+				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true, '**/Thumbs.db': true },
+				...(isWeb ? { '**/*.crswap': true /* filter out swap files used for local file access */ } : undefined)
+			},
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
 				'anyOf': [
@@ -246,25 +163,27 @@ configurationRegistry.registerConfiguration({
 				]
 			}
 		},
-		'files.associations': {
+		[FILES_ASSOCIATIONS_CONFIG]: {
 			'type': 'object',
 			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
+			'additionalProperties': {
+				'type': 'string'
+			}
 		},
 		'files.encoding': {
 			'type': 'string',
-			'overridable': true,
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.RESOURCE,
-			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
+			'enumItemLabels': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
-			'overridable': true,
 			'default': false,
-			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.RESOURCE
+			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only `#files.encoding#` is respected."),
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.eol': {
 			'type': 'string',
@@ -280,7 +199,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'auto',
 			'description': nls.localize('eol', "The default end of line character."),
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.enableTrash': {
 			'type': 'boolean',
@@ -291,84 +210,105 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimTrailingWhitespace', "When enabled, will trim trailing whitespace when saving a file."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.insertFinalNewline': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.trimFinalNewlines': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('trimFinalNewlines', "When enabled, will trim all new lines after the final new line at the end of the file when saving it."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 		},
 		'files.autoSave': {
 			'type': 'string',
 			'enum': [AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE],
 			'markdownEnumDescriptions': [
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty file is never automatically saved."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty file is automatically saved after the configured `#files.autoSaveDelay#`."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty file is automatically saved when the editor loses focus."),
-				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty file is automatically saved when the window loses focus.")
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.off' }, "A dirty editor is never automatically saved."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.afterDelay' }, "A dirty editor is automatically saved after the configured `#files.autoSaveDelay#`."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onFocusChange' }, "A dirty editor is automatically saved when the editor loses focus."),
+				nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'files.autoSave.onWindowChange' }, "A dirty editor is automatically saved when the window loses focus.")
 			],
-			'default': platform.isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty files. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
+			'default': isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF,
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSave' }, "Controls auto save of dirty editors. Read more about autosave [here](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save).", AutoSaveConfiguration.OFF, AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE, AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.autoSaveDelay': {
 			'type': 'number',
 			'default': 1000,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty file is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
+			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveDelay' }, "Controls the delay in ms after which a dirty editor is saved automatically. Only applies when `#files.autoSave#` is set to `{0}`.", AutoSaveConfiguration.AFTER_DELAY)
 		},
 		'files.watcherExclude': {
 			'type': 'object',
-			'default': platform.isWindows /* https://github.com/Microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true },
-			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths (i.e. prefix with ** or the full path to match properly). Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load."),
+			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
+			'markdownDescription': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths, i.e. prefix with `**/` or the full path to match properly and suffix with `/**` to match files within a path (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). Changing this setting requires a restart. When you experience Code consuming lots of CPU time on startup, you can exclude large folders to reduce the initial load."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',
-			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files.")
+			'markdownDescription': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
 		},
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
-			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line.")
+			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
+			included: isNative
+		},
+		'files.restoreUndoStack': {
+			'type': 'boolean',
+			'description': nls.localize('files.restoreUndoStack', "Restore the undo stack when a file is reopened."),
+			'default': true
+		},
+		'files.saveConflictResolution': {
+			'type': 'string',
+			'enum': [
+				'askUser',
+				'overwriteFileOnDisk'
+			],
+			'enumDescriptions': [
+				nls.localize('askUser', "Will refuse to save and ask for resolving the save conflict manually."),
+				nls.localize('overwriteFileOnDisk', "Will resolve the save conflict by overwriting the file on disk with the changes in the editor.")
+			],
+			'description': nls.localize('files.saveConflictResolution', "A save conflict can occur when a file is saved to disk that was changed by another program in the meantime. To prevent data loss, the user is asked to compare the changes in the editor with the version on disk. This setting should only be changed if you frequently encounter save conflict errors and may result in data loss if used without caution."),
+			'default': 'askUser',
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
-			'default': false,
+			'default': false
 		}
 	}
 });
 
 configurationRegistry.registerConfiguration({
-	id: 'editor',
-	order: 5,
-	title: nls.localize('editorConfigurationTitle', "Editor"),
-	type: 'object',
+	...editorConfigurationBaseNode,
 	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',
-			'default': false,
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
 		},
-		'editor.formatOnSaveTimeout': {
-			'type': 'number',
-			'default': 750,
-			'description': nls.localize('formatOnSaveTimeout', "Timeout in milliseconds after which the formatting that is run on file save is cancelled."),
-			'overridable': true,
-			'scope': ConfigurationScope.RESOURCE
-		}
+		'editor.formatOnSaveMode': {
+			'type': 'string',
+			'default': 'file',
+			'enum': [
+				'file',
+				'modifications',
+				'modificationsIfAvailable'
+			],
+			'enumDescriptions': [
+				nls.localize({ key: 'everything', comment: ['This is the description of an option'] }, "Format the whole file."),
+				nls.localize({ key: 'modification', comment: ['This is the description of an option'] }, "Format modifications (requires source control)."),
+				nls.localize({ key: 'modificationIfAvailable', comment: ['This is the description of an option'] }, "Will attempt to format modifications only (requires source control). If source control can't be used, then the whole file will be formatted."),
+			],
+			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is enabled."),
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
+		},
 	}
 });
 
@@ -380,17 +320,33 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane."),
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
 			'default': 9
 		},
+		'explorer.openEditors.sortOrder': {
+			'type': 'string',
+			'enum': ['editorOrder', 'alphabetical'],
+			'description': nls.localize({ key: 'openEditorsSortOrder', comment: ['Open is an adjective'] }, "Controls the sorting order of editors in the Open Editors pane."),
+			'enumDescriptions': [
+				nls.localize('sortOrder.editorOrder', 'Editors are ordered in the same order editor tabs are shown.'),
+				nls.localize('sortOrder.alphabetical', 'Editors are ordered in alphabetical order inside each editor group.')
+			],
+			'default': 'editorOrder'
+		},
 		'explorer.autoReveal': {
-			'type': 'boolean',
-			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them."),
-			'default': true
+			'type': ['boolean', 'string'],
+			'enum': [true, false, 'focusNoScroll'],
+			'default': true,
+			'enumDescriptions': [
+				nls.localize('autoReveal.on', 'Files will be revealed and selected.'),
+				nls.localize('autoReveal.off', 'Files will not be revealed and selected.'),
+				nls.localize('autoReveal.focusNoScroll', 'Files will not be scrolled into view, but will still be focused.'),
+			],
+			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them.")
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop."),
+			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the explorer."),
 			'default': true
 		},
 		'explorer.confirmDragAndDrop': {
@@ -405,16 +361,28 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.sortOrder': {
 			'type': 'string',
-			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],
-			'default': SortOrderConfiguration.DEFAULT,
+			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified],
+			'default': SortOrder.Default,
 			'enumDescriptions': [
-				nls.localize('sortOrder.default', 'Files and folders are sorted by their names, in alphabetical order. Folders are displayed before files.'),
-				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names, in alphabetical order. Files are interwoven with folders.'),
-				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names, in alphabetical order. Files are displayed before folders.'),
-				nls.localize('sortOrder.type', 'Files and folders are sorted by their extensions, in alphabetical order. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
+				nls.localize('sortOrder.default', 'Files and folders are sorted by their names. Folders are displayed before files.'),
+				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names. Files are interwoven with folders.'),
+				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
+				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.')
 			],
-			'description': nls.localize('sortOrder', "Controls sorting order of files and folders in the explorer.")
+			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer.")
+		},
+		'explorer.sortOrderLexicographicOptions': {
+			'type': 'string',
+			'enum': [LexicographicOptions.Default, LexicographicOptions.Upper, LexicographicOptions.Lower, LexicographicOptions.Unicode],
+			'default': LexicographicOptions.Default,
+			'enumDescriptions': [
+				nls.localize('sortOrderLexicographicOptions.default', 'Uppercase and lowercase names are mixed together.'),
+				nls.localize('sortOrderLexicographicOptions.upper', 'Uppercase names are grouped together before lowercase names.'),
+				nls.localize('sortOrderLexicographicOptions.lower', 'Lowercase names are grouped together before uppercase names.'),
+				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in unicode order.')
+			],
+			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the Explorer.")
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',
@@ -427,6 +395,7 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'explorer.incrementalNaming': {
+			'type': 'string',
 			enum: ['simple', 'smart'],
 			enumDescriptions: [
 				nls.localize('simple', "Appends the word \"copy\" at the end of the duplicated name potentially followed by a number"),
@@ -434,16 +403,54 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated explorer item on paste."),
 			default: 'simple'
+		},
+		'explorer.compactFolders': {
+			'type': 'boolean',
+			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
+			'default': true
+		},
+		'explorer.copyRelativePathSeparator': {
+			'type': 'string',
+			'enum': [
+				'/',
+				'\\',
+				'auto'
+			],
+			'enumDescriptions': [
+				nls.localize('copyRelativePathSeparator.slash', "Use slash as path separation character."),
+				nls.localize('copyRelativePathSeparator.backslash', "Use backslash as path separation character."),
+				nls.localize('copyRelativePathSeparator.auto', "Uses operating system specific path separation character."),
+			],
+			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
+			'default': 'auto'
 		}
 	}
 });
 
-// View menu
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-	group: '3_views',
-	command: {
-		id: VIEWLET_ID,
-		title: nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer")
-	},
-	order: 1
+UndoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
+	const undoRedoService = accessor.get(IUndoRedoService);
+	const explorerService = accessor.get(IExplorerService);
+	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE)) {
+		undoRedoService.undo(UNDO_REDO_SOURCE);
+		return true;
+	}
+
+	return false;
+});
+
+RedoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
+	const undoRedoService = accessor.get(IUndoRedoService);
+	const explorerService = accessor.get(IExplorerService);
+	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE)) {
+		undoRedoService.redo(UNDO_REDO_SOURCE);
+		return true;
+	}
+
+	return false;
+});
+
+ModesRegistry.registerLanguage({
+	id: BINARY_TEXT_FILE_MODE,
+	aliases: ['Binary'],
+	mimetypes: ['text/x-code-binary']
 });

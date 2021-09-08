@@ -4,167 +4,247 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IVisibleEditor } from 'vs/workbench/services/editor/common/editorService';
+import { Emitter } from 'vs/base/common/event';
+import { assertIsDefined } from 'vs/base/common/types';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { UnavailableResourceErrorEditor, UnknownErrorEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 
 export interface IOpenEditorResult {
-	readonly control: BaseEditor;
-	readonly editorChanged: boolean;
+
+	/**
+	 * The editor pane used for opening. This can be a generic
+	 * placeholder in certain cases, e.g. when workspace trust
+	 * is required, or an editor fails to restore.
+	 *
+	 * Will be `undefined` if an error occured while trying to
+	 * open the editor and in cases where no placeholder is being
+	 * used.
+	 */
+	readonly editorPane?: EditorPane;
+
+	/**
+	 * Whether the editor changed as a result of opening.
+	 */
+	readonly editorChanged?: boolean;
+
+	/**
+	 * This property is set when an editor fails to restore and
+	 * is shown with a generic place holder. It allows callers
+	 * to still present the error to the user in that case.
+	 */
+	readonly error?: Error;
 }
 
 export class EditorControl extends Disposable {
 
-	get minimumWidth() { return this._activeControl ? this._activeControl.minimumWidth : DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
-	get minimumHeight() { return this._activeControl ? this._activeControl.minimumHeight : DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
-	get maximumWidth() { return this._activeControl ? this._activeControl.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
-	get maximumHeight() { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+	get minimumWidth() { return this._activeEditorPane?.minimumWidth ?? DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get minimumHeight() { return this._activeEditorPane?.minimumHeight ?? DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumWidth() { return this._activeEditorPane?.maximumWidth ?? DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get maximumHeight() { return this._activeEditorPane?.maximumHeight ?? DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
-	private readonly _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
 
-	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; } | undefined> { return this._onDidSizeConstraintsChange.event; }
+	private _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
 
-	private _activeControl: BaseEditor | null = null;
-	private controls: BaseEditor[] = [];
+	private _activeEditorPane: EditorPane | null = null;
+	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
 
-	private readonly activeControlDisposables = this._register(new DisposableStore());
+	private readonly editorPanes: EditorPane[] = [];
+
+	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
-	private editorOperation: LongRunningOperation;
+	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
+	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
 	constructor(
 		private parent: HTMLElement,
 		private groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService editorProgressService: IEditorProgressService
+		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService
 	) {
 		super();
 
-		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
+		this.registerListeners();
 	}
 
-	get activeControl(): IVisibleEditor | null {
-		return this._activeControl as IVisibleEditor | null;
+	private registerListeners(): void {
+		this._register(this.workspaceTrustService.onDidChangeTrust(() => this.onDidChangeWorkspaceTrust()));
 	}
 
-	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
+	private onDidChangeWorkspaceTrust() {
 
-		// Editor control
-		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
-		if (!descriptor) {
-			throw new Error('No editor descriptor found');
+		// If the active editor pane requires workspace trust
+		// we need to re-open it anytime trust changes to
+		// account for it.
+		// For that we explicitly call into the group-view
+		// to handle errors properly.
+		const editor = this._activeEditorPane?.input;
+		const options = this._activeEditorPane?.options;
+		if (editor?.hasCapability(EditorInputCapabilities.RequiresTrust)) {
+			this.groupView.openEditor(editor, options);
 		}
-		const control = this.doShowEditorControl(descriptor);
-
-		// Set input
-		const editorChanged = await this.doSetInput(control, editor, options);
-		return { control, editorChanged };
 	}
 
-	private doShowEditorControl(descriptor: IEditorDescriptor): BaseEditor {
+	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+		try {
+			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
+		} catch (error) {
+			if (!context.newInGroup) {
+				const isUnavailableResource = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+				const editorPlaceholder = isUnavailableResource ? UnavailableResourceErrorEditor.DESCRIPTOR : UnknownErrorEditor.DESCRIPTOR;
 
-		// Return early if the currently active editor control can handle the input
-		if (this._activeControl && descriptor.describes(this._activeControl)) {
-			return this._activeControl;
+				// The editor is restored (as opposed to being newly opened) and as
+				// such we want to preserve the fact that an editor was opened here
+				// before by falling back to a editor placeholder that allows the
+				// user to retry the operation.
+				//
+				// This is especially important when an editor is dirty and fails to
+				// restore after a restart to prevent the impression that any user
+				// data is lost.
+				//
+				// Related: https://github.com/microsoft/vscode/issues/110062
+				return {
+					...(await this.doOpenEditor(editorPlaceholder, editor, options, context)),
+					error
+				};
+			}
+
+			return { error };
+		}
+	}
+
+	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+
+		// Editor pane
+		const editorPane = this.doShowEditorPane(descriptor);
+
+		// Apply input to pane
+		const editorChanged = await this.doSetInput(editorPane, editor, options, context);
+		return { editorPane, editorChanged };
+	}
+
+	private getEditorPaneDescriptor(editor: EditorInput): IEditorPaneDescriptor {
+		if (editor.hasCapability(EditorInputCapabilities.RequiresTrust) && !this.workspaceTrustService.isWorkspaceTrusted()) {
+			// Workspace trust: if an editor signals it needs workspace trust
+			// but the current workspace is untrusted, we fallback to a generic
+			// editor descriptor to indicate this an do NOT load the registered
+			// editor.
+			return WorkspaceTrustRequiredEditor.DESCRIPTOR;
+		}
+
+		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));
+	}
+
+	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
+
+		// Return early if the currently active editor pane can handle the input
+		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
+			return this._activeEditorPane;
 		}
 
 		// Hide active one first
-		this.doHideActiveEditorControl();
+		this.doHideActiveEditorPane();
 
-		// Create editor
-		const control = this.doCreateEditorControl(descriptor);
+		// Create editor pane
+		const editorPane = this.doCreateEditorPane(descriptor);
 
 		// Set editor as active
-		this.doSetActiveControl(control);
+		this.doSetActiveEditorPane(editorPane);
 
 		// Show editor
-		this.parent.appendChild(control.getContainer());
-		show(control.getContainer());
+		const container = assertIsDefined(editorPane.getContainer());
+		this.parent.appendChild(container);
+		show(container);
 
 		// Indicate to editor that it is now visible
-		control.setVisible(true, this.groupView);
+		editorPane.setVisible(true, this.groupView);
 
 		// Layout
 		if (this.dimension) {
-			control.layout(this.dimension);
+			editorPane.layout(this.dimension);
 		}
 
-		return control;
+		return editorPane;
 	}
 
-	private doCreateEditorControl(descriptor: IEditorDescriptor): BaseEditor {
+	private doCreateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
 		// Instantiate editor
-		const control = this.doInstantiateEditorControl(descriptor);
+		const editorPane = this.doInstantiateEditorPane(descriptor);
 
 		// Create editor container as needed
-		if (!control.getContainer()) {
-			const controlInstanceContainer = document.createElement('div');
-			addClass(controlInstanceContainer, 'editor-instance');
-			controlInstanceContainer.setAttribute('data-editor-id', descriptor.getId());
+		if (!editorPane.getContainer()) {
+			const editorPaneContainer = document.createElement('div');
+			editorPaneContainer.classList.add('editor-instance');
 
-			control.create(controlInstanceContainer);
+			editorPane.create(editorPaneContainer);
 		}
 
-		return control;
+		return editorPane;
 	}
 
-	private doInstantiateEditorControl(descriptor: IEditorDescriptor): BaseEditor {
+	private doInstantiateEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
 		// Return early if already instantiated
-		const existingControl = this.controls.filter(control => descriptor.describes(control))[0];
-		if (existingControl) {
-			return existingControl;
+		const existingEditorPane = this.editorPanes.find(editorPane => descriptor.describes(editorPane));
+		if (existingEditorPane) {
+			return existingEditorPane;
 		}
 
 		// Otherwise instantiate new
-		const control = this._register(descriptor.instantiate(this.instantiationService));
-		this.controls.push(control);
+		const editorPane = this._register(descriptor.instantiate(this.instantiationService));
+		this.editorPanes.push(editorPane);
 
-		return control;
+		return editorPane;
 	}
 
-	private doSetActiveControl(control: BaseEditor | null) {
-		this._activeControl = control;
+	private doSetActiveEditorPane(editorPane: EditorPane | null) {
+		this._activeEditorPane = editorPane;
 
-		// Clear out previous active control listeners
-		this.activeControlDisposables.clear();
+		// Clear out previous active editor pane listeners
+		this.activeEditorPaneDisposables.clear();
 
-		// Listen to control changes
-		if (control) {
-			this.activeControlDisposables.add(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
-			this.activeControlDisposables.add(control.onDidFocus(() => this._onDidFocus.fire()));
+		// Listen to editor pane changes
+		if (editorPane) {
+			this.activeEditorPaneDisposables.add(editorPane.onDidChangeSizeConstraints(e => this._onDidChangeSizeConstraints.fire(e)));
+			this.activeEditorPaneDisposables.add(editorPane.onDidFocus(() => this._onDidFocus.fire()));
 		}
 
 		// Indicate that size constraints could have changed due to new editor
-		this._onDidSizeConstraintsChange.fire(undefined);
+		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
-	private async doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions | undefined): Promise<boolean> {
+	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
-		const forceReload = options && options.forceReload;
-		const inputMatches = control.input && control.input.matches(editor);
+		const forceReload = options?.forceReload;
+		const inputMatches = editorPane.input && editorPane.input.matches(editor);
 		if (inputMatches && !forceReload) {
 
 			// Forward options
-			control.setOptions(options);
+			editorPane.setOptions(options);
 
 			// Still focus as needed
 			const focus = !options || !options.preserveFocus;
 			if (focus) {
-				control.focus();
+				editorPane.focus();
 			}
 
 			return false;
@@ -174,16 +254,16 @@ export class EditorControl extends Disposable {
 		// be more relaxed about progress showing by increasing the delay a little bit to reduce flicker.
 		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
 
-		// Call into editor control
+		// Call into editor pane
 		const editorWillChange = !inputMatches;
 		try {
-			await control.setInput(editor, options, operation.token);
+			await editorPane.setInput(editor, options, context, operation.token);
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {
 				const focus = !options || !options.preserveFocus;
 				if (focus) {
-					control.focus();
+					editorPane.focus();
 				}
 			}
 
@@ -193,44 +273,44 @@ export class EditorControl extends Disposable {
 		}
 	}
 
-	private doHideActiveEditorControl(): void {
-		if (!this._activeControl) {
+	private doHideActiveEditorPane(): void {
+		if (!this._activeEditorPane) {
 			return;
 		}
 
 		// Stop any running operation
 		this.editorOperation.stop();
 
-		// Remove control from parent and hide
-		const controlInstanceContainer = this._activeControl.getContainer();
-		this.parent.removeChild(controlInstanceContainer);
-		hide(controlInstanceContainer);
+		// Indicate to editor pane before removing the editor from
+		// the DOM to give a chance to persist certain state that
+		// might depend on still being the active DOM element.
+		this._activeEditorPane.clearInput();
+		this._activeEditorPane.setVisible(false, this.groupView);
 
-		// Indicate to editor control
-		this._activeControl.clearInput();
-		this._activeControl.setVisible(false, this.groupView);
+		// Remove editor pane from parent
+		const editorPaneContainer = this._activeEditorPane.getContainer();
+		if (editorPaneContainer) {
+			this.parent.removeChild(editorPaneContainer);
+			hide(editorPaneContainer);
+		}
 
-		// Clear active control
-		this.doSetActiveControl(null);
+		// Clear active editor pane
+		this.doSetActiveEditorPane(null);
 	}
 
 	closeEditor(editor: EditorInput): void {
-		if (this._activeControl && editor.matches(this._activeControl.input)) {
-			this.doHideActiveEditorControl();
+		if (this._activeEditorPane && this._activeEditorPane.input && editor.matches(this._activeEditorPane.input)) {
+			this.doHideActiveEditorPane();
 		}
 	}
 
 	setVisible(visible: boolean): void {
-		if (this._activeControl) {
-			this._activeControl.setVisible(visible, this.groupView);
-		}
+		this._activeEditorPane?.setVisible(visible, this.groupView);
 	}
 
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
-		if (this._activeControl && this.dimension) {
-			this._activeControl.layout(this.dimension);
-		}
+		this._activeEditorPane?.layout(dimension);
 	}
 }

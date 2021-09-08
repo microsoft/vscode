@@ -8,13 +8,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById, ComputeOptionsMemory } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { forEach } from 'vs/base/common/collections';
 
 /**
  * Control what pressing Tab does.
@@ -197,6 +198,44 @@ function migrateOptions(options: IEditorOptions): void {
 		options.tabCompletion = 'onlySnippets';
 	}
 
+	const suggest = options.suggest;
+	if (suggest && typeof (<any>suggest).filteredTypes === 'object' && (<any>suggest).filteredTypes) {
+		const mapping: Record<string, string> = {};
+		mapping['method'] = 'showMethods';
+		mapping['function'] = 'showFunctions';
+		mapping['constructor'] = 'showConstructors';
+		mapping['deprecated'] = 'showDeprecated';
+		mapping['field'] = 'showFields';
+		mapping['variable'] = 'showVariables';
+		mapping['class'] = 'showClasses';
+		mapping['struct'] = 'showStructs';
+		mapping['interface'] = 'showInterfaces';
+		mapping['module'] = 'showModules';
+		mapping['property'] = 'showProperties';
+		mapping['event'] = 'showEvents';
+		mapping['operator'] = 'showOperators';
+		mapping['unit'] = 'showUnits';
+		mapping['value'] = 'showValues';
+		mapping['constant'] = 'showConstants';
+		mapping['enum'] = 'showEnums';
+		mapping['enumMember'] = 'showEnumMembers';
+		mapping['keyword'] = 'showKeywords';
+		mapping['text'] = 'showWords';
+		mapping['color'] = 'showColors';
+		mapping['file'] = 'showFiles';
+		mapping['reference'] = 'showReferences';
+		mapping['folder'] = 'showFolders';
+		mapping['typeParameter'] = 'showTypeParameters';
+		mapping['snippet'] = 'showSnippets';
+		forEach(mapping, entry => {
+			const value = (<any>suggest).filteredTypes[entry.key];
+			if (value === false) {
+				(<any>suggest)[entry.value] = value;
+			}
+		});
+		// delete (<any>suggest).filteredTypes;
+	}
+
 	const hover = options.hover;
 	if (<any>hover === true) {
 		options.hover = {
@@ -207,34 +246,66 @@ function migrateOptions(options: IEditorOptions): void {
 			enabled: false
 		};
 	}
+
+	const parameterHints = options.parameterHints;
+	if (<any>parameterHints === true) {
+		options.parameterHints = {
+			enabled: true
+		};
+	} else if (<any>parameterHints === false) {
+		options.parameterHints = {
+			enabled: false
+		};
+	}
+
+	const autoIndent = options.autoIndent;
+	if (<any>autoIndent === true) {
+		options.autoIndent = 'full';
+	} else if (<any>autoIndent === false) {
+		options.autoIndent = 'advanced';
+	}
+
+	const matchBrackets = options.matchBrackets;
+	if (<any>matchBrackets === true) {
+		options.matchBrackets = 'always';
+	} else if (<any>matchBrackets === false) {
+		options.matchBrackets = 'never';
+	}
 }
 
-function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
+function deepCloneAndMigrateOptions(_options: Readonly<IEditorOptions>): IEditorOptions {
 	const options = objects.deepClone(_options);
 	migrateOptions(options);
 	return options;
 }
 
-export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
+export abstract class CommonEditorConfiguration extends Disposable implements IConfiguration {
 
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
 
+	private _onDidChangeFast = this._register(new Emitter<ConfigurationChangedEvent>());
+	public readonly onDidChangeFast: Event<ConfigurationChangedEvent> = this._onDidChangeFast.event;
+
 	public readonly isSimpleWidget: boolean;
+	private _computeOptionsMemory: ComputeOptionsMemory;
 	public options!: ComputedEditorOptions;
 
 	private _isDominatedByLongLines: boolean;
+	private _viewLineCount: number;
 	private _lineNumbersDigitCount: number;
 
 	private _rawOptions: IEditorOptions;
 	private _readOptions: RawEditorOptions;
 	protected _validatedOptions: ValidatedEditorOptions;
 
-	constructor(isSimpleWidget: boolean, _options: IEditorOptions) {
+	constructor(isSimpleWidget: boolean, _options: Readonly<IEditorOptions>) {
 		super();
 		this.isSimpleWidget = isSimpleWidget;
 
 		this._isDominatedByLongLines = false;
+		this._computeOptionsMemory = new ComputeOptionsMemory();
+		this._viewLineCount = 1;
 		this._lineNumbersDigitCount = 1;
 
 		this._rawOptions = deepCloneAndMigrateOptions(_options);
@@ -245,11 +316,10 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
-	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
+	public observeReferenceElement(dimension?: IDimension): void {
 	}
 
-	public dispose(): void {
-		super.dispose();
+	public updatePixelRatio(): void {
 	}
 
 	protected _recomputeOptions(): void {
@@ -267,6 +337,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			}
 
 			this.options = newOptions;
+			this._onDidChangeFast.fire(changeEvent);
 			this._onDidChange.fire(changeEvent);
 		}
 	}
@@ -277,13 +348,15 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	private _computeInternalOptions(): ComputedEditorOptions {
 		const partialEnv = this._getEnvConfiguration();
-		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, this.isSimpleWidget);
+		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, partialEnv.pixelRatio, this.isSimpleWidget);
 		const env: IEnvironmentalOptions = {
+			memory: this._computeOptionsMemory,
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
+			viewLineCount: this._viewLineCount,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
@@ -291,18 +364,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			accessibilitySupport: partialEnv.accessibilitySupport
 		};
 		return EditorConfiguration2.computeOptions(this._validatedOptions, env);
-	}
-
-	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	private static _subsetEquals(base: { [key: string]: any }, subset: { [key: string]: any }): boolean {
@@ -315,12 +376,12 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 					continue;
 				}
 				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
-					if (!this._primitiveArrayEquals(baseValue, subsetValue)) {
+					if (!arrays.equals(baseValue, subsetValue)) {
 						return false;
 					}
 					continue;
 				}
-				if (typeof baseValue === 'object' && typeof subsetValue === 'object') {
+				if (baseValue && typeof baseValue === 'object' && subsetValue && typeof subsetValue === 'object') {
 					if (!this._subsetEquals(baseValue, subsetValue)) {
 						return false;
 					}
@@ -333,7 +394,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return true;
 	}
 
-	public updateOptions(_newOptions: IEditorOptions): void {
+	public updateOptions(_newOptions: Readonly<IEditorOptions>): void {
 		if (typeof _newOptions === 'undefined') {
 			return;
 		}
@@ -354,11 +415,19 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	public setMaxLineNumber(maxLineNumber: number): void {
-		let digitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
-		if (this._lineNumbersDigitCount === digitCount) {
+		const lineNumbersDigitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
+		if (this._lineNumbersDigitCount === lineNumbersDigitCount) {
 			return;
 		}
-		this._lineNumbersDigitCount = digitCount;
+		this._lineNumbersDigitCount = lineNumbersDigitCount;
+		this._recomputeOptions();
+	}
+
+	public setViewLineCount(viewLineCount: number): void {
+		if (this._viewLineCount === viewLineCount) {
+			return;
+		}
+		this._viewLineCount = viewLineCount;
 		this._recomputeOptions();
 	}
 
@@ -376,14 +445,17 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-const editorConfiguration: IConfigurationNode = {
+export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
 	order: 5,
 	type: 'object',
 	title: nls.localize('editorConfigurationTitle', "Editor"),
-	overridable: true,
-	scope: ConfigurationScope.RESOURCE,
+	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+});
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+const editorConfiguration: IConfigurationNode = {
+	...editorConfigurationBaseNode,
 	properties: {
 		'editor.tabSize': {
 			type: 'number',
@@ -430,6 +502,26 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
+		'editor.wordBasedSuggestionsMode': {
+			enum: ['currentDocument', 'matchingDocuments', 'allDocuments'],
+			default: 'matchingDocuments',
+			enumDescriptions: [
+				nls.localize('wordBasedSuggestionsMode.currentDocument', 'Only suggest words from the active document.'),
+				nls.localize('wordBasedSuggestionsMode.matchingDocuments', 'Suggest words from all open documents of the same language.'),
+				nls.localize('wordBasedSuggestionsMode.allDocuments', 'Suggest words from all open documents.')
+			],
+			description: nls.localize('wordBasedSuggestionsMode', "Controls from which documents word based completions are computed.")
+		},
+		'editor.semanticHighlighting.enabled': {
+			enum: [true, false, 'configuredByTheme'],
+			enumDescriptions: [
+				nls.localize('semanticHighlighting.true', 'Semantic highlighting enabled for all color themes.'),
+				nls.localize('semanticHighlighting.false', 'Semantic highlighting disabled for all color themes.'),
+				nls.localize('semanticHighlighting.configuredByTheme', 'Semantic highlighting is configured by the current color theme\'s `semanticHighlighting` setting.')
+			],
+			default: 'configuredByTheme',
+			description: nls.localize('semanticHighlighting.enabled', "Controls whether the semanticHighlighting is shown for the languages that support it.")
+		},
 		'editor.stablePeek': {
 			type: 'boolean',
 			default: false,
@@ -440,28 +532,10 @@ const editorConfiguration: IConfigurationNode = {
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
-		'editor.codeActionsOnSave': {
-			type: 'object',
-			properties: {
-				'source.organizeImports': {
-					type: 'boolean',
-					description: nls.localize('codeActionsOnSave.organizeImports', "Controls whether organize imports action should be run on file save.")
-				},
-				'source.fixAll': {
-					type: 'boolean',
-					description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
-				}
-			},
-			'additionalProperties': {
-				type: 'boolean'
-			},
-			default: {},
-			description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
-		},
-		'editor.codeActionsOnSaveTimeout': {
+		'diffEditor.maxComputationTime': {
 			type: 'number',
-			default: 750,
-			description: nls.localize('codeActionsOnSaveTimeout', "Timeout in milliseconds after which the code actions that are run on save are cancelled.")
+			default: 5000,
+			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
 		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',
@@ -471,12 +545,27 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.ignoreTrimWhitespace': {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('ignoreTrimWhitespace', "Controls whether the diff editor shows changes in leading or trailing whitespace as diffs.")
+			description: nls.localize('ignoreTrimWhitespace', "When enabled, the diff editor ignores changes in leading or trailing whitespace.")
 		},
 		'diffEditor.renderIndicators': {
 			type: 'boolean',
 			default: true,
 			description: nls.localize('renderIndicators', "Controls whether the diff editor shows +/- indicators for added/removed changes.")
+		},
+		'diffEditor.codeLens': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('codeLens', "Controls whether the editor shows CodeLens.")
+		},
+		'diffEditor.wordWrap': {
+			type: 'string',
+			enum: ['off', 'on', 'inherit'],
+			default: 'inherit',
+			markdownEnumDescriptions: [
+				nls.localize('wordWrap.off', "Lines will never wrap."),
+				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
+				nls.localize('wordWrap.inherit', "Lines will wrap according to the `#editor.wordWrap#` setting."),
+			]
 		}
 	}
 };

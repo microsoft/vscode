@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Activity Bar */
-.monaco-workbench .activitybar .monaco-action-bar .action-label.explore {
-	-webkit-mask: url('files-activity-bar.svg') no-repeat 50% 50%;
-}
-
 /* --- Explorer viewlet --- */
 .explorer-viewlet,
 .explorer-folders-view {
@@ -24,7 +19,6 @@
 }
 
 .explorer-viewlet .explorer-item,
-.explorer-viewlet .open-editor,
 .explorer-viewlet .editor-group {
 	height: 22px;
 	line-height: 22px;
@@ -36,7 +30,6 @@
 }
 
 .explorer-viewlet .explorer-item > a,
-.explorer-viewlet .open-editor > a,
 .explorer-viewlet .editor-group {
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -55,63 +48,22 @@
 	flex: 0; /* do not steal space when label is hidden because we are in edit mode */
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row {
-	padding-left: 22px;
-	display: flex;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar {
-	visibility: hidden;
-}
-
-.explorer-viewlet .panel-header .count {
+.explorer-viewlet .pane-header .count {
 	min-width: fit-content;
+	min-width: -moz-fit-content;
 	display: flex;
 	align-items: center;
 }
 
-.explorer-viewlet .panel-header .monaco-count-badge.hidden {
+.pane.horizontal:not(.expanded) .pane-header .dirty-count.monaco-count-badge,
+.pane-header .dirty-count.monaco-count-badge.hidden {
 	display: none;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar {
-	visibility: visible;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-label {
-	display: block;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .close-editor-action {
-	width: 8px;
-	height: 22px;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .monaco-action-bar .save-all {
-	width: 23px;
-	height: 22px;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .open-editor {
-	flex: 1;
-}
-
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row > .editor-group {
-	flex: 1;
-}
-
-.explorer-viewlet .monaco-count-badge {
-	padding: 1px 6px 2px;
+.dirty-count.monaco-count-badge {
+	padding: 2px 4px;
 	margin-left: 6px;
 	min-height: auto;
-	border-radius: 0; /* goes better when ellipsis shows up on narrow sidebar */
-}
-
-.explorer-viewlet .explorer-empty-view {
-	padding: 0 20px 0 20px;
 }
 
 .explorer-viewlet .explorer-item.nonexistent-root {
@@ -123,34 +75,26 @@
 	line-height: normal;
 }
 
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name > .monaco-highlighted-label {
+	border-radius: 3px;
+}
+
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
+.explorer-viewlet .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
+	text-decoration: underline;
+}
+
 .monaco-workbench.linux .explorer-viewlet .explorer-item .monaco-inputbox,
 .monaco-workbench.mac .explorer-viewlet .explorer-item .monaco-inputbox {
 	height: 22px;
 }
 
-.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .wrapper > .input {
+.monaco-workbench .explorer-viewlet .explorer-item .monaco-inputbox > .ibwrapper > .input {
 	padding: 0;
 	height: 20px;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row .editor-group {
-	font-size: 11px;
-	font-weight: bold;
-	text-transform: uppercase;
-	cursor: default;
-}
-
-/* Bold font style does not go well with CJK fonts */
-.explorer-viewlet:lang(zh-Hans) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
-.explorer-viewlet:lang(zh-Hant) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
-.explorer-viewlet:lang(ja) .explorer-open-editors .monaco-list .monaco-list-row .editor-group,
-.explorer-viewlet:lang(ko) .explorer-open-editors .monaco-list .monaco-list-row .editor-group {
-	font-weight: normal;
-}
-
 /* High Contrast Theming */
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item,
-.hc-black .monaco-workbench .explorer-viewlet .open-editor,
-.hc-black .monaco-workbench .explorer-viewlet .editor-group {
+.monaco-workbench.hc-black .explorer-viewlet .explorer-item {
 	line-height: 20px;
 }

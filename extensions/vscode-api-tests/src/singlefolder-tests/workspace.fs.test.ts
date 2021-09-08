@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
 import { posix } from 'path';
+import * as vscode from 'vscode';
+import { assertNoRpc } from '../utils';
 
-suite('workspace-fs', () => {
+suite('vscode API - workspace-fs', () => {
 
 	let root: vscode.Uri;
 
@@ -15,14 +16,18 @@ suite('workspace-fs', () => {
 		root = vscode.workspace.workspaceFolders![0]!.uri;
 	});
 
+	teardown(assertNoRpc);
+
 	test('fs.stat', async function () {
 		const stat = await vscode.workspace.fs.stat(root);
-		assert.equal(stat.type, vscode.FileType.Directory);
+		assert.strictEqual(stat.type, vscode.FileType.Directory);
 
-		assert.equal(typeof stat.size, 'number');
-		assert.equal(typeof stat.mtime, 'number');
-		assert.equal(typeof stat.ctime, 'number');
+		assert.strictEqual(typeof stat.size, 'number');
+		assert.strictEqual(typeof stat.mtime, 'number');
+		assert.strictEqual(typeof stat.ctime, 'number');
 
+		assert.ok(stat.mtime > 0);
+		assert.ok(stat.ctime > 0);
 
 		const entries = await vscode.workspace.fs.readDirectory(root);
 		assert.ok(entries.length > 0);
@@ -30,8 +35,8 @@ suite('workspace-fs', () => {
 		// find far.js
 		const tuple = entries.find(tuple => tuple[0] === 'far.js')!;
 		assert.ok(tuple);
-		assert.equal(tuple[0], 'far.js');
-		assert.equal(tuple[1], vscode.FileType.File);
+		assert.strictEqual(tuple[0], 'far.js');
+		assert.strictEqual(tuple[1], vscode.FileType.File);
 	});
 
 	test('fs.stat - bad scheme', async function () {
@@ -58,7 +63,7 @@ suite('workspace-fs', () => {
 		await vscode.workspace.fs.writeFile(uri, Buffer.from('HELLO'));
 
 		const stat = await vscode.workspace.fs.stat(uri);
-		assert.equal(stat.type, vscode.FileType.File);
+		assert.strictEqual(stat.type, vscode.FileType.File);
 
 		await vscode.workspace.fs.delete(uri);
 
@@ -124,7 +129,7 @@ suite('workspace-fs', () => {
 			assert.ok(false);
 		} catch (e) {
 			assert.ok(e instanceof vscode.FileSystemError);
-			assert.equal(e.name, vscode.FileSystemError.FileNotFound().name);
+			assert.strictEqual(e.name, vscode.FileSystemError.FileNotFound().name);
 		}
 	});
 
@@ -135,7 +140,45 @@ suite('workspace-fs', () => {
 			assert.ok(false);
 		} catch (e) {
 			assert.ok(e instanceof vscode.FileSystemError);
-			assert.equal(e.name, vscode.FileSystemError.Unavailable().name);
+			assert.strictEqual(e.name, vscode.FileSystemError.Unavailable().name);
+		}
+	});
+
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+		const entries = await vscode.workspace.fs.readDirectory(root);
+		assert.ok(entries.length > 0);
+
+		const someFolder = root.with({ path: posix.join(root.path, '6b1f9d664a92') });
+
+		try {
+			await vscode.workspace.fs.delete(someFolder, { recursive: true });
+			assert.ok(false);
+		} catch (err) {
+			assert.ok(true);
+		}
+	});
+
+	test('vscode.workspace.fs.remove() (and copy()) succeed unexpectedly. #84177', async function () {
+		const entries = await vscode.workspace.fs.readDirectory(root);
+		assert.ok(entries.length > 0);
+
+		const folder = root.with({ path: posix.join(root.path, 'folder') });
+		const file = root.with({ path: posix.join(root.path, 'folder/file') });
+
+		await vscode.workspace.fs.createDirectory(folder);
+		await vscode.workspace.fs.writeFile(file, Buffer.from('FOO'));
+
+		const someFolder = root.with({ path: posix.join(root.path, '6b1f9d664a92/a564c52da70a') });
+
+		try {
+			await vscode.workspace.fs.copy(folder, someFolder, { overwrite: true });
+			assert.ok(true);
+		} catch (err) {
+			assert.ok(false, err);
+
+		} finally {
+			await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
+			await vscode.workspace.fs.delete(someFolder, { recursive: true, useTrash: false });
 		}
 	});
 });

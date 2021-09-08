@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITokenColorizationRule, IColorMap } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ITextMateThemingRule, IColorMap } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { Color } from 'vs/base/common/color';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 
@@ -18,9 +18,9 @@ function addSettingMapping(settingId: string, colorId: string) {
 	colorIds.push(colorId);
 }
 
-export function convertSettings(oldSettings: ITokenColorizationRule[], resultRules: ITokenColorizationRule[], resultColors: IColorMap): void {
+export function convertSettings(oldSettings: ITextMateThemingRule[], result: { textMateRules: ITextMateThemingRule[], colors: IColorMap }): void {
 	for (let rule of oldSettings) {
-		resultRules.push(rule);
+		result.textMateRules.push(rule);
 		if (!rule.scope) {
 			let settings = rule.settings;
 			if (!settings) {
@@ -34,7 +34,7 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 						if (typeof colorHex === 'string') {
 							let color = Color.fromHex(colorHex);
 							for (let colorId of mappings) {
-								resultColors[colorId] = color;
+								result.colors[colorId] = color;
 							}
 						}
 					}

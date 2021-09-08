@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ReplacePattern, ReplacePiece, parseReplaceString } from 'vs/editor/contrib/find/replacePattern';
 import { buildReplaceStringWithCasePreserved } from 'vs/base/common/search';
+import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/contrib/find/replacePattern';
 
 suite('Replace Pattern test', () => {
 
@@ -13,7 +13,7 @@ suite('Replace Pattern test', () => {
 		let testParse = (input: string, expectedPieces: ReplacePiece[]) => {
 			let actual = parseReplaceString(input);
 			let expected = new ReplacePattern(expectedPieces);
-			assert.deepEqual(actual, expected, 'Parsing ' + input);
+			assert.deepStrictEqual(actual, expected, 'Parsing ' + input);
 		};
 
 		// no backslash => no treatment
@@ -69,13 +69,45 @@ suite('Replace Pattern test', () => {
 		testParse('hello$\'', [ReplacePiece.staticValue('hello$\'')]);
 	});
 
+	test('parse replace string with case modifiers', () => {
+		let testParse = (input: string, expectedPieces: ReplacePiece[]) => {
+			let actual = parseReplaceString(input);
+			let expected = new ReplacePattern(expectedPieces);
+			assert.deepStrictEqual(actual, expected, 'Parsing ' + input);
+		};
+		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
+			let replacePattern = parseReplaceString(replaceString);
+			let m = search.exec(target);
+			let actual = replacePattern.buildReplaceString(m);
+
+			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
+		}
+
+		// \U, \u => uppercase  \L, \l => lowercase  \E => cancel
+
+		testParse('hello\\U$1', [ReplacePiece.staticValue('hello'), ReplacePiece.caseOps(1, ['U'])]);
+		assertReplace('func privateFunc(', /func (\w+)\(/, 'func \\U$1(', 'func PRIVATEFUNC(');
+
+		testParse('hello\\u$1', [ReplacePiece.staticValue('hello'), ReplacePiece.caseOps(1, ['u'])]);
+		assertReplace('func privateFunc(', /func (\w+)\(/, 'func \\u$1(', 'func PrivateFunc(');
+
+		testParse('hello\\L$1', [ReplacePiece.staticValue('hello'), ReplacePiece.caseOps(1, ['L'])]);
+		assertReplace('func privateFunc(', /func (\w+)\(/, 'func \\L$1(', 'func privatefunc(');
+
+		testParse('hello\\l$1', [ReplacePiece.staticValue('hello'), ReplacePiece.caseOps(1, ['l'])]);
+		assertReplace('func PrivateFunc(', /func (\w+)\(/, 'func \\l$1(', 'func privateFunc(');
+
+		testParse('hello$1\\u\\u\\U$4goodbye', [ReplacePiece.staticValue('hello'), ReplacePiece.matchIndex(1), ReplacePiece.caseOps(4, ['u', 'u', 'U']), ReplacePiece.staticValue('goodbye')]);
+		assertReplace('hellogooDbye', /hello(\w+)/, 'hello\\u\\u\\l\\l\\U$1', 'helloGOodBYE');
+	});
+
 	test('replace has JavaScript semantics', () => {
 		let testJSReplaceSemantics = (target: string, search: RegExp, replaceString: string, expected: string) => {
 			let replacePattern = parseReplaceString(replaceString);
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);
 
-			assert.deepEqual(actual, expected, `${target}.replace(${search}, ${replaceString})`);
+			assert.deepStrictEqual(actual, expected, `${target}.replace(${search}, ${replaceString})`);
 		};
 
 		testJSReplaceSemantics('hi', /hi/, 'hello', 'hi'.replace(/hi/, 'hello'));
@@ -104,7 +136,7 @@ suite('Replace Pattern test', () => {
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);
 
-			assert.equal(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
+			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
 		}
 
 		assertReplace('bla', /bla/, 'hello', 'hello');
@@ -130,7 +162,7 @@ suite('Replace Pattern test', () => {
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);
 
-			assert.equal(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
+			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
 		}
 		assertReplace('this is a bla text', /bla/, 'hello', 'hello');
 		assertReplace('this is a bla text', /this(?=.*bla)/, 'that', 'that');
@@ -152,70 +184,68 @@ suite('Replace Pattern test', () => {
 		let replacePattern = parseReplaceString('a{$1}');
 		let matches = /a(z)?/.exec('abcd');
 		let actual = replacePattern.buildReplaceString(matches);
-		assert.equal(actual, 'a{}');
+		assert.strictEqual(actual, 'a{}');
 	});
 
 	test('buildReplaceStringWithCasePreserved test', () => {
-		let replacePattern = 'Def';
-		let actual: string | string[] = 'abc';
+		function assertReplace(target: string[], replaceString: string, expected: string): void {
+			let actual: string = '';
+			actual = buildReplaceStringWithCasePreserved(target, replaceString);
+			assert.strictEqual(actual, expected);
+		}
 
-		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'def');
-		actual = 'Abc';
-		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'Def');
-		actual = 'ABC';
-		assert.equal(buildReplaceStringWithCasePreserved([actual], replacePattern), 'DEF');
-
-		actual = ['abc', 'Abc'];
-		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'def');
-		actual = ['Abc', 'abc'];
-		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
-		actual = ['ABC', 'abc'];
-		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'DEF');
-
-		actual = ['AbC'];
-		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
-		actual = ['aBC'];
-		assert.equal(buildReplaceStringWithCasePreserved(actual, replacePattern), 'Def');
-
-		actual = ['Foo-Bar'];
-		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'Newfoo-Newbar');
-		actual = ['Foo-Bar-Abc'];
-		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar-newabc'), 'Newfoo-Newbar-Newabc');
-		actual = ['Foo-Bar-abc'];
-		assert.equal(buildReplaceStringWithCasePreserved(actual, 'newfoo-newbar'), 'Newfoo-newbar');
+		assertReplace(['abc'], 'Def', 'def');
+		assertReplace(['Abc'], 'Def', 'Def');
+		assertReplace(['ABC'], 'Def', 'DEF');
+		assertReplace(['abc', 'Abc'], 'Def', 'def');
+		assertReplace(['Abc', 'abc'], 'Def', 'Def');
+		assertReplace(['ABC', 'abc'], 'Def', 'DEF');
+		assertReplace(['aBc', 'abc'], 'Def', 'def');
+		assertReplace(['AbC'], 'Def', 'Def');
+		assertReplace(['aBC'], 'Def', 'def');
+		assertReplace(['aBc'], 'DeF', 'deF');
+		assertReplace(['Foo-Bar'], 'newfoo-newbar', 'Newfoo-Newbar');
+		assertReplace(['Foo-Bar-Abc'], 'newfoo-newbar-newabc', 'Newfoo-Newbar-Newabc');
+		assertReplace(['Foo-Bar-abc'], 'newfoo-newbar', 'Newfoo-newbar');
+		assertReplace(['foo-Bar'], 'newfoo-newbar', 'newfoo-Newbar');
+		assertReplace(['foo-BAR'], 'newfoo-newbar', 'newfoo-NEWBAR');
+		assertReplace(['foO-BAR'], 'NewFoo-NewBar', 'newFoo-NEWBAR');
+		assertReplace(['Foo_Bar'], 'newfoo_newbar', 'Newfoo_Newbar');
+		assertReplace(['Foo_Bar_Abc'], 'newfoo_newbar_newabc', 'Newfoo_Newbar_Newabc');
+		assertReplace(['Foo_Bar_abc'], 'newfoo_newbar', 'Newfoo_newbar');
+		assertReplace(['Foo_Bar-abc'], 'newfoo_newbar-abc', 'Newfoo_newbar-abc');
+		assertReplace(['foo_Bar'], 'newfoo_newbar', 'newfoo_Newbar');
+		assertReplace(['Foo_BAR'], 'newfoo_newbar', 'Newfoo_NEWBAR');
 	});
 
 	test('preserve case', () => {
-		let replacePattern = parseReplaceString('Def');
-		let actual = replacePattern.buildReplaceString(['abc'], true);
-		assert.equal(actual, 'def');
-		actual = replacePattern.buildReplaceString(['Abc'], true);
-		assert.equal(actual, 'Def');
-		actual = replacePattern.buildReplaceString(['ABC'], true);
-		assert.equal(actual, 'DEF');
+		function assertReplace(target: string[], replaceString: string, expected: string): void {
+			let replacePattern = parseReplaceString(replaceString);
+			let actual = replacePattern.buildReplaceString(target, true);
+			assert.strictEqual(actual, expected);
+		}
 
-		actual = replacePattern.buildReplaceString(['abc', 'Abc'], true);
-		assert.equal(actual, 'def');
-		actual = replacePattern.buildReplaceString(['Abc', 'abc'], true);
-		assert.equal(actual, 'Def');
-		actual = replacePattern.buildReplaceString(['ABC', 'abc'], true);
-		assert.equal(actual, 'DEF');
-
-		actual = replacePattern.buildReplaceString(['AbC'], true);
-		assert.equal(actual, 'Def');
-		actual = replacePattern.buildReplaceString(['aBC'], true);
-		assert.equal(actual, 'Def');
-
-		replacePattern = parseReplaceString('newfoo-newbar');
-		actual = replacePattern.buildReplaceString(['Foo-Bar'], true);
-		assert.equal(actual, 'Newfoo-Newbar');
-
-		replacePattern = parseReplaceString('newfoo-newbar-newabc');
-		actual = replacePattern.buildReplaceString(['Foo-Bar-Abc'], true);
-		assert.equal(actual, 'Newfoo-Newbar-Newabc');
-
-		replacePattern = parseReplaceString('newfoo-newbar');
-		actual = replacePattern.buildReplaceString(['Foo-Bar-abc'], true);
-		assert.equal(actual, 'Newfoo-newbar');
+		assertReplace(['abc'], 'Def', 'def');
+		assertReplace(['Abc'], 'Def', 'Def');
+		assertReplace(['ABC'], 'Def', 'DEF');
+		assertReplace(['abc', 'Abc'], 'Def', 'def');
+		assertReplace(['Abc', 'abc'], 'Def', 'Def');
+		assertReplace(['ABC', 'abc'], 'Def', 'DEF');
+		assertReplace(['aBc', 'abc'], 'Def', 'def');
+		assertReplace(['AbC'], 'Def', 'Def');
+		assertReplace(['aBC'], 'Def', 'def');
+		assertReplace(['aBc'], 'DeF', 'deF');
+		assertReplace(['Foo-Bar'], 'newfoo-newbar', 'Newfoo-Newbar');
+		assertReplace(['Foo-Bar-Abc'], 'newfoo-newbar-newabc', 'Newfoo-Newbar-Newabc');
+		assertReplace(['Foo-Bar-abc'], 'newfoo-newbar', 'Newfoo-newbar');
+		assertReplace(['foo-Bar'], 'newfoo-newbar', 'newfoo-Newbar');
+		assertReplace(['foo-BAR'], 'newfoo-newbar', 'newfoo-NEWBAR');
+		assertReplace(['foO-BAR'], 'NewFoo-NewBar', 'newFoo-NEWBAR');
+		assertReplace(['Foo_Bar'], 'newfoo_newbar', 'Newfoo_Newbar');
+		assertReplace(['Foo_Bar_Abc'], 'newfoo_newbar_newabc', 'Newfoo_Newbar_Newabc');
+		assertReplace(['Foo_Bar_abc'], 'newfoo_newbar', 'Newfoo_newbar');
+		assertReplace(['Foo_Bar-abc'], 'newfoo_newbar-abc', 'Newfoo_newbar-abc');
+		assertReplace(['foo_Bar'], 'newfoo_newbar', 'newfoo_Newbar');
+		assertReplace(['foo_BAR'], 'newfoo_newbar', 'newfoo_NEWBAR');
 	});
 });

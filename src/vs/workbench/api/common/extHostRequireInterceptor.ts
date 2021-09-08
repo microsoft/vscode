@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as performance from 'vs/base/common/performance';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
@@ -11,13 +12,13 @@ import { nullExtensionDescription } from 'vs/workbench/services/extensions/commo
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { endsWith } from 'vs/base/common/strings';
 import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { platform } from 'vs/base/common/process';
+import { ILogService } from 'vs/platform/log/common/log';
 
 
 interface LoadFunction {
@@ -41,7 +42,8 @@ export abstract class RequireInterceptor {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IExtHostConfiguration private readonly _extHostConfiguration: IExtHostConfiguration,
 		@IExtHostExtensionService private readonly _extHostExtensionService: IExtHostExtensionService,
-		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService
+		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._factories = new Map<string, INodeModuleFactory>();
 		this._alternatives = [];
@@ -51,13 +53,15 @@ export abstract class RequireInterceptor {
 
 		this._installInterceptor();
 
+		performance.mark('code/extHost/willWaitForConfig');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
+		performance.mark('code/extHost/didWaitForConfig');
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
-		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider));
+		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
 		this.register(this._instaService.createInstance(KeytarNodeModuleFactory));
 		if (this._initData.remote.isRemote) {
-			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths));
+			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));
 		}
 	}
 
@@ -89,9 +93,10 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
 		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
-		private readonly _configProvider: ExtHostConfigProvider
+		private readonly _configProvider: ExtHostConfigProvider,
+		private readonly _logService: ILogService,
 	) {
 	}
 
@@ -112,7 +117,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 		if (!this._defaultApiImpl) {
 			let extensionPathsPretty = '';
 			this._extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
-			console.warn(`Could not identify extension for 'vscode' require call from ${parent.fsPath}. These are the extension path mappings: \n${extensionPathsPretty}`);
+			this._logService.warn(`Could not identify extension for 'vscode' require call from ${parent.fsPath}. These are the extension path mappings: \n${extensionPathsPretty}`);
 			this._defaultApiImpl = this._apiFactory(nullExtensionDescription, this._extensionRegistry, this._configProvider);
 		}
 		return this._defaultApiImpl;
@@ -189,7 +194,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 			return undefined;
 		}
 		const sep = length - 7;
-		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && endsWith(name, 'keytar')) {
+		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && name.endsWith('keytar')) {
 			name = name.replace(/\\/g, '/');
 			if (this.alternativeNames.has(name)) {
 				return 'keytar';
@@ -227,7 +232,8 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 	private _mainThreadTelemetry: MainThreadTelemetryShape;
 
 	constructor(
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
+		private readonly _appUriScheme: string,
 		@IExtHostRpcService rpcService: IExtHostRpcService,
 	) {
 
@@ -241,9 +247,9 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 				return this.callOriginal(target, options);
 			}
 			if (uri.scheme === 'http' || uri.scheme === 'https') {
-				return mainThreadWindow.$openUri(uri, { allowTunneling: true });
-			} else if (uri.scheme === 'mailto') {
-				return mainThreadWindow.$openUri(uri, {});
+				return mainThreadWindow.$openUri(uri, target, { allowTunneling: true });
+			} else if (uri.scheme === 'mailto' || uri.scheme === this._appUriScheme) {
+				return mainThreadWindow.$openUri(uri, target, {});
 			}
 			return this.callOriginal(target, options);
 		};

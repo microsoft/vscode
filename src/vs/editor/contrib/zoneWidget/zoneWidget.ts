@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./zoneWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Color, RGBA } from 'vs/base/common/color';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
+import 'vs/css!./zoneWidget';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -50,11 +50,11 @@ const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
 export class ViewZoneDelegate implements IViewZone {
 
-	public domNode: HTMLElement;
-	public id: string = ''; // A valid zone id should be greater than 0
-	public afterLineNumber: number;
-	public afterColumn: number;
-	public heightInLines: number;
+	domNode: HTMLElement;
+	id: string = ''; // A valid zone id should be greater than 0
+	afterLineNumber: number;
+	afterColumn: number;
+	heightInLines: number;
 
 	private readonly _onDomNodeTop: (top: number) => void;
 	private readonly _onComputedHeight: (height: number) => void;
@@ -71,11 +71,11 @@ export class ViewZoneDelegate implements IViewZone {
 		this._onComputedHeight = onComputedHeight;
 	}
 
-	public onDomNodeTop(top: number): void {
+	onDomNodeTop(top: number): void {
 		this._onDomNodeTop(top);
 	}
 
-	public onComputedHeight(height: number): void {
+	onComputedHeight(height: number): void {
 		this._onComputedHeight(height);
 	}
 }
@@ -90,15 +90,15 @@ export class OverlayWidgetDelegate implements IOverlayWidget {
 		this._domNode = domNode;
 	}
 
-	public getId(): string {
+	getId(): string {
 		return this._id;
 	}
 
-	public getDomNode(): HTMLElement {
+	getDomNode(): HTMLElement {
 		return this._domNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition | null {
+	getPosition(): IOverlayWidgetPosition | null {
 		return null;
 	}
 }
@@ -148,7 +148,7 @@ class Arrow {
 	show(where: IPosition): void {
 		this._decorations = this._editor.deltaDecorations(
 			this._decorations,
-			[{ range: Range.fromPositions(where), options: { className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
+			[{ range: Range.fromPositions(where), options: { description: 'zone-widget-arrow', className: this._ruleName, stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges } }]
 		);
 	}
 
@@ -167,10 +167,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	protected _viewZone: ViewZoneDelegate | null = null;
 	protected readonly _disposables = new DisposableStore();
 
-	public container: HTMLElement | null = null;
-	public domNode: HTMLElement;
-	public editor: ICodeEditor;
-	public options: IOptions;
+	container: HTMLElement | null = null;
+	domNode: HTMLElement;
+	editor: ICodeEditor;
+	options: IOptions;
 
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
@@ -191,7 +191,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}));
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this._overlayWidget) {
 			this.editor.removeOverlayWidget(this._overlayWidget);
 			this._overlayWidget = null;
@@ -212,15 +212,15 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._disposables.dispose();
 	}
 
-	public create(): void {
+	create(): void {
 
-		dom.addClass(this.domNode, 'zone-widget');
+		this.domNode.classList.add('zone-widget');
 		if (this.options.className) {
-			dom.addClass(this.domNode, this.options.className);
+			this.domNode.classList.add(this.options.className);
 		}
 
 		this.container = document.createElement('div');
-		dom.addClass(this.container, 'zone-widget-container');
+		this.container.classList.add('zone-widget-container');
 		this.domNode.appendChild(this.container);
 		if (this.options.showArrow) {
 			this._arrow = new Arrow(this.editor);
@@ -231,7 +231,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._applyStyles();
 	}
 
-	public style(styles: IStyles): void {
+	style(styles: IStyles): void {
 		if (styles.frameColor) {
 			this.options.frameColor = styles.frameColor;
 		}
@@ -254,13 +254,13 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	private _getWidth(info: EditorLayoutInfo): number {
-		return info.width - info.minimapWidth - info.verticalScrollbarWidth;
+		return info.width - info.minimap.minimapWidth - info.verticalScrollbarWidth;
 	}
 
 	private _getLeft(info: EditorLayoutInfo): number {
 		// If minimap is to the left, we move beyond it
-		if (info.minimapWidth > 0 && info.minimapLeft === 0) {
-			return info.minimapWidth;
+		if (info.minimap.minimapWidth > 0 && info.minimap.minimapLeft === 0) {
+			return info.minimap.minimapWidth;
 		}
 		return 0;
 	}
@@ -284,7 +284,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 	}
 
-	public get position(): Position | undefined {
+	get position(): Position | undefined {
 		const [id] = this._positionMarkerId;
 		if (!id) {
 			return undefined;
@@ -304,18 +304,15 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	protected _isShowing: boolean = false;
 
-	public show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
-		const range = Range.isIRange(rangeOrPos)
-			? rangeOrPos
-			: new Range(rangeOrPos.lineNumber, rangeOrPos.column, rangeOrPos.lineNumber, rangeOrPos.column);
-
+	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+		const range = Range.isIRange(rangeOrPos) ? Range.lift(rangeOrPos) : Range.fromPositions(rangeOrPos);
 		this._isShowing = true;
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
 		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: ModelDecorationOptions.EMPTY }]);
 	}
 
-	public hide(): void {
+	hide(): void {
 		if (this._viewZone) {
 			this.editor.changeViewZones(accessor => {
 				if (this._viewZone) {
@@ -350,12 +347,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return result;
 	}
 
-	private _showImpl(where: IRange, heightInLines: number): void {
-		const position = {
-			lineNumber: where.startLineNumber,
-			column: where.startColumn
-		};
-
+	private _showImpl(where: Range, heightInLines: number): void {
+		const position = where.getStartPosition();
 		const layoutInfo = this.editor.getLayoutInfo();
 		const width = this._getWidth(layoutInfo);
 		this.domNode.style.width = `${width}px`;
@@ -367,10 +360,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 
 		// adjust heightInLines to viewport
-		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * 0.8;
-		if (heightInLines >= maxHeightInLines) {
-			heightInLines = maxHeightInLines;
-		}
+		const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
+		heightInLines = Math.min(heightInLines, maxHeightInLines);
 
 		let arrowHeight = 0;
 		let frameThickness = 0;
@@ -432,14 +423,23 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		const model = this.editor.getModel();
 		if (model) {
-			// Reveal the line above or below the zone widget, to get the zone widget in the viewport
-			const revealLineNumber = Math.min(model.getLineCount(), Math.max(1, where.endLineNumber + 1));
-			this.revealLine(revealLineNumber);
+			const revealLine = where.endLineNumber + 1;
+			if (revealLine <= model.getLineCount()) {
+				// reveal line below the zone widget
+				this.revealLine(revealLine, false);
+			} else {
+				// reveal last line atop
+				this.revealLine(model.getLineCount(), true);
+			}
 		}
 	}
 
-	protected revealLine(lineNumber: number) {
-		this.editor.revealLine(lineNumber, ScrollType.Smooth);
+	protected revealLine(lineNumber: number, isLastLine: boolean) {
+		if (isLastLine) {
+			this.editor.revealLineInCenter(lineNumber, ScrollType.Smooth);
+		} else {
+			this.editor.revealLine(lineNumber, ScrollType.Smooth);
+		}
 	}
 
 	protected setCssClass(className: string, classToReplace?: string): void {
@@ -451,7 +451,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this.container.classList.remove(classToReplace);
 		}
 
-		dom.addClass(this.container, className);
+		this.container.classList.add(className);
 
 	}
 
@@ -526,6 +526,6 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	getHorizontalSashWidth() {
 		const layoutInfo = this.editor.getLayoutInfo();
-		return layoutInfo.width - layoutInfo.minimapWidth;
+		return layoutInfo.width - layoutInfo.minimap.minimapWidth;
 	}
 }

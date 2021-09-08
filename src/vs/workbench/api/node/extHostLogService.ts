@@ -3,31 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { join } from 'vs/base/common/path';
-import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, LogService, LogLevel } from 'vs/platform/log/common/log';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { Schemas } from 'vs/base/common/network';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 
-export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
+export class ExtHostLogService extends LogService implements ILogService, ExtHostLogServiceShape {
 
 	constructor(
 		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostOutputService extHostOutputService: IExtHostOutputService
 	) {
-		if (initData.logsLocation.scheme !== Schemas.file) { throw new Error('Only file-logging supported'); }
-		super(new SpdLogService(ExtensionHostLogFileName, initData.logsLocation.fsPath, initData.logLevel));
-
-		// Register an output channel for exthost log
-		extHostOutputService.createOutputChannelFromLogFile(
-			initData.remote.isRemote ? localize('remote extension host Log', "Remote Extension Host") : localize('extension host Log', "Extension Host"),
-			URI.file(join(initData.logsLocation.fsPath, `${ExtensionHostLogFileName}.log`))
-		);
+		if (initData.logFile.scheme !== Schemas.file) { throw new Error('Only file-logging supported'); }
+		super(new SpdLogLogger(ExtensionHostLogFileName, initData.logFile.fsPath, true, initData.logLevel));
 	}
 
 	$setLevel(level: LogLevel): void {

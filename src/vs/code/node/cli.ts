@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { assign } from 'vs/base/common/objects';
-import { buildHelpMessage, buildVersionMessage, addArg, createWaitMarkerFile } from 'vs/platform/environment/node/argv';
-import { parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/product/node/product';
-import pkg from 'vs/platform/product/node/package';
-import * as paths from 'vs/base/common/path';
-import * as os from 'os';
-import * as fs from 'fs';
-import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
-import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { resolveTerminalEncoding } from 'vs/base/node/encoding';
-import * as iconv from 'iconv-lite';
-import { isWindows } from 'vs/base/common/platform';
-import { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { ChildProcess, spawn, SpawnOptions } from 'child_process';
+import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
+import { homedir } from 'os';
+import type { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { Event } from 'vs/base/common/event';
+import { isAbsolute, join } from 'vs/base/common/path';
+import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
+import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
+import { findFreePort } from 'vs/base/node/ports';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
+import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import product from 'vs/platform/product/common/product';
 
-function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
+function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
@@ -31,11 +31,11 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 }
 
 interface IMainCli {
-	main: (argv: ParsedArgs) => Promise<void>;
+	main: (argv: NativeParsedArgs) => Promise<void>;
 }
 
 export async function main(argv: string[]): Promise<any> {
-	let args: ParsedArgs;
+	let args: NativeParsedArgs;
 
 	try {
 		args = parseCLIProcessArgv(argv);
@@ -46,18 +46,18 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Help
 	if (args.help) {
-		const executable = `${product.applicationName}${os.platform() === 'win32' ? '.exe' : ''}`;
-		console.log(buildHelpMessage(product.nameLong, executable, pkg.version));
+		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS));
 	}
 
 	// Version Info
 	else if (args.version) {
-		console.log(buildVersionMessage(pkg.version, product.commit));
+		console.log(buildVersionMessage(product.version, product.commit));
 	}
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
+		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));
 		await cli.main(args);
 
 		return;
@@ -70,10 +70,10 @@ export async function main(argv: string[]): Promise<any> {
 
 		// Validate
 		if (
-			!source || !target || source === target ||					// make sure source and target are provided and are not the same
-			!paths.isAbsolute(source) || !paths.isAbsolute(target) ||	// make sure both source and target are absolute paths
-			!fs.existsSync(source) || !fs.statSync(source).isFile() ||	// make sure source exists as file
-			!fs.existsSync(target) || !fs.statSync(target).isFile()		// make sure target exists as file
+			!source || !target || source === target ||				// make sure source and target are provided and are not the same
+			!isAbsolute(source) || !isAbsolute(target) ||			// make sure both source and target are absolute paths
+			!existsSync(source) || !statSync(source).isFile() ||	// make sure source exists as file
+			!existsSync(target) || !statSync(target).isFile()		// make sure target exists as file
 		) {
 			throw new Error('Using --file-write with invalid arguments.');
 		}
@@ -84,23 +84,23 @@ export async function main(argv: string[]): Promise<any> {
 			let targetMode: number = 0;
 			let restoreMode = false;
 			if (!!args['file-chmod']) {
-				targetMode = fs.statSync(target).mode;
-				if (!(targetMode & 128) /* readonly */) {
-					fs.chmodSync(target, targetMode | 128);
+				targetMode = statSync(target).mode;
+				if (!(targetMode & 0o200 /* File mode indicating writable by owner */)) {
+					chmodSync(target, targetMode | 0o200);
 					restoreMode = true;
 				}
 			}
 
 			// Write source to target
-			const data = fs.readFileSync(source);
+			const data = readFileSync(source);
 			if (isWindows) {
 				// On Windows we use a different strategy of saving the file
 				// by first truncating the file and then writing with r+ mode.
 				// This helps to save hidden files on Windows
-				// (see https://github.com/Microsoft/vscode/issues/931) and
+				// (see https://github.com/microsoft/vscode/issues/931) and
 				// prevent removing alternate data streams
-				// (see https://github.com/Microsoft/vscode/issues/6363)
-				fs.truncateSync(target, 0);
+				// (see https://github.com/microsoft/vscode/issues/6363)
+				truncateSync(target, 0);
 				writeFileSync(target, data, { flag: 'r+' });
 			} else {
 				writeFileSync(target, data);
@@ -108,7 +108,7 @@ export async function main(argv: string[]): Promise<any> {
 
 			// Restore previous mode as needed
 			if (restoreMode) {
-				fs.chmodSync(target, targetMode);
+				chmodSync(target, targetMode);
 			}
 		} catch (error) {
 			error.message = `Error using --file-write: ${error.message}`;
@@ -118,68 +118,47 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Just Code
 	else {
-		const env = assign({}, process.env, {
-			'VSCODE_CLI': '1', // this will signal Code that it was spawned from this module
+		const env: IProcessEnvironment = {
+			...process.env,
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
-		});
+		};
 
 		delete env['ELECTRON_RUN_AS_NODE'];
 
-		const processCallbacks: ((child: ChildProcess) => Promise<any>)[] = [];
+		const processCallbacks: ((child: ChildProcess) => Promise<void>)[] = [];
 
 		const verbose = args.verbose || args.status;
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
 			processCallbacks.push(async child => {
-				child.stdout.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
-				child.stderr.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				await new Promise(c => child.once('exit', () => c()));
+				await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
 			});
 		}
 
-		let stdinWithoutTty: boolean = false;
-		try {
-			stdinWithoutTty = !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
-		} catch (error) {
-			// Windows workaround for https://github.com/nodejs/node/issues/11656
-		}
-
-		const readFromStdin = args._.some(a => a === '-');
-		if (readFromStdin) {
+		const hasReadStdinArg = args._.some(a => a === '-');
+		if (hasReadStdinArg) {
 			// remove the "-" argument when we read from stdin
 			args._ = args._.filter(a => a !== '-');
 			argv = argv.filter(a => a !== '-');
 		}
 
-		let stdinFilePath: string;
-		if (stdinWithoutTty) {
+		let stdinFilePath: string | undefined;
+		if (hasStdinWithoutTty()) {
 
 			// Read from stdin: we require a single "-" argument to be passed in order to start reading from
 			// stdin. We do this because there is no reliable way to find out if data is piped to stdin. Just
-			// checking for stdin being connected to a TTY is not enough (https://github.com/Microsoft/vscode/issues/40351)
-			if (args._.length === 0 && readFromStdin) {
+			// checking for stdin being connected to a TTY is not enough (https://github.com/microsoft/vscode/issues/40351)
 
-				// prepare temp file to read stdin to
-				stdinFilePath = paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
+			if (hasReadStdinArg) {
+				stdinFilePath = getStdinFilePath();
 
-				// open tmp file for writing
-				let stdinFileError: Error | undefined;
-				let stdinFileStream: fs.WriteStream;
+				// returns a file path where stdin input is written into (write in progress).
 				try {
-					stdinFileStream = fs.createWriteStream(stdinFilePath);
-				} catch (error) {
-					stdinFileError = error;
-				}
-
-				if (!stdinFileError) {
-
-					// Pipe into tmp file using terminals encoding
-					resolveTerminalEncoding(verbose).then(encoding => {
-						const converterStream = iconv.decodeStream(encoding);
-						process.stdin.pipe(converterStream).pipe(stdinFileStream);
-					});
+					readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 
 					// Make sure to open tmp file
 					addArg(argv, stdinFilePath);
@@ -188,40 +167,24 @@ export async function main(argv: string[]): Promise<any> {
 					addArg(argv, '--wait');
 					addArg(argv, '--skip-add-to-recently-opened');
 					args.wait = true;
-				}
 
-				if (verbose) {
-					if (stdinFileError) {
-						console.error(`Failed to create file to read via stdin: ${stdinFileError.toString()}`);
-					} else {
-						console.log(`Reading from stdin via: ${stdinFilePath}`);
-					}
+					console.log(`Reading from stdin via: ${stdinFilePath}`);
+				} catch (e) {
+					console.log(`Failed to create file to read via stdin: ${e.toString()}`);
+					stdinFilePath = undefined;
 				}
-			}
+			} else {
 
-			// If the user pipes data via stdin but forgot to add the "-" argument, help by printing a message
-			// if we detect that data flows into via stdin after a certain timeout.
-			else if (args._.length === 0) {
-				processCallbacks.push(child => new Promise(c => {
-					const dataListener = () => {
+				// If the user pipes data via stdin but forgot to add the "-" argument, help by printing a message
+				// if we detect that data flows into via stdin after a certain timeout.
+				processCallbacks.push(_ => stdinDataListener(1000).then(dataReceived => {
+					if (dataReceived) {
 						if (isWindows) {
 							console.log(`Run with '${product.applicationName} -' to read output from another program (e.g. 'echo Hello World | ${product.applicationName} -').`);
 						} else {
 							console.log(`Run with '${product.applicationName} -' to read from stdin (e.g. 'ps aux | grep code | ${product.applicationName} -').`);
 						}
-
-						c(undefined);
-					};
-
-					// wait for 1s maximum...
-					setTimeout(() => {
-						process.stdin.removeListener('data', dataListener);
-
-						c(undefined);
-					}, 1000);
-
-					// ...but finish early if we detect data
-					process.stdin.once('data', dataListener);
+					}
 				}));
 			}
 		}
@@ -236,6 +199,23 @@ export async function main(argv: string[]): Promise<any> {
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
+
+			// When running with --wait, we want to continue running CLI process
+			// until either:
+			// - the wait marker file has been deleted (e.g. when closing the editor)
+			// - the launched process terminates (e.g. due to a crash)
+			processCallbacks.push(async child => {
+				try {
+					await Promise.race([
+						whenDeleted(waitMarkerFilePath!),
+						Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'))
+					]);
+				} finally {
+					if (stdinFilePath) {
+						unlinkSync(stdinFilePath); // Make sure to delete the tmp stdin file if we have any
+					}
+				}
+			});
 		}
 
 		// If we have been started with `--prof-startup` we need to find free ports to profile
@@ -247,12 +227,12 @@ export async function main(argv: string[]): Promise<any> {
 			const portRenderer = await findFreePort(portMain + 1, 10, 3000);
 			const portExthost = await findFreePort(portRenderer + 1, 10, 3000);
 
-			// fail the operation when one of the ports couldn't be accquired.
+			// fail the operation when one of the ports couldn't be acquired.
 			if (portMain * portRenderer * portExthost === 0) {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = paths.join(os.homedir(), 'prof-' + Math.random().toString(16).slice(-4));
+			const filenamePrefix = join(homedir(), 'prof-' + Math.random().toString(16).slice(-4));
 
 			addArg(argv, `--inspect-brk=${portMain}`);
 			addArg(argv, `--remote-debugging-port=${portRenderer}`);
@@ -358,23 +338,6 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		const child = spawn(process.execPath, argv.slice(2), options);
-
-		if (args.wait && waitMarkerFilePath) {
-			return new Promise<void>(c => {
-
-				// Complete when process exits
-				child.once('exit', () => c(undefined));
-
-				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath!).then(c, c);
-			}).then(() => {
-
-				// Make sure to delete the tmp stdin file if we have any
-				if (stdinFilePath) {
-					fs.unlinkSync(stdinFilePath);
-				}
-			});
-		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}

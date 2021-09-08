@@ -22,17 +22,19 @@
         "extensions": [
           ".json",
           ".bowerrc",
-          ".jshintrc",
           ".jscsrc",
-          ".swcrc",
           ".webmanifest",
           ".js.map",
-          ".css.map"
+          ".css.map",
+          ".ts.map",
+          ".har",
+          ".jslintrc",
+          ".jsonld",
+          ".geojson"
         ],
         "filenames": [
           "composer.lock",
-          ".watchmanconfig",
-          ".ember-cli"
+          ".watchmanconfig"
         ],
         "mimetypes": [
           "application/json",
@@ -46,11 +48,19 @@
           "JSON with Comments"
         ],
         "extensions": [
-          ".hintrc",
-          ".babelrc",
           ".jsonc",
           ".eslintrc",
-          ".eslintrc.json"
+          ".eslintrc.json",
+          ".jsfmtrc",
+          ".jshintrc",
+          ".swcrc",
+          ".hintrc",
+          ".babelrc"
+        ],
+        "filenames": [
+          "babel.config.json",
+          ".babelrc.json",
+          ".ember-cli"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -66,12 +76,10 @@
         "scopeName": "source.json.comments",
         "path": "./syntaxes/JSONC.tmLanguage.json"
       }
-    ],
-    "jsonValidation": [
-      {
-        "fileMatch": "*.schema.json",
-        "url": "http://json-schema.org/draft-07/schema#"
-      }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

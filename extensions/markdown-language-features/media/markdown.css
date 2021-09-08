@@ -4,11 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 html, body {
-	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
-	font-size: var(--vscode-markdown-font-size, 14px);
+	font-family: var(--markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--markdown-font-size, 14px);
 	padding: 0 26px;
-	line-height: var(--vscode-markdown-line-height, 22px);
+	line-height: var(--markdown-line-height, 22px);
 	word-wrap: break-word;
+}
+
+body {
+	padding-top: 1em;
+}
+
+/* Reset margin top for elements */
+h1, h2, h3, h4, h5, h6,
+p, ol, ul, pre {
+	margin-top: 0;
+}
+
+h2, h3, h4, h5, h6 {
+	font-weight: normal;
+	margin-bottom: 0.2em;
 }
 
 #code-csp-warning {
@@ -91,6 +106,13 @@ body.showEditorSelection li.code-line:hover:before {
 	border-left: none;
 }
 
+ul ul,
+ul ol,
+ol ul,
+ol ol {
+	margin-bottom: 0;
+}
+
 img {
 	max-width: 100%;
 	max-height: 100%;
@@ -112,6 +134,15 @@ textarea:focus {
 	outline-offset: -1px;
 }
 
+p {
+	margin-bottom: 0.7em;
+}
+
+ul,
+ol {
+	margin-bottom: 0.7em;
+}
+
 hr {
 	border: 0;
 	height: 2px;
@@ -123,34 +154,21 @@ h1 {
 	line-height: 1.2;
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
-}
-
-h1, h2, h3 {
 	font-weight: normal;
-}
-
-h1 code,
-h2 code,
-h3 code,
-h4 code,
-h5 code,
-h6 code {
-	line-height: auto;
 }
 
 table {
 	border-collapse: collapse;
+	margin-bottom: 0.7em;
 }
 
-table > thead > tr > th {
+th {
 	text-align: left;
 	border-bottom: 1px solid;
 }
 
-table > thead > tr > th,
-table > thead > tr > td,
-table > tbody > tr > th,
-table > tbody > tr > td {
+th,
+td {
 	padding: 5px 10px;
 }
 
@@ -166,7 +184,7 @@ blockquote {
 }
 
 code {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace);
 	font-size: 1em;
 	line-height: 1.357em;
 }
@@ -182,13 +200,12 @@ pre.hljs code > div {
 	overflow: auto;
 }
 
-/** Theming */
-
 pre code {
 	color: var(--vscode-editor-foreground);
 	tab-size: 4;
 }
 
+/** Theming */
 
 .vscode-light pre {
 	background-color: rgba(220, 220, 220, 0.4);
@@ -206,22 +223,22 @@ pre code {
 	border-color: rgb(0, 0, 0);
 }
 
-.vscode-light table > thead > tr > th {
+.vscode-light th {
 	border-color: rgba(0, 0, 0, 0.69);
 }
 
-.vscode-dark table > thead > tr > th {
+.vscode-dark th {
 	border-color: rgba(255, 255, 255, 0.69);
 }
 
 .vscode-light h1,
 .vscode-light hr,
-.vscode-light table > tbody > tr + tr > td {
+.vscode-light td {
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
 .vscode-dark h1,
 .vscode-dark hr,
-.vscode-dark table > tbody > tr + tr > td {
+.vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
 }

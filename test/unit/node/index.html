@@ -1,0 +1,30 @@
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>VSCode Tests</title>
+	<link href="https://cdn.rawgit.com/mochajs/mocha/2.2.5/mocha.css" rel="stylesheet" />
+</head>
+<body>
+	<div id="mocha"></div>
+
+	<script src="/out/vs/loader.js"></script>
+	<script src="https://cdn.rawgit.com/mochajs/mocha/2.2.5/mocha.js"></script>
+
+	<script>
+		mocha.setup('tdd');
+
+		require.config({
+			baseUrl: '/out',
+			paths: {
+				assert: '/test/unit/assert.js',
+				sinon: '/node_modules/sinon/pkg/sinon.js',
+				'sinon-test': '/node_modules/sinon-test/dist/sinon-test.js'
+			}
+		});
+
+		require({{ modules }}, function () {
+			mocha.run();
+		});
+	</script>
+</body>
+</html>

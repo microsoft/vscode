@@ -5,14 +5,13 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { sequence } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, IResourceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, WorkspaceEditType, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
 import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import * as vscode from 'vscode';
+import { SaveReason } from 'vs/workbench/common/editor';
+import type * as vscode from 'vscode';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -27,7 +26,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 	constructor(
 		private readonly _logService: ILogService,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _mainThreadEditors: MainThreadTextEditorsShape,
+		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
 		private readonly _thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }
 	) {
 		//
@@ -48,26 +47,27 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		};
 	}
 
-	$participateInSave(data: UriComponents, reason: SaveReason): Promise<boolean[]> {
+	async $participateInSave(data: UriComponents, reason: SaveReason): Promise<boolean[]> {
 		const resource = URI.revive(data);
-		const entries = this._callbacks.toArray();
 
 		let didTimeout = false;
 		const didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);
 
-		const promise = sequence(entries.map(listener => {
-			return () => {
-
+		const results: boolean[] = [];
+		try {
+			for (let listener of [...this._callbacks]) { // copy to prevent concurrent modifications
 				if (didTimeout) {
 					// timeout - no more listeners
-					return Promise.resolve();
+					break;
 				}
-
 				const document = this._documents.getDocument(resource);
-				return this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
-			};
-		}));
-		return promise.finally(() => clearTimeout(didTimeoutHandle));
+				const success = await this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
+				results.push(success);
+			}
+		} finally {
+			clearTimeout(didTimeoutHandle);
+		}
+		return results;
 	}
 
 	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
@@ -141,19 +141,18 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			});
 
 		}).then(values => {
-
-			const resourceEdit: IResourceTextEditDto = {
-				resource: document.uri,
-				edits: []
-			};
-
+			const dto: IWorkspaceEditDto = { edits: [] };
 			for (const value of values) {
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
 					for (const { newText, newEol, range } of value) {
-						resourceEdit.edits.push({
-							range: range && Range.from(range),
-							text: newText,
-							eol: newEol && EndOfLine.from(newEol)
+						dto.edits.push({
+							_type: WorkspaceEditType.Text,
+							resource: document.uri,
+							edit: {
+								range: range && Range.from(range),
+								text: newText,
+								eol: newEol && EndOfLine.from(newEol)
+							}
 						});
 					}
 				}
@@ -161,12 +160,12 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 
 			// apply edits if any and if document
 			// didn't change somehow in the meantime
-			if (resourceEdit.edits.length === 0) {
+			if (dto.edits.length === 0) {
 				return undefined;
 			}
 
 			if (version === document.version) {
-				return this._mainThreadEditors.$tryApplyWorkspaceEdit({ edits: [resourceEdit] });
+				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
 			}
 
 			return Promise.reject(new Error('concurrent_edits'));

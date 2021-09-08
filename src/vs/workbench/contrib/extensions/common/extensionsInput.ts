@@ -3,53 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { EditorInputCapabilities, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { join } from 'vs/base/common/path';
 
 export class ExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.extensions.input2';
-	get extension(): IExtension { return this._extension; }
 
-	constructor(
-		private _extension: IExtension,
-	) {
-		super();
-	}
-
-	getTypeId(): string {
+	override get typeId(): string {
 		return ExtensionsInput.ID;
 	}
 
-	getName(): string {
-		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
 	}
 
-	matches(other: unknown): boolean {
-		if (!(other instanceof ExtensionsInput)) {
-			return false;
+	override get resource() {
+		return URI.from({
+			scheme: Schemas.extension,
+			path: join(this._extension.identifier.id, 'extension')
+		});
+	}
+
+	constructor(
+		private _extension: IExtension,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super();
+		this._register(extensionsWorkbenchService.onChange(extension => {
+			if (extension && areSameExtensions(this._extension.identifier, extension.identifier)) {
+				this._extension = extension;
+			}
+		}));
+	}
+
+	get extension(): IExtension { return this._extension; }
+
+	override getName(): string {
+		return localize('extensionsInputName', "Extension: {0}", this._extension.displayName);
+	}
+
+	override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(other)) {
+			return true;
 		}
 
-		const otherExtensionInput = other as ExtensionsInput;
-
-		// TODO@joao is this correct?
-		return this.extension === otherExtensionInput.extension;
-	}
-
-	resolve(): Promise<any> {
-		return Promise.resolve(null);
-	}
-
-	supportsSplitEditor(): boolean {
-		return false;
-	}
-
-	getResource(): URI {
-		return URI.from({
-			scheme: 'extension',
-			path: this.extension.identifier.id
-		});
+		return other instanceof ExtensionsInput && areSameExtensions(this._extension.identifier, other._extension.identifier);
 	}
 }

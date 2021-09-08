@@ -11,33 +11,55 @@ import { Range, TextSearchResult } from 'vs/workbench/services/search/common/sea
 
 suite('RipgrepTextSearchEngine', () => {
 	test('unicodeEscapesToPCRE2', async () => {
-		assert.equal(unicodeEscapesToPCRE2('\\u1234'), '\\x{1234}');
-		assert.equal(unicodeEscapesToPCRE2('\\u1234\\u0001'), '\\x{1234}\\x{0001}');
-		assert.equal(unicodeEscapesToPCRE2('foo\\u1234bar'), 'foo\\x{1234}bar');
-		assert.equal(unicodeEscapesToPCRE2('\\\\\\u1234'), '\\\\\\x{1234}');
-		assert.equal(unicodeEscapesToPCRE2('foo\\\\\\u1234'), 'foo\\\\\\x{1234}');
+		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234'), '\\x{1234}');
+		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234\\u0001'), '\\x{1234}\\x{0001}');
+		assert.strictEqual(unicodeEscapesToPCRE2('foo\\u1234bar'), 'foo\\x{1234}bar');
+		assert.strictEqual(unicodeEscapesToPCRE2('\\\\\\u1234'), '\\\\\\x{1234}');
+		assert.strictEqual(unicodeEscapesToPCRE2('foo\\\\\\u1234'), 'foo\\\\\\x{1234}');
 
-		assert.equal(unicodeEscapesToPCRE2('\\u{1234}'), '\\x{1234}');
-		assert.equal(unicodeEscapesToPCRE2('\\u{1234}\\u{0001}'), '\\x{1234}\\x{0001}');
-		assert.equal(unicodeEscapesToPCRE2('foo\\u{1234}bar'), 'foo\\x{1234}bar');
+		assert.strictEqual(unicodeEscapesToPCRE2('\\u{1234}'), '\\x{1234}');
+		assert.strictEqual(unicodeEscapesToPCRE2('\\u{1234}\\u{0001}'), '\\x{1234}\\x{0001}');
+		assert.strictEqual(unicodeEscapesToPCRE2('foo\\u{1234}bar'), 'foo\\x{1234}bar');
+		assert.strictEqual(unicodeEscapesToPCRE2('[\\u00A0-\\u00FF]'), '[\\x{00A0}-\\x{00FF}]');
 
-		assert.equal(unicodeEscapesToPCRE2('foo\\u{123456}7bar'), 'foo\\u{123456}7bar');
-		assert.equal(unicodeEscapesToPCRE2('\\u123'), '\\u123');
-		assert.equal(unicodeEscapesToPCRE2('foo'), 'foo');
-		assert.equal(unicodeEscapesToPCRE2(''), '');
+		assert.strictEqual(unicodeEscapesToPCRE2('foo\\u{123456}7bar'), 'foo\\u{123456}7bar');
+		assert.strictEqual(unicodeEscapesToPCRE2('\\u123'), '\\u123');
+		assert.strictEqual(unicodeEscapesToPCRE2('foo'), 'foo');
+		assert.strictEqual(unicodeEscapesToPCRE2(''), '');
 	});
 
-	test('fixRegexNewline', () => {
-		function testFixRegexNewline([inputReg, testStr, shouldMatch]: [string, string, boolean]): void {
+	test('fixRegexNewline - src', () => {
+		const ttable = [
+			['foo', 'foo'],
+			['invalid(', 'invalid('],
+			['fo\\no', 'fo\\r?\\no'],
+			['f\\no\\no', 'f\\r?\\no\\r?\\no'],
+			['f[a-z\\n1]', 'f(?:[a-z1]|\\r?\\n)'],
+			['f[\\n-a]', 'f[\\n-a]'],
+			['(?<=\\n)\\w', '(?<=\\n)\\w'],
+			['fo\\n+o', 'fo(?:\\r?\\n)+o'],
+			['fo[^\\n]o', 'fo(?!\\r?\\n)o'],
+			['fo[^\\na-z]o', 'fo(?!\\r?\\n|[a-z])o'],
+		];
+
+		for (const [input, expected] of ttable) {
+			assert.strictEqual(fixRegexNewline(input), expected, `${input} -> ${expected}`);
+		}
+	});
+
+	test('fixRegexNewline - re', () => {
+		function testFixRegexNewline([inputReg, testStr, shouldMatch]: readonly [string, string, boolean]): void {
 			const fixed = fixRegexNewline(inputReg);
 			const reg = new RegExp(fixed);
-			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
+			assert.strictEqual(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
 		}
 
-		[
+		([
 			['foo', 'foo', true],
 
 			['foo\\n', 'foo\r\n', true],
+			['foo\\n\\n', 'foo\n\n', true],
+			['foo\\n\\n', 'foo\r\n\r\n', true],
 			['foo\\n', 'foo\n', true],
 			['foo\\nabc', 'foo\r\nabc', true],
 			['foo\\nabc', 'foo\nabc', true],
@@ -45,17 +67,19 @@ suite('RipgrepTextSearchEngine', () => {
 
 			['foo\\n+abc', 'foo\r\nabc', true],
 			['foo\\n+abc', 'foo\n\n\nabc', true],
-		].forEach(testFixRegexNewline);
+			['foo\\n+abc', 'foo\r\n\r\n\r\nabc', true],
+			['foo[\\n-9]+abc', 'foo1abc', true],
+		] as const).forEach(testFixRegexNewline);
 	});
 
-	test('fixNewline', () => {
-		function testFixNewline([inputReg, testStr, shouldMatch = true]: [string, string, boolean]): void {
+	test('fixNewline - matching', () => {
+		function testFixNewline([inputReg, testStr, shouldMatch = true]: readonly [string, string, boolean?]): void {
 			const fixed = fixNewline(inputReg);
 			const reg = new RegExp(fixed);
-			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
+			assert.strictEqual(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
 		}
 
-		[
+		([
 			['foo', 'foo'],
 
 			['foo\n', 'foo\r\n'],
@@ -66,7 +90,7 @@ suite('RipgrepTextSearchEngine', () => {
 
 			['foo\nbarc', 'foobar', false],
 			['foobar', 'foo\nbar', false],
-		].forEach(testFixNewline);
+		] as const).forEach(testFixNewline);
 	});
 
 	suite('RipgrepParser', () => {
@@ -83,7 +107,7 @@ suite('RipgrepTextSearchEngine', () => {
 			inputData.forEach(d => testParser.handleData(d));
 			testParser.flush();
 
-			assert.deepEqual(actualResults, expectedResults);
+			assert.deepStrictEqual(actualResults, expectedResults);
 		}
 
 		function makeRgMatch(relativePath: string, text: string, lineNumber: number, matchRanges: { start: number, end: number }[]): string {
@@ -201,6 +225,33 @@ suite('RipgrepTextSearchEngine', () => {
 						},
 						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
 						ranges: [new Range(3, 3, 3, 6)]
+					}
+				]);
+		});
+
+
+		test('empty result (#100569)', () => {
+			testParser(
+				[
+					makeRgMatch('file1.js', 'foobar', 4, []),
+					makeRgMatch('file1.js', '', 5, []),
+				],
+				[
+					{
+						preview: {
+							text: 'foobar',
+							matches: [new Range(0, 0, 0, 1)]
+						},
+						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						ranges: [new Range(3, 0, 3, 1)]
+					},
+					{
+						preview: {
+							text: '',
+							matches: [new Range(0, 0, 0, 0)]
+						},
+						uri: joinPath(TEST_FOLDER, 'file1.js'),
+						ranges: [new Range(4, 0, 4, 0)]
 					}
 				]);
 		});

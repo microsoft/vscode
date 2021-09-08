@@ -17,11 +17,11 @@
 	text-decoration-line: underline;
 }
 
-.monaco-workbench .monaco-breadcrumb-item.shows-symbol-icon .symbol-icon.block {
+.monaco-workbench .monaco-breadcrumb-item.shows-symbol-icon .codicon[class*='codicon-symbol-'] {
 	padding-right: 6px;
 }
 
-/* todo@joh move somewhere else */
+/* breadcrumbs-picker-style */
 
 .monaco-workbench .monaco-breadcrumbs-picker .arrow {
 	position: absolute;

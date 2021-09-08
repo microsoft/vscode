@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { OperatingSystem } from 'vs/base/common/platform';
+import * as nls from 'vs/nls';
 
 export interface ModifierLabels {
 	readonly ctrlKey: string;
@@ -182,7 +182,9 @@ function _simpleAsString(modifiers: Modifiers, key: string, labels: ModifierLabe
 	}
 
 	// the actual key
-	result.push(key);
+	if (key !== '') {
+		result.push(key);
+	}
 
 	return result.join(labels.separator);
 }

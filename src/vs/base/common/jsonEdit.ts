@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ParseError, Node, JSONPath, Segment, parseTree, findNodeAtLocation } from './json';
-import { Edit, format, isEOL, FormattingOptions } from './jsonFormatter';
-import { mergeSort } from 'vs/base/common/arrays';
+import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json';
+import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter';
 
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
@@ -84,47 +83,43 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 			return withFormatting(text, edit, formattingOptions);
 		}
 	} else if (parent.type === 'array' && typeof lastSegment === 'number' && Array.isArray(parent.children)) {
-		const insertIndex = lastSegment;
-		if (insertIndex === -1) {
+		if (value !== undefined) {
 			// Insert
 			const newProperty = `${JSON.stringify(value)}`;
 			let edit: Edit;
-			if (parent.children.length === 0) {
-				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
+			if (parent.children.length === 0 || lastSegment === 0) {
+				edit = { offset: parent.offset + 1, length: 0, content: parent.children.length === 0 ? newProperty : newProperty + ',' };
 			} else {
-				const previous = parent.children[parent.children.length - 1];
+				const index = lastSegment === -1 || lastSegment > parent.children.length ? parent.children.length : lastSegment;
+				const previous = parent.children[index - 1];
 				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty };
 			}
 			return withFormatting(text, edit, formattingOptions);
 		} else {
-			if (value === undefined && parent.children.length >= 0) {
-				//Removal
-				const removalIndex = lastSegment;
-				const toRemove = parent.children[removalIndex];
-				let edit: Edit;
-				if (parent.children.length === 1) {
-					// only item
-					edit = { offset: parent.offset + 1, length: parent.length - 2, content: '' };
-				} else if (parent.children.length - 1 === removalIndex) {
-					// last item
-					const previous = parent.children[removalIndex - 1];
-					const offset = previous.offset + previous.length;
-					const parentEndOffset = parent.offset + parent.length;
-					edit = { offset, length: parentEndOffset - 2 - offset, content: '' };
-				} else {
-					edit = { offset: toRemove.offset, length: parent.children[removalIndex + 1].offset - toRemove.offset, content: '' };
-				}
-				return withFormatting(text, edit, formattingOptions);
+			//Removal
+			const removalIndex = lastSegment;
+			const toRemove = parent.children[removalIndex];
+			let edit: Edit;
+			if (parent.children.length === 1) {
+				// only item
+				edit = { offset: parent.offset + 1, length: parent.length - 2, content: '' };
+			} else if (parent.children.length - 1 === removalIndex) {
+				// last item
+				const previous = parent.children[removalIndex - 1];
+				const offset = previous.offset + previous.length;
+				const parentEndOffset = parent.offset + parent.length;
+				edit = { offset, length: parentEndOffset - 2 - offset, content: '' };
 			} else {
-				throw new Error('Array modification not supported yet');
+				edit = { offset: toRemove.offset, length: parent.children[removalIndex + 1].offset - toRemove.offset, content: '' };
 			}
+			return withFormatting(text, edit, formattingOptions);
 		}
 	} else {
 		throw new Error(`Can not add ${typeof lastSegment !== 'number' ? 'index' : 'property'} to parent of type ${parent.type}`);
 	}
 }
 
-function withFormatting(text: string, edit: Edit, formattingOptions: FormattingOptions): Edit[] {
+export function withFormatting(text: string, edit: Edit, formattingOptions: FormattingOptions): Edit[] {
 	// apply the edit
 	let newText = applyEdit(text, edit);
 
@@ -160,7 +155,7 @@ export function applyEdit(text: string, edit: Edit): string {
 }
 
 export function applyEdits(text: string, edits: Edit[]): string {
-	let sortedEdits = mergeSort(edits, (a, b) => {
+	let sortedEdits = edits.slice(0).sort((a, b) => {
 		const diff = a.offset - b.offset;
 		if (diff === 0) {
 			return a.length - b.length;
@@ -178,8 +173,4 @@ export function applyEdits(text: string, edits: Edit[]): string {
 		lastModifiedOffset = e.offset;
 	}
 	return text;
-}
-
-export function isWS(text: string, offset: number) {
-	return '\r\n \t'.indexOf(text.charAt(offset)) !== -1;
 }

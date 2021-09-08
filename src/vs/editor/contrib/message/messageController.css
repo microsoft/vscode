@@ -5,6 +5,13 @@
 
 .monaco-editor .monaco-editor-overlaymessage {
 	padding-bottom: 8px;
+	z-index: 10000;
+}
+
+.monaco-editor .monaco-editor-overlaymessage.below {
+	padding-bottom: 0;
+	padding-top: 8px;
+	z-index: 10000;
 }
 
 @keyframes fadeIn {
@@ -35,4 +42,14 @@
 	z-index: 1000;
 	border-width: 8px;
 	position: absolute;
+}
+
+.monaco-editor .monaco-editor-overlaymessage:not(.below) .anchor.top,
+.monaco-editor .monaco-editor-overlaymessage.below .anchor.below {
+	display: none;
+}
+
+.monaco-editor .monaco-editor-overlaymessage.below .anchor.top {
+	display: inherit;
+	top: -8px;
 }

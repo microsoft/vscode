@@ -13,6 +13,8 @@ import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/serv
 
 import * as Tasks from 'vs/workbench/contrib/tasks/common/tasks';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Emitter, Event } from 'vs/base/common/event';
 
 
 const taskDefinitionSchema: IJSONSchema = {
@@ -33,8 +35,13 @@ const taskDefinitionSchema: IJSONSchema = {
 			type: 'object',
 			description: nls.localize('TaskDefinition.properties', 'Additional properties of the task type'),
 			additionalProperties: {
-				$ref: 'http://json-schema.org/draft-04/schema#'
+				$ref: 'http://json-schema.org/draft-07/schema#'
 			}
+		},
+		when: {
+			type: 'string',
+			markdownDescription: nls.localize('TaskDefinition.when', 'Condition which must be true to enable this type of task. Consider using `shellExecutionSupported`, `processExecutionSupported`, and `customExecutionSupported` as appropriate for this task definition.'),
+			default: ''
 		}
 	}
 };
@@ -44,6 +51,7 @@ namespace Configuration {
 		type?: string;
 		required?: string[];
 		properties?: IJSONSchemaMap;
+		when?: string;
 	}
 
 	export function from(value: TaskDefinition, extensionId: ExtensionIdentifier, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
@@ -63,7 +71,12 @@ namespace Configuration {
 				}
 			}
 		}
-		return { extensionId: extensionId.value, taskType, required: required, properties: value.properties ? Objects.deepClone(value.properties) : {} };
+		return {
+			extensionId: extensionId.value,
+			taskType, required: required,
+			properties: value.properties ? Objects.deepClone(value.properties) : {},
+			when: value.when ? ContextKeyExpr.deserialize(value.when) : undefined
+		};
 	}
 }
 
@@ -83,6 +96,7 @@ export interface ITaskDefinitionRegistry {
 	get(key: string): Tasks.TaskDefinition;
 	all(): Tasks.TaskDefinition[];
 	getJsonSchema(): IJSONSchema;
+	onDefinitionsChanged: Event<void>;
 }
 
 class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
@@ -90,6 +104,8 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
 	private readyPromise: Promise<void>;
 	private _schema: IJSONSchema | undefined;
+	private _onDefinitionsChanged: Emitter<void> = new Emitter();
+	public onDefinitionsChanged: Event<void> = this._onDefinitionsChanged.event;
 
 	constructor() {
 		this.taskTypes = Object.create(null);
@@ -112,6 +128,9 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 								this.taskTypes[type.taskType] = type;
 							}
 						}
+					}
+					if ((delta.removed.length > 0) || (delta.added.length > 0)) {
+						this._onDefinitionsChanged.fire();
 					}
 				} catch (error) {
 				}

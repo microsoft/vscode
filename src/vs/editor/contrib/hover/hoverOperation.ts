@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, RunOnceScheduler, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
@@ -143,9 +143,7 @@ export class HoverOperation<Result> {
 	}
 
 	private _onComplete(value: Result): void {
-		if (this._completeCallback) {
-			this._completeCallback(value);
-		}
+		this._completeCallback(value);
 	}
 
 	private _onError(error: any): void {
@@ -157,9 +155,7 @@ export class HoverOperation<Result> {
 	}
 
 	private _onProgress(value: Result): void {
-		if (this._progressCallback) {
-			this._progressCallback(value);
-		}
+		this._progressCallback(value);
 	}
 
 	public start(mode: HoverStartMode): void {

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as DomUtils from 'vs/base/browser/dom';
+import * as arrays from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 export namespace EventType {
 	export const Tap = '-monaco-gesturetap';
@@ -33,6 +33,7 @@ export interface GestureEvent extends MouseEvent {
 	translationY: number;
 	pageX: number;
 	pageY: number;
+	tapCount: number;
 }
 
 interface Touch {
@@ -67,13 +68,19 @@ export class Gesture extends Disposable {
 
 	private static readonly SCROLL_FRICTION = -0.005;
 	private static INSTANCE: Gesture;
-	private static HOLD_DELAY = 700;
+	private static readonly HOLD_DELAY = 700;
 
 	private dispatched = false;
 	private targets: HTMLElement[];
+	private ignoreTargets: HTMLElement[];
 	private handle: IDisposable | null;
 
 	private activeTouches: { [id: number]: TouchData; };
+
+	private _lastSetTapCountTime: number;
+
+	private static readonly CLEAR_TAP_COUNT_TIME = 400; // ms
+
 
 	private constructor() {
 		super();
@@ -81,28 +88,55 @@ export class Gesture extends Disposable {
 		this.activeTouches = {};
 		this.handle = null;
 		this.targets = [];
-		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e)));
+		this.ignoreTargets = [];
+		this._lastSetTapCountTime = 0;
+		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
 		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
 	}
 
-	public static addTarget(element: HTMLElement): void {
+	public static addTarget(element: HTMLElement): IDisposable {
 		if (!Gesture.isTouchDevice()) {
-			return;
+			return Disposable.None;
 		}
 		if (!Gesture.INSTANCE) {
 			Gesture.INSTANCE = new Gesture();
 		}
 
 		Gesture.INSTANCE.targets.push(element);
+
+		return {
+			dispose: () => {
+				Gesture.INSTANCE.targets = Gesture.INSTANCE.targets.filter(t => t !== element);
+			}
+		};
+	}
+
+	public static ignoreTarget(element: HTMLElement): IDisposable {
+		if (!Gesture.isTouchDevice()) {
+			return Disposable.None;
+		}
+		if (!Gesture.INSTANCE) {
+			Gesture.INSTANCE = new Gesture();
+		}
+
+		Gesture.INSTANCE.ignoreTargets.push(element);
+
+		return {
+			dispose: () => {
+				Gesture.INSTANCE.ignoreTargets = Gesture.INSTANCE.ignoreTargets.filter(t => t !== element);
+			}
+		};
 	}
 
 	@memoize
-	private static isTouchDevice(): boolean {
-		return 'ontouchstart' in window as any || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
+	static isTouchDevice(): boolean {
+		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
+		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this.handle) {
 			this.handle.dispose();
 			this.handle = null;
@@ -215,13 +249,36 @@ export class Gesture extends Disposable {
 	}
 
 	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
-		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
+		let event = document.createEvent('CustomEvent') as unknown as GestureEvent;
 		event.initEvent(type, false, true);
 		event.initialTarget = initialTarget;
+		event.tapCount = 0;
 		return event;
 	}
 
 	private dispatchEvent(event: GestureEvent): void {
+		if (event.type === EventType.Tap) {
+			const currentTime = (new Date()).getTime();
+			let setTapCount = 0;
+			if (currentTime - this._lastSetTapCountTime > Gesture.CLEAR_TAP_COUNT_TIME) {
+				setTapCount = 1;
+			} else {
+				setTapCount = 2;
+			}
+
+			this._lastSetTapCountTime = currentTime;
+			event.tapCount = setTapCount;
+		} else if (event.type === EventType.Change || event.type === EventType.Contextmenu) {
+			// tap is canceled by scrolling or context menu
+			this._lastSetTapCountTime = 0;
+		}
+
+		for (let i = 0; i < this.ignoreTargets.length; i++) {
+			if (event.initialTarget instanceof Node && this.ignoreTargets[i].contains(event.initialTarget)) {
+				return;
+			}
+		}
+
 		this.targets.forEach(target => {
 			if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
 				target.dispatchEvent(event);

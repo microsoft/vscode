@@ -8,12 +8,16 @@ import * as nls from 'vs/nls';
 import * as Paths from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
-import { ExtensionData, IThemeExtensionPoint, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSUrl } from 'vs/base/browser/dom';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
-export class FileIconThemeData implements IFileIconTheme {
+export class FileIconThemeData implements IWorkbenchFileIconTheme {
+
+	static readonly STORAGE_KEY = 'iconThemeData';
+
 	id: string;
 	label: string;
 	settingsId: string | null;
@@ -78,7 +82,7 @@ export class FileIconThemeData implements IFileIconTheme {
 
 	private static _noIconTheme: FileIconThemeData | null = null;
 
-	static noIconTheme(): FileIconThemeData {
+	static get noIconTheme(): FileIconThemeData {
 		let themeData = FileIconThemeData._noIconTheme;
 		if (!themeData) {
 			themeData = FileIconThemeData._noIconTheme = new FileIconThemeData('', '', null);
@@ -103,7 +107,12 @@ export class FileIconThemeData implements IFileIconTheme {
 		return themeData;
 	}
 
-	static fromStorageData(input: string): FileIconThemeData | null {
+
+	static fromStorageData(storageService: IStorageService): FileIconThemeData | undefined {
+		const input = storageService.get(FileIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+		if (!input) {
+			return undefined;
+		}
 		try {
 			let data = JSON.parse(input);
 			const theme = new FileIconThemeData('', '', null);
@@ -113,7 +122,6 @@ export class FileIconThemeData implements IFileIconTheme {
 					case 'label':
 					case 'description':
 					case 'settingsId':
-					case 'extensionData':
 					case 'styleSheetContent':
 					case 'hasFileIcons':
 					case 'hidesExplorerArrows':
@@ -122,29 +130,33 @@ export class FileIconThemeData implements IFileIconTheme {
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':
-						theme.location = URI.revive(data.location);
+						// ignore, no longer restore
+						break;
+					case 'extensionData':
+						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
 						break;
 				}
 			}
 			return theme;
 		} catch (e) {
-			return null;
+			return undefined;
 		}
 	}
 
-	toStorageData() {
-		return JSON.stringify({
+	toStorage(storageService: IStorageService) {
+		const data = JSON.stringify({
 			id: this.id,
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			location: this.location,
 			styleSheetContent: this.styleSheetContent,
 			hasFileIcons: this.hasFileIcons,
 			hasFolderIcons: this.hasFolderIcons,
 			hidesExplorerArrows: this.hidesExplorerArrows,
+			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
+		storageService.store(FileIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
@@ -189,8 +201,10 @@ function _loadIconThemeDocument(fileService: IFileService, location: URI): Promi
 	return fileService.readFile(location).then((content) => {
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.value.toString(), errors);
-		if (errors.length > 0 || !contentValue) {
+		if (errors.length > 0) {
 			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
+		} else if (Json.getNodeType(contentValue) !== 'object') {
+			return Promise.reject(new Error(nls.localize('error.invalidformat', "Invalid format for file icons theme file: Object expected.")));
 		}
 		return Promise.resolve(contentValue);
 	});
@@ -226,8 +240,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 				qualifier = baseThemeClassName + ' ' + qualifier;
 			}
 
-			const expanded = '.monaco-tree-row.expanded'; // workaround for #11453
-			const expanded2 = '.monaco-tl-twistie.collapsible:not(.collapsed) + .monaco-tl-contents'; // new tree
+			const expanded = '.monaco-tl-twistie.collapsible:not(.collapsed) + .monaco-tl-contents';
 
 			if (associations.folder) {
 				addSelector(`${qualifier} .folder-icon::before`, associations.folder);
@@ -236,7 +249,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 
 			if (associations.folderExpanded) {
 				addSelector(`${qualifier} ${expanded} .folder-icon::before`, associations.folderExpanded);
-				addSelector(`${qualifier} ${expanded2} .folder-icon::before`, associations.folderExpanded);
 				result.hasFolderIcons = true;
 			}
 
@@ -250,7 +262,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 
 			if (rootFolderExpanded) {
 				addSelector(`${qualifier} ${expanded} .rootfolder-icon::before`, rootFolderExpanded);
-				addSelector(`${qualifier} ${expanded2} .rootfolder-icon::before`, rootFolderExpanded);
 				result.hasFolderIcons = true;
 			}
 
@@ -270,7 +281,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
 					addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
-					addSelector(`${qualifier} ${expanded2} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 					result.hasFolderIcons = true;
 				}
 			}
@@ -333,9 +343,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	if (Array.isArray(fonts)) {
 		fonts.forEach(font => {
 			let src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
-			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; }`);
+			cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; font-display: block; }`);
 		});
-		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}}`);
+		cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${fonts[0].size || '150%'}; }`);
 	}
 
 	for (let defId in selectorByDefinitionId) {
@@ -367,5 +377,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	return result;
 }
 function escapeCSS(str: string) {
-	return (<any>window)['CSS'].escape(str);
+	str = str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+	return window.CSS.escape(str);
 }

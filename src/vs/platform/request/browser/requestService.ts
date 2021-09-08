@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { request } from 'vs/base/parts/request/browser/request';
+import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { request } from 'vs/base/parts/request/browser/request';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 /**
  * This service exposes the `request` API, while using the global
  * or configured proxy settings.
  */
-export class RequestService {
+export class RequestService implements IRequestService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -31,5 +32,9 @@ export class RequestService {
 		}
 
 		return request(options, token);
+	}
+
+	async resolveProxy(url: string): Promise<string | undefined> {
+		return undefined; // not implemented in the web
 	}
 }

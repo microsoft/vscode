@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel } from 'vs/editor/common/model';
-import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
-import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { RangeProvider } from './folding';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextModel } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { FoldingRegions, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
+import { RangeProvider } from './folding';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
@@ -66,7 +66,7 @@ export class RangesCollector {
 			// reverse and create arrays of the exact length
 			let startIndexes = new Uint32Array(this._length);
 			let endIndexes = new Uint32Array(this._length);
-			for (let i = this._length - 1, k = 0; i >= 0; i-- , k++) {
+			for (let i = this._length - 1, k = 0; i >= 0; i--, k++) {
 				startIndexes[k] = this._startIndexes[i];
 				endIndexes[k] = this._endIndexes[i];
 			}

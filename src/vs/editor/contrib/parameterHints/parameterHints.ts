@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ParameterHintsWidget } from './parameterHintsWidget';
-import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as modes from 'vs/editor/common/modes';
 import { TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
+import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
+import * as nls from 'vs/nls';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ParameterHintsWidget } from './parameterHintsWidget';
 
 class ParameterHintsController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.controller.parameterHints';
+	public static readonly ID = 'editor.controller.parameterHints';
 
 	public static get(editor: ICodeEditor): ParameterHintsController {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
@@ -33,10 +33,6 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 		super();
 		this.editor = editor;
 		this.widget = this._register(instantiationService.createInstance(ParameterHintsWidget, this.editor));
-	}
-
-	getId(): string {
-		return ParameterHintsController.ID;
 	}
 
 	cancel(): void {
@@ -82,7 +78,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ParameterHintsController);
+registerEditorContribution(ParameterHintsController.ID, ParameterHintsController);
 registerEditorAction(TriggerParameterHintsAction);
 
 const weight = KeybindingWeight.EditorContrib + 75;

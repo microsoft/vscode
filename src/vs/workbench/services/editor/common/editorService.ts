@@ -3,64 +3,121 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
-import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IEditorGroup, IEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { URI } from 'vs/base/common/uri';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
-export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
-
-export interface IResourceEditorReplacement {
-	editor: IResourceEditor;
-	replacement: IResourceEditor;
-}
-
+/**
+ * Open an editor in the currently active group.
+ */
 export const ACTIVE_GROUP = -1;
 export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 
+/**
+ * Open an editor to the side of the active group.
+ */
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
-export interface IOpenEditorOverrideHandler {
-	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined;
+export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+
+export function isPreferredGroup(obj: unknown): obj is PreferredGroup {
+	const candidate = obj as PreferredGroup | undefined;
+
+	return typeof obj === 'number' || isEditorGroup(candidate);
 }
 
-export interface IOpenEditorOverride {
+export interface ISaveEditorsOptions extends ISaveOptions {
 
 	/**
-	 * If defined, will prevent the opening of an editor and replace the resulting
-	 * promise with the provided promise for the openEditor() call.
+	 * If true, will ask for a location of the editor to save to.
 	 */
-	override?: Promise<IEditor | undefined>;
+	readonly saveAs?: boolean;
 }
 
-export interface IVisibleEditor extends IEditor {
-	input: IEditorInput;
-	group: IEditorGroup;
+export interface IUntypedEditorReplacement {
+	readonly editor: IEditorInput;
+	readonly replacement: IUntypedEditorInput;
+
+	/**
+	 * Skips asking the user for confirmation and doesn't
+	 * save the document. Only use this if you really need to!
+	*/
+	forceReplaceDirty?: boolean;
+}
+
+export interface IBaseSaveRevertAllEditorOptions {
+
+	/**
+	 * Whether to include untitled editors as well.
+	 */
+	readonly includeUntitled?: boolean;
+
+	/**
+	 * Whether to exclude sticky editors.
+	 */
+	readonly excludeSticky?: boolean;
+}
+
+export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }
+
+export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
+
+export interface IOpenEditorsOptions {
+
+	/**
+	 * Whether to validate trust when opening editors
+	 * that are potentially not inside the workspace.
+	 */
+	readonly validateTrust?: boolean;
 }
 
 export interface IEditorService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted when the currently active editor changes.
 	 *
-	 * @see `IEditorService.activeEditor`
+	 * @see {@link IEditorService.activeEditorPane}
 	 */
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
 	 * Emitted when any of the current visible editors changes.
 	 *
-	 * @see `IEditorService.visibleEditors`
+	 * @see {@link IEditorService.visibleEditorPanes}
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
+
+	/**
+	 * An aggregated event for a set of editor related events
+	 * across all editor groups:
+	 * - active editor changes
+	 * - editors opening/closing
+	 * - editors moving
+	 * - groups moving (unless they are empty)
+	 */
+	readonly onDidEditorsChange: Event<void>;
+
+	/**
+	 * Emitted when an editor is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	/**
+	 * The currently active editor pane or `undefined` if none. The editor pane is
+	 * the workbench container for editors of any kind.
+	 *
+	 * @see {@link IEditorService.activeEditor} for access to the active editor input
+	 */
+	readonly activeEditorPane: IVisibleEditorPane | undefined;
 
 	/**
 	 * The currently active editor or `undefined` if none. An editor is active when it is
@@ -70,43 +127,60 @@ export interface IEditorService {
 	readonly activeEditor: IEditorInput | undefined;
 
 	/**
-	 * The currently active editor control or `undefined` if none. The editor control is
-	 * the workbench container for editors of any kind.
-	 *
-	 * @see `IEditorService.activeEditor`
-	 */
-	readonly activeControl: IVisibleEditor | undefined;
-
-	/**
-	 * The currently active text editor widget or `undefined` if there is currently no active
+	 * The currently active text editor control or `undefined` if there is currently no active
 	 * editor or the active editor widget is neither a text nor a diff editor.
 	 *
-	 * @see `IEditorService.activeEditor`
+	 * @see {@link IEditorService.activeEditor}
 	 */
-	readonly activeTextEditorWidget: ICodeEditor | undefined;
+	readonly activeTextEditorControl: IEditor | IDiffEditor | undefined;
+
+	/**
+	 * The currently active text editor mode or `undefined` if there is currently no active
+	 * editor or the active editor control is neither a text nor a diff editor. If the active
+	 * editor is a diff editor, the modified side's mode will be taken.
+	 */
+	readonly activeTextEditorMode: string | undefined;
+
+	/**
+	 * All editor panes that are currently visible across all editor groups.
+	 *
+	 * @see {@link IEditorService.visibleEditors} for access to the visible editor inputs
+	 */
+	readonly visibleEditorPanes: readonly IVisibleEditorPane[];
 
 	/**
 	 * All editors that are currently visible. An editor is visible when it is opened in an
 	 * editor group and active in that group. Multiple editor groups can be opened at the same time.
 	 */
-	readonly visibleEditors: ReadonlyArray<IEditorInput>;
-
-	/**
-	 * All editor controls that are currently visible across all editor groups.
-	 */
-	readonly visibleControls: ReadonlyArray<IVisibleEditor>;
+	readonly visibleEditors: readonly IEditorInput[];
 
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
 	 * widget is either a text or a diff editor.
 	 */
-	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor>;
+	readonly visibleTextEditorControls: readonly (IEditor | IDiffEditor)[];
 
 	/**
-	 * All editors that are opened across all editor groups. This includes active as well as inactive
-	 * editors in each editor group.
+	 * All editors that are opened across all editor groups in sequential order
+	 * of appearance.
+	 *
+	 * This includes active as well as inactive editors in each editor group.
 	 */
-	readonly editors: ReadonlyArray<IEditorInput>;
+	readonly editors: readonly IEditorInput[];
+
+	/**
+	 * The total number of editors that are opened either inactive or active.
+	 */
+	readonly count: number;
+
+	/**
+	 * All editors that are opened across all editor groups with their group
+	 * identifier.
+	 *
+	 * @param order the order of the editors to use
+	 * @param options whether to exclude sticky editors or not
+	 */
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[];
 
 	/**
 	 * Open an editor in an editor group.
@@ -120,10 +194,11 @@ export interface IEditorService {
 	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
 	 * opened to be active.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditor | undefined>;
-	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditor | undefined>;
-	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditor | undefined>;
-	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextSideBySideEditor | undefined>;
+	openEditor(editor: IResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
+	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Open editors in an editor group.
@@ -136,53 +211,78 @@ export interface IEditorService {
 	 * @returns the editors that opened. The array can be empty or have less elements for editors
 	 * that failed to open or were instructed to open as inactive.
 	 */
-	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditor>>;
-	openEditors(editors: IResourceEditor[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ReadonlyArray<IEditor>>;
+	openEditors(editors: IUntypedEditorInput[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, options?: IOpenEditorsOptions): Promise<readonly IEditorPane[]>;
 
 	/**
 	 * Replaces editors in an editor group with the provided replacement.
 	 *
-	 * @param editors the editors to replace
+	 * @param replacements the editors to replace
+	 * @param group the editor group
 	 *
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
-	 * Find out if the provided editor (or resource of an editor) is opened in any or
-	 * a specific editor group.
+	 * @deprecated when using `IEditorInput`, please call `group.replaceEditors` directly.
+	 */
+	replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+
+	/**
+	 * Find out if the provided editor is opened in any editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
 	 *
-	 * @param group optional to specify a group to check for the editor being opened
+	 * Note: This method will return `true` if a side by side editor
+	 * is opened where the `primary` editor matches too.
 	 */
-	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): boolean;
+	isOpened(editor: IResourceEditorInputIdentifier): boolean;
 
 	/**
-	 * Get the actual opened editor input in any or a specific editor group based on the resource.
+	 * Find out if the provided editor is visible in any editor group.
+	 */
+	isVisible(editor: IEditorInput): boolean;
+
+	/**
+	 * This method will return an entry for each editor that reports
+	 * a `resource` that matches the provided one in the group or
+	 * across all groups.
 	 *
-	 * Note: An editor can be opened but not actively visible.
+	 * It is possible that multiple editors are returned in case the
+	 * same resource is opened in different editors. To find the specific
+	 * editor, use the `IResourceEditorInputIdentifier` as input.
+	 */
+	findEditors(resource: URI): readonly IEditorIdentifier[];
+	findEditors(editor: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
+	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+
+	/**
+	 * Save the provided list of editors.
 	 *
-	 * @param group optional to specify a group to check for the editor
+	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	getOpened(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
 
 	/**
-	 * Allows to override the opening of editors by installing a handler that will
-	 * be called each time an editor is about to open allowing to override the
-	 * operation to open a different editor.
+	 * Save all editors.
+	 *
+	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
+	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
 
 	/**
-	 * Invoke a function in the context of the services of the active editor.
+	 * Reverts the provided list of editors.
+	 *
+	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
-	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
 
 	/**
-	 * Converts a lightweight input to a workbench editor input.
+	 * Reverts all editors.
+	 *
+	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
-	createInput(input: IResourceEditor): IEditorInput | null;
+	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
 }

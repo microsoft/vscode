@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import * as fs from 'fs';
-import { promisify } from 'util';
 import * as cp from 'child_process';
-import * as nls from 'vs/nls';
-import * as Types from 'vs/base/common/types';
+import { Stats } from 'fs';
 import { IStringDictionary } from 'vs/base/common/collections';
-import * as Objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
+import { FileAccess } from 'vs/base/common/network';
+import * as Objects from 'vs/base/common/objects';
+import * as path from 'vs/base/common/path';
 import * as Platform from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
+import { CommandOptions, Executable, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
+import * as Types from 'vs/base/common/types';
 import { LineDecoder } from 'vs/base/node/decoder';
-import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import * as pfs from 'vs/base/node/pfs';
+import * as nls from 'vs/nls';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
-export type ValueCallback<T> = (value?: T | Promise<T>) => void;
+export type ValueCallback<T> = (value: T | Promise<T>) => void;
 export type ErrorCallback = (error?: any) => void;
 export type ProgressCallback<T> = (progress: T) => void;
 
@@ -40,7 +41,7 @@ function getWindowsCode(status: number): TerminateResponseCode {
 	}
 }
 
-export function terminateProcess(process: cp.ChildProcess, cwd?: string): TerminateResponse {
+function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<TerminateResponse> {
 	if (Platform.isWindows) {
 		try {
 			const options: any = {
@@ -49,28 +50,45 @@ export function terminateProcess(process: cp.ChildProcess, cwd?: string): Termin
 			if (cwd) {
 				options.cwd = cwd;
 			}
-			cp.execFileSync('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
+			const killProcess = cp.execFile('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
+			return new Promise(resolve => {
+				killProcess.once('error', (err) => {
+					resolve({ success: false, error: err });
+				});
+				killProcess.once('exit', (code, signal) => {
+					if (code === 0) {
+						resolve({ success: true });
+					} else {
+						resolve({ success: false, code: code !== null ? code : TerminateResponseCode.Unknown });
+					}
+				});
+			});
 		} catch (err) {
-			return { success: false, error: err, code: err.status ? getWindowsCode(err.status) : TerminateResponseCode.Unknown };
+			return Promise.resolve({ success: false, error: err, code: err.status ? getWindowsCode(err.status) : TerminateResponseCode.Unknown });
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
-			const cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
-			const result = cp.spawnSync(cmd, [process.pid.toString()]);
-			if (result.error) {
-				return { success: false, error: result.error };
-			}
+			const cmd = FileAccess.asFileUri('vs/base/node/terminateProcess.sh', require).fsPath;
+			return new Promise(resolve => {
+				cp.execFile(cmd, [process.pid.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
+					if (err) {
+						resolve({ success: false, error: err });
+					} else {
+						resolve({ success: true });
+					}
+				});
+			});
 		} catch (err) {
-			return { success: false, error: err };
+			return Promise.resolve({ success: false, error: err });
 		}
 	} else {
 		process.kill('SIGKILL');
 	}
-	return { success: true };
+	return Promise.resolve({ success: true });
 }
 
-export function getWindowsShell(): string {
-	return process.env['comspec'] || 'cmd.exe';
+export function getWindowsShell(env = process.env as Platform.IProcessEnvironment): string {
+	return env['comspec'] || 'cmd.exe';
 }
 
 export abstract class AbstractProcess<TProgressData> {
@@ -81,7 +99,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	private childProcess: cp.ChildProcess | null;
 	protected childProcessPromise: Promise<cp.ChildProcess> | null;
-	private pidResolve?: ValueCallback<number>;
+	private pidResolve: ValueCallback<number> | undefined;
 	protected terminateRequested: boolean;
 
 	private static WellKnowCommands: IStringDictionary<boolean> = {
@@ -122,6 +140,7 @@ export abstract class AbstractProcess<TProgressData> {
 		}
 
 		this.childProcess = null;
+		this.childProcessPromise = null;
 		this.terminateRequested = false;
 
 		if (this.options.env) {
@@ -288,27 +307,28 @@ export abstract class AbstractProcess<TProgressData> {
 		}
 		return this.childProcessPromise.then((childProcess) => {
 			this.terminateRequested = true;
-			const result = terminateProcess(childProcess, this.options.cwd);
-			if (result.success) {
-				this.childProcess = null;
-			}
-			return result;
+			return terminateProcess(childProcess, this.options.cwd).then(response => {
+				if (response.success) {
+					this.childProcess = null;
+				}
+				return response;
+			});
 		}, (err) => {
 			return { success: true };
 		});
 	}
 
 	private useExec(): Promise<boolean> {
-		return new Promise<boolean>((c, e) => {
+		return new Promise<boolean>(resolve => {
 			if (!this.shell || !Platform.isWindows) {
-				return c(false);
+				return resolve(false);
 			}
 			const cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error: Error) => {
-				return c(true);
+				return resolve(true);
 			});
 			cmdShell.on('exit', (data: any) => {
-				return c(false);
+				return resolve(false);
 			});
 		});
 	}
@@ -316,13 +336,16 @@ export abstract class AbstractProcess<TProgressData> {
 
 export class LineProcess extends AbstractProcess<LineData> {
 
-	private stdoutLineDecoder: LineDecoder;
-	private stderrLineDecoder: LineDecoder;
+	private stdoutLineDecoder: LineDecoder | null;
+	private stderrLineDecoder: LineDecoder | null;
 
 	public constructor(executable: Executable);
 	public constructor(cmd: string, args: string[], shell: boolean, options: CommandOptions);
 	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean | ForkOptions, arg4?: CommandOptions) {
 		super(<any>arg1, arg2, <any>arg3, arg4);
+
+		this.stdoutLineDecoder = null;
+		this.stderrLineDecoder = null;
 	}
 
 	protected handleExec(cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, error: Error, stdout: Buffer, stderr: Buffer) {
@@ -341,24 +364,30 @@ export class LineProcess extends AbstractProcess<LineData> {
 	}
 
 	protected handleSpawn(childProcess: cp.ChildProcess, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback, sync: boolean): void {
-		this.stdoutLineDecoder = new LineDecoder();
-		this.stderrLineDecoder = new LineDecoder();
-		childProcess.stdout.on('data', (data: Buffer) => {
-			const lines = this.stdoutLineDecoder.write(data);
+		const stdoutLineDecoder = new LineDecoder();
+		const stderrLineDecoder = new LineDecoder();
+		childProcess.stdout!.on('data', (data: Buffer) => {
+			const lines = stdoutLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stdout }));
 		});
-		childProcess.stderr.on('data', (data: Buffer) => {
-			const lines = this.stderrLineDecoder.write(data);
+		childProcess.stderr!.on('data', (data: Buffer) => {
+			const lines = stderrLineDecoder.write(data);
 			lines.forEach(line => pp({ line: line, source: Source.stderr }));
 		});
+
+		this.stdoutLineDecoder = stdoutLineDecoder;
+		this.stderrLineDecoder = stderrLineDecoder;
 	}
 
-	protected handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
-		[this.stdoutLineDecoder.end(), this.stderrLineDecoder.end()].forEach((line, index) => {
-			if (line) {
-				pp({ line: line, source: index === 0 ? Source.stdout : Source.stderr });
-			}
-		});
+	protected override handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
+		const stdoutLine = this.stdoutLineDecoder ? this.stdoutLineDecoder.end() : null;
+		if (stdoutLine) {
+			pp({ line: stdoutLine, source: Source.stdout });
+		}
+		const stderrLine = this.stderrLineDecoder ? this.stderrLineDecoder.end() : null;
+		if (stderrLine) {
+			pp({ line: stderrLine, source: Source.stderr });
+		}
 	}
 }
 
@@ -381,7 +410,7 @@ export function createQueuedSender(childProcess: cp.ChildProcess): IQueuedSender
 			return;
 		}
 
-		const result = childProcess.send(msg, (error: Error) => {
+		const result = childProcess.send(msg, (error: Error | null) => {
 			if (error) {
 				console.error(error); // unlikely to happen, best we can do is log this error
 			}
@@ -419,13 +448,30 @@ export namespace win32 {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		if (paths === undefined && Types.isString(process.env.PATH)) {
-			paths = process.env.PATH.split(path.delimiter);
+		if (paths === undefined && Types.isString(process.env['PATH'])) {
+			paths = process.env['PATH'].split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
 		if (paths === undefined || paths.length === 0) {
 			return path.join(cwd, command);
 		}
+
+		async function fileExists(path: string): Promise<boolean> {
+			if (await pfs.Promises.exists(path)) {
+				let statValue: Stats | undefined;
+				try {
+					statValue = await pfs.Promises.stat(path);
+				} catch (e) {
+					if (e.message.startsWith('EACCES')) {
+						// it might be symlink
+						statValue = await pfs.Promises.lstat(path);
+					}
+				}
+				return statValue ? !statValue.isDirectory() : false;
+			}
+			return false;
+		}
+
 		// We have a simple file name. We get the path variable from the env
 		// and try to find the executable on the path.
 		for (let pathEntry of paths) {
@@ -436,15 +482,15 @@ export namespace win32 {
 			} else {
 				fullPath = path.join(cwd, pathEntry, command);
 			}
-			if (await promisify(fs.exists)(fullPath)) {
+			if (await fileExists(fullPath)) {
 				return fullPath;
 			}
 			let withExtension = fullPath + '.com';
-			if (await promisify(fs.exists)(withExtension)) {
+			if (await fileExists(withExtension)) {
 				return withExtension;
 			}
 			withExtension = fullPath + '.exe';
-			if (await promisify(fs.exists)(withExtension)) {
+			if (await fileExists(withExtension)) {
 				return withExtension;
 			}
 		}

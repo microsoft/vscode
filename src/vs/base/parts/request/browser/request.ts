@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { assign } from 'vs/base/common/objects';
-import { VSBuffer, bufferToStream } from 'vs/base/common/buffer';
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
+import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 
 export function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	if (options.proxyAuthorization) {
-		options.headers = assign(options.headers || {}, { 'Proxy-Authorization': options.proxyAuthorization });
+		options.headers = {
+			...(options.headers || {}),
+			'Proxy-Authorization': options.proxyAuthorization
+		};
 	}
 
 	const xhr = new XMLHttpRequest();
@@ -21,7 +23,7 @@ export function request(options: IRequestOptions, token: CancellationToken): Pro
 		setRequestHeaders(xhr, options);
 
 		xhr.responseType = 'arraybuffer';
-		xhr.onerror = e => reject(new Error(xhr.statusText && ('XHR failed: ' + xhr.statusText)));
+		xhr.onerror = e => reject(new Error(xhr.statusText && ('XHR failed: ' + xhr.statusText) || 'XHR failed'));
 		xhr.onload = (e) => {
 			resolve({
 				res: {

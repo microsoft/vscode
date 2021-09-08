@@ -6,12 +6,13 @@
 import * as assert from 'assert';
 import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { URI } from 'vs/base/common/uri';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 suite('Snippets', function () {
 
 	class TestSnippetFile extends SnippetFile {
 		constructor(filepath: URI, snippets: Snippet[]) {
-			super(SnippetSource.Extension, filepath, undefined, undefined, undefined!);
+			super(SnippetSource.Extension, filepath, undefined, undefined, undefined!, undefined!);
 			this.data.push(...snippets);
 		}
 	}
@@ -20,7 +21,7 @@ suite('Snippets', function () {
 		let file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), []);
 		let bucket: Snippet[] = [];
 		file.select('', bucket);
-		assert.equal(bucket.length, 0);
+		assert.strictEqual(bucket.length, 0);
 
 		file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
 			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
@@ -33,23 +34,23 @@ suite('Snippets', function () {
 
 		bucket = [];
 		file.select('foo', bucket);
-		assert.equal(bucket.length, 2);
+		assert.strictEqual(bucket.length, 2);
 
 		bucket = [];
 		file.select('fo', bucket);
-		assert.equal(bucket.length, 0);
+		assert.strictEqual(bucket.length, 0);
 
 		bucket = [];
 		file.select('bar', bucket);
-		assert.equal(bucket.length, 1);
+		assert.strictEqual(bucket.length, 1);
 
 		bucket = [];
 		file.select('bar.comment', bucket);
-		assert.equal(bucket.length, 2);
+		assert.strictEqual(bucket.length, 2);
 
 		bucket = [];
 		file.select('bazz', bucket);
-		assert.equal(bucket.length, 1);
+		assert.strictEqual(bucket.length, 1);
 	});
 
 	test('SnippetFile#select - any scope', function () {
@@ -61,7 +62,7 @@ suite('Snippets', function () {
 
 		let bucket: Snippet[] = [];
 		file.select('foo', bucket);
-		assert.equal(bucket.length, 2);
+		assert.strictEqual(bucket.length, 2);
 
 	});
 
@@ -69,7 +70,9 @@ suite('Snippets', function () {
 
 		function assertNeedsClipboard(body: string, expected: boolean): void {
 			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
-			assert.equal(snippet.needsClipboard, expected);
+			assert.strictEqual(snippet.needsClipboard, expected);
+
+			assert.strictEqual(SnippetParser.guessNeedsClipboard(body), expected);
 		}
 
 		assertNeedsClipboard('foo$CLIPBOARD', true);

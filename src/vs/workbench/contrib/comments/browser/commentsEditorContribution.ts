@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { $ } from 'vs/base/browser/dom';
 import { Action, IAction } from 'vs/base/common/actions';
 import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -21,7 +19,7 @@ import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editor
 import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
-import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/peekView';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -33,7 +31,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { COMMENTEDITOR_DECORATION_KEY, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
+import { COMMENTEDITOR_DECORATION_KEY, isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -76,10 +74,7 @@ class CommentingRangeDecoration {
 			options: commentingOptions
 		}];
 
-		let model = this._editor.getModel();
-		if (model) {
-			this._decorationId = model.deltaDecorations([this._decorationId], commentingRangeDecorations)[0];
-		}
+		this._decorationId = this._editor.deltaDecorations([], commentingRangeDecorations)[0];
 	}
 
 	public getCommentAction(): { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges } {
@@ -103,10 +98,10 @@ class CommentingRangeDecorator {
 
 	private decorationOptions: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
-	private disposables: IDisposable[] = [];
 
 	constructor() {
 		const decorationOptions: IModelDecorationOptions = {
+			description: 'commenting-range-decorator',
 			isWholeLine: true,
 			linesDecorationsClassName: 'comment-range-glyph comment-diff-added'
 		};
@@ -146,25 +141,24 @@ class CommentingRangeDecorator {
 	}
 
 	public dispose(): void {
-		this.disposables = dispose(this.disposables);
 		this.commentingRangeDecorations = [];
 	}
 }
 
-export class ReviewController implements IEditorContribution {
-	private globalToDispose: IDisposable[];
-	private localToDispose: IDisposable[];
-	private editor: ICodeEditor;
+export class CommentController implements IEditorContribution {
+	private readonly globalToDispose = new DisposableStore();
+	private readonly localToDispose = new DisposableStore();
+	private editor!: ICodeEditor;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
-	private _commentingRangeDecorator: CommentingRangeDecorator;
+	private _commentingRangeDecorator!: CommentingRangeDecorator;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
-	private _addInProgress: boolean;
+	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [number, IEditorMouseEvent | undefined][] = [];
-	private _computeCommentingRangePromise: CancelablePromise<ICommentInfo[]> | null;
-	private _computeCommentingRangeScheduler: Delayer<Array<ICommentInfo | null>> | null;
+	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
+	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
 
 	constructor(
@@ -175,8 +169,6 @@ export class ReviewController implements IEditorContribution {
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
-		this.globalToDispose = [];
-		this.localToDispose = [];
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._pendingCommentCache = {};
@@ -190,21 +182,21 @@ export class ReviewController implements IEditorContribution {
 
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
 
-		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(ownerId => {
+		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
 			delete this._pendingCommentCache[ownerId];
 			this.beginCompute();
 		}));
-		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
+		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
 
-		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
+		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 			if (editorURI && editorURI.toString() === e.resource.toString()) {
 				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
 
-		this.globalToDispose.push(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
-		this.codeEditorService.registerDecorationType(COMMENTEDITOR_DECORATION_KEY, {});
+		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
+		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
 	}
 
@@ -250,8 +242,8 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	public static get(editor: ICodeEditor): ReviewController {
-		return editor.getContribution<ReviewController>(ID);
+	public static get(editor: ICodeEditor): CommentController {
+		return editor.getContribution<CommentController>(ID);
 	}
 
 	public revealCommentThread(threadId: string, commentUniqueId: number, fetchOnceIfNotExist: boolean): void {
@@ -321,13 +313,9 @@ export class ReviewController implements IEditorContribution {
 		}
 	}
 
-	public getId(): string {
-		return ID;
-	}
-
 	public dispose(): void {
-		this.globalToDispose = dispose(this.globalToDispose);
-		this.localToDispose = dispose(this.localToDispose);
+		this.globalToDispose.dispose();
+		this.localToDispose.dispose();
 
 		this._commentWidgets.forEach(widget => widget.dispose());
 
@@ -335,15 +323,15 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	public onModelChanged(e: IModelChangedEvent): void {
-		this.localToDispose = dispose(this.localToDispose);
+		this.localToDispose.clear();
 
 		this.removeCommentWidgetsAndStoreCache();
 
-		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
-		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
 		this._computeCommentingRangeScheduler = new Delayer<ICommentInfo[]>(200);
-		this.localToDispose.push({
+		this.localToDispose.add({
 			dispose: () => {
 				if (this._computeCommentingRangeScheduler) {
 					this._computeCommentingRangeScheduler.cancel();
@@ -351,10 +339,10 @@ export class ReviewController implements IEditorContribution {
 				this._computeCommentingRangeScheduler = null;
 			}
 		});
-		this.localToDispose.push(this.editor.onDidChangeModelContent(async () => {
+		this.localToDispose.add(this.editor.onDidChangeModelContent(async () => {
 			this.beginComputeCommentingRanges();
 		}));
-		this.localToDispose.push(this.commentService.onDidUpdateCommentThreads(async e => {
+		this.localToDispose.add(this.commentService.onDidUpdateCommentThreads(async e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 			if (!editorURI) {
 				return;
@@ -420,52 +408,14 @@ export class ReviewController implements IEditorContribution {
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = null;
-
-		const range = e.target.range;
-
-		if (!range) {
-			return;
-		}
-
-		if (!e.event.leftButton) {
-			return;
-		}
-
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
-
-		const data = e.target.detail as IMarginData;
-		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
-
-		// don't collide with folding and git decorations
-		if (gutterOffsetX > 14) {
-			return;
-		}
-
-		this.mouseDownInfo = { lineNumber: range.startLineNumber };
+		this.mouseDownInfo = parseMouseDownInfoFromEvent(e);
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {
-		if (!this.mouseDownInfo) {
-			return;
-		}
-
-		const { lineNumber } = this.mouseDownInfo;
+		const matchedLineNumber = isMouseUpEventMatchMouseDown(this.mouseDownInfo, e);
 		this.mouseDownInfo = null;
 
-		const range = e.target.range;
-
-		if (!range || range.startLineNumber !== lineNumber) {
-			return;
-		}
-
-		if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-			return;
-		}
-
-		if (!e.target.element) {
+		if (matchedLineNumber === null || !e.target.element) {
 			return;
 		}
 
@@ -558,8 +508,8 @@ export class ReviewController implements IEditorContribution {
 		return picks;
 	}
 
-	private getContextMenuActions(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): (IAction | ContextSubMenu)[] {
-		const actions: (IAction | ContextSubMenu)[] = [];
+	private getContextMenuActions(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): IAction[] {
+		const actions: IAction[] = [];
 
 		commentInfos.forEach(commentInfo => {
 			const { ownerId, extensionId, label } = commentInfo;
@@ -693,7 +643,7 @@ export class NextCommentThreadAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = ReviewController.get(editor);
+		let controller = CommentController.get(editor);
 		if (controller) {
 			controller.nextCommentThread();
 		}
@@ -701,7 +651,7 @@ export class NextCommentThreadAction extends EditorAction {
 }
 
 
-registerEditorContribution(ReviewController);
+registerEditorContribution(ID, CommentController);
 registerEditorAction(NextCommentThreadAction);
 
 CommandsRegistry.registerCommand({
@@ -712,7 +662,7 @@ CommandsRegistry.registerCommand({
 			return Promise.resolve();
 		}
 
-		const controller = ReviewController.get(activeEditor);
+		const controller = CommentController.get(activeEditor);
 		if (!controller) {
 			return Promise.resolve();
 		}
@@ -750,21 +700,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor | null {
-	let activeTextEditorWidget = accessor.get(IEditorService).activeTextEditorWidget;
+	let activeTextEditorControl = accessor.get(IEditorService).activeTextEditorControl;
 
-	if (isDiffEditor(activeTextEditorWidget)) {
-		if (activeTextEditorWidget.getOriginalEditor().hasTextFocus()) {
-			activeTextEditorWidget = activeTextEditorWidget.getOriginalEditor();
+	if (isDiffEditor(activeTextEditorControl)) {
+		if (activeTextEditorControl.getOriginalEditor().hasTextFocus()) {
+			activeTextEditorControl = activeTextEditorControl.getOriginalEditor();
 		} else {
-			activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
+			activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
 		}
 	}
 
-	if (!isCodeEditor(activeTextEditorWidget) || !activeTextEditorWidget.hasModel()) {
+	if (!isCodeEditor(activeTextEditorControl) || !activeTextEditorControl.hasModel()) {
 		return null;
 	}
 
-	return activeTextEditorWidget;
+	return activeTextEditorControl;
 }
 
 registerThemingParticipant((theme, collector) => {

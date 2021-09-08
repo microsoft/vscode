@@ -31,7 +31,7 @@ declare class LoaderEvent {
 	readonly detail: string;
 }
 
-declare var define: {
+declare const define: {
 	(moduleName: string, dependencies: string[], callback: (...args: any[]) => any): any;
 	(moduleName: string, dependencies: string[], definition: any): any;
 	(moduleName: string, callback: (...args: any[]) => any): any;
@@ -41,10 +41,17 @@ declare var define: {
 };
 
 interface NodeRequire {
+	/**
+	 * @deprecated use `FileAccess.asFileUri()` for node.js contexts or `FileAccess.asBrowserUri` for browser contexts.
+	 */
 	toUrl(path: string): string;
 	(dependencies: string[], callback: (...args: any[]) => any, errorback?: (err: any) => void): any;
 	config(data: any): any;
 	onError: Function;
 	__$__nodeRequire<T>(moduleName: string): T;
-	getStats(): ReadonlyArray<LoaderEvent>
+	getStats(): ReadonlyArray<LoaderEvent>;
+	hasDependencyCycle(): boolean;
+	define(amdModuleId: string, dependencies: string[], callback: (...args: any[]) => any): any;
 }
+
+declare var require: NodeRequire;

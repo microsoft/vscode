@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 
 export interface IMarcoPoloEvent {
 	answer: string;
@@ -20,7 +20,7 @@ export interface ITestService {
 
 export class TestService implements ITestService {
 
-	private _onMarco = new Emitter<IMarcoPoloEvent>();
+	private readonly _onMarco = new Emitter<IMarcoPoloEvent>();
 	onMarco: Event<IMarcoPoloEvent> = this._onMarco.event;
 
 	marco(): Promise<string> {

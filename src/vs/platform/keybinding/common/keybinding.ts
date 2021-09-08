@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -38,10 +39,18 @@ export interface IKeyboardEvent {
 	readonly code: string;
 }
 
+export interface KeybindingsSchemaContribution {
+	readonly onDidChange?: Event<void>;
+
+	getSchemaAdditions(): IJSONSchema[];
+}
+
 export const IKeybindingService = createDecorator<IKeybindingService>('keybindingService');
 
 export interface IKeybindingService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
+
+	readonly inChordMode: boolean;
 
 	onDidUpdateKeybindings: Event<IKeybindingEvent>;
 
@@ -76,13 +85,13 @@ export interface IKeybindingService {
 	 * Look up the preferred (last defined) keybinding for a command.
 	 * @returns The preferred keybinding or null if the command is not bound.
 	 */
-	lookupKeybinding(commandId: string): ResolvedKeybinding | undefined;
+	lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined;
 
 	getDefaultKeybindingsContent(): string;
 
-	getDefaultKeybindings(): ResolvedKeybindingItem[];
+	getDefaultKeybindings(): readonly ResolvedKeybindingItem[];
 
-	getKeybindings(): ResolvedKeybindingItem[];
+	getKeybindings(): readonly ResolvedKeybindingItem[];
 
 	customKeybindingsCount(): number;
 
@@ -91,6 +100,10 @@ export interface IKeybindingService {
 	 * text box. *Note* that the results of this function can be incorrect.
 	 */
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean;
+
+	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
+
+	toggleLogging(): boolean;
 
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;

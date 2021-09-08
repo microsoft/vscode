@@ -19,6 +19,10 @@ export function equals<T>(
 	return a.every((x, i) => itemEquals(x, b[i]));
 }
 
-export function flatten<T>(arr: ReadonlyArray<T>[]): T[] {
-	return Array.prototype.concat.apply([], arr);
+export function flatten<T>(array: ReadonlyArray<T>[]): T[] {
+	return Array.prototype.concat.apply([], array);
+}
+
+export function coalesce<T>(array: ReadonlyArray<T | undefined>): T[] {
+	return <T[]>array.filter(e => !!e);
 }

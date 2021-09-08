@@ -8,7 +8,7 @@ require('events').EventEmitter.defaultMaxListeners = 100;
 
 const gulp = require('gulp');
 const path = require('path');
-const tsb = require('gulp-tsb');
+const nodeUtil = require('util');
 const es = require('event-stream');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
@@ -16,8 +16,6 @@ const task = require('./lib/task');
 const watcher = require('./lib/watch');
 const createReporter = require('./lib/reporter').createReporter;
 const glob = require('glob');
-const sourcemaps = require('gulp-sourcemaps');
-const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const plumber = require('gulp-plumber');
@@ -25,10 +23,49 @@ const ext = require('./lib/extensions');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
 
-const compilations = glob.sync('**/tsconfig.json', {
-	cwd: extensionsPath,
-	ignore: ['**/out/**', '**/node_modules/**']
-});
+// To save 250ms for each gulp startup, we are caching the result here
+// const compilations = glob.sync('**/tsconfig.json', {
+// 	cwd: extensionsPath,
+// 	ignore: ['**/out/**', '**/node_modules/**']
+// });
+const compilations = [
+	'configuration-editing/build/tsconfig.json',
+	'configuration-editing/tsconfig.json',
+	'css-language-features/client/tsconfig.json',
+	'css-language-features/server/tsconfig.json',
+	'debug-auto-launch/tsconfig.json',
+	'debug-server-ready/tsconfig.json',
+	'emmet/tsconfig.json',
+	'extension-editing/tsconfig.json',
+	'git/tsconfig.json',
+	'github-authentication/tsconfig.json',
+	'github/tsconfig.json',
+	'grunt/tsconfig.json',
+	'gulp/tsconfig.json',
+	'html-language-features/client/tsconfig.json',
+	'html-language-features/server/tsconfig.json',
+	'image-preview/tsconfig.json',
+	'ipynb/tsconfig.json',
+	'jake/tsconfig.json',
+	'json-language-features/client/tsconfig.json',
+	'json-language-features/server/tsconfig.json',
+	'markdown-language-features/preview-src/tsconfig.json',
+	'markdown-language-features/tsconfig.json',
+	'markdown-math/tsconfig.json',
+	'merge-conflict/tsconfig.json',
+	'microsoft-authentication/tsconfig.json',
+	'npm/tsconfig.json',
+	'php-language-features/tsconfig.json',
+	'search-result/tsconfig.json',
+	'simple-browser/tsconfig.json',
+	'typescript-language-features/test-workspace/tsconfig.json',
+	'typescript-language-features/tsconfig.json',
+	'vscode-api-tests/tsconfig.json',
+	'vscode-colorize-tests/tsconfig.json',
+	'vscode-custom-editor-tests/tsconfig.json',
+	'vscode-notebook-tests/tsconfig.json',
+	'vscode-test-resolver/tsconfig.json'
+];
 
 const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
 
@@ -60,7 +97,11 @@ const tasks = compilations.map(function (tsconfigFile) {
 	}
 
 	function createPipeline(build, emitError) {
-		const reporter = createReporter();
+		const nlsDev = require('vscode-nls-dev');
+		const tsb = require('gulp-tsb');
+		const sourcemaps = require('gulp-sourcemaps');
+
+		const reporter = createReporter('extensions');
 
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
@@ -109,7 +150,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true);
-		const input = pipeline.tsProjectSrc();
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		const input = es.merge(nonts, pipeline.tsProjectSrc());
 
 		return input
 			.pipe(pipeline())
@@ -118,8 +160,9 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false);
-		const input = pipeline.tsProjectSrc();
-		const watchInput = watcher(src, srcOpts);
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		const input = es.merge(nonts, pipeline.tsProjectSrc());
+		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))
@@ -128,7 +171,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const compileBuildTask = task.define(`compile-build-extension-${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(true, true);
-		const input = pipeline.tsProjectSrc();
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		const input = es.merge(nonts, pipeline.tsProjectSrc());
 
 		return input
 			.pipe(pipeline())
@@ -153,14 +197,49 @@ exports.watchExtensionsTask = watchExtensionsTask;
 const compileExtensionsBuildLegacyTask = task.define('compile-extensions-build-legacy', task.parallel(...tasks.map(t => t.compileBuildTask)));
 gulp.task(compileExtensionsBuildLegacyTask);
 
-// Azure Pipelines
+//#region Extension media
+
+const compileExtensionMediaTask = task.define('compile-extension-media', () => ext.buildExtensionMedia(false));
+gulp.task(compileExtensionMediaTask);
+exports.compileExtensionMediaTask = compileExtensionMediaTask;
+
+const watchExtensionMedia = task.define('watch-extension-media', () => ext.buildExtensionMedia(true));
+gulp.task(watchExtensionMedia);
+exports.watchExtensionMedia = watchExtensionMedia;
+
+const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => ext.buildExtensionMedia(false, '.build/extensions'));
+gulp.task(compileExtensionMediaBuildTask);
+
+//#endregion
+
+//#region Azure Pipelines
 
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
 const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
-	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream().pipe(gulp.dest('.build'))),
-	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream().pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false).pipe(gulp.dest('.build'))),
+	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
 ));
 
 gulp.task(compileExtensionsBuildTask);
+gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask)));
+
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
+
+//#endregion
+
+const compileWebExtensionsTask = task.define('compile-web', () => buildWebExtensions(false));
+gulp.task(compileWebExtensionsTask);
+exports.compileWebExtensionsTask = compileWebExtensionsTask;
+
+const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions(true));
+gulp.task(watchWebExtensionsTask);
+exports.watchWebExtensionsTask = watchWebExtensionsTask;
+
+async function buildWebExtensions(isWatch) {
+	const webpackConfigLocations = await nodeUtil.promisify(glob)(
+		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
+		{ ignore: ['**/node_modules'] }
+	);
+	return ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
+}

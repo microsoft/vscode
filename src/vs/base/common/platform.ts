@@ -8,8 +8,10 @@ const LANGUAGE_DEFAULT = 'en';
 let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
+let _isLinuxSnap = false;
 let _isNative = false;
 let _isWeb = false;
+let _isIOS = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
@@ -22,47 +24,75 @@ interface NLSConfig {
 }
 
 export interface IProcessEnvironment {
-	[key: string]: string;
+	[key: string]: string | undefined;
 }
 
-interface INodeProcess {
+/**
+ * This interface is intentionally not identical to node.js
+ * process because it also works in sandboxed environments
+ * where the process object is implemented differently. We
+ * define the properties here that we need for `platform`
+ * to work and nothing else.
+ */
+export interface INodeProcess {
 	platform: string;
+	arch: string;
 	env: IProcessEnvironment;
-	getuid(): number;
-	nextTick: Function;
+	nextTick?: (callback: (...args: any[]) => void) => void;
 	versions?: {
 		electron?: string;
 	};
+	sandboxed?: boolean;
 	type?: string;
+	cwd: () => string;
 }
+
 declare const process: INodeProcess;
-declare const global: any;
+declare const global: unknown;
+declare const self: unknown;
+
+export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
+
+let nodeProcess: INodeProcess | undefined = undefined;
+if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
+	// Native environment (sandboxed)
+	nodeProcess = globals.vscode.process;
+} else if (typeof process !== 'undefined') {
+	// Native environment (non-sandboxed)
+	nodeProcess = process;
+}
+
+const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
+export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
 
 interface INavigator {
 	userAgent: string;
 	language: string;
+	maxTouchPoints?: number;
 }
 declare const navigator: INavigator;
-declare const self: any;
 
-const isElectronRenderer = (typeof process !== 'undefined' && typeof process.versions !== 'undefined' && typeof process.versions.electron !== 'undefined' && process.type === 'renderer');
-
-// OS detection
+// Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {
 	_userAgent = navigator.userAgent;
 	_isWindows = _userAgent.indexOf('Windows') >= 0;
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
+	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
-} else if (typeof process === 'object') {
-	_isWindows = (process.platform === 'win32');
-	_isMacintosh = (process.platform === 'darwin');
-	_isLinux = (process.platform === 'linux');
+}
+
+// Native environment
+else if (typeof nodeProcess === 'object') {
+	_isWindows = (nodeProcess.platform === 'win32');
+	_isMacintosh = (nodeProcess.platform === 'darwin');
+	_isLinux = (nodeProcess.platform === 'linux');
+	_isLinuxSnap = _isLinux && !!nodeProcess.env['SNAP'] && !!nodeProcess.env['SNAP_REVISION'];
 	_locale = LANGUAGE_DEFAULT;
 	_language = LANGUAGE_DEFAULT;
-	const rawNlsConfig = process.env['VSCODE_NLS_CONFIG'];
+	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
 			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
@@ -75,6 +105,11 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 		}
 	}
 	_isNative = true;
+}
+
+// Unknown environment
+else {
+	console.error('Unable to resolve platform.');
 }
 
 export const enum Platform {
@@ -104,14 +139,12 @@ if (_isMacintosh) {
 export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
+export const isLinuxSnap = _isLinuxSnap;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
+export const isIOS = _isIOS;
 export const platform = _platform;
 export const userAgent = _userAgent;
-
-export function isRootUser(): boolean {
-	return _isNative && !_isWindows && (process.getuid() === 0);
-}
 
 /**
  * The language used for the user interface. The format of
@@ -149,26 +182,51 @@ export namespace Language {
 export const locale = _locale;
 
 /**
- * The translatios that are available through language packs.
+ * The translations that are available through language packs.
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
-export const globals: any = _globals;
-
 interface ISetImmediate {
-	(callback: (...args: any[]) => void): void;
+	(callback: (...args: unknown[]) => void): void;
 }
 
 export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 	if (globals.setImmediate) {
 		return globals.setImmediate.bind(globals);
 	}
-	if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
-		return process.nextTick.bind(process);
+	if (typeof globals.postMessage === 'function' && !globals.importScripts) {
+		interface IQueueElement {
+			id: number;
+			callback: () => void;
+		}
+		let pending: IQueueElement[] = [];
+		globals.addEventListener('message', (e: MessageEvent) => {
+			if (e.data && e.data.vscodeSetImmediateId) {
+				for (let i = 0, len = pending.length; i < len; i++) {
+					const candidate = pending[i];
+					if (candidate.id === e.data.vscodeSetImmediateId) {
+						pending.splice(i, 1);
+						candidate.callback();
+						return;
+					}
+				}
+			}
+		});
+		let lastId = 0;
+		return (callback: () => void) => {
+			const myId = ++lastId;
+			pending.push({
+				id: myId,
+				callback: callback
+			});
+			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
+		};
+	}
+	if (typeof nodeProcess?.nextTick === 'function') {
+		return nodeProcess.nextTick.bind(nodeProcess);
 	}
 	const _promise = Promise.resolve();
-	return (callback: (...args: any[]) => void) => _promise.then(callback);
+	return (callback: (...args: unknown[]) => void) => _promise.then(callback);
 })();
 
 export const enum OperatingSystem {
@@ -176,4 +234,18 @@ export const enum OperatingSystem {
 	Macintosh = 2,
 	Linux = 3
 }
-export const OS = (_isMacintosh ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
+export const OS = (_isMacintosh || _isIOS ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
+
+let _isLittleEndian = true;
+let _isLittleEndianComputed = false;
+export function isLittleEndian(): boolean {
+	if (!_isLittleEndianComputed) {
+		_isLittleEndianComputed = true;
+		const test = new Uint8Array(2);
+		test[0] = 1;
+		test[1] = 2;
+		const view = new Uint16Array(test.buffer);
+		_isLittleEndian = (view[0] === (2 << 8) + 1);
+	}
+	return _isLittleEndian;
+}

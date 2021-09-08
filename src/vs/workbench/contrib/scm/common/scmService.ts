@@ -5,9 +5,12 @@
 
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
-import { equals } from 'vs/base/common/arrays';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { HistoryNavigator2 } from 'vs/base/common/history';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 class SCMInput implements ISCMInput {
 
@@ -17,13 +20,8 @@ class SCMInput implements ISCMInput {
 		return this._value;
 	}
 
-	set value(value: string) {
-		this._value = value;
-		this._onDidChange.fire(value);
-	}
-
-	private _onDidChange = new Emitter<string>();
-	readonly onDidChange: Event<string> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<ISCMInputChangeEvent>();
+	readonly onDidChange: Event<ISCMInputChangeEvent> = this._onDidChange.event;
 
 	private _placeholder = '';
 
@@ -36,7 +34,7 @@ class SCMInput implements ISCMInput {
 		this._onDidChangePlaceholder.fire(placeholder);
 	}
 
-	private _onDidChangePlaceholder = new Emitter<string>();
+	private readonly _onDidChangePlaceholder = new Emitter<string>();
 	readonly onDidChangePlaceholder: Event<string> = this._onDidChangePlaceholder.event;
 
 	private _visible = true;
@@ -50,8 +48,23 @@ class SCMInput implements ISCMInput {
 		this._onDidChangeVisibility.fire(visible);
 	}
 
-	private _onDidChangeVisibility = new Emitter<boolean>();
+	private readonly _onDidChangeVisibility = new Emitter<boolean>();
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+
+	setFocus(): void {
+		this._onDidChangeFocus.fire();
+	}
+
+	private readonly _onDidChangeFocus = new Emitter<void>();
+	readonly onDidChangeFocus: Event<void> = this._onDidChangeFocus.event;
+
+	showValidationMessage(message: string | IMarkdownString, type: InputValidationType): void {
+		this._onDidChangeValidationMessage.fire({ message: message, type: type });
+	}
+
+	private readonly _onDidChangeValidationMessage = new Emitter<IInputValidation>();
+	readonly onDidChangeValidationMessage: Event<IInputValidation> = this._onDidChangeValidationMessage.event;
+
 
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
@@ -64,35 +77,108 @@ class SCMInput implements ISCMInput {
 		this._onDidChangeValidateInput.fire();
 	}
 
-	private _onDidChangeValidateInput = new Emitter<void>();
+	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
+
+	private historyNavigator: HistoryNavigator2<string>;
+
+	constructor(
+		readonly repository: ISCMRepository,
+		@IStorageService private storageService: IStorageService
+	) {
+		const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
+		let history: string[] | undefined;
+		let rawHistory = this.storageService.get(historyKey, StorageScope.GLOBAL, '');
+
+		if (rawHistory) {
+			try {
+				history = JSON.parse(rawHistory);
+			} catch {
+				// noop
+			}
+		}
+
+		if (!history || history.length === 0) {
+			history = [this._value];
+		} else {
+			this._value = history[history.length - 1];
+		}
+
+		this.historyNavigator = new HistoryNavigator2(history, 50);
+
+		this.storageService.onWillSaveState(e => {
+			if (this.historyNavigator.isAtEnd()) {
+				this.historyNavigator.replaceLast(this._value);
+			}
+
+			if (this.repository.provider.rootUri) {
+				this.storageService.store(historyKey, JSON.stringify([...this.historyNavigator]), StorageScope.GLOBAL, StorageTarget.USER);
+			}
+		});
+	}
+
+	setValue(value: string, transient: boolean, reason?: SCMInputChangeReason) {
+		if (value === this._value) {
+			return;
+		}
+
+		if (!transient) {
+			this.historyNavigator.replaceLast(this._value);
+			this.historyNavigator.add(value);
+		}
+
+		this._value = value;
+		this._onDidChange.fire({ value, reason });
+	}
+
+	showNextHistoryValue(): void {
+		if (this.historyNavigator.isAtEnd()) {
+			return;
+		} else if (!this.historyNavigator.has(this.value)) {
+			this.historyNavigator.replaceLast(this._value);
+			this.historyNavigator.resetCursor();
+		}
+
+		const value = this.historyNavigator.next();
+		this.setValue(value, true, SCMInputChangeReason.HistoryNext);
+	}
+
+	showPreviousHistoryValue(): void {
+		if (this.historyNavigator.isAtEnd()) {
+			this.historyNavigator.replaceLast(this._value);
+		} else if (!this.historyNavigator.has(this._value)) {
+			this.historyNavigator.replaceLast(this._value);
+			this.historyNavigator.resetCursor();
+		}
+
+		const value = this.historyNavigator.previous();
+		this.setValue(value, true, SCMInputChangeReason.HistoryPrevious);
+	}
 }
 
 class SCMRepository implements ISCMRepository {
-
-	private _onDidFocus = new Emitter<void>();
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
 	private _selected = false;
 	get selected(): boolean {
 		return this._selected;
 	}
 
-	private _onDidChangeSelection = new Emitter<boolean>();
+	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput = new SCMInput();
+	readonly input: ISCMInput = new SCMInput(this, this.storageService);
 
 	constructor(
 		public readonly provider: ISCMProvider,
-		private disposable: IDisposable
+		private disposable: IDisposable,
+		@IStorageService private storageService: IStorageService
 	) { }
 
-	focus(): void {
-		this._onDidFocus.fire();
-	}
-
 	setSelected(selected: boolean): void {
+		if (this._selected === selected) {
+			return;
+		}
+
 		this._selected = selected;
 		this._onDidChangeSelection.fire(selected);
 	}
@@ -105,25 +191,27 @@ class SCMRepository implements ISCMRepository {
 
 export class SCMService implements ISCMService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _providerIds = new Set<string>();
 	private _repositories: ISCMRepository[] = [];
 	get repositories(): ISCMRepository[] { return [...this._repositories]; }
 
-	private _selectedRepositories: ISCMRepository[] = [];
-	get selectedRepositories(): ISCMRepository[] { return [...this._selectedRepositories]; }
+	private providerCount: IContextKey<number>;
 
-	private _onDidChangeSelectedRepositories = new Emitter<ISCMRepository[]>();
-	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]> = this._onDidChangeSelectedRepositories.event;
-
-	private _onDidAddProvider = new Emitter<ISCMRepository>();
+	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
 
-	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
+	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
-	constructor(@ILogService private readonly logService: ILogService) { }
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private storageService: IStorageService
+	) {
+		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+	}
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');
@@ -141,35 +229,18 @@ export class SCMService implements ISCMService {
 				return;
 			}
 
-			selectedDisposable.dispose();
 			this._providerIds.delete(provider.id);
 			this._repositories.splice(index, 1);
 			this._onDidRemoveProvider.fire(repository);
-			this.onDidChangeSelection();
+
+			this.providerCount.set(this._repositories.length);
 		});
 
-		const repository = new SCMRepository(provider, disposable);
-		const selectedDisposable = repository.onDidChangeSelection(this.onDidChangeSelection, this);
-
+		const repository = new SCMRepository(provider, disposable, this.storageService);
 		this._repositories.push(repository);
 		this._onDidAddProvider.fire(repository);
 
-		// automatically select the first repository
-		if (this._repositories.length === 1) {
-			repository.setSelected(true);
-		}
-
+		this.providerCount.set(this._repositories.length);
 		return repository;
-	}
-
-	private onDidChangeSelection(): void {
-		const selectedRepositories = this._repositories.filter(r => r.selected);
-
-		if (equals(this._selectedRepositories, selectedRepositories)) {
-			return;
-		}
-
-		this._selectedRepositories = this._repositories.filter(r => r.selected);
-		this._onDidChangeSelectedRepositories.fire(this.selectedRepositories);
 	}
 }

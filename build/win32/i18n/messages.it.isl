@@ -6,3 +6,4 @@ AddToPath=Aggiungi a PATH (disponibile dopo il riavvio)
 RunAfter=Esegui %1 dopo l'installazione
 Other=Altro:
 SourceFile=File di origine %1
+OpenWithCodeContextMenu=Apri con %1

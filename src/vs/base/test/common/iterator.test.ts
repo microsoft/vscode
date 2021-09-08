@@ -4,16 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 
-suite('Iterator', () => {
-	test('concat', () => {
-		const first = Iterator.fromArray([1, 2, 3]);
-		const second = Iterator.fromArray([4, 5, 6]);
-		const third = Iterator.fromArray([7, 8, 9]);
-		const actualIterator = Iterator.concat(first, second, third);
-		const actual = Iterator.collect(actualIterator);
+suite('Iterable', function () {
 
-		assert.deepEqual(actual, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+	const customIterable = new class {
+
+		*[Symbol.iterator]() {
+			yield 'one';
+			yield 'two';
+			yield 'three';
+		}
+	};
+
+	test('first', function () {
+
+		assert.strictEqual(Iterable.first([]), undefined);
+		assert.strictEqual(Iterable.first([1]), 1);
+		assert.strictEqual(Iterable.first(customIterable), 'one');
+		assert.strictEqual(Iterable.first(customIterable), 'one'); // fresh
 	});
+
+	test('equals', () => {
+		assert.strictEqual(Iterable.equals([1, 2], [1, 2]), true);
+		assert.strictEqual(Iterable.equals([1, 2], [1]), false);
+		assert.strictEqual(Iterable.equals([1], [1, 2]), false);
+		assert.strictEqual(Iterable.equals([2, 1], [1, 2]), false);
+	});
+
 });

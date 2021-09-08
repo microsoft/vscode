@@ -200,13 +200,13 @@ export class Text extends Marker {
 	constructor(public value: string) {
 		super();
 	}
-	toString() {
+	override toString() {
 		return this.value;
 	}
 	toTextmateString(): string {
 		return Text.escape(this.value);
 	}
-	len(): number {
+	override len(): number {
 		return this.value.length;
 	}
 	clone(): Text {
@@ -279,7 +279,7 @@ export class Choice extends Marker {
 
 	readonly options: Text[] = [];
 
-	appendChild(marker: Marker): this {
+	override appendChild(marker: Marker): this {
 		if (marker instanceof Text) {
 			marker.parent = this;
 			this.options.push(marker);
@@ -287,7 +287,7 @@ export class Choice extends Marker {
 		return this;
 	}
 
-	toString() {
+	override toString() {
 		return this.options[0].value;
 	}
 
@@ -297,7 +297,7 @@ export class Choice extends Marker {
 			.join(',');
 	}
 
-	len(): number {
+	override len(): number {
 		return this.options[0].len();
 	}
 
@@ -341,7 +341,7 @@ export class Transform extends Marker {
 		return ret;
 	}
 
-	toString(): string {
+	override toString(): string {
 		return '';
 	}
 
@@ -378,6 +378,8 @@ export class FormatString extends Marker {
 			return !value ? '' : (value[0].toLocaleUpperCase() + value.substr(1));
 		} else if (this.shorthandName === 'pascalcase') {
 			return !value ? '' : this._toPascalCase(value);
+		} else if (this.shorthandName === 'camelcase') {
+			return !value ? '' : this._toCamelCase(value);
 		} else if (Boolean(value) && typeof this.ifValue === 'string') {
 			return this.ifValue;
 		} else if (!Boolean(value) && typeof this.elseValue === 'string') {
@@ -388,13 +390,29 @@ export class FormatString extends Marker {
 	}
 
 	private _toPascalCase(value: string): string {
-		const match = value.match(/[a-z]+/gi);
+		const match = value.match(/[a-z0-9]+/gi);
 		if (!match) {
 			return value;
 		}
-		return match.map(function (word) {
+		return match.map(word => {
 			return word.charAt(0).toUpperCase()
 				+ word.substr(1).toLowerCase();
+		})
+			.join('');
+	}
+
+	private _toCamelCase(value: string): string {
+		const match = value.match(/[a-z0-9]+/gi);
+		if (!match) {
+			return value;
+		}
+		return match.map((word, index) => {
+			if (index === 0) {
+				return word.toLowerCase();
+			} else {
+				return word.charAt(0).toUpperCase()
+					+ word.substr(1).toLowerCase();
+			}
 		})
 			.join('');
 	}
@@ -555,12 +573,12 @@ export class TextmateSnippet extends Marker {
 		return this;
 	}
 
-	appendChild(child: Marker) {
+	override appendChild(child: Marker) {
 		this._placeholders = undefined;
 		return super.appendChild(child);
 	}
 
-	replace(child: Marker, others: Marker[]): void {
+	override replace(child: Marker, others: Marker[]): void {
 		this._placeholders = undefined;
 		return super.replace(child, others);
 	}
@@ -586,6 +604,10 @@ export class SnippetParser {
 		return value.replace(/\$|}|\\/g, '\\$&');
 	}
 
+	static guessNeedsClipboard(template: string): boolean {
+		return /\${?CLIPBOARD/.test(template);
+	}
+
 	private _scanner: Scanner = new Scanner();
 	private _token: Token = { type: TokenType.EOF, pos: 0, len: 0 };
 
@@ -605,7 +627,7 @@ export class SnippetParser {
 
 		// fill in values for placeholders. the first placeholder of an index
 		// that has a value defines the value for all placeholders with that index
-		const placeholderDefaultValues = new Map<number, Marker[]>();
+		const placeholderDefaultValues = new Map<number, Marker[] | undefined>();
 		const incompletePlaceholders: Placeholder[] = [];
 		let placeholderCount = 0;
 		snippet.walk(marker => {
@@ -664,27 +686,23 @@ export class SnippetParser {
 	}
 
 	private _until(type: TokenType): false | string {
-		if (this._token.type === TokenType.EOF) {
-			return false;
-		}
-		let res = '';
-		let pos = this._token.pos;
-		let prevToken = <Token>{ type: TokenType.EOF, pos: 0, len: 0 };
-
-		while (this._token.type !== type || prevToken.type === TokenType.Backslash) {
-			if (this._token.type === type) {
-				res += this._scanner.value.substring(pos, prevToken.pos);
-				pos = this._token.pos;
-			}
-			prevToken = this._token;
-			this._token = this._scanner.next();
+		const start = this._token;
+		while (this._token.type !== type) {
 			if (this._token.type === TokenType.EOF) {
 				return false;
+			} else if (this._token.type === TokenType.Backslash) {
+				const nextToken = this._scanner.next();
+				if (nextToken.type !== TokenType.Dollar
+					&& nextToken.type !== TokenType.CurlyClose
+					&& nextToken.type !== TokenType.Backslash) {
+					return false;
+				}
 			}
+			this._token = this._scanner.next();
 		}
-		res += this._scanner.value.substring(pos, this._token.pos);
+		const value = this._scanner.value.substring(start.pos, this._token.pos).replace(/\\(\$|}|\\)/g, '$1');
 		this._token = this._scanner.next();
-		return res;
+		return value;
 	}
 
 	private _parse(marker: Marker): boolean {

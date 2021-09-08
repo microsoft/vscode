@@ -3,19 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogger } from 'vs/platform/log/common/log';
 import { ExtHostLogServiceShape, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostOutputService } from 'vs/workbench/api/common/extHostOutput';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { joinPath } from 'vs/base/common/resources';
-import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 
-export class ExtHostLogService extends AbstractLogService implements ILogService, ExtHostLogServiceShape {
+export class ExtHostLogService extends AbstractLogger implements ILogService, ExtHostLogServiceShape {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadLogShape;
 	private readonly _logFile: UriComponents;
@@ -23,14 +19,11 @@ export class ExtHostLogService extends AbstractLogService implements ILogService
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostOutputService extHostOutputService: IExtHostOutputService
 	) {
 		super();
-		const logFile = joinPath(initData.logsLocation, `${ExtensionHostLogFileName}.log`);
 		this._proxy = rpc.getProxy(MainContext.MainThreadLog);
-		this._logFile = logFile.toJSON();
+		this._logFile = initData.logFile.toJSON();
 		this.setLevel(initData.logLevel);
-		extHostOutputService.createOutputChannelFromLogFile(localize('name', "Worker Extension Host"), logFile);
 	}
 
 	$setLevel(level: LogLevel): void {
@@ -72,4 +65,6 @@ export class ExtHostLogService extends AbstractLogService implements ILogService
 			this._proxy.$log(this._logFile, LogLevel.Critical, Array.from(arguments));
 		}
 	}
+
+	flush(): void { }
 }

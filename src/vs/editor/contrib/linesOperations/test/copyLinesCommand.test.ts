@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
+import { DuplicateSelectionAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 function testCopyLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
@@ -192,6 +195,64 @@ suite('Editor Contrib - Copy Lines Command', () => {
 				'fifth'
 			],
 			new Selection(2, 1, 1, 1)
+		);
+	});
+});
+
+suite('Editor Contrib - Duplicate Selection', () => {
+
+	const duplicateSelectionAction = new DuplicateSelectionAction();
+
+	function testDuplicateSelectionAction(lines: string[], selections: Selection[], expectedLines: string[], expectedSelections: Selection[]): void {
+		withTestCodeEditor(lines.join('\n'), {}, (editor) => {
+			editor.setSelections(selections);
+			duplicateSelectionAction.run(null!, editor, {});
+			assert.deepStrictEqual(editor.getValue(), expectedLines.join('\n'));
+			assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), expectedSelections.map(s => s.toString()));
+		});
+	}
+
+	test('empty selection', function () {
+		testDuplicateSelectionAction(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			[new Selection(2, 2, 2, 2), new Selection(3, 2, 3, 2)],
+			[
+				'first',
+				'second line',
+				'second line',
+				'third line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			[new Selection(3, 2, 3, 2), new Selection(5, 2, 5, 2)]
+		);
+	});
+
+	test('with selection', function () {
+		testDuplicateSelectionAction(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			[new Selection(2, 1, 2, 4), new Selection(3, 1, 3, 4)],
+			[
+				'first',
+				'secsecond line',
+				'thithird line',
+				'fourth line',
+				'fifth'
+			],
+			[new Selection(2, 4, 2, 7), new Selection(3, 4, 3, 7)]
 		);
 	});
 });

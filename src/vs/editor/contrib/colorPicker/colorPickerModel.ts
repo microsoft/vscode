@@ -41,13 +41,13 @@ export class ColorPickerModel {
 		this._onDidChangePresentation.fire(this.presentation);
 	}
 
-	private _onColorFlushed = new Emitter<Color>();
+	private readonly _onColorFlushed = new Emitter<Color>();
 	readonly onColorFlushed: Event<Color> = this._onColorFlushed.event;
 
-	private _onDidChangeColor = new Emitter<Color>();
+	private readonly _onDidChangeColor = new Emitter<Color>();
 	readonly onDidChangeColor: Event<Color> = this._onDidChangeColor.event;
 
-	private _onDidChangePresentation = new Emitter<IColorPresentation>();
+	private readonly _onDidChangePresentation = new Emitter<IColorPresentation>();
 	readonly onDidChangePresentation: Event<IColorPresentation> = this._onDidChangePresentation.event;
 
 	constructor(color: Color, availableColorPresentations: IColorPresentation[], private presentationIndex: number) {
@@ -64,7 +64,7 @@ export class ColorPickerModel {
 
 	guessColorPresentation(color: Color, originalText: string): void {
 		for (let i = 0; i < this.colorPresentations.length; i++) {
-			if (originalText === this.colorPresentations[i].label) {
+			if (originalText.toLowerCase() === this.colorPresentations[i].label) {
 				this.presentationIndex = i;
 				this._onDidChangePresentation.fire(this.presentation);
 				break;

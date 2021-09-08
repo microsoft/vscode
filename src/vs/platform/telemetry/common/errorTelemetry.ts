@@ -5,7 +5,7 @@
 
 import { binarySearch } from 'vs/base/common/arrays';
 import * as Errors from 'vs/base/common/errors';
-import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -120,7 +120,7 @@ export default abstract class BaseErrorTelemetry {
 	private _flushBuffer(): void {
 		for (let error of this._buffer) {
 			type UnhandledErrorClassification = {} & ErrorEventFragment;
-			this._telemetryService.publicLog2<ErrorEvent, UnhandledErrorClassification>('UnhandledError', error, true);
+			this._telemetryService.publicLogError2<ErrorEvent, UnhandledErrorClassification>('UnhandledError', error);
 		}
 		this._buffer.length = 0;
 	}

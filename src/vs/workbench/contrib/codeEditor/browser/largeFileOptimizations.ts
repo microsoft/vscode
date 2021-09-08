@@ -17,7 +17,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
  */
 export class LargeFileOptimizationsWarner extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.largeFileOptimizationsWarner';
+	public static readonly ID = 'editor.contrib.largeFileOptimizationsWarner';
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -25,7 +25,6 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-
 
 		this._register(this._editor.onDidChangeModel((e) => {
 			const model = this._editor.getModel();
@@ -47,7 +46,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 
 				this._notificationService.prompt(Severity.Info, message, [
 					{
-						label: nls.localize('removeOptimizations', "Forcefully enable features"),
+						label: nls.localize('removeOptimizations', "Forcefully Enable Features"),
 						run: () => {
 							this._configurationService.updateValue(`editor.largeFileOptimizations`, false).then(() => {
 								this._notificationService.info(nls.localize('reopenFilePrompt', "Please reopen file in order for this setting to take effect."));
@@ -60,10 +59,6 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 			}
 		}));
 	}
-
-	public getId(): string {
-		return LargeFileOptimizationsWarner.ID;
-	}
 }
 
-registerEditorContribution(LargeFileOptimizationsWarner);
+registerEditorContribution(LargeFileOptimizationsWarner.ID, LargeFileOptimizationsWarner);

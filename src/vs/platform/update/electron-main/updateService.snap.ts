@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { timeout } from 'vs/base/common/async';
-import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import * as path from 'vs/base/common/path';
-import { realpath, watch } from 'fs';
 import { spawn } from 'child_process';
+import { realpath, watch } from 'fs';
+import { timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import * as path from 'vs/base/common/path';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
 import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
-abstract class AbstractUpdateService2 implements IUpdateService {
+abstract class AbstractUpdateService implements IUpdateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _state: State = State.Uninitialized;
 
-	private _onStateChange = new Emitter<State>();
+	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
@@ -35,11 +35,11 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	}
 
 	constructor(
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService protected logService: ILogService,
 	) {
-		if (environmentService.disableUpdates) {
+		if (environmentMainService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled');
 			return;
 		}
@@ -52,21 +52,21 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
-			.then(() => this.checkForUpdates(null))
+			.then(() => this.checkForUpdates(false))
 			.then(() => {
 				// Check again after 1 hour
 				return this.scheduleCheckForUpdates(60 * 60 * 1000);
 			});
 	}
 
-	async checkForUpdates(context: any): Promise<void> {
+	async checkForUpdates(explicit: boolean): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
-		this.doCheckForUpdates(context);
+		this.doCheckForUpdates(explicit);
 	}
 
 	async downloadUpdate(): Promise<void> {
@@ -106,7 +106,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
-		this.lifecycleService.quit(true /* from update */).then(vetod => {
+		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
@@ -132,50 +132,48 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 	protected abstract doCheckForUpdates(context: any): void;
 }
 
-export class SnapUpdateService extends AbstractUpdateService2 {
-
-	_serviceBrand: undefined;
+export class SnapUpdateService extends AbstractUpdateService {
 
 	constructor(
 		private snap: string,
 		private snapRevision: string,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
-		super(lifecycleService, environmentService, logService);
+		super(lifecycleMainService, environmentMainService, logService);
 
 		const watcher = watch(path.dirname(this.snap));
 		const onChange = Event.fromNodeEventEmitter(watcher, 'change', (_, fileName: string) => fileName);
 		const onCurrentChange = Event.filter(onChange, n => n === 'current');
 		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
-		const listener = onDebouncedCurrentChange(this.checkForUpdates, this);
+		const listener = onDebouncedCurrentChange(() => this.checkForUpdates(false));
 
-		lifecycleService.onWillShutdown(() => {
+		lifecycleMainService.onWillShutdown(() => {
 			listener.dispose();
 			watcher.close();
 		});
 	}
 
-	protected doCheckForUpdates(context: any): void {
-		this.setState(State.CheckingForUpdates(context));
+	protected doCheckForUpdates(): void {
+		this.setState(State.CheckingForUpdates(false));
 		this.isUpdateAvailable().then(result => {
 			if (result) {
 				this.setState(State.Ready({ version: 'something', productVersion: 'something' }));
 			} else {
-				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
+				this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: false });
 
 				this.setState(State.Idle(UpdateType.Snap));
 			}
 		}, err => {
 			this.logService.error(err);
-			this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!context });
+			this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: false });
 			this.setState(State.Idle(UpdateType.Snap, err.message || err));
 		});
 	}
 
-	protected doQuitAndInstall(): void {
+	protected override doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		// Allow 3 seconds for VS Code to close

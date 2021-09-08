@@ -10,7 +10,8 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
 
@@ -28,33 +29,36 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 
-
-	private _proxy: MainThreadTextEditorsShape;
-	private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
+	private readonly _proxy: MainThreadTextEditorsShape;
 
 	constructor(
 		mainContext: IMainContext,
-		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTextEditors);
-		this._extHostDocumentsAndEditors = extHostDocumentsAndEditors;
+
 
 		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
 	}
 
-	getActiveTextEditor(): ExtHostTextEditor | undefined {
+	getActiveTextEditor(): vscode.TextEditor | undefined {
 		return this._extHostDocumentsAndEditors.activeEditor();
 	}
 
-	getVisibleTextEditors(): vscode.TextEditor[] {
-		return this._extHostDocumentsAndEditors.allEditors();
+	getVisibleTextEditors(): vscode.TextEditor[];
+	getVisibleTextEditors(internal: true): ExtHostTextEditor[];
+	getVisibleTextEditors(internal?: true): ExtHostTextEditor[] | vscode.TextEditor[] {
+		const editors = this._extHostDocumentsAndEditors.allEditors();
+		return internal
+			? editors
+			: editors.map(editor => editor.value);
 	}
 
 	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): Promise<vscode.TextEditor>;
 	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): Promise<vscode.TextEditor>;
 	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions | undefined, preserveFocus?: boolean): Promise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions | undefined, preserveFocus?: boolean): Promise<vscode.TextEditor> {
+	async showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions | undefined, preserveFocus?: boolean): Promise<vscode.TextEditor> {
 		let options: ITextDocumentShowOptions;
 		if (typeof columnOrOptions === 'number') {
 			options = {
@@ -74,23 +78,22 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			};
 		}
 
-		return this._proxy.$tryShowTextDocument(document.uri, options).then(id => {
-			const editor = id && this._extHostDocumentsAndEditors.getEditor(id);
-			if (editor) {
-				return editor;
-			} else {
-				throw new Error(`Failed to show text document ${document.uri.toString()}, should show in editor #${id}`);
-			}
-		});
+		const editorId = await this._proxy.$tryShowTextDocument(document.uri, options);
+		const editor = editorId && this._extHostDocumentsAndEditors.getEditor(editorId);
+		if (editor) {
+			return editor.value;
+		}
+		// we have no editor... having an id means that we had an editor
+		// on the main side and that it isn't the current editor anymore...
+		if (editorId) {
+			throw new Error(`Could NOT open editor for "${document.uri.toString()}" because another editor opened in the meantime.`);
+		} else {
+			throw new Error(`Could NOT open editor for "${document.uri.toString()}".`);
+		}
 	}
 
-	createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
-		return new TextEditorDecorationType(this._proxy, options);
-	}
-
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Promise<boolean> {
-		const dto = TypeConverters.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-		return this._proxy.$tryApplyWorkspaceEdit(dto);
+	createTextEditorDecorationType(extension: IExtensionDescription, options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
+		return new TextEditorDecorationType(this._proxy, extension, options).value;
 	}
 
 	// --- called from main thread
@@ -117,7 +120,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		// (2) fire change events
 		if (data.options) {
 			this._onDidChangeTextEditorOptions.fire({
-				textEditor: textEditor,
+				textEditor: textEditor.value,
 				options: { ...data.options, lineNumbers: TypeConverters.TextEditorLineNumbersStyle.to(data.options.lineNumbers) }
 			});
 		}
@@ -125,7 +128,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			const kind = TextEditorSelectionChangeKind.fromValue(data.selections.source);
 			const selections = data.selections.selections.map(TypeConverters.Selection.to);
 			this._onDidChangeTextEditorSelection.fire({
-				textEditor,
+				textEditor: textEditor.value,
 				selections,
 				kind
 			});
@@ -133,7 +136,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		if (data.visibleRanges) {
 			const visibleRanges = arrays.coalesce(data.visibleRanges.map(TypeConverters.Range.to));
 			this._onDidChangeTextEditorVisibleRanges.fire({
-				textEditor,
+				textEditor: textEditor.value,
 				visibleRanges
 			});
 		}
@@ -146,9 +149,9 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 				throw new Error('Unknown text editor');
 			}
 			const viewColumn = TypeConverters.ViewColumn.to(data[id]);
-			if (textEditor.viewColumn !== viewColumn) {
+			if (textEditor.value.viewColumn !== viewColumn) {
 				textEditor._acceptViewColumn(viewColumn);
-				this._onDidChangeTextEditorViewColumn.fire({ textEditor, viewColumn });
+				this._onDidChangeTextEditorViewColumn.fire({ textEditor: textEditor.value, viewColumn });
 			}
 		}
 	}

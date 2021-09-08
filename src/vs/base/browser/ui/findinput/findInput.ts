@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./findInput';
-
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IMessage as InputBoxMessage, IInputValidator, IInputBoxStyles, HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Event, Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
-import { Color } from 'vs/base/common/color';
 import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { CaseSensitiveCheckbox, RegexCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Widget } from 'vs/base/browser/ui/widget';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import 'vs/css!./findInput';
+import * as nls from 'vs/nls';
+
 
 export interface IFindInputOptions extends IFindInputStyles {
 	readonly placeholder?: string;
@@ -35,6 +35,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 
 export interface IFindInputStyles extends IInputBoxStyles {
 	inputActiveOptionBorder?: Color;
+	inputActiveOptionForeground?: Color;
 	inputActiveOptionBackground?: Color;
 }
 
@@ -49,8 +50,10 @@ export class FindInput extends Widget {
 	private validation?: IInputValidator;
 	private label: string;
 	private fixFocusOnOptionClickEnabled = true;
+	private imeSessionInProgress = false;
 
 	private inputActiveOptionBorder?: Color;
+	private inputActiveOptionForeground?: Color;
 	private inputActiveOptionBackground?: Color;
 	private inputBackground?: Color;
 	private inputForeground?: Color;
@@ -101,6 +104,7 @@ export class FindInput extends Widget {
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
 		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
+		this.inputActiveOptionForeground = options.inputActiveOptionForeground;
 		this.inputActiveOptionBackground = options.inputActiveOptionBackground;
 		this.inputBackground = options.inputBackground;
 		this.inputForeground = options.inputForeground;
@@ -125,7 +129,7 @@ export class FindInput extends Widget {
 		const flexibleMaxHeight = options.flexibleMaxHeight;
 
 		this.domNode = document.createElement('div');
-		dom.addClass(this.domNode, 'monaco-findInput');
+		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
@@ -155,6 +159,7 @@ export class FindInput extends Widget {
 			appendTitle: appendRegexLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionForeground: this.inputActiveOptionForeground,
 			inputActiveOptionBackground: this.inputActiveOptionBackground
 		}));
 		this._register(this.regex.onChange(viaKeyboard => {
@@ -172,6 +177,7 @@ export class FindInput extends Widget {
 			appendTitle: appendWholeWordsLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionForeground: this.inputActiveOptionForeground,
 			inputActiveOptionBackground: this.inputActiveOptionBackground
 		}));
 		this._register(this.wholeWords.onChange(viaKeyboard => {
@@ -186,6 +192,7 @@ export class FindInput extends Widget {
 			appendTitle: appendCaseSensitiveLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionForeground: this.inputActiveOptionForeground,
 			inputActiveOptionBackground: this.inputActiveOptionBackground
 		}));
 		this._register(this.caseSensitive.onChange(viaKeyboard => {
@@ -222,6 +229,7 @@ export class FindInput extends Widget {
 
 					if (event.equals(KeyCode.Escape)) {
 						indexes[index].blur();
+						this.inputBox.focus();
 					} else if (newIndex >= 0) {
 						indexes[newIndex].focus();
 					}
@@ -245,14 +253,30 @@ export class FindInput extends Widget {
 			parent.appendChild(this.domNode);
 		}
 
+		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
+			this.imeSessionInProgress = true;
+		}));
+		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionend', (e: CompositionEvent) => {
+			this.imeSessionInProgress = false;
+			this._onInput.fire();
+		}));
+
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
+	public get isImeSessionInProgress(): boolean {
+		return this.imeSessionInProgress;
+	}
+
+	public get onDidChange(): Event<string> {
+		return this.inputBox.onDidChange;
+	}
+
 	public enable(): void {
-		dom.removeClass(this.domNode, 'disabled');
+		this.domNode.classList.remove('disabled');
 		this.inputBox.enable();
 		this.regex.enable();
 		this.wholeWords.enable();
@@ -260,7 +284,7 @@ export class FindInput extends Widget {
 	}
 
 	public disable(): void {
-		dom.addClass(this.domNode, 'disabled');
+		this.domNode.classList.add('disabled');
 		this.inputBox.disable();
 		this.regex.disable();
 		this.wholeWords.disable();
@@ -301,6 +325,7 @@ export class FindInput extends Widget {
 
 	public style(styles: IFindInputStyles): void {
 		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
+		this.inputActiveOptionForeground = styles.inputActiveOptionForeground;
 		this.inputActiveOptionBackground = styles.inputActiveOptionBackground;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
@@ -323,6 +348,7 @@ export class FindInput extends Widget {
 		if (this.domNode) {
 			const checkBoxStyles: ICheckboxStyles = {
 				inputActiveOptionBorder: this.inputActiveOptionBorder,
+				inputActiveOptionForeground: this.inputActiveOptionForeground,
 				inputActiveOptionBackground: this.inputActiveOptionBackground,
 			};
 			this.regex.style(checkBoxStyles);
@@ -390,36 +416,24 @@ export class FindInput extends Widget {
 
 	private _lastHighlightFindOptions: number = 0;
 	public highlightFindOptions(): void {
-		dom.removeClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+		this.domNode.classList.remove('highlight-' + (this._lastHighlightFindOptions));
 		this._lastHighlightFindOptions = 1 - this._lastHighlightFindOptions;
-		dom.addClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+		this.domNode.classList.add('highlight-' + (this._lastHighlightFindOptions));
 	}
 
 	public validate(): void {
-		if (this.inputBox) {
-			this.inputBox.validate();
-		}
+		this.inputBox.validate();
 	}
 
 	public showMessage(message: InputBoxMessage): void {
-		if (this.inputBox) {
-			this.inputBox.showMessage(message);
-		}
+		this.inputBox.showMessage(message);
 	}
 
 	public clearMessage(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
+		this.inputBox.hideMessage();
 	}
 
 	private clearValidation(): void {
-		if (this.inputBox) {
-			this.inputBox.hideMessage();
-		}
-	}
-
-	public dispose(): void {
-		super.dispose();
+		this.inputBox.hideMessage();
 	}
 }

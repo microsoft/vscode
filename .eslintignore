@@ -1,0 +1,23 @@
+**/vs/nls.build.js
+**/vs/nls.js
+**/vs/css.build.js
+**/vs/css.js
+**/vs/loader.js
+**/dompurify/**
+**/marked/**
+**/semver/**
+**/test/**/*.js
+**/node_modules/**
+**/vscode-api-tests/testWorkspace/**
+**/vscode-api-tests/testWorkspace2/**
+**/extensions/**/out/**
+**/extensions/**/build/**
+**/extensions/markdown-language-features/media/**
+**/extensions/markdown-language-features/notebook-out/**
+**/extensions/typescript-basics/test/colorize-fixtures/**
+**/extensions/**/dist/**
+**/extensions/typescript-language-features/test-workspace/**
+
+# These files are not linted by `yarn eslint`, so we exclude them from being linted in the editor.
+# This ensures that if we add new rules and they pass CI, there are also no errors in the editor.
+/resources/web/code-web.js

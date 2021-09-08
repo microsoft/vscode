@@ -254,13 +254,13 @@
 	},
 	{
 		"c": "in",
-		"t": "source.python keyword.operator.logical.python",
+		"t": "source.python keyword.control.flow.python",
 		"r": {
-			"dark_plus": "keyword.operator.logical.python: #569CD6",
-			"light_plus": "keyword.operator.logical.python: #0000FF",
-			"dark_vs": "keyword.operator.logical.python: #569CD6",
-			"light_vs": "keyword.operator.logical.python: #0000FF",
-			"hc_black": "keyword.operator.logical.python: #569CD6"
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": "request",
-		"t": "source.python",
+		"t": "source.python meta.member.access.python meta.attribute.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -320,7 +320,7 @@
 	},
 	{
 		"c": "META",
-		"t": "source.python constant.other.caps.python",
+		"t": "source.python meta.member.access.python constant.other.caps.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -331,7 +331,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -342,7 +342,7 @@
 	},
 	{
 		"c": "items",
-		"t": "source.python meta.function-call.python meta.function-call.generic.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.generic.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.begin.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.begin.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -364,7 +364,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.end.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.end.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -408,7 +408,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.python punctuation.separator.period.python",
+		"t": "source.python meta.member.access.python punctuation.separator.period.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -419,7 +419,7 @@
 	},
 	{
 		"c": "startswith",
-		"t": "source.python meta.function-call.python meta.function-call.generic.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.generic.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.begin.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.begin.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -441,7 +441,7 @@
 	},
 	{
 		"c": "'",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python punctuation.definition.string.begin.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python punctuation.definition.string.begin.python",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -452,7 +452,7 @@
 	},
 	{
 		"c": "HTTP_",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "'",
-		"t": "source.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python punctuation.definition.string.end.python",
+		"t": "source.python meta.member.access.python meta.function-call.python meta.function-call.arguments.python string.quoted.single.python punctuation.definition.string.end.python",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.python meta.function-call.python punctuation.definition.arguments.end.python",
+		"t": "source.python meta.member.access.python meta.function-call.python punctuation.definition.arguments.end.python",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -565,7 +565,7 @@
 		"t": "source.python string.quoted.single.python constant.character.escape.python",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #FF0000",
+			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "constant.character: #569CD6"

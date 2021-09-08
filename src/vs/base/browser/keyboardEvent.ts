@@ -145,9 +145,7 @@ let INVERSE_KEY_CODE_MAP: KeyCode[] = new Array(KeyCode.MAX_VALUE);
 	 */
 	define(229, KeyCode.KEY_IN_COMPOSITION);
 
-	if (browser.isIE) {
-		define(91, KeyCode.Meta);
-	} else if (browser.isFirefox) {
+	if (browser.isFirefox) {
 		define(59, KeyCode.US_SEMICOLON);
 		define(107, KeyCode.US_EQUAL);
 		define(109, KeyCode.US_MINUS);
@@ -206,6 +204,40 @@ const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 const altKeyMod = KeyMod.Alt;
 const shiftKeyMod = KeyMod.Shift;
 const metaKeyMod = (platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
+
+export function printKeyboardEvent(e: KeyboardEvent): string {
+	let modifiers: string[] = [];
+	if (e.ctrlKey) {
+		modifiers.push(`ctrl`);
+	}
+	if (e.shiftKey) {
+		modifiers.push(`shift`);
+	}
+	if (e.altKey) {
+		modifiers.push(`alt`);
+	}
+	if (e.metaKey) {
+		modifiers.push(`meta`);
+	}
+	return `modifiers: [${modifiers.join(',')}], code: ${e.code}, keyCode: ${e.keyCode}, key: ${e.key}`;
+}
+
+export function printStandardKeyboardEvent(e: StandardKeyboardEvent): string {
+	let modifiers: string[] = [];
+	if (e.ctrlKey) {
+		modifiers.push(`ctrl`);
+	}
+	if (e.shiftKey) {
+		modifiers.push(`shift`);
+	}
+	if (e.altKey) {
+		modifiers.push(`alt`);
+	}
+	if (e.metaKey) {
+		modifiers.push(`meta`);
+	}
+	return `modifiers: [${modifiers.join(',')}], code: ${e.code}, keyCode: ${e.keyCode} ('${KeyCodeUtils.toString(e.keyCode)}')`;
+}
 
 export class StandardKeyboardEvent implements IKeyboardEvent {
 

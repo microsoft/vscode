@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,9 +21,9 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
+import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 // copy lines
 
@@ -37,12 +37,33 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const selections = editor.getSelections().map((selection, index) => ({ selection, index, ignore: false }));
+		selections.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+
+		// Remove selections that would result in copying the same line
+		let prev = selections[0];
+		for (let i = 1; i < selections.length; i++) {
+			const curr = selections[i];
+			if (prev.selection.endLineNumber === curr.selection.startLineNumber) {
+				// these two selections would copy the same line
+				if (prev.index < curr.index) {
+					// prev wins
+					curr.ignore = true;
+				} else {
+					// curr wins
+					prev.ignore = true;
+					prev = curr;
+				}
+			}
+		}
 
 		const commands: ICommand[] = [];
-		const selections = editor.getSelections() || [];
-
 		for (const selection of selections) {
-			commands.push(new CopyLinesCommand(selection, this.down));
+			commands.push(new CopyLinesCommand(selection.selection, this.down, selection.ignore));
 		}
 
 		editor.pushUndoStop();
@@ -64,7 +85,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miCopyLinesUp', comment: ['&& denotes a mnemonic'] }, "&&Copy Line Up"),
@@ -87,13 +108,54 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miCopyLinesDown', comment: ['&& denotes a mnemonic'] }, "Co&&py Line Down"),
 				order: 2
 			}
 		});
+	}
+}
+
+export class DuplicateSelectionAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.duplicateSelection',
+			label: nls.localize('duplicateSelection', "Duplicate Selection"),
+			alias: 'Duplicate Selection',
+			precondition: EditorContextKeys.writable,
+			menuOpts: {
+				menuId: MenuId.MenubarSelectionMenu,
+				group: '2_line',
+				title: nls.localize({ key: 'miDuplicateSelection', comment: ['&& denotes a mnemonic'] }, "&&Duplicate Selection"),
+				order: 5
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
+		const model = editor.getModel();
+
+		for (const selection of selections) {
+			if (selection.isEmpty()) {
+				commands.push(new CopyLinesCommand(selection, true));
+			} else {
+				const insertSelection = new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn);
+				commands.push(new ReplaceCommandThatSelectsText(insertSelection, model.getValueInRange(selection)));
+			}
+		}
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -137,7 +199,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 				linux: { primary: KeyMod.Alt | KeyCode.UpArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miMoveLinesUp', comment: ['&& denotes a mnemonic'] }, "Mo&&ve Line Up"),
@@ -160,7 +222,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 				linux: { primary: KeyMod.Alt | KeyCode.DownArrow },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '2_line',
 				title: nls.localize({ key: 'miMoveLinesDown', comment: ['&& denotes a mnemonic'] }, "Move &&Line Down"),
@@ -389,12 +451,12 @@ export class IndentLinesAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const cursors = editor._getCursors();
-		if (!cursors) {
+		const viewModel = editor._getViewModel();
+		if (!viewModel) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.indent(cursors.context.config, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.indent(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 		editor.pushUndoStop();
 	}
 }
@@ -435,12 +497,12 @@ export class InsertLineBeforeAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const cursors = editor._getCursors();
-		if (!cursors) {
+		const viewModel = editor._getViewModel();
+		if (!viewModel) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(cursors.context.config, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -460,12 +522,12 @@ export class InsertLineAfterAction extends EditorAction {
 	}
 
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const cursors = editor._getCursors();
-		if (!cursors) {
+		const viewModel = editor._getViewModel();
+		if (!viewModel) {
 			return;
 		}
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(cursors.context.config, editor.getModel(), editor.getSelections()));
+		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 	}
 }
 
@@ -877,43 +939,39 @@ export class TransposeAction extends EditorAction {
 
 export abstract class AbstractCaseAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
+		const selections = editor.getSelections();
 		if (selections === null) {
 			return;
 		}
 
-		let model = editor.getModel();
+		const model = editor.getModel();
 		if (model === null) {
 			return;
 		}
 
-		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const textEdits: IIdentifiedSingleEditOperation[] = [];
 
-		let commands: ICommand[] = [];
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+		for (const selection of selections) {
 			if (selection.isEmpty()) {
-				let cursor = selection.getStartPosition();
-				let word = model.getWordAtPosition(cursor);
+				const cursor = selection.getStartPosition();
+				const word = editor.getConfiguredWordAtPosition(cursor);
 
 				if (!word) {
 					continue;
 				}
 
-				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-				let text = model.getValueInRange(wordRange);
-				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators),
-					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
-
+				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				const text = model.getValueInRange(wordRange);
+				textEdits.push(EditOperation.replace(wordRange, this._modifyText(text, wordSeparators)));
 			} else {
-				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
+				const text = model.getValueInRange(selection);
+				textEdits.push(EditOperation.replace(selection, this._modifyText(text, wordSeparators)));
 			}
 		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		editor.executeEdits(this.id, textEdits);
 		editor.pushUndoStop();
 	}
 
@@ -987,8 +1045,68 @@ export class TitleCaseAction extends AbstractCaseAction {
 	}
 }
 
+class BackwardsCompatibleRegExp {
+
+	private _actual: RegExp | null;
+	private _evaluated: boolean;
+
+	constructor(
+		private readonly _pattern: string,
+		private readonly _flags: string
+	) {
+		this._actual = null;
+		this._evaluated = false;
+	}
+
+	public get(): RegExp | null {
+		if (!this._evaluated) {
+			this._evaluated = true;
+			try {
+				this._actual = new RegExp(this._pattern, this._flags);
+			} catch (err) {
+				// this browser does not support this regular expression
+			}
+		}
+		return this._actual;
+	}
+
+	public isSupported(): boolean {
+		return (this.get() !== null);
+	}
+}
+
+export class SnakeCaseAction extends AbstractCaseAction {
+
+	public static regExp1 = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	public static regExp2 = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToSnakecase',
+			label: nls.localize('editor.transformToSnakecase', "Transform to Snake Case"),
+			alias: 'Transform to Snake Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const regExp1 = SnakeCaseAction.regExp1.get();
+		const regExp2 = SnakeCaseAction.regExp2.get();
+		if (!regExp1 || !regExp2) {
+			// cannot support this
+			return text;
+		}
+		return (text
+			.replace(regExp1, '$1_$2')
+			.replace(regExp2, '$1_$2$3')
+			.toLocaleLowerCase()
+		);
+	}
+}
+
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
+registerEditorAction(DuplicateSelectionAction);
 registerEditorAction(MoveLinesUpAction);
 registerEditorAction(MoveLinesDownAction);
 registerEditorAction(SortLinesAscendingAction);
@@ -1006,3 +1124,7 @@ registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
 registerEditorAction(TitleCaseAction);
+
+if (SnakeCaseAction.regExp1.isSupported() && SnakeCaseAction.regExp2.isSupported()) {
+	registerEditorAction(SnakeCaseAction);
+}

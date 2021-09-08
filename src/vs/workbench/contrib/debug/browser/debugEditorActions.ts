@@ -7,105 +7,176 @@ import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
+import { registerEditorAction, EditorAction, IActionOptions, EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
+import { IViewsService } from 'vs/workbench/common/views';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Action } from 'vs/base/common/actions';
+import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 
-export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
-class ToggleBreakpointAction extends EditorAction {
+class ToggleBreakpointAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: TOGGLE_BREAKPOINT_ID,
-			label: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
-			alias: 'Debug: Toggle Breakpoint',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+			id: 'editor.debug.action.toggleBreakpoint',
+			title: {
+				value: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
+				original: 'Debug: Toggle Breakpoint',
+				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
+			},
+			f1: true,
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			keybinding: {
+				when: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F9,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menu: {
+				when: CONTEXT_DEBUGGERS_AVAILABLE,
+				id: MenuId.MenubarDebugMenu,
+				group: '4_new_breakpoint',
+				order: 1
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
+		// TODO: add disassembly F9
 		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
-			const canSet = debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel());
+			const canSet = debugService.canSetBreakpointsIn(editor.getModel());
 			// Does not account for multi line selections, Set to remove multiple cursor on the same line
 			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
 
-			return Promise.all(lineNumbers.map(line => {
+			await Promise.all(lineNumbers.map(async line => {
 				const bps = debugService.getModel().getBreakpoints({ lineNumber: line, uri: modelUri });
 				if (bps.length) {
-					return Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
+					await Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 				} else if (canSet) {
-					return (debugService.addBreakpoints(modelUri, [{ lineNumber: line }], 'debugEditorActions.toggleBreakpointAction'));
-				} else {
-					return Promise.resolve([]);
+					await debugService.addBreakpoints(modelUri, [{ lineNumber: line }]);
 				}
 			}));
 		}
-
-		return Promise.resolve();
 	}
 }
 
-export const TOGGLE_CONDITIONAL_BREAKPOINT_ID = 'editor.debug.action.conditionalBreakpoint';
-class ConditionalBreakpointAction extends EditorAction {
-
+class ConditionalBreakpointAction extends EditorAction2 {
 	constructor() {
 		super({
-			id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
-			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
-			alias: 'Debug: Add Conditional Breakpoint...',
-			precondition: undefined
+			id: 'editor.debug.action.conditionalBreakpoint',
+			title: {
+				value: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
+				original: 'Debug: Add Conditional Breakpoint...',
+				mnemonicTitle: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint...")
+			},
+			f1: true,
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			menu: {
+				id: MenuId.MenubarNewBreakpointMenu,
+				group: '1_breakpoints',
+				order: 1,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
-		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column);
+		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, undefined, BreakpointWidgetContext.CONDITION);
 		}
 	}
 }
 
-export const TOGGLE_LOG_POINT_ID = 'editor.debug.action.toggleLogPoint';
-class LogPointAction extends EditorAction {
+class LogPointAction extends EditorAction2 {
 
 	constructor() {
 		super({
-			id: TOGGLE_LOG_POINT_ID,
-			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
-			alias: 'Debug: Add Logpoint...',
-			precondition: undefined
+			id: 'editor.debug.action.addLogPoint',
+			title: {
+				value: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
+				original: 'Debug: Add Logpoint...',
+				mnemonicTitle: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
+			},
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			f1: true,
+			menu: {
+				id: MenuId.MenubarNewBreakpointMenu,
+				group: '1_breakpoints',
+				order: 4,
+				when: CONTEXT_DEBUGGERS_AVAILABLE
+			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
 		const debugService = accessor.get(IDebugService);
 
 		const position = editor.getPosition();
-		if (position && editor.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(editor.getModel())) {
-			editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
+		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
+		}
+	}
+}
+
+class OpenDisassemblyViewAction extends EditorAction2 {
+
+	public static readonly ID = 'editor.debug.action.openDisassemblyView';
+
+	constructor() {
+		super({
+			id: OpenDisassemblyViewAction.ID,
+			title: {
+				value: nls.localize('openDisassemblyView', "Open Disassembly View"),
+				original: 'Open Disassembly View',
+				mnemonicTitle: nls.localize({ key: 'miDisassemblyView', comment: ['&& denotes a mnemonic'] }, "&&DisassemblyView")
+			},
+			precondition: CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE,
+			menu: [
+				{
+					id: MenuId.EditorContext,
+					group: 'debug',
+					order: 5,
+					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST)
+				},
+				{
+					id: MenuId.DebugCallStackContext,
+					group: 'z_commands',
+					order: 50,
+					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'), CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED)
+				},
+				{
+					id: MenuId.CommandPalette,
+					when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED)
+				}
+			]
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
+		if (editor.hasModel()) {
+			const editorService = accessor.get(IEditorService);
+			editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
 		}
 	}
 }
 
 export class RunToCursorAction extends EditorAction {
 
-	public static ID = 'editor.debug.action.runToCursor';
-	public static LABEL = nls.localize('runToCursor', "Run to Cursor");
+	public static readonly ID = 'editor.debug.action.runToCursor';
+	public static readonly LABEL = nls.localize('runToCursor', "Run to Cursor");
 
 	constructor() {
 		super({
@@ -113,44 +184,33 @@ export class RunToCursorAction extends EditorAction {
 			label: RunToCursorAction.LABEL,
 			alias: 'Debug: Run to Cursor',
 			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'debug',
 				order: 2
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const debugService = accessor.get(IDebugService);
-		const focusedSession = debugService.getViewModel().focusedSession;
-		if (debugService.state !== State.Stopped || !focusedSession) {
-			return Promise.resolve(undefined);
-		}
-
-		let breakpointToRemove: IBreakpoint;
-		const oneTimeListener = focusedSession.onDidChangeState(() => {
-			const state = focusedSession.state;
-			if (state === State.Stopped || state === State.Inactive) {
-				if (breakpointToRemove) {
-					debugService.removeBreakpoints(breakpointToRemove.getId());
-				}
-				oneTimeListener.dispose();
-			}
-		});
-
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const position = editor.getPosition();
-		if (!editor.hasModel() || !position) {
-			return Promise.resolve();
+		if (!(editor.hasModel() && position)) {
+			return;
+		}
+		const uri = editor.getModel().uri;
+
+		const debugService = accessor.get(IDebugService);
+		const viewModel = debugService.getViewModel();
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
+		let column: number | undefined = undefined;
+		const focusedStackFrame = viewModel.focusedStackFrame;
+		if (focusedStackFrame && uriIdentityService.extUri.isEqual(focusedStackFrame.source.uri, uri) && focusedStackFrame.range.startLineNumber === position.lineNumber) {
+			// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint on the line without a column
+			// otherwise set it at the precise column #102199
+			column = position.column;
 		}
 
-		const uri = editor.getModel().uri;
-		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
-		return (bpExists ? Promise.resolve(null) : <Promise<any>>debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction')).then((breakpoints) => {
-			if (breakpoints && breakpoints.length) {
-				breakpointToRemove = breakpoints[0];
-			}
-			debugService.getViewModel().focusedThread!.continue();
-		});
+		await debugService.runTo(uri, position.lineNumber, column);
 	}
 }
 
@@ -159,28 +219,28 @@ class SelectionToReplAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.selectionToRepl',
-			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
-			alias: 'Debug: Evaluate',
+			label: nls.localize('evaluateInDebugConsole', "Evaluate in Debug Console"),
+			alias: 'Evaluate',
 			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'debug',
 				order: 0
 			}
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
-		const panelService = accessor.get(IPanelService);
+		const viewsService = accessor.get(IViewsService);
 		const viewModel = debugService.getViewModel();
 		const session = viewModel.focusedSession;
 		if (!editor.hasModel() || !session) {
-			return Promise.resolve();
+			return;
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		await session.addReplExpression(viewModel.focusedStackFrame!, text);
-		await panelService.openPanel(REPL_ID, true);
+		await viewsService.openView(REPL_VIEW_ID, false);
 	}
 }
 
@@ -189,25 +249,26 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.selectionToWatch',
-			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
-			alias: 'Debug: Add to Watch',
+			label: nls.localize('addToWatch', "Add to Watch"),
+			alias: 'Add to Watch',
 			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
-			menuOpts: {
+			contextMenuOpts: {
 				group: 'debug',
 				order: 1
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
-		const viewletService = accessor.get(IViewletService);
+		const viewsService = accessor.get(IViewsService);
 		if (!editor.hasModel()) {
-			return Promise.resolve();
+			return;
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		return viewletService.openViewlet(VIEWLET_ID).then(() => debugService.addWatchExpression(text));
+		await viewsService.openView(WATCH_VIEW_ID);
+		debugService.addWatchExpression(text);
 	}
 }
 
@@ -227,18 +288,65 @@ class ShowDebugHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const position = editor.getPosition();
 		if (!position || !editor.hasModel()) {
-			return Promise.resolve();
+			return;
 		}
 		const word = editor.getModel().getWordAtPosition(position);
 		if (!word) {
-			return Promise.resolve();
+			return;
 		}
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
 		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showHover(range, true);
+	}
+}
+
+class StepIntoTargetsAction extends EditorAction {
+
+	public static readonly ID = 'editor.debug.action.stepIntoTargets';
+	public static readonly LABEL = nls.localize({ key: 'stepIntoTargets', comment: ['Step Into Targets lets the user step into an exact function he or she is interested in.'] }, "Step Into Targets...");
+
+	constructor() {
+		super({
+			id: StepIntoTargetsAction.ID,
+			label: StepIntoTargetsAction.LABEL,
+			alias: 'Debug: Step Into Targets...',
+			precondition: ContextKeyExpr.and(CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			contextMenuOpts: {
+				group: 'debug',
+				order: 1.5
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		const contextMenuService = accessor.get(IContextMenuService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+		const session = debugService.getViewModel().focusedSession;
+		const frame = debugService.getViewModel().focusedStackFrame;
+
+		if (session && frame && editor.hasModel() && uriIdentityService.extUri.isEqual(editor.getModel().uri, frame.source.uri)) {
+			const targets = await session.stepInTargets(frame.frameId);
+			if (!targets) {
+				return;
+			}
+
+			editor.revealLineInCenterIfOutsideViewport(frame.range.startLineNumber);
+			const cursorCoords = editor.getScrolledVisiblePosition({ lineNumber: frame.range.startLineNumber, column: frame.range.startColumn });
+			const editorCoords = getDomNodePagePosition(editor.getDomNode());
+			const x = editorCoords.left + cursorCoords.left;
+			const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+
+			contextMenuService.showContextMenu({
+				getAnchor: () => ({ x, y }),
+				getActions: () => {
+					return targets.map(t => new Action(`stepIntoTarget:${t.id}`, t.label, undefined, true, () => session.stepIn(frame.thread.threadId, t.id)));
+				}
+			});
+		}
 	}
 }
 
@@ -247,9 +355,11 @@ class GoToBreakpointAction extends EditorAction {
 		super(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<any> {
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
+
 		if (editor.hasModel()) {
 			const currentUri = editor.getModel().uri;
 			const currentLine = editor.getPosition().lineNumber;
@@ -259,8 +369,8 @@ class GoToBreakpointAction extends EditorAction {
 			//Try to find breakpoint in current file
 			let moveBreakpoint =
 				this.isNext
-					? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine).shift()
-					: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine).pop();
+					? allEnabledBreakpoints.filter(bp => uriIdentityService.extUri.isEqual(bp.uri, currentUri) && bp.lineNumber > currentLine).shift()
+					: allEnabledBreakpoints.filter(bp => uriIdentityService.extUri.isEqual(bp.uri, currentUri) && bp.lineNumber < currentLine).pop();
 
 			//Try to find breakpoints in following files
 			if (!moveBreakpoint) {
@@ -276,11 +386,9 @@ class GoToBreakpointAction extends EditorAction {
 			}
 
 			if (moveBreakpoint) {
-				return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
+				return openBreakpointSource(moveBreakpoint, false, true, false, debugService, editorService);
 			}
 		}
-
-		return Promise.resolve(null);
 	}
 }
 
@@ -290,7 +398,7 @@ class GoToNextBreakpointAction extends GoToBreakpointAction {
 			id: 'editor.debug.action.goToNextBreakpoint',
 			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
 			alias: 'Debug: Go To Next Breakpoint',
-			precondition: undefined
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
 }
@@ -301,17 +409,41 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 			id: 'editor.debug.action.goToPreviousBreakpoint',
 			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
 			alias: 'Debug: Go To Previous Breakpoint',
-			precondition: undefined
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
 }
 
-registerEditorAction(ToggleBreakpointAction);
-registerEditorAction(ConditionalBreakpointAction);
-registerEditorAction(LogPointAction);
+class CloseExceptionWidgetAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.debug.action.closeExceptionWidget',
+			label: nls.localize('closeExceptionWidget', "Close Exception Widget"),
+			alias: 'Close Exception Widget',
+			precondition: CONTEXT_EXCEPTION_WIDGET_VISIBLE,
+			kbOpts: {
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const contribution = editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID);
+		contribution.closeExceptionWidget();
+	}
+}
+
+registerAction2(ToggleBreakpointAction);
+registerAction2(ConditionalBreakpointAction);
+registerAction2(LogPointAction);
+registerAction2(OpenDisassemblyViewAction);
 registerEditorAction(RunToCursorAction);
+registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);
 registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
 registerEditorAction(GoToNextBreakpointAction);
 registerEditorAction(GoToPreviousBreakpointAction);
+registerEditorAction(CloseExceptionWidgetAction);

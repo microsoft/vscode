@@ -6,3 +6,4 @@ AddToPath=PATH への追加（再起動後に使用可能）
 RunAfter=インストール後に %1 を実行する
 Other=その他:
 SourceFile=%1 ソース ファイル
+OpenWithCodeContextMenu=%1 で開く

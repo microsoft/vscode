@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import * as performance from 'vs/base/common/performance';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
 
 export interface IRemoteAgentEnvironment {
 	pid: number;
 	connectionToken: string;
 	appRoot: URI;
-	appSettingsHome: URI;
 	settingsPath: URI;
 	logsPath: URI;
 	extensionsPath: URI;
 	extensionHostLogsPath: URI;
 	globalStorageHome: URI;
+	workspaceStorageHome: URI;
 	userHome: URI;
-	extensions: IExtensionDescription[];
 	os: OperatingSystem;
+	arch: string;
+	marks: performance.PerformanceMark[];
+	useHostProxy: boolean;
 }
 
 export interface RemoteAgentConnectionContext {

@@ -4,12 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
+import BufferSyncSupport from './tsServer/bufferSyncSupport';
+import { ExecutionTarget } from './tsServer/server';
+import { TypeScriptVersion } from './tsServer/versionProvider';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
-import Logger from './utils/logger';
 import { PluginManager } from './utils/plugins';
+import { TelemetryReporter } from './utils/telemetry';
+
+export enum ServerType {
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+}
 
 export namespace ServerResponse {
 
@@ -21,7 +28,7 @@ export namespace ServerResponse {
 		) { }
 	}
 
-	export const NoContent = new class { readonly type = 'noContent'; };
+	export const NoContent = { type: 'noContent' } as const;
 
 	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
 }
@@ -33,7 +40,7 @@ interface StandardTsServerRequests {
 	'completions': [Proto.CompletionsRequestArgs, Proto.CompletionsResponse];
 	'configure': [Proto.ConfigureRequestArguments, Proto.ConfigureResponse];
 	'definition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
-	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanReponse];
+	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanResponse];
 	'docCommentTemplate': [Proto.FileLocationRequestArgs, Proto.DocCommandTemplateResponse];
 	'documentHighlights': [Proto.DocumentHighlightsRequestArgs, Proto.DocumentHighlightsResponse];
 	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];
@@ -57,13 +64,18 @@ interface StandardTsServerRequests {
 	'selectionRange': [Proto.SelectionRangeRequestArgs, Proto.SelectionRangeResponse];
 	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
+	'updateOpen': [Proto.UpdateOpenRequestArgs, Proto.Response];
+	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
+	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
+	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
+	'fileReferences': [Proto.FileRequestArgs, Proto.FileReferencesResponse];
+	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
 }
 
 interface NoResponseTsServerRequests {
 	'open': [Proto.OpenRequestArgs, null];
-	'close': [Proto.FileRequestArgs];
+	'close': [Proto.FileRequestArgs, null];
 	'change': [Proto.ChangeRequestArgs, null];
-	'updateOpen': [Proto.UpdateOpenRequestArgs, null];
 	'compilerOptionsForInferredProjects': [Proto.SetCompilerOptionsForInferredProjectsArgs, null];
 	'reloadProjects': [null, null];
 	'configurePlugin': [Proto.ConfigurePluginRequest, Proto.ConfigurePluginResponse];
@@ -71,13 +83,46 @@ interface NoResponseTsServerRequests {
 
 interface AsyncTsServerRequests {
 	'geterr': [Proto.GeterrRequestArgs, Proto.Response];
+	'geterrForProject': [Proto.GeterrForProjectRequestArgs, Proto.Response];
 }
 
 export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRequests & AsyncTsServerRequests;
 
 export type ExecConfig = {
-	lowPriority?: boolean;
+	readonly lowPriority?: boolean;
+	readonly nonRecoverable?: boolean;
+	readonly cancelOnResourceChange?: vscode.Uri;
+	readonly executionTarget?: ExecutionTarget;
 };
+
+export enum ClientCapability {
+	/**
+	 * Basic syntax server. All clients should support this.
+	 */
+	Syntax,
+
+	/**
+	 * Advanced syntax server that can provide single file IntelliSense.
+	 */
+	EnhancedSyntax,
+
+	/**
+	 * Complete, multi-file semantic server
+	 */
+	Semantic,
+}
+
+export class ClientCapabilities {
+	private readonly capabilities: ReadonlySet<ClientCapability>;
+
+	constructor(...capabilities: ClientCapability[]) {
+		this.capabilities = new Set(capabilities);
+	}
+
+	public has(capability: ClientCapability): boolean {
+		return this.capabilities.has(capability);
+	}
+}
 
 export interface ITypeScriptServiceClient {
 	/**
@@ -102,23 +147,38 @@ export interface ITypeScriptServiceClient {
 	/**
 	 * Tries to ensure that a vscode document is open on the TS server.
 	 *
-	 * Returns the normalized path.
+	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
-	toOpenedFilePath(document: vscode.TextDocument): string | undefined;
+	toOpenedFilePath(document: vscode.TextDocument, options?: {
+		suppressAlertOnFailure?: boolean
+	}): string | undefined;
+
+	/**
+	 * Checks if `resource` has a given capability.
+	 */
+	hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean;
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
-	readonly onTsServerStarted: vscode.Event<API>;
+	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion, usedApiVersion: API }>;
 	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;
 	readonly onDidBeginInstallTypings: vscode.Event<Proto.BeginInstallTypesEventBody>;
 	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
+	readonly capabilities: ClientCapabilities;
+	readonly onDidChangeCapabilities: vscode.Event<void>;
+
+	onReady(f: () => void): Promise<void>;
+
+	showVersionPicker(): void;
+
 	readonly apiVersion: API;
+
 	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;
-	readonly logger: Logger;
 	readonly bufferSyncSupport: BufferSyncSupport;
+	readonly telemetryReporter: TelemetryReporter;
 
 	execute<K extends keyof StandardTsServerRequests>(
 		command: K,
@@ -132,7 +192,11 @@ export interface ITypeScriptServiceClient {
 		args: NoResponseTsServerRequests[K][0]
 	): void;
 
-	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<ServerResponse.Response<Proto.Response>>;
+	executeAsync<K extends keyof AsyncTsServerRequests>(
+		command: K,
+		args: AsyncTsServerRequests[K][0],
+		token: vscode.CancellationToken
+	): Promise<ServerResponse.Response<Proto.Response>>;
 
 	/**
 	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.

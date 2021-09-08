@@ -16,12 +16,12 @@ import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorCommand, registerEditorContribution, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -30,12 +30,16 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
-class AccessibilityHelpController extends Disposable implements IEditorContribution {
+export class AccessibilityHelpController extends Disposable implements IEditorContribution {
 
-	private static readonly ID = 'editor.contrib.accessibilityHelpController';
+	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 
 	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
@@ -52,10 +56,6 @@ class AccessibilityHelpController extends Disposable implements IEditorContribut
 
 		this._editor = editor;
 		this._widget = this._register(instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
-	}
-
-	public getId(): string {
-		return AccessibilityHelpController.ID;
 	}
 
 	public show(): void {
@@ -120,7 +120,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
 				alert(nls.localize('emergencyConfOn', "Now changing the setting `editor.accessibilitySupport` to 'on'."));
 
-				this._configurationService.updateValue('editor.accessibilitySupport', 'on', ConfigurationTarget.USER);
+				this._configurationService.updateValue('editor.accessibilitySupport', 'on');
 
 				e.preventDefault();
 				e.stopPropagation();
@@ -143,7 +143,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._editor.addOverlayWidget(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}
@@ -267,40 +267,55 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	private _layout(): void {
 		let editorLayout = this._editor.getLayoutInfo();
 
-		let top = Math.round((editorLayout.height - AccessibilityHelpWidget.HEIGHT) / 2);
-		this._domNode.setTop(top);
+		const width = Math.min(editorLayout.width - 40, AccessibilityHelpWidget.WIDTH);
+		const height = Math.min(editorLayout.height - 40, AccessibilityHelpWidget.HEIGHT);
 
-		let left = Math.round((editorLayout.width - AccessibilityHelpWidget.WIDTH) / 2);
-		this._domNode.setLeft(left);
+		this._domNode.setTop(Math.round((editorLayout.height - height) / 2));
+		this._domNode.setLeft(Math.round((editorLayout.width - width) / 2));
+		this._domNode.setWidth(width);
+		this._domNode.setHeight(height);
 	}
 }
 
-class ShowAccessibilityHelpAction extends EditorAction {
+// Show Accessibility Help is a workench command so it can also be shown when there is no editor open #108850
+class ShowAccessibilityHelpAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'editor.action.showAccessibilityHelp',
-			label: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"),
-			alias: 'Show Accessibility Help',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
+			title: { value: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"), original: 'Show Accessibility Help' },
+			f1: true,
+			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F1,
-				weight: KeybindingWeight.EditorContrib
+				weight: KeybindingWeight.EditorContrib,
+				linux: {
+					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+					secondary: [KeyMod.Alt | KeyCode.F1]
+				}
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = AccessibilityHelpController.get(editor);
-		if (controller) {
-			controller.show();
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const editorService = accessor.get(ICodeEditorService);
+		let activeEditor = editorService.getActiveCodeEditor();
+		if (!activeEditor) {
+			await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+		}
+		activeEditor = editorService.getActiveCodeEditor();
+
+		if (activeEditor) {
+			const controller = AccessibilityHelpController.get(activeEditor);
+			if (controller) {
+				controller.show();
+			}
 		}
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController);
-registerEditorAction(ShowAccessibilityHelpAction);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
+registerAction2(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 

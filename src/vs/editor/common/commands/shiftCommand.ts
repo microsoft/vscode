@@ -11,6 +11,7 @@ import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export interface IShiftCommandOpts {
 	isUnshift: boolean;
@@ -18,10 +19,14 @@ export interface IShiftCommandOpts {
 	indentSize: number;
 	insertSpaces: boolean;
 	useTabStops: boolean;
+	autoIndent: EditorAutoIndentStrategy;
 }
 
 const repeatCache: { [str: string]: string[]; } = Object.create(null);
 export function cachedStringRepeat(str: string, count: number): string {
+	if (count <= 0) {
+		return '';
+	}
 	if (!repeatCache[str]) {
 		repeatCache[str] = ['', str];
 	}
@@ -101,17 +106,17 @@ export class ShiftCommand implements ICommand {
 		const { tabSize, indentSize, insertSpaces } = this._opts;
 		const shouldIndentEmptyLines = (startLine === endLine);
 
-		// if indenting or outdenting on a whitespace only line
-		if (this._selection.isEmpty()) {
-			if (/^\s*$/.test(model.getLineContent(startLine))) {
-				this._useLastEditRangeForCursorEndPosition = true;
-			}
-		}
-
 		if (this._opts.useTabStops) {
+			// if indenting or outdenting on a whitespace only line
+			if (this._selection.isEmpty()) {
+				if (/^\s*$/.test(model.getLineContent(startLine))) {
+					this._useLastEditRangeForCursorEndPosition = true;
+				}
+			}
+
 			// keep track of previous line's "miss-alignment"
 			let previousLineExtraSpaces = 0, extraSpaces = 0;
-			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++ , previousLineExtraSpaces = extraSpaces) {
+			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++, previousLineExtraSpaces = extraSpaces) {
 				extraSpaces = 0;
 				let lineText = model.getLineContent(lineNumber);
 				let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
@@ -137,7 +142,7 @@ export class ShiftCommand implements ICommand {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
 						if (model.isCheapToTokenize(lineNumber - 1)) {
-							let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+							let enterAction = LanguageConfigurationRegistry.getEnterAction(this._opts.autoIndent, model, new Range(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1), lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)));
 							if (enterAction) {
 								extraSpaces = previousLineExtraSpaces;
 								if (enterAction.appendText) {
@@ -179,12 +184,17 @@ export class ShiftCommand implements ICommand {
 				}
 
 				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), desiredIndent);
-				if (lineNumber === startLine) {
+				if (lineNumber === startLine && !this._selection.isEmpty()) {
 					// Force the startColumn to stay put because we're inserting after it
 					this._selectionStartColumnStaysPut = (this._selection.startColumn <= indentationEndIndex + 1);
 				}
 			}
 		} else {
+
+			// if indenting or outdenting on a whitespace only line
+			if (!this._opts.isUnshift && this._selection.isEmpty() && model.getLineLength(startLine) === 0) {
+				this._useLastEditRangeForCursorEndPosition = true;
+			}
 
 			const oneIndent = (insertSpaces ? cachedStringRepeat(' ', indentSize) : '\t');
 
@@ -226,7 +236,7 @@ export class ShiftCommand implements ICommand {
 					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
 				} else {
 					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, 1), oneIndent);
-					if (lineNumber === startLine) {
+					if (lineNumber === startLine && !this._selection.isEmpty()) {
 						// Force the startColumn to stay put because we're inserting after it
 						this._selectionStartColumnStaysPut = (this._selection.startColumn === 1);
 					}

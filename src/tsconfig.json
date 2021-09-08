@@ -4,29 +4,26 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
-		"outDir": "../out",
-		"target": "es2017",
-		"lib": [
-			"dom",
-			"es5",
-			"es2015.iterable"
-		],
+		"outDir": "../out/vs",
+		"target": "es2020",
 		"types": [
 			"keytar",
 			"mocha",
 			"semver",
 			"sinon",
-			"winreg"
+			"winreg",
+			"trusted-types",
+			"wicg-file-system-access"
+		],
+		"plugins": [
+			{
+				"name": "tsec",
+				"exemptionConfig": "./tsec.exemptions.json"
+			}
 		]
 	},
 	"include": [
 		"./typings",
 		"./vs"
-	],
-	"exclude": [
-		"./typings/require-monaco.d.ts",
-		"./typings/xterm.d.ts",
-		"./typings/xterm-addon-search.d.ts",
-		"./typings/xterm-addon-web-links.d.ts"
 	]
 }

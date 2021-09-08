@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -22,15 +23,28 @@ export interface IModelChangedEvent {
 	 * The new version id the model has transitioned to.
 	 */
 	readonly versionId: number;
+	/**
+	 * Flag that indicates that this event was generated while undoing.
+	 */
+	readonly isUndoing: boolean;
+	/**
+	 * Flag that indicates that this event was generated while redoing.
+	 */
+	readonly isRedoing: boolean;
 }
 
-export class MirrorTextModel {
+export interface IMirrorTextModel {
+	readonly version: number;
+}
+
+export class MirrorTextModel implements IMirrorTextModel {
 
 	protected _uri: URI;
 	protected _lines: string[];
 	protected _eol: string;
 	protected _versionId: number;
 	protected _lineStarts: PrefixSumComputer | null;
+	private _cachedTextValue: string | null;
 
 	constructor(uri: URI, lines: string[], eol: string, versionId: number) {
 		this._uri = uri;
@@ -38,6 +52,7 @@ export class MirrorTextModel {
 		this._eol = eol;
 		this._versionId = versionId;
 		this._lineStarts = null;
+		this._cachedTextValue = null;
 	}
 
 	dispose(): void {
@@ -49,7 +64,10 @@ export class MirrorTextModel {
 	}
 
 	getText(): string {
-		return this._lines.join(this._eol);
+		if (this._cachedTextValue === null) {
+			this._cachedTextValue = this._lines.join(this._eol);
+		}
+		return this._cachedTextValue;
 	}
 
 	onEvents(e: IModelChangedEvent): void {
@@ -66,6 +84,7 @@ export class MirrorTextModel {
 		}
 
 		this._versionId = e.versionId;
+		this._cachedTextValue = null;
 	}
 
 	protected _ensureLineStarts(): void {
@@ -125,7 +144,7 @@ export class MirrorTextModel {
 			// Nothing to insert
 			return;
 		}
-		let insertLines = insertText.split(/\r\n|\r|\n/);
+		let insertLines = splitLines(insertText);
 		if (insertLines.length === 1) {
 			// Inserting text on one line
 			this._setLineText(position.lineNumber - 1,

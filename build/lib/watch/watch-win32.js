@@ -1,109 +1,100 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-var path = require('path');
-var cp = require('child_process');
-var fs = require('fs');
-var File = require('vinyl');
-var es = require('event-stream');
-var filter = require('gulp-filter');
-
-var watcherPath = path.join(__dirname, 'watcher.exe');
-
+Object.defineProperty(exports, "__esModule", { value: true });
+const path = require("path");
+const cp = require("child_process");
+const fs = require("fs");
+const File = require("vinyl");
+const es = require("event-stream");
+const filter = require("gulp-filter");
+const watcherPath = path.join(__dirname, 'watcher.exe');
 function toChangeType(type) {
-	switch (type) {
-		case '0': return 'change';
-		case '1': return 'add';
-		default: return 'unlink';
-	}
+    switch (type) {
+        case '0': return 'change';
+        case '1': return 'add';
+        default: return 'unlink';
+    }
 }
-
 function watch(root) {
-	var result = es.through();
-	var child = cp.spawn(watcherPath, [root]);
-
-	child.stdout.on('data', function (data) {
-		// @ts-ignore
-		var lines = data.toString('utf8').split('\n');
-		for (var i = 0; i < lines.length; i++) {
-			var line = lines[i].trim();
-			if (line.length === 0) {
-				continue;
-			}
-
-			var changeType = line[0];
-			var changePath = line.substr(2);
-
-			// filter as early as possible
-			if (/^\.git/.test(changePath) || /(^|\\)out($|\\)/.test(changePath)) {
-				continue;
-			}
-
-			var changePathFull = path.join(root, changePath);
-
-			var file = new File({
-				path: changePathFull,
-				base: root
-			});
-			//@ts-ignore
-			file.event = toChangeType(changeType);
-			result.emit('data', file);
-		}
-	});
-
-	child.stderr.on('data', function (data) {
-		result.emit('error', data);
-	});
-
-	child.on('exit', function (code) {
-		result.emit('error', 'Watcher died with code ' + code);
-		child = null;
-	});
-
-	process.once('SIGTERM', function () { process.exit(0); });
-	process.once('SIGTERM', function () { process.exit(0); });
-	process.once('exit', function () { child && child.kill(); });
-
-	return result;
+    const result = es.through();
+    let child = cp.spawn(watcherPath, [root]);
+    child.stdout.on('data', function (data) {
+        const lines = data.toString('utf8').split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.length === 0) {
+                continue;
+            }
+            const changeType = line[0];
+            const changePath = line.substr(2);
+            // filter as early as possible
+            if (/^\.git/.test(changePath) || /(^|\\)out($|\\)/.test(changePath)) {
+                continue;
+            }
+            const changePathFull = path.join(root, changePath);
+            const file = new File({
+                path: changePathFull,
+                base: root
+            });
+            file.event = toChangeType(changeType);
+            result.emit('data', file);
+        }
+    });
+    child.stderr.on('data', function (data) {
+        result.emit('error', data);
+    });
+    child.on('exit', function (code) {
+        result.emit('error', 'Watcher died with code ' + code);
+        child = null;
+    });
+    process.once('SIGTERM', function () { process.exit(0); });
+    process.once('SIGTERM', function () { process.exit(0); });
+    process.once('exit', function () { if (child) {
+        child.kill();
+    } });
+    return result;
 }
-
-var cache = Object.create(null);
-
+const cache = Object.create(null);
 module.exports = function (pattern, options) {
-	options = options || {};
-
-	var cwd = path.normalize(options.cwd || process.cwd());
-	var watcher = cache[cwd];
-
-	if (!watcher) {
-		watcher = cache[cwd] = watch(cwd);
-	}
-
-	var rebase = !options.base ? es.through() : es.mapSync(function (f) {
-		f.base = options.base;
-		return f;
-	});
-
-	return watcher
-		.pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
-		.pipe(filter(pattern))
-		.pipe(es.map(function (file, cb) {
-			fs.stat(file.path, function (err, stat) {
-				if (err && err.code === 'ENOENT') { return cb(null, file); }
-				if (err) { return cb(); }
-				if (!stat.isFile()) { return cb(); }
-
-				fs.readFile(file.path, function (err, contents) {
-					if (err && err.code === 'ENOENT') { return cb(null, file); }
-					if (err) { return cb(); }
-
-					file.contents = contents;
-					file.stat = stat;
-					cb(null, file);
-				});
-			});
-		}))
-		.pipe(rebase);
+    options = options || {};
+    const cwd = path.normalize(options.cwd || process.cwd());
+    let watcher = cache[cwd];
+    if (!watcher) {
+        watcher = cache[cwd] = watch(cwd);
+    }
+    const rebase = !options.base ? es.through() : es.mapSync(function (f) {
+        f.base = options.base;
+        return f;
+    });
+    return watcher
+        .pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
+        .pipe(filter(pattern))
+        .pipe(es.map(function (file, cb) {
+        fs.stat(file.path, function (err, stat) {
+            if (err && err.code === 'ENOENT') {
+                return cb(undefined, file);
+            }
+            if (err) {
+                return cb();
+            }
+            if (!stat.isFile()) {
+                return cb();
+            }
+            fs.readFile(file.path, function (err, contents) {
+                if (err && err.code === 'ENOENT') {
+                    return cb(undefined, file);
+                }
+                if (err) {
+                    return cb();
+                }
+                file.contents = contents;
+                file.stat = stat;
+                cb(undefined, file);
+            });
+        });
+    }))
+        .pipe(rebase);
 };

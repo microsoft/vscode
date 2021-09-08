@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogService, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
+import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;
-	args: IArguments;
+	args: any[];
 }
 
-function getLogFunction(logger: ILogService, level: LogLevel): Function {
+function getLogFunction(logger: ILogger, level: LogLevel): Function {
 	switch (level) {
 		case LogLevel.Trace: return logger.trace;
 		case LogLevel.Debug: return logger.debug;
@@ -22,11 +22,11 @@ function getLogFunction(logger: ILogService, level: LogLevel): Function {
 	}
 }
 
-export class BufferLogService extends AbstractLogService implements ILogService {
+export class BufferLogService extends AbstractLogger implements ILogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private buffer: ILog[] = [];
-	private _logger: ILogService | undefined = undefined;
+	private _logger: ILogger | undefined = undefined;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
@@ -38,7 +38,7 @@ export class BufferLogService extends AbstractLogService implements ILogService 
 		}));
 	}
 
-	set logger(logger: ILogService) {
+	set logger(logger: ILogger) {
 		this._logger = logger;
 
 		for (const { level, args } of this.buffer) {
@@ -49,7 +49,7 @@ export class BufferLogService extends AbstractLogService implements ILogService 
 		this.buffer = [];
 	}
 
-	private _log(level: LogLevel, args: IArguments): void {
+	private _log(level: LogLevel, ...args: any[]): void {
 		if (this._logger) {
 			const fn = getLogFunction(this._logger, level);
 			fn.apply(this._logger, args);
@@ -58,33 +58,39 @@ export class BufferLogService extends AbstractLogService implements ILogService 
 		}
 	}
 
-	trace(): void {
-		this._log(LogLevel.Trace, arguments);
+	trace(message: string, ...args: any[]): void {
+		this._log(LogLevel.Trace, message, ...args);
 	}
 
-	debug(): void {
-		this._log(LogLevel.Debug, arguments);
+	debug(message: string, ...args: any[]): void {
+		this._log(LogLevel.Debug, message, ...args);
 	}
 
-	info(): void {
-		this._log(LogLevel.Info, arguments);
+	info(message: string, ...args: any[]): void {
+		this._log(LogLevel.Info, message, ...args);
 	}
 
-	warn(): void {
-		this._log(LogLevel.Warning, arguments);
+	warn(message: string, ...args: any[]): void {
+		this._log(LogLevel.Warning, message, ...args);
 	}
 
-	error(): void {
-		this._log(LogLevel.Error, arguments);
+	error(message: string | Error, ...args: any[]): void {
+		this._log(LogLevel.Error, message, ...args);
 	}
 
-	critical(): void {
-		this._log(LogLevel.Critical, arguments);
+	critical(message: string | Error, ...args: any[]): void {
+		this._log(LogLevel.Critical, message, ...args);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		if (this._logger) {
 			this._logger.dispose();
+		}
+	}
+
+	flush(): void {
+		if (this._logger) {
+			this._logger.flush();
 		}
 	}
 }

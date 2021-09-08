@@ -23,35 +23,46 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 		//
 	}
 
-	$showOpenDialog(options: MainThreadDialogOpenOptions): Promise<URI[] | undefined> {
-		return Promise.resolve(this._fileDialogService.showOpenDialog(MainThreadDialogs._convertOpenOptions(options)));
+	async $showOpenDialog(options?: MainThreadDialogOpenOptions): Promise<URI[] | undefined> {
+		const convertedOptions = MainThreadDialogs._convertOpenOptions(options);
+		if (!convertedOptions.defaultUri) {
+			convertedOptions.defaultUri = await this._fileDialogService.defaultFilePath();
+		}
+		return Promise.resolve(this._fileDialogService.showOpenDialog(convertedOptions));
 	}
 
-	$showSaveDialog(options: MainThreadDialogSaveOptions): Promise<URI | undefined> {
-		return Promise.resolve(this._fileDialogService.showSaveDialog(MainThreadDialogs._convertSaveOptions(options)));
+	async $showSaveDialog(options?: MainThreadDialogSaveOptions): Promise<URI | undefined> {
+		const convertedOptions = MainThreadDialogs._convertSaveOptions(options);
+		if (!convertedOptions.defaultUri) {
+			convertedOptions.defaultUri = await this._fileDialogService.defaultFilePath();
+		}
+		return Promise.resolve(this._fileDialogService.showSaveDialog(convertedOptions));
 	}
 
-	private static _convertOpenOptions(options: MainThreadDialogOpenOptions): IOpenDialogOptions {
+	private static _convertOpenOptions(options?: MainThreadDialogOpenOptions): IOpenDialogOptions {
 		const result: IOpenDialogOptions = {
-			openLabel: options.openLabel,
-			canSelectFiles: options.canSelectFiles || (!options.canSelectFiles && !options.canSelectFolders),
-			canSelectFolders: options.canSelectFolders,
-			canSelectMany: options.canSelectMany,
-			defaultUri: URI.revive(options.defaultUri)
+			openLabel: options?.openLabel || undefined,
+			canSelectFiles: options?.canSelectFiles || (!options?.canSelectFiles && !options?.canSelectFolders),
+			canSelectFolders: options?.canSelectFolders,
+			canSelectMany: options?.canSelectMany,
+			defaultUri: options?.defaultUri ? URI.revive(options.defaultUri) : undefined,
+			title: options?.title || undefined,
+			availableFileSystems: []
 		};
-		if (options.filters) {
+		if (options?.filters) {
 			result.filters = [];
 			forEach(options.filters, entry => result.filters!.push({ name: entry.key, extensions: entry.value }));
 		}
 		return result;
 	}
 
-	private static _convertSaveOptions(options: MainThreadDialogSaveOptions): ISaveDialogOptions {
+	private static _convertSaveOptions(options?: MainThreadDialogSaveOptions): ISaveDialogOptions {
 		const result: ISaveDialogOptions = {
-			defaultUri: URI.revive(options.defaultUri),
-			saveLabel: options.saveLabel
+			defaultUri: options?.defaultUri ? URI.revive(options.defaultUri) : undefined,
+			saveLabel: options?.saveLabel || undefined,
+			title: options?.title || undefined
 		};
-		if (options.filters) {
+		if (options?.filters) {
 			result.filters = [];
 			forEach(options.filters, entry => result.filters!.push({ name: entry.key, extensions: entry.value }));
 		}

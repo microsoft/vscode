@@ -3,27 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
+import { illegalArgument } from 'vs/base/common/errors';
+import { escapeIcons } from 'vs/base/common/iconLabels';
 import { UriComponents } from 'vs/base/common/uri';
 
 export interface IMarkdownString {
-	value: string;
-	isTrusted?: boolean;
+	readonly value: string;
+	readonly isTrusted?: boolean;
+	readonly supportThemeIcons?: boolean;
+	readonly supportHtml?: boolean;
 	uris?: { [href: string]: UriComponents };
+}
+
+export const enum MarkdownStringTextNewlineStyle {
+	Paragraph = 0,
+	Break = 1,
 }
 
 export class MarkdownString implements IMarkdownString {
 
-	value: string;
-	isTrusted?: boolean;
+	public value: string;
+	public isTrusted?: boolean;
+	public supportThemeIcons?: boolean;
+	public supportHtml?: boolean;
 
-	constructor(value: string = '') {
+	constructor(
+		value: string = '',
+		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean, supportHtml?: boolean } = false,
+	) {
 		this.value = value;
+		if (typeof this.value !== 'string') {
+			throw illegalArgument('value');
+		}
+
+		if (typeof isTrustedOrOptions === 'boolean') {
+			this.isTrusted = isTrustedOrOptions;
+			this.supportThemeIcons = false;
+			this.supportHtml = false;
+		}
+		else {
+			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
+			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
+			this.supportHtml = isTrustedOrOptions.supportHtml ?? false;
+		}
 	}
 
-	appendText(value: string): MarkdownString {
-		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-		this.value += value.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
+	appendText(value: string, newlineStyle: MarkdownStringTextNewlineStyle = MarkdownStringTextNewlineStyle.Paragraph): MarkdownString {
+		this.value += escapeMarkdownSyntaxTokens(this.supportThemeIcons ? escapeIcons(value) : value)
+			.replace(/([ \t]+)/g, (_match, g1) => '&nbsp;'.repeat(g1.length))
+			.replace(/\>/gm, '\\>')
+			.replace(/\n/g, newlineStyle === MarkdownStringTextNewlineStyle.Break ? '\\\n' : '\n\n');
+
 		return this;
 	}
 
@@ -57,33 +87,25 @@ export function isMarkdownString(thing: any): thing is IMarkdownString {
 		return true;
 	} else if (thing && typeof thing === 'object') {
 		return typeof (<IMarkdownString>thing).value === 'string'
-			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === undefined);
+			&& (typeof (<IMarkdownString>thing).isTrusted === 'boolean' || (<IMarkdownString>thing).isTrusted === undefined)
+			&& (typeof (<IMarkdownString>thing).supportThemeIcons === 'boolean' || (<IMarkdownString>thing).supportThemeIcons === undefined);
 	}
 	return false;
 }
 
-export function markedStringsEquals(a: IMarkdownString | IMarkdownString[], b: IMarkdownString | IMarkdownString[]): boolean {
-	if (!a && !b) {
-		return true;
-	} else if (!a || !b) {
-		return false;
-	} else if (Array.isArray(a) && Array.isArray(b)) {
-		return equals(a, b, markdownStringEqual);
-	} else if (isMarkdownString(a) && isMarkdownString(b)) {
-		return markdownStringEqual(a, b);
-	} else {
-		return false;
-	}
-}
-
-function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
+export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	if (a === b) {
 		return true;
 	} else if (!a || !b) {
 		return false;
 	} else {
-		return a.value === b.value && a.isTrusted === b.isTrusted;
+		return a.value === b.value && a.isTrusted === b.isTrusted && a.supportThemeIcons === b.supportThemeIcons;
 	}
+}
+
+export function escapeMarkdownSyntaxTokens(text: string): string {
+	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
 }
 
 export function removeMarkdownEscapes(text: string): string {

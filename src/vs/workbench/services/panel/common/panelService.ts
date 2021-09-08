@@ -20,20 +20,20 @@ export interface IPanelIdentifier {
 
 export interface IPanelService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
-	readonly onDidPanelOpen: Event<{ panel: IPanel, focus: boolean }>;
+	readonly onDidPanelOpen: Event<{ readonly panel: IPanel, readonly focus: boolean }>;
 	readonly onDidPanelClose: Event<IPanel>;
 
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id: string, focus?: boolean): IPanel | null;
+	openPanel(id?: string, focus?: boolean): Promise<IPanel | undefined>;
 
 	/**
 	 * Returns the current active panel or null if none
 	 */
-	getActivePanel(): IPanel | null;
+	getActivePanel(): IPanel | undefined;
 
 	/**
 	 * Returns the panel by id.
@@ -43,17 +43,17 @@ export interface IPanelService {
 	/**
 	 * Returns all built-in panels following the default order
 	 */
-	getPanels(): IPanelIdentifier[];
+	getPanels(): readonly IPanelIdentifier[];
 
 	/**
 	 * Returns pinned panels following the visual order
 	 */
-	getPinnedPanels(): IPanelIdentifier[];
+	getPinnedPanels(): readonly IPanelIdentifier[];
 
 	/**
 	 * Returns the progress indicator for the panel bar.
 	 */
-	getProgressIndicator(id: string): IProgressIndicator | null;
+	getProgressIndicator(id: string): IProgressIndicator | undefined;
 
 	/**
 	 * Show an activity in a panel.

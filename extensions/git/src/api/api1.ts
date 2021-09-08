@@ -5,9 +5,12 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState } from './git';
-import { Event, SourceControlInputBox, Uri, SourceControl } from 'vscode';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions } from './git';
+import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
 import { mapEvent } from '../util';
+import { toGitUri } from '../uri';
+import { pickRemoteSource, PickRemoteSourceOptions } from '../remoteSource';
+import { GitExtensionImpl } from './extension';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -158,6 +161,10 @@ export class ApiRepository implements Repository {
 		return this._repository.getBranch(name);
 	}
 
+	getBranches(query: BranchQuery): Promise<Ref[]> {
+		return this._repository.getBranches(query);
+	}
+
 	setBranchUpstream(name: string, upstream: string): Promise<void> {
 		return this._repository.setBranchUpstream(name, upstream);
 	}
@@ -182,16 +189,28 @@ export class ApiRepository implements Repository {
 		return this._repository.removeRemote(name);
 	}
 
-	fetch(remote?: string | undefined, ref?: string | undefined, depth?: number | undefined): Promise<void> {
-		return this._repository.fetch(remote, ref, depth);
+	renameRemote(name: string, newName: string): Promise<void> {
+		return this._repository.renameRemote(name, newName);
+	}
+
+	fetch(arg0?: FetchOptions | string | undefined,
+		ref?: string | undefined,
+		depth?: number | undefined,
+		prune?: boolean | undefined
+	): Promise<void> {
+		if (arg0 !== undefined && typeof arg0 !== 'string') {
+			return this._repository.fetch(arg0);
+		}
+
+		return this._repository.fetch({ remote: arg0, ref, depth, prune });
 	}
 
 	pull(unshallow?: boolean): Promise<void> {
 		return this._repository.pull(undefined, unshallow);
 	}
 
-	push(remoteName?: string, branchName?: string, setUpstream: boolean = false): Promise<void> {
-		return this._repository.pushTo(remoteName, branchName, setUpstream);
+	push(remoteName?: string, branchName?: string, setUpstream: boolean = false, force?: ForcePushMode): Promise<void> {
+		return this._repository.pushTo(remoteName, branchName, setUpstream, force);
 	}
 
 	blame(path: string): Promise<string> {
@@ -200,6 +219,10 @@ export class ApiRepository implements Repository {
 
 	log(options?: LogOptions): Promise<Commit[]> {
 		return this._repository.log(options);
+	}
+
+	commit(message: string, opts?: CommitOptions): Promise<void> {
+		return this._repository.commit(message, opts);
 	}
 }
 
@@ -222,6 +245,10 @@ export class ApiImpl implements API {
 		return this._model.onDidChangeState;
 	}
 
+	get onDidPublish(): Event<PublishEvent> {
+		return this._model.onDidPublish;
+	}
+
 	get onDidOpenRepository(): Event<Repository> {
 		return mapEvent(this._model.onDidOpenRepository, r => new ApiRepository(r));
 	}
@@ -234,5 +261,121 @@ export class ApiImpl implements API {
 		return this._model.repositories.map(r => new ApiRepository(r));
 	}
 
+	toGitUri(uri: Uri, ref: string): Uri {
+		return toGitUri(uri, ref);
+	}
+
+	getRepository(uri: Uri): Repository | null {
+		const result = this._model.getRepository(uri);
+		return result ? new ApiRepository(result) : null;
+	}
+
+	async init(root: Uri): Promise<Repository | null> {
+		const path = root.fsPath;
+		await this._model.git.init(path);
+		await this._model.openRepository(path);
+		return this.getRepository(root) || null;
+	}
+
+	async openRepository(root: Uri): Promise<Repository | null> {
+		await this._model.openRepository(root.fsPath);
+		return this.getRepository(root) || null;
+	}
+
+	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
+		return this._model.registerRemoteSourceProvider(provider);
+	}
+
+	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
+		return this._model.registerCredentialsProvider(provider);
+	}
+
+	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
+		return this._model.registerPushErrorHandler(handler);
+	}
+
 	constructor(private _model: Model) { }
+}
+
+function getRefType(type: RefType): string {
+	switch (type) {
+		case RefType.Head: return 'Head';
+		case RefType.RemoteHead: return 'RemoteHead';
+		case RefType.Tag: return 'Tag';
+	}
+
+	return 'unknown';
+}
+
+function getStatus(status: Status): string {
+	switch (status) {
+		case Status.INDEX_MODIFIED: return 'INDEX_MODIFIED';
+		case Status.INDEX_ADDED: return 'INDEX_ADDED';
+		case Status.INDEX_DELETED: return 'INDEX_DELETED';
+		case Status.INDEX_RENAMED: return 'INDEX_RENAMED';
+		case Status.INDEX_COPIED: return 'INDEX_COPIED';
+		case Status.MODIFIED: return 'MODIFIED';
+		case Status.DELETED: return 'DELETED';
+		case Status.UNTRACKED: return 'UNTRACKED';
+		case Status.IGNORED: return 'IGNORED';
+		case Status.INTENT_TO_ADD: return 'INTENT_TO_ADD';
+		case Status.ADDED_BY_US: return 'ADDED_BY_US';
+		case Status.ADDED_BY_THEM: return 'ADDED_BY_THEM';
+		case Status.DELETED_BY_US: return 'DELETED_BY_US';
+		case Status.DELETED_BY_THEM: return 'DELETED_BY_THEM';
+		case Status.BOTH_ADDED: return 'BOTH_ADDED';
+		case Status.BOTH_DELETED: return 'BOTH_DELETED';
+		case Status.BOTH_MODIFIED: return 'BOTH_MODIFIED';
+	}
+
+	return 'UNKNOWN';
+}
+
+export function registerAPICommands(extension: GitExtensionImpl): Disposable {
+	const disposables: Disposable[] = [];
+
+	disposables.push(commands.registerCommand('git.api.getRepositories', () => {
+		const api = extension.getAPI(1);
+		return api.repositories.map(r => r.rootUri.toString());
+	}));
+
+	disposables.push(commands.registerCommand('git.api.getRepositoryState', (uri: string) => {
+		const api = extension.getAPI(1);
+		const repository = api.getRepository(Uri.parse(uri));
+
+		if (!repository) {
+			return null;
+		}
+
+		const state = repository.state;
+
+		const ref = (ref: Ref | undefined) => (ref && { ...ref, type: getRefType(ref.type) });
+		const change = (change: Change) => ({
+			uri: change.uri.toString(),
+			originalUri: change.originalUri.toString(),
+			renameUri: change.renameUri?.toString(),
+			status: getStatus(change.status)
+		});
+
+		return {
+			HEAD: ref(state.HEAD),
+			refs: state.refs.map(ref),
+			remotes: state.remotes,
+			submodules: state.submodules,
+			rebaseCommit: state.rebaseCommit,
+			mergeChanges: state.mergeChanges.map(change),
+			indexChanges: state.indexChanges.map(change),
+			workingTreeChanges: state.workingTreeChanges.map(change)
+		};
+	}));
+
+	disposables.push(commands.registerCommand('git.api.getRemoteSources', (opts?: PickRemoteSourceOptions) => {
+		if (!extension.model) {
+			return;
+		}
+
+		return pickRemoteSource(extension.model, opts as any);
+	}));
+
+	return Disposable.from(...disposables);
 }

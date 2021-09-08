@@ -4,13 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 .extensions-viewlet {
+	position: relative;
 	height: 100%;
 }
 
+.extensions-viewlet > .overlay {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 2;
+}
+
 .extensions-viewlet > .header {
-	height: 38px;
+	height: 41px;
 	box-sizing: border-box;
-	padding: 5px 9px 5px 16px;
+	padding: 5px 12px 6px 16px;
 }
 
 .extensions-viewlet > .header > .search-box {
@@ -21,17 +31,20 @@
 	padding: 4px;
 	border: 1px solid transparent;
 	-webkit-appearance: textfield;
+	-moz-appearance: textfield;
 }
 
 .extensions-viewlet > .extensions {
-	height: calc(100% - 38px);
+	height: calc(100% - 41px);
 }
 
+.extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper,
+.extensions-viewlet > .extensions .extension-list-item .monaco-action-bar,
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {
 	margin-right: 4px;
 }
 
-.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.octicon {
+.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.codicon {
 	vertical-align: middle;
 	line-height: 22px;
 }
@@ -47,11 +60,15 @@
 }
 
 .extensions-viewlet > .extensions .panel-header {
-	padding-right: 6px;
+	padding-right: 12px;
 }
 
 .extensions-viewlet > .extensions .panel-header > .title {
 	flex: 1;
+}
+
+.extensions-viewlet > .extensions .panel-header > .actions.show {
+	flex: inherit;
 }
 
 .extensions-viewlet > .extensions .message-container {
@@ -68,212 +85,42 @@
 	flex-shrink: 0;
 }
 
-.extensions-viewlet > .extensions .monaco-list-row > .bookmark {
-	display: inline-block;
-	height: 20px;
-	width: 20px;
-}
-
-.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .recommendation {
-	border-right: 20px solid transparent;
-	border-top: 20px solid;
-	box-sizing: border-box;
-}
-
-.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .recommendation > .octicon {
+.extensions-viewlet > .extensions .extension-list-item {
 	position: absolute;
-	top: 1px;
-	left: 1px;
-	font-size: 90%;
 }
 
-.extensions-viewlet > .extensions .extension {
-	box-sizing: border-box;
-	width: 100%;
-	height: 100%;
-	padding: 0 0 0 16px;
-	overflow: hidden;
-	display: flex;
-	position: absolute;
-	top: 0;
-}
-
-.extensions-viewlet > .extensions .extension.loading {
+.extensions-viewlet > .extensions .extension-list-item.loading {
 	background: url('loading.svg') center center no-repeat;
 }
 
-.extensions-viewlet > .extensions .monaco-list-row > .extension > .icon-container {
-	position: relative;
-}
-
-.extensions-viewlet > .extensions .extension > .icon-container > .icon {
-	width: 42px;
-	height: 42px;
-	padding: 10px 14px 10px 0;
-	flex-shrink: 0;
-	object-fit: contain;
-}
-
-.extensions-viewlet > .extensions .monaco-list-row > .extension > .icon-container .extension-remote-badge {
-	position: absolute;
-	right: 5px;
-	bottom: 5px;
-	width: 22px;
-	height: 22px;
-	line-height: 22px;
-	border-radius: 20px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header > .extension-remote-badge-container {
-	margin-left: 6px;
-}
-
-.extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge {
-	width: 14px;
-	height: 14px;
-	line-height: 14px;
-	border-radius: 20px;
-	text-align: center;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge > .octicon {
-	font-size: 12px;
-}
-
-.extensions-viewlet.narrow > .extensions .extension > .icon-container,
-.extensions-viewlet > .extensions .extension.loading > .icon-container {
+.extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
 	display: none;
 }
 
-.extensions-viewlet > .extensions .extension > .details {
-	flex: 1;
-	padding: 4px 0;
-	overflow: hidden;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container {
-	height: 19px;
-	display: flex;
-	overflow: hidden;
-	padding-right: 11px;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header {
-	display: flex;
-	align-items: baseline;
-	flex-wrap: nowrap;
-	overflow: hidden;
-	flex: 1;
-	min-width: 0;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {
-	font-weight: bold;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
-	opacity: 0.85;
-	font-size: 80%;
-	padding-left: 6px;
-	min-width: fit-content;
-}
-
-.extensions-viewlet:not(.narrow) > .extensions .extension > .details > .header-container > .header > .version {
-	flex: 1;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count:not(:empty) {
-	font-size: 80%;
-	margin: 0 6px;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count > .octicon {
-	font-size: 100%;
-	margin-right: 2px;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {
-	text-align: right;
-}
-
-.extensions-viewlet:not(.narrow) > .extensions .extension > .details > .header-container > .header > .extension-remote-badge-container,
-.extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .ratings,
-.extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .install-count {
-	display: none;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .description {
-	padding-right: 11px;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .footer {
-	display: flex;
-	justify-content: flex-end;
-	padding-right: 7px;
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
+	width: 24px;
 	height: 24px;
-	overflow: hidden;
+	padding-top: 8px;
+	padding-right: 6px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .footer > .author {
-	flex: 1;
-	font-size: 90%;
-	opacity: 0.9;
-	font-weight: 600;
+.extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
+.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container .extension-badge,
+.extensions-viewlet.mini > .extensions .extension-list-item > .icon-container > .icon,
+.extensions-viewlet.mini > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
+.extensions-viewlet.mini > .extensions .extension-bookmark-container {
+	display: none;
 }
 
-.extensions-viewlet > .extensions .selected .extension > .details > .footer > .author,
-.extensions-viewlet > .extensions .selected.focused .extension > .details > .footer > .author {
-	opacity: 1;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container {
-	flex-wrap: wrap-reverse;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
-	max-width: 150px;
-}
-
-.extensions-viewlet.narrow > .extensions .extension > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
+.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
 	max-width: 100px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {
-	margin-top: 0.3em;
-	margin-left: 0.3em;
-	line-height: 14px;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label:not(:empty) {
-	opacity: 0.9;
-}
-
-.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
-.vs-dark  .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
-.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon-container > .icon,
-.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon-container > .icon,
-.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
-.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
-.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .description,
-.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .description,
-.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .footer > .author,
-.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .footer > .author {
+.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon,
+.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon {
 	opacity: 0.5;
-}
-
-.extensions-viewlet > .extensions .extension .ellipsis {
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
 }
 
 .extensions-badge.progress-badge > .badge-content {

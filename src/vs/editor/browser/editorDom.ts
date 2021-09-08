@@ -12,7 +12,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
  */
 export class PageCoordinates {
-	_pageCoordinatesBrand: void;
+	_pageCoordinatesBrand: void = undefined;
 
 	constructor(
 		public readonly x: number,
@@ -32,7 +32,7 @@ export class PageCoordinates {
  * of whether the page is scrolled horizontally.
  */
 export class ClientCoordinates {
-	_clientCoordinatesBrand: void;
+	_clientCoordinatesBrand: void = undefined;
 
 	constructor(
 		public readonly clientX: number,
@@ -48,7 +48,7 @@ export class ClientCoordinates {
  * The position of the editor in the page.
  */
 export class EditorPagePosition {
-	_editorPagePositionBrand: void;
+	_editorPagePositionBrand: void = undefined;
 
 	constructor(
 		public readonly x: number,
@@ -64,7 +64,7 @@ export function createEditorPagePosition(editorViewDomNode: HTMLElement): Editor
 }
 
 export class EditorMouseEvent extends StandardMouseEvent {
-	_editorMouseEventBrand: void;
+	_editorMouseEventBrand: void = undefined;
 
 	/**
 	 * Coordinates relative to the whole document.
@@ -84,7 +84,7 @@ export class EditorMouseEvent extends StandardMouseEvent {
 }
 
 export interface EditorMouseEventMerger {
-	(lastEvent: EditorMouseEvent, currentEvent: EditorMouseEvent): EditorMouseEvent;
+	(lastEvent: EditorMouseEvent | null, currentEvent: EditorMouseEvent): EditorMouseEvent;
 }
 
 export class EditorMouseEventFactory {
@@ -124,10 +124,48 @@ export class EditorMouseEventFactory {
 	}
 
 	public onMouseMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, this._create(currentEvent));
 		};
 		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'mousemove', callback, myMerger, minimumTimeMs);
+	}
+}
+
+export class EditorPointerEventFactory {
+
+	private readonly _editorViewDomNode: HTMLElement;
+
+	constructor(editorViewDomNode: HTMLElement) {
+		this._editorViewDomNode = editorViewDomNode;
+	}
+
+	private _create(e: MouseEvent): EditorMouseEvent {
+		return new EditorMouseEvent(e, this._editorViewDomNode);
+	}
+
+	public onPointerUp(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableListener(target, 'pointerup', (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerDown(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableListener(target, 'pointerdown', (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerLeave(target: HTMLElement, callback: (e: EditorMouseEvent) => void): IDisposable {
+		return dom.addDisposableNonBubblingPointerOutListener(target, (e: MouseEvent) => {
+			callback(this._create(e));
+		});
+	}
+
+	public onPointerMoveThrottled(target: HTMLElement, callback: (e: EditorMouseEvent) => void, merger: EditorMouseEventMerger, minimumTimeMs: number): IDisposable {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
+			return merger(lastEvent, this._create(currentEvent));
+		};
+		return dom.addDisposableThrottledListener<EditorMouseEvent, MouseEvent>(target, 'pointermove', callback, myMerger, minimumTimeMs);
 	}
 }
 
@@ -144,7 +182,13 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 		this._keydownListener = null;
 	}
 
-	public startMonitoring(merger: EditorMouseEventMerger, mouseMoveCallback: (e: EditorMouseEvent) => void, onStopCallback: () => void): void {
+	public startMonitoring(
+		initialElement: HTMLElement,
+		initialButtons: number,
+		merger: EditorMouseEventMerger,
+		mouseMoveCallback: (e: EditorMouseEvent) => void,
+		onStopCallback: (browserEvent?: MouseEvent | KeyboardEvent) => void
+	): void {
 
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
 		// if something other than a modifier key is pressed
@@ -154,16 +198,20 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
 				// Allow modifier keys
 				return;
 			}
-			this._globalMouseMoveMonitor.stopMonitoring(true);
+			this._globalMouseMoveMonitor.stopMonitoring(true, e.browserEvent);
 		}, true);
 
-		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent, currentEvent: MouseEvent): EditorMouseEvent => {
+		const myMerger: dom.IEventMerger<EditorMouseEvent, MouseEvent> = (lastEvent: EditorMouseEvent | null, currentEvent: MouseEvent): EditorMouseEvent => {
 			return merger(lastEvent, new EditorMouseEvent(currentEvent, this._editorViewDomNode));
 		};
 
-		this._globalMouseMoveMonitor.startMonitoring(myMerger, mouseMoveCallback, () => {
+		this._globalMouseMoveMonitor.startMonitoring(initialElement, initialButtons, myMerger, mouseMoveCallback, (e) => {
 			this._keydownListener!.dispose();
-			onStopCallback();
+			onStopCallback(e);
 		});
+	}
+
+	public stopMonitoring(): void {
+		this._globalMouseMoveMonitor.stopMonitoring(true);
 	}
 }

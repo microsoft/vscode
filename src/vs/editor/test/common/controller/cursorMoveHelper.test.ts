@@ -8,41 +8,41 @@ import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 suite('CursorMove', () => {
 
 	test('nextRenderTabStop', () => {
-		assert.equal(CursorColumns.nextRenderTabStop(0, 4), 4);
-		assert.equal(CursorColumns.nextRenderTabStop(1, 4), 4);
-		assert.equal(CursorColumns.nextRenderTabStop(2, 4), 4);
-		assert.equal(CursorColumns.nextRenderTabStop(3, 4), 4);
-		assert.equal(CursorColumns.nextRenderTabStop(4, 4), 8);
-		assert.equal(CursorColumns.nextRenderTabStop(5, 4), 8);
-		assert.equal(CursorColumns.nextRenderTabStop(6, 4), 8);
-		assert.equal(CursorColumns.nextRenderTabStop(7, 4), 8);
-		assert.equal(CursorColumns.nextRenderTabStop(8, 4), 12);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(0, 4), 4);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(1, 4), 4);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(2, 4), 4);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(3, 4), 4);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(4, 4), 8);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(5, 4), 8);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(6, 4), 8);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(7, 4), 8);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(8, 4), 12);
 
-		assert.equal(CursorColumns.nextRenderTabStop(0, 2), 2);
-		assert.equal(CursorColumns.nextRenderTabStop(1, 2), 2);
-		assert.equal(CursorColumns.nextRenderTabStop(2, 2), 4);
-		assert.equal(CursorColumns.nextRenderTabStop(3, 2), 4);
-		assert.equal(CursorColumns.nextRenderTabStop(4, 2), 6);
-		assert.equal(CursorColumns.nextRenderTabStop(5, 2), 6);
-		assert.equal(CursorColumns.nextRenderTabStop(6, 2), 8);
-		assert.equal(CursorColumns.nextRenderTabStop(7, 2), 8);
-		assert.equal(CursorColumns.nextRenderTabStop(8, 2), 10);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(0, 2), 2);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(1, 2), 2);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(2, 2), 4);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(3, 2), 4);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(4, 2), 6);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(5, 2), 6);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(6, 2), 8);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(7, 2), 8);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(8, 2), 10);
 
-		assert.equal(CursorColumns.nextRenderTabStop(0, 1), 1);
-		assert.equal(CursorColumns.nextRenderTabStop(1, 1), 2);
-		assert.equal(CursorColumns.nextRenderTabStop(2, 1), 3);
-		assert.equal(CursorColumns.nextRenderTabStop(3, 1), 4);
-		assert.equal(CursorColumns.nextRenderTabStop(4, 1), 5);
-		assert.equal(CursorColumns.nextRenderTabStop(5, 1), 6);
-		assert.equal(CursorColumns.nextRenderTabStop(6, 1), 7);
-		assert.equal(CursorColumns.nextRenderTabStop(7, 1), 8);
-		assert.equal(CursorColumns.nextRenderTabStop(8, 1), 9);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(0, 1), 1);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(1, 1), 2);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(2, 1), 3);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(3, 1), 4);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(4, 1), 5);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(5, 1), 6);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(6, 1), 7);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(7, 1), 8);
+		assert.strictEqual(CursorColumns.nextRenderTabStop(8, 1), 9);
 	});
 
 	test('visibleColumnFromColumn', () => {
 
 		function testVisibleColumnFromColumn(text: string, tabSize: number, column: number, expected: number): void {
-			assert.equal(CursorColumns.visibleColumnFromColumn(text, column, tabSize), expected);
+			assert.strictEqual(CursorColumns.visibleColumnFromColumn(text, column, tabSize), expected);
 		}
 
 		testVisibleColumnFromColumn('\t\tvar x = 3;', 4, 1, 0);
@@ -101,7 +101,7 @@ suite('CursorMove', () => {
 	test('columnFromVisibleColumn', () => {
 
 		function testColumnFromVisibleColumn(text: string, tabSize: number, visibleColumn: number, expected: number): void {
-			assert.equal(CursorColumns.columnFromVisibleColumn(text, visibleColumn, tabSize), expected);
+			assert.strictEqual(CursorColumns.columnFromVisibleColumn(text, visibleColumn, tabSize), expected);
 		}
 
 		// testColumnFromVisibleColumn('\t\tvar x = 3;', 4, 0, 1);
@@ -168,9 +168,65 @@ suite('CursorMove', () => {
 		testColumnFromVisibleColumn('baz', 4, 3, 4);
 
 		testColumnFromVisibleColumn('📚az', 4, 0, 1);
-		testColumnFromVisibleColumn('📚az', 4, 1, 2);
+		testColumnFromVisibleColumn('📚az', 4, 1, 1);
 		testColumnFromVisibleColumn('📚az', 4, 2, 3);
 		testColumnFromVisibleColumn('📚az', 4, 3, 4);
 		testColumnFromVisibleColumn('📚az', 4, 4, 5);
+	});
+
+	test('toStatusbarColumn', () => {
+
+		function t(text: string, tabSize: number, column: number, expected: number): void {
+			assert.strictEqual(CursorColumns.toStatusbarColumn(text, column, tabSize), expected, `<<t('${text}', ${tabSize}, ${column}, ${expected})>>`);
+		}
+
+		t('    spaces', 4, 1, 1);
+		t('    spaces', 4, 2, 2);
+		t('    spaces', 4, 3, 3);
+		t('    spaces', 4, 4, 4);
+		t('    spaces', 4, 5, 5);
+		t('    spaces', 4, 6, 6);
+		t('    spaces', 4, 7, 7);
+		t('    spaces', 4, 8, 8);
+		t('    spaces', 4, 9, 9);
+		t('    spaces', 4, 10, 10);
+		t('    spaces', 4, 11, 11);
+
+		t('\ttab', 4, 1, 1);
+		t('\ttab', 4, 2, 5);
+		t('\ttab', 4, 3, 6);
+		t('\ttab', 4, 4, 7);
+		t('\ttab', 4, 5, 8);
+
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 1, 1);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 2, 2);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 3, 2);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 4, 3);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 5, 3);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 6, 4);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 7, 4);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 8, 5);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 9, 5);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 10, 6);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 11, 6);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 12, 7);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 13, 7);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 14, 8);
+		t('𐌀𐌁𐌂𐌃𐌄𐌅𐌆', 4, 15, 8);
+
+		t('🎈🎈🎈🎈', 4, 1, 1);
+		t('🎈🎈🎈🎈', 4, 2, 2);
+		t('🎈🎈🎈🎈', 4, 3, 2);
+		t('🎈🎈🎈🎈', 4, 4, 3);
+		t('🎈🎈🎈🎈', 4, 5, 3);
+		t('🎈🎈🎈🎈', 4, 6, 4);
+		t('🎈🎈🎈🎈', 4, 7, 4);
+		t('🎈🎈🎈🎈', 4, 8, 5);
+		t('🎈🎈🎈🎈', 4, 9, 5);
+
+		t('何何何何', 4, 1, 1);
+		t('何何何何', 4, 2, 2);
+		t('何何何何', 4, 3, 3);
+		t('何何何何', 4, 4, 4);
 	});
 });

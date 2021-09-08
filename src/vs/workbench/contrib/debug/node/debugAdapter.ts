@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import * as cp from 'child_process';
 import * as stream from 'stream';
 import * as nls from 'vs/nls';
@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
 
@@ -91,25 +91,22 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 	}
 }
 
-/**
- * An implementation that connects to a debug adapter via a socket.
-*/
-export class SocketDebugAdapter extends StreamDebugAdapter {
+export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
 
-	private socket?: net.Socket;
+	protected socket?: net.Socket;
 
-	constructor(private adapterServer: IDebugAdapterServer) {
-		super();
-	}
+	protected abstract createConnection(connectionListener: () => void): net.Socket;
 
 	startSession(): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			let connected = false;
-			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
+
+			this.socket = this.createConnection(() => {
 				this.connect(this.socket!, this.socket!);
 				resolve();
 				connected = true;
 			});
+
 			this.socket.on('close', () => {
 				if (connected) {
 					this._onError.fire(new Error('connection closed'));
@@ -117,6 +114,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 					reject(new Error('connection closed'));
 				}
 			});
+
 			this.socket.on('error', error => {
 				if (connected) {
 					this._onError.fire(error);
@@ -127,16 +125,40 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 		});
 	}
 
-	stopSession(): Promise<void> {
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.cancelPending();
-
+	async stopSession(): Promise<void> {
+		await this.cancelPendingRequests();
 		if (this.socket) {
 			this.socket.end();
 			this.socket = undefined;
 		}
-		return Promise.resolve(undefined);
+	}
+}
+
+/**
+ * An implementation that connects to a debug adapter via a socket.
+*/
+export class SocketDebugAdapter extends NetworkDebugAdapter {
+
+	constructor(private adapterServer: IDebugAdapterServer) {
+		super();
+	}
+
+	protected createConnection(connectionListener: () => void): net.Socket {
+		return net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', connectionListener);
+	}
+}
+
+/**
+ * An implementation that connects to a debug adapter via a NamedPipe (on Windows)/UNIX Domain Socket (on non-Windows).
+ */
+export class NamedPipeDebugAdapter extends NetworkDebugAdapter {
+
+	constructor(private adapterServer: IDebugAdapterNamedPipeServer) {
+		super();
+	}
+
+	protected createConnection(connectionListener: () => void): net.Socket {
+		return net.createConnection(this.adapterServer.path, connectionListener);
 	}
 }
 
@@ -161,7 +183,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 			// verify executables asynchronously
 			if (command) {
 				if (path.isAbsolute(command)) {
-					const commandExists = await exists(command);
+					const commandExists = await Promises.exists(command);
 					if (!commandExists) {
 						throw new Error(nls.localize('debugAdapterBinNotFound', "Debug adapter executable '{0}' does not exist.", command));
 					}
@@ -177,11 +199,10 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					"Cannot determine executable for debug adapter '{0}'.", this.debugType));
 			}
 
-			let env = objects.mixin({}, process.env);
-			if (options.env) {
-				env = objects.mixin(env, options.env);
+			let env = process.env;
+			if (options.env && Object.keys(options.env).length > 0) {
+				env = objects.mixin(objects.deepClone(process.env), options.env);
 			}
-			delete env.VSCODE_PREVENT_FOREIGN_INSPECT;
 
 			if (command === 'node') {
 				if (Array.isArray(args) && args.length > 0) {
@@ -219,14 +240,14 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				this._onExit.fire(code);
 			});
 
-			this.serverProcess.stdout.on('close', () => {
+			this.serverProcess.stdout!.on('close', () => {
 				this._onError.fire(new Error('read error'));
 			});
-			this.serverProcess.stdout.on('error', error => {
+			this.serverProcess.stdout!.on('error', error => {
 				this._onError.fire(error);
 			});
 
-			this.serverProcess.stdin.on('error', error => {
+			this.serverProcess.stdin!.on('error', error => {
 				this._onError.fire(error);
 			});
 
@@ -236,26 +257,25 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				// this.serverProcess.stdout.on('data', (data: string) => {
 				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
 				// });
-				this.serverProcess.stderr.on('data', (data: string) => {
+				this.serverProcess.stderr!.on('data', (data: string) => {
 					const channel = outputService.getChannel(ExtensionsChannelId);
 					if (channel) {
 						channel.append(sanitize(data));
 					}
 				});
+			} else {
+				this.serverProcess.stderr!.resume();
 			}
 
 			// finally connect to the DA
-			this.connect(this.serverProcess.stdout, this.serverProcess.stdin);
+			this.connect(this.serverProcess.stdout!, this.serverProcess.stdin!);
 
 		} catch (err) {
 			this._onError.fire(err);
 		}
 	}
 
-	stopSession(): Promise<void> {
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		this.cancelPending();
+	async stopSession(): Promise<void> {
 
 		if (!this.serverProcess) {
 			return Promise.resolve(undefined);
@@ -264,6 +284,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		// when killing a process in windows its child
 		// processes are *not* killed but become root
 		// processes. Therefore we use TASKKILL.EXE
+		await this.cancelPendingRequests();
 		if (platform.isWindows) {
 			return new Promise<void>((c, e) => {
 				const killer = cp.exec(`taskkill /F /T /PID ${this.serverProcess!.pid}`, function (err, stdout, stderr) {

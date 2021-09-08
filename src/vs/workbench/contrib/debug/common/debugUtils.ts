@@ -4,33 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { IConfig, IDebuggerContribution, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/workbench/contrib/debug/common/debug';
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { first } from 'vs/base/common/arrays';
+import { Schemas } from 'vs/base/common/network';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
-export function startDebugging(debugService: IDebugService, historyService: IHistoryService, noDebug: boolean, ): Promise<boolean> {
-	const configurationManager = debugService.getConfigurationManager();
-	let launch = configurationManager.selectedConfiguration.launch;
-	if (!launch || launch.getConfigurationNames().length === 0) {
-		const rootUri = historyService.getLastActiveWorkspaceRoot();
-		launch = configurationManager.getLaunch(rootUri);
-		if (!launch || launch.getConfigurationNames().length === 0) {
-			const launches = configurationManager.getLaunches();
-			launch = first(launches, l => !!(l && l.getConfigurationNames().length), launch);
-		}
-
-		configurationManager.selectConfiguration(launch);
-	}
-
-	return debugService.startDebugging(launch, undefined, noDebug);
-}
-
-export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string }): string {
+export function formatPII(value: string, excludePII: boolean, args: { [key: string]: string } | undefined): string {
 	return value.replace(_formatPIIRegexp, function (match, group) {
 		if (excludePII && group.length > 0 && group[0] !== '_') {
 			return match;
@@ -42,12 +26,45 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 	});
 }
 
-export function isSessionAttach(session: IDebugSession): boolean {
-	return !session.parentSession && session.configuration.request === 'attach' && !isExtensionHostDebugging(session.configuration);
+/**
+ * Filters exceptions (keys marked with "!") from the given object. Used to
+ * ensure exception data is not sent on web remotes, see #97628.
+ */
+export function filterExceptionsFromTelemetry<T extends { [key: string]: unknown }>(data: T): Partial<T> {
+	const output: Partial<T> = {};
+	for (const key of Object.keys(data) as (keyof T & string)[]) {
+		if (!key.startsWith('!')) {
+			output[key] = data[key];
+		}
+	}
+
+	return output;
 }
 
-export function isExtensionHostDebugging(config: IConfig) {
-	return config.type && equalsIgnoreCase(config.type === 'vslsShare' ? (<any>config).adapterProxy.configuration.type : config.type, 'extensionhost');
+
+export function isSessionAttach(session: IDebugSession): boolean {
+	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session) && (!session.parentSession || isSessionAttach(session.parentSession));
+}
+
+/**
+ * Returns the session or any parent which is an extension host debug session.
+ * Returns undefined if there's none.
+ */
+export function getExtensionHostDebugSession(session: IDebugSession): IDebugSession | void {
+	let type = session.configuration.type;
+	if (!type) {
+		return;
+	}
+
+	if (type === 'vslsShare') {
+		type = (<any>session.configuration).adapterProxy.configuration.type;
+	}
+
+	if (equalsIgnoreCase(type, 'extensionhost') || equalsIgnoreCase(type, 'pwa-extensionhost')) {
+		return session;
+	}
+
+	return session.parentSession ? getExtensionHostDebugSession(session.parentSession) : undefined;
 }
 
 // only a debugger contributions with a label, program, or runtime attribute is considered a "defining" or "main" debugger contribution
@@ -107,38 +124,45 @@ export function isUri(s: string | undefined): boolean {
 	return !!(s && s.match(_schemePattern));
 }
 
-function stringToUri(path: string): string {
-	if (typeof path === 'string') {
-		if (isUri(path)) {
-			return <string><unknown>uri.parse(path);
+function stringToUri(source: PathContainer): string | undefined {
+	if (typeof source.path === 'string') {
+		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
+			// if there is a source reference, don't touch path
 		} else {
-			// assume path
-			if (isAbsolute(path)) {
-				return <string><unknown>uri.file(path);
+			if (isUri(source.path)) {
+				return <string><unknown>uri.parse(source.path);
 			} else {
-				// leave relative path as is
+				// assume path
+				if (isAbsolute(source.path)) {
+					return <string><unknown>uri.file(source.path);
+				} else {
+					// leave relative path as is
+				}
 			}
 		}
 	}
-	return path;
+	return source.path;
 }
 
-function uriToString(path: string): string {
-	if (typeof path === 'object') {
-		const u = uri.revive(path);
-		if (u.scheme === 'file') {
-			return u.fsPath;
-		} else {
-			return u.toString();
+function uriToString(source: PathContainer): string | undefined {
+	if (typeof source.path === 'object') {
+		const u = uri.revive(source.path);
+		if (u) {
+			if (u.scheme === Schemas.file) {
+				return u.fsPath;
+			} else {
+				return u.toString();
+			}
 		}
 	}
-	return path;
+	return source.path;
 }
 
 // path hooks helpers
 
 interface PathContainer {
 	path?: string;
+	sourceReference?: number;
 }
 
 export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, toUri: boolean): DebugProtocol.ProtocolMessage {
@@ -150,7 +174,7 @@ export function convertToDAPaths(message: DebugProtocol.ProtocolMessage, toUri: 
 
 	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
 		if (toDA && source) {
-			source.path = source.path ? fixPath(source.path) : undefined;
+			source.path = fixPath(source);
 		}
 	});
 	return msg;
@@ -165,7 +189,7 @@ export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, toUri:
 
 	convertPaths(msg, (toDA: boolean, source: PathContainer | undefined) => {
 		if (!toDA && source) {
-			source.path = source.path ? fixPath(source.path) : undefined;
+			source.path = fixPath(source);
 		}
 	});
 	return msg;
@@ -196,6 +220,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 				case 'setBreakpoints':
 					fixSourcePath(true, (<DebugProtocol.SetBreakpointsArguments>request.arguments).source);
 					break;
+				case 'breakpointLocations':
+					fixSourcePath(true, (<DebugProtocol.BreakpointLocationsArguments>request.arguments).source);
+					break;
 				case 'source':
 					fixSourcePath(true, (<DebugProtocol.SourceArguments>request.arguments).source);
 					break;
@@ -211,7 +238,7 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 			break;
 		case 'response':
 			const response = <DebugProtocol.Response>msg;
-			if (response.success) {
+			if (response.success && response.body) {
 				switch (response.command) {
 					case 'stackTrace':
 						(<DebugProtocol.StackTraceResponse>response).body.stackFrames.forEach(frame => fixSourcePath(false, frame.source));
@@ -234,4 +261,62 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 			}
 			break;
 	}
+}
+
+export function getVisibleAndSorted<T extends { presentation?: IConfigPresentation }>(array: T[]): T[] {
+	return array.filter(config => !config.presentation?.hidden).sort((first, second) => {
+		if (!first.presentation) {
+			if (!second.presentation) {
+				return 0;
+			}
+			return 1;
+		}
+		if (!second.presentation) {
+			return -1;
+		}
+		if (!first.presentation.group) {
+			if (!second.presentation.group) {
+				return compareOrders(first.presentation.order, second.presentation.order);
+			}
+			return 1;
+		}
+		if (!second.presentation.group) {
+			return -1;
+		}
+		if (first.presentation.group !== second.presentation.group) {
+			return first.presentation.group.localeCompare(second.presentation.group);
+		}
+
+		return compareOrders(first.presentation.order, second.presentation.order);
+	});
+}
+
+function compareOrders(first: number | undefined, second: number | undefined): number {
+	if (typeof first !== 'number') {
+		if (typeof second !== 'number') {
+			return 0;
+		}
+
+		return 1;
+	}
+	if (typeof second !== 'number') {
+		return -1;
+	}
+
+	return first - second;
+}
+
+export async function saveAllBeforeDebugStart(configurationService: IConfigurationService, editorService: IEditorService): Promise<void> {
+	const saveBeforeStartConfig: string = configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: editorService.activeTextEditorMode });
+	if (saveBeforeStartConfig !== 'none') {
+		await editorService.saveAll();
+		if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
+			const activeEditor = editorService.activeEditorPane;
+			if (activeEditor) {
+				// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
+				await editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
+			}
+		}
+	}
+	await configurationService.reloadConfiguration();
 }

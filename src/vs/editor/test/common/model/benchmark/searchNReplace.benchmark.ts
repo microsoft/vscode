@@ -7,30 +7,30 @@ import { ITextBufferBuilder } from 'vs/editor/common/model';
 import { BenchmarkSuite } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
 import { generateRandomChunkWithLF, generateRandomReplaces } from 'vs/editor/test/common/model/linesTextBuffer/textBufferAutoTestUtils';
 
-let fileSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
+const fileSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
 
-for (let fileSize of fileSizes) {
-	let chunks: string[] = [];
+for (const fileSize of fileSizes) {
+	const chunks: string[] = [];
 
-	let chunkCnt = Math.floor(fileSize / (64 * 1000));
+	const chunkCnt = Math.floor(fileSize / (64 * 1000));
 	if (chunkCnt === 0) {
 		chunks.push(generateRandomChunkWithLF(fileSize, fileSize));
 	} else {
-		let chunk = generateRandomChunkWithLF(64 * 1000, 64 * 1000);
+		const chunk = generateRandomChunkWithLF(64 * 1000, 64 * 1000);
 		// try to avoid OOM
 		for (let j = 0; j < chunkCnt; j++) {
 			chunks.push(Buffer.from(chunk + j).toString());
 		}
 	}
 
-	let replaceSuite = new BenchmarkSuite({
+	const replaceSuite = new BenchmarkSuite({
 		name: `File Size: ${fileSize}Byte`,
 		iterations: 10
 	});
 
-	let edits = generateRandomReplaces(chunks, 500, 5, 10);
+	const edits = generateRandomReplaces(chunks, 500, 5, 10);
 
-	for (let i of [10, 100, 500]) {
+	for (const i of [10, 100, 500]) {
 		replaceSuite.add({
 			name: `replace ${i} occurrences`,
 			buildBuffer: (textBufferBuilder: ITextBufferBuilder) => {
@@ -41,7 +41,7 @@ for (let fileSize of fileSizes) {
 				return textBuffer;
 			},
 			fn: (textBuffer) => {
-				textBuffer.applyEdits(edits.slice(0, i), false);
+				textBuffer.applyEdits(edits.slice(0, i), false, false);
 			}
 		});
 	}

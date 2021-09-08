@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./accessibilityHelp';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
@@ -21,7 +20,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import { IEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IStandaloneEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -37,7 +36,7 @@ const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessi
 
 class AccessibilityHelpController extends Disposable
 	implements IEditorContribution {
-	private static readonly ID = 'editor.contrib.accessibilityHelpController';
+	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 
 	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(
@@ -58,10 +57,6 @@ class AccessibilityHelpController extends Disposable
 		this._widget = this._register(
 			instantiationService.createInstance(AccessibilityHelpWidget, this._editor)
 		);
-	}
-
-	public getId(): string {
-		return AccessibilityHelpController.ID;
 	}
 
 	public show(): void {
@@ -164,7 +159,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
 				alert(AccessibilityHelpNLS.openingDocs);
 
-				let url = (<IEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
+				let url = (<IStandaloneEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
 				if (typeof url === 'undefined') {
 					url = 'https://go.microsoft.com/fwlink/?linkid=852450';
 				}
@@ -182,7 +177,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._editor.addOverlayWidget(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}
@@ -333,9 +328,12 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			alias: 'Show Accessibility Help',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: (browser.isIE ? KeyMod.CtrlCmd | KeyCode.F1 : KeyMod.Alt | KeyCode.F1),
-				weight: KeybindingWeight.EditorContrib
+				primary: KeyMod.Alt | KeyCode.F1,
+				weight: KeybindingWeight.EditorContrib,
+				linux: {
+					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+					secondary: [KeyMod.Alt | KeyCode.F1]
+				}
 			}
 		});
 	}
@@ -348,7 +346,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
 registerEditorAction(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);

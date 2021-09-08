@@ -3,29 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer, FuzzyScore, anyScore } from 'vs/base/common/filters';
-import { CompletionItemProvider, CompletionItemKind } from 'vs/editor/common/modes';
-import { CompletionItem } from './suggest';
-import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
-import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+import { quickSelect } from 'vs/base/common/arrays';
 import { CharCode } from 'vs/base/common/charCode';
+import { anyScore, fuzzyScore, FuzzyScore, fuzzyScoreGracefulAggressive, FuzzyScorer } from 'vs/base/common/filters';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
+import { CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/modes';
+import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+import { CompletionItem } from './suggest';
 
 type StrictCompletionItem = Required<CompletionItem>;
 
-/* __GDPR__FRAGMENT__
-	"ICompletionStats" : {
-		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-	}
-*/
-// __GDPR__TODO__: This is a dynamically extensible structure which can not be declared statically.
 export interface ICompletionStats {
-	suggestionCount: number;
-	snippetCount: number;
-	textCount: number;
-	[name: string]: any;
+	pLabelLen: number;
 }
 
 export class LineContext {
@@ -41,6 +31,9 @@ const enum Refilter {
 	Incr = 2
 }
 
+/**
+ * Sorted, filtered completion view model
+ * */
 export class CompletionModel {
 
 	private readonly _items: CompletionItem[];
@@ -52,7 +45,7 @@ export class CompletionModel {
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
 	private _filteredItems?: StrictCompletionItem[];
-	private _isIncomplete?: Set<CompletionItemProvider>;
+	private _providerInfo?: Map<CompletionItemProvider, boolean>;
 	private _stats?: ICompletionStats;
 
 	constructor(
@@ -61,7 +54,8 @@ export class CompletionModel {
 		lineContext: LineContext,
 		wordDistance: WordDistance,
 		options: InternalSuggestOptions,
-		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none'
+		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none',
+		readonly clipboardText: string | undefined
 	) {
 		this._items = items;
 		this._column = column;
@@ -95,13 +89,24 @@ export class CompletionModel {
 		return this._filteredItems!;
 	}
 
+	get allProvider(): IterableIterator<CompletionItemProvider> {
+		this._ensureCachedState();
+		return this._providerInfo!.keys();
+	}
+
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
-		return this._isIncomplete!;
+		const result = new Set<CompletionItemProvider>();
+		for (let [provider, incomplete] of this._providerInfo!) {
+			if (incomplete) {
+				result.add(provider);
+			}
+		}
+		return result;
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
-		let res = new Array<CompletionItem>();
+		let res: CompletionItem[] = [];
 		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].provider)) {
 				res.push(this._items[i]);
@@ -131,8 +136,9 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 
-		this._isIncomplete = new Set();
-		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
+		this._providerInfo = new Map();
+
+		const labelLengths: number[] = [];
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
@@ -151,16 +157,17 @@ export class CompletionModel {
 
 			const item = source[i];
 
-			// collect those supports that signaled having
-			// an incomplete result
-			if (item.container.incomplete) {
-				this._isIncomplete.add(item.provider);
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
 			}
+
+			// collect all support, know if their result is incomplete
+			this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
 			// different word, but in practice not - that's why we cache
-			const overwriteBefore = item.position.column - item.completion.range.startColumn;
+			const overwriteBefore = item.position.column - item.editStart.column;
 			const wordLen = overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
@@ -206,19 +213,19 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					if (compareIgnoreCase(item.completion.filterText, item.completion.label) === 0) {
+					if (compareIgnoreCase(item.completion.filterText, item.textLabel) === 0) {
 						// filterText and label are actually the same -> use good highlights
 						item.score = match;
 					} else {
 						// re-run the scorer on the label in the hope of a result BUT use the rank
 						// of the filterText-match
-						item.score = anyScore(word, wordLow, wordPos, item.completion.label, item.labelLow, 0);
+						item.score = anyScore(word, wordLow, wordPos, item.textLabel, item.labelLow, 0);
 						item.score[0] = match[0]; // use score from filterText
 					}
 
 				} else {
 					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, item.textLabel, item.labelLow, 0, false);
 					if (!match) {
 						continue; // NO match
 					}
@@ -231,15 +238,16 @@ export class CompletionModel {
 			target.push(item as StrictCompletionItem);
 
 			// update stats
-			this._stats.suggestionCount++;
-			switch (item.completion.kind) {
-				case CompletionItemKind.Snippet: this._stats.snippetCount++; break;
-				case CompletionItemKind.Text: this._stats.textCount++; break;
-			}
+			labelLengths.push(item.textLabel.length);
 		}
 
 		this._filteredItems = target.sort(this._snippetCompareFn);
 		this._refilterKind = Refilter.Nothing;
+		this._stats = {
+			pLabelLen: labelLengths.length ?
+				quickSelect(labelLengths.length - .85, labelLengths, (a, b) => a - b)
+				: 0
+		};
 	}
 
 	private static _compareCompletionItems(a: StrictCompletionItem, b: StrictCompletionItem): number {

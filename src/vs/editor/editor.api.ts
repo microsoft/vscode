@@ -3,18 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorOptions, WrappingIndent } from 'vs/editor/common/config/editorOptions';
+import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
-
-const global: any = self;
+import { globals } from 'vs/base/common/platform';
+import { FormattingConflicts } from 'vs/editor/contrib/format/format';
 
 // Set defaults for standalone editor
-(<any>EditorOptions.wrappingIndent).defaultValue = WrappingIndent.None;
-(<any>EditorOptions.glyphMargin).defaultValue = false;
-(<any>EditorOptions.autoIndent).defaultValue = false;
-(<any>EditorOptions.overviewRulerLanes).defaultValue = 2;
+EditorOptions.wrappingIndent.defaultValue = WrappingIndent.None;
+EditorOptions.glyphMargin.defaultValue = false;
+EditorOptions.autoIndent.defaultValue = EditorAutoIndentStrategy.Advanced;
+EditorOptions.overviewRulerLanes.defaultValue = 2;
+
+// We need to register a formatter selector which simply picks the first available formatter.
+// See https://github.com/microsoft/monaco-editor/issues/2327
+FormattingConflicts.setFormatterSelector((formatter, document, mode) => Promise.resolve(formatter[0]));
 
 const api = createMonacoBaseAPI();
 api.editor = createMonacoEditorAPI();
@@ -34,13 +38,17 @@ export const Token = api.Token;
 export const editor = api.editor;
 export const languages = api.languages;
 
-global.monaco = api;
+if (globals.MonacoEnvironment?.globalAPI || (typeof define === 'function' && (<any>define).amd)) {
+	self.monaco = api;
+}
 
-if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
-	global.require.config({
+if (typeof self.require !== 'undefined' && typeof self.require.config === 'function') {
+	self.require.config({
 		ignoreDuplicateModules: [
 			'vscode-languageserver-types',
 			'vscode-languageserver-types/main',
+			'vscode-languageserver-textdocument',
+			'vscode-languageserver-textdocument/main',
 			'vscode-nls',
 			'vscode-nls/vscode-nls',
 			'jsonc-parser',

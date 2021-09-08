@@ -8,6 +8,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 
+export const _debugComposition = false;
+
 export interface ITextAreaWrapper {
 	getValue(): string;
 	setValue(reason: string, value: string): void;
@@ -25,7 +27,9 @@ export interface ISimpleModel {
 
 export interface ITypeData {
 	text: string;
-	replaceCharCnt: number;
+	replacePrevCharCnt: number;
+	replaceNextCharCnt: number;
+	positionDelta: number;
 }
 
 export class TextAreaState {
@@ -59,7 +63,9 @@ export class TextAreaState {
 	}
 
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
-		// console.log(Date.now() + ': writeToTextArea ' + reason + ': ' + this.toString());
+		if (_debugComposition) {
+			console.log('writeToTextArea ' + reason + ': ' + this.toString());
+		}
 		textArea.setValue(reason, this.value);
 		if (select) {
 			textArea.setSelectionRange(reason, this.selectionStart, this.selectionEnd);
@@ -96,18 +102,22 @@ export class TextAreaState {
 		return new TextAreaState(text, 0, text.length, null, null);
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean): ITypeData {
+	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
 				text: '',
-				replaceCharCnt: 0
+				replacePrevCharCnt: 0,
+				replaceNextCharCnt: 0,
+				positionDelta: 0
 			};
 		}
 
-		// console.log('------------------------deduceInput');
-		// console.log('PREVIOUS STATE: ' + previousState.toString());
-		// console.log('CURRENT STATE: ' + currentState.toString());
+		if (_debugComposition) {
+			console.log('------------------------deduceInput');
+			console.log('PREVIOUS STATE: ' + previousState.toString());
+			console.log('CURRENT STATE: ' + currentState.toString());
+		}
 
 		let previousValue = previousState.value;
 		let previousSelectionStart = previousState.selectionStart;
@@ -115,18 +125,6 @@ export class TextAreaState {
 		let currentValue = currentState.value;
 		let currentSelectionStart = currentState.selectionStart;
 		let currentSelectionEnd = currentState.selectionEnd;
-
-		if (couldBeTypingAtOffset0 && previousValue.length > 0 && previousSelectionStart === previousSelectionEnd && currentSelectionStart === currentSelectionEnd) {
-			// See https://github.com/Microsoft/vscode/issues/42251
-			// where typing always happens at offset 0 in the textarea
-			// when using a custom title area in OSX and moving the window
-			if (!strings.startsWith(currentValue, previousValue) && strings.endsWith(currentValue, previousValue)) {
-				// Looks like something was typed at offset 0
-				// ==> pretend we placed the cursor at offset 0 to begin with...
-				previousSelectionStart = 0;
-				previousSelectionEnd = 0;
-			}
-		}
 
 		// Strip the previous suffix from the value (without interfering with the current selection)
 		const previousSuffix = previousValue.substring(previousSelectionEnd);
@@ -145,8 +143,10 @@ export class TextAreaState {
 		currentSelectionEnd -= prefixLength;
 		previousSelectionEnd -= prefixLength;
 
-		// console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
-		// console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
+		if (_debugComposition) {
+			console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
+			console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
+		}
 
 		if (couldBeEmojiInput && currentSelectionStart === currentSelectionEnd && previousValue.length > 0) {
 			// on OSX, emojis from the emoji picker are inserted at random locations
@@ -157,13 +157,13 @@ export class TextAreaState {
 
 			if (currentSelectionStart === currentValue.length) {
 				// emoji potentially inserted "somewhere" after the previous selection => it should appear at the end of `currentValue`
-				if (strings.startsWith(currentValue, previousValue)) {
+				if (currentValue.startsWith(previousValue)) {
 					// only if all of the old text is accounted for
 					potentialEmojiInput = currentValue.substring(previousValue.length);
 				}
 			} else {
 				// emoji potentially inserted "somewhere" before the previous selection => it should appear at the start of `currentValue`
-				if (strings.endsWith(currentValue, previousValue)) {
+				if (currentValue.endsWith(previousValue)) {
 					// only if all of the old text is accounted for
 					potentialEmojiInput = currentValue.substring(0, currentValue.length - previousValue.length);
 				}
@@ -182,7 +182,9 @@ export class TextAreaState {
 				if (/\uFE0F/.test(potentialEmojiInput) || strings.containsEmoji(potentialEmojiInput)) {
 					return {
 						text: potentialEmojiInput,
-						replaceCharCnt: 0
+						replacePrevCharCnt: 0,
+						replaceNextCharCnt: 0,
+						positionDelta: 0
 					};
 				}
 			}
@@ -201,18 +203,24 @@ export class TextAreaState {
 				if (strings.containsFullWidthCharacter(currentValue)) {
 					return {
 						text: '',
-						replaceCharCnt: 0
+						replacePrevCharCnt: 0,
+						replaceNextCharCnt: 0,
+						positionDelta: 0
 					};
 				}
 			}
 
 			// no current selection
 			const replacePreviousCharacters = (previousPrefix.length - prefixLength);
-			// console.log('REMOVE PREVIOUS: ' + (previousPrefix.length - prefixLength) + ' chars');
+			if (_debugComposition) {
+				console.log('REMOVE PREVIOUS: ' + (previousPrefix.length - prefixLength) + ' chars');
+			}
 
 			return {
 				text: currentValue,
-				replaceCharCnt: replacePreviousCharacters
+				replacePrevCharCnt: replacePreviousCharacters,
+				replaceNextCharCnt: 0,
+				positionDelta: 0
 			};
 		}
 
@@ -220,32 +228,80 @@ export class TextAreaState {
 		const replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
 		return {
 			text: currentValue,
-			replaceCharCnt: replacePreviousCharacters
+			replacePrevCharCnt: replacePreviousCharacters,
+			replaceNextCharCnt: 0,
+			positionDelta: 0
+		};
+	}
+
+	public static deduceAndroidCompositionInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {
+		if (!previousState) {
+			// This is the EMPTY state
+			return {
+				text: '',
+				replacePrevCharCnt: 0,
+				replaceNextCharCnt: 0,
+				positionDelta: 0
+			};
+		}
+
+		if (_debugComposition) {
+			console.log('------------------------deduceAndroidCompositionInput');
+			console.log('PREVIOUS STATE: ' + previousState.toString());
+			console.log('CURRENT STATE: ' + currentState.toString());
+		}
+
+		if (previousState.value === currentState.value) {
+			return {
+				text: '',
+				replacePrevCharCnt: 0,
+				replaceNextCharCnt: 0,
+				positionDelta: currentState.selectionEnd - previousState.selectionEnd
+			};
+		}
+
+		const prefixLength = Math.min(strings.commonPrefixLength(previousState.value, currentState.value), previousState.selectionEnd);
+		const suffixLength = Math.min(strings.commonSuffixLength(previousState.value, currentState.value), previousState.value.length - previousState.selectionEnd);
+		const previousValue = previousState.value.substring(prefixLength, previousState.value.length - suffixLength);
+		const currentValue = currentState.value.substring(prefixLength, currentState.value.length - suffixLength);
+		const previousSelectionStart = previousState.selectionStart - prefixLength;
+		const previousSelectionEnd = previousState.selectionEnd - prefixLength;
+		const currentSelectionStart = currentState.selectionStart - prefixLength;
+		const currentSelectionEnd = currentState.selectionEnd - prefixLength;
+
+		if (_debugComposition) {
+			console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
+			console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
+		}
+
+		return {
+			text: currentValue,
+			replacePrevCharCnt: previousSelectionEnd,
+			replaceNextCharCnt: previousValue.length - previousSelectionEnd,
+			positionDelta: currentSelectionEnd - currentValue.length
 		};
 	}
 }
 
 export class PagedScreenReaderStrategy {
-	private static readonly _LINES_PER_PAGE = 10;
-
-	private static _getPageOfLine(lineNumber: number): number {
-		return Math.floor((lineNumber - 1) / PagedScreenReaderStrategy._LINES_PER_PAGE);
+	private static _getPageOfLine(lineNumber: number, linesPerPage: number): number {
+		return Math.floor((lineNumber - 1) / linesPerPage);
 	}
 
-	private static _getRangeForPage(page: number): Range {
-		const offset = page * PagedScreenReaderStrategy._LINES_PER_PAGE;
+	private static _getRangeForPage(page: number, linesPerPage: number): Range {
+		const offset = page * linesPerPage;
 		const startLineNumber = offset + 1;
-		const endLineNumber = offset + PagedScreenReaderStrategy._LINES_PER_PAGE;
+		const endLineNumber = offset + linesPerPage;
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, trimLongText: boolean): TextAreaState {
+	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): TextAreaState {
 
-		const selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber);
-		const selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage);
+		const selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber, linesPerPage);
+		const selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage, linesPerPage);
 
-		const selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber);
-		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage);
+		const selectionEndPage = PagedScreenReaderStrategy._getPageOfLine(selection.endLineNumber, linesPerPage);
+		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
 
 		const pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
 		let pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);

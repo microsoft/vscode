@@ -6,11 +6,11 @@
 				"git": {
 					"name": "jeff-hykin/cpp-textmate-grammar",
 					"repositoryUrl": "https://github.com/jeff-hykin/cpp-textmate-grammar",
-					"commitHash": "7e5b098736796056fa99d1ef50e1b95b6131d16c"
+					"commitHash": "cb4565d3ac2e04138effb732b1217650636eb1de"
 				}
 			},
 			"license": "MIT",
-			"version": "1.14.3",
+			"version": "1.15.6",
 			"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		},
 		{
@@ -19,7 +19,7 @@
 				"git": {
 					"name": "textmate/c.tmbundle",
 					"repositoryUrl": "https://github.com/textmate/c.tmbundle",
-					"commitHash": "9aa365882274ca52f01722f3dbb169b9539a20ee"
+					"commitHash": "60daf83b9d45329524f7847a75e9298b3aae5805"
 				}
 			},
 			"licenseDetail": [
@@ -39,6 +39,19 @@
 			],
 			"license": "TextMate Bundle License",
 			"version": "0.0.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "NVIDIA/cuda-cpp-grammar",
+					"repositoryUrl": "https://github.com/NVIDIA/cuda-cpp-grammar",
+					"commitHash": "81e88eaec5170aa8585736c63627c73e3589998c"
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0",
+			"description": "The file syntaxes/cuda-cpp.tmLanguage.json was derived from https://github.com/jeff-hykin/cpp-textmate-grammar, which was derived from https://github.com/atom/language-c, which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
 		}
 	],
 	"version": 1

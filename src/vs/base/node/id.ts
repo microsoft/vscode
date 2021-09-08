@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import * as uuid from 'vs/base/common/uuid';
 import { networkInterfaces } from 'os';
+import * as errors from 'vs/base/common/errors';
 import { TernarySearchTree } from 'vs/base/common/map';
+import * as uuid from 'vs/base/common/uuid';
 import { getMac } from 'vs/base/node/macAddress';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
@@ -21,10 +21,10 @@ import { getMac } from 'vs/base/node/macAddress';
 // Sun xVM VirtualBox	08-00-27
 export const virtualMachineHint: { value(): number } = new class {
 
-	private _virtualMachineOUIs?: TernarySearchTree<boolean>;
+	private _virtualMachineOUIs?: TernarySearchTree<string, boolean>;
 	private _value?: number;
 
-	private _isVirtualMachineMacAdress(mac: string): boolean {
+	private _isVirtualMachineMacAddress(mac: string): boolean {
 		if (!this._virtualMachineOUIs) {
 			this._virtualMachineOUIs = TernarySearchTree.forStrings<boolean>();
 
@@ -56,11 +56,12 @@ export const virtualMachineHint: { value(): number } = new class {
 
 			const interfaces = networkInterfaces();
 			for (let name in interfaces) {
-				if (Object.prototype.hasOwnProperty.call(interfaces, name)) {
-					for (const { mac, internal } of interfaces[name]) {
+				const networkInterface = interfaces[name];
+				if (networkInterface) {
+					for (const { mac, internal } of networkInterface) {
 						if (!internal) {
 							interfaceCount += 1;
-							if (this._isVirtualMachineMacAdress(mac.toUpperCase())) {
+							if (this._isVirtualMachineMacAddress(mac.toUpperCase())) {
 								vmOui += 1;
 							}
 						}

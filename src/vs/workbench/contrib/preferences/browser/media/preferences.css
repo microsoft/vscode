@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.preferences-editor {
+	display: flex;
+	flex-direction: column;
+}
+
 .preferences-editor > .preferences-header {
 	padding-left: 27px;
 	padding-right: 32px;
@@ -10,8 +15,22 @@
 	padding-top: 11px;
 }
 
+.preferences-editor .deprecation-warning {
+	display: flex;
+	margin-top: 4px;
+}
+
+.preferences-editor .deprecation-warning .icon {
+	margin-right: 3px;
+}
+
+.preferences-editor .deprecation-warning .learnMore-button {
+	margin-left: 3px;
+	text-decoration: underline;
+}
+
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
-	position: relative;
+	flex: 1;
 }
 
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor .preferences-header-container {
@@ -46,14 +65,13 @@
 
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	display: block;
+	padding: 0px;
+	border-radius: initial;
+	background: none !important;
 }
 
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label.folder-settings {
 	display: flex;
-}
-
-.settings-tabs-widget > .monaco-action-bar .actions-container {
-	justify-content: flex-start;
 }
 
 .default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
@@ -118,7 +136,7 @@
 	height: 30px;
 }
 
-.vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
+.monaco-workbench.vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
 	border: 1px solid #ddd;
 }
 
@@ -134,16 +152,7 @@
 .monaco-editor .settings-header-widget .title-container {
 	display: flex;
 	user-select: none;
-}
-
-.vs .monaco-editor .settings-header-widget .title-container {
-	color: #6f6f6f;
-}
-.vs-dark .monaco-editor .settings-header-widget .title-container {
-	color: #bbbbbb;
-}
-.hc-black .monaco-editor .settings-header-widget .title-container {
-	color: white;
+	-webkit-user-select: none;
 }
 
 .monaco-editor .settings-header-widget .title-container .title {
@@ -165,23 +174,14 @@
 	cursor: pointer;
 	font-weight: bold;
 	user-select: none;
+	-webkit-user-select: none;
 	display: flex;
 }
 
-.vs .monaco-editor .settings-group-title-widget .title-container {
-	color: #6f6f6f;
-}
 
 .monaco-editor .settings-group-title-widget .title-container .title {
 	white-space: nowrap;
 	overflow: hidden;
-}
-
-.vs-dark .monaco-editor .settings-group-title-widget .title-container {
-	color: #bbbbbb;
-}
-.hc-black .monaco-editor .settings-group-title-widget .title-container {
-	color: white;
 }
 
 .monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,
@@ -198,51 +198,15 @@
 	outline: 1px dotted #f38518;
 }
 
-.monaco-editor .settings-group-title-widget .title-container .expand-collapse-icon {
-	background: url("tree-expanded-light.svg") 50% 50% no-repeat;
-	margin-right: 2px;
+.monaco-editor .settings-group-title-widget .title-container .codicon {
+	margin: 0 2px;
 	width: 16px;
 	height: 100%;
-}
-
-.monaco-editor.vs-dark .settings-group-title-widget .title-container .expand-collapse-icon,
-.monaco-editor.hc-black .settings-group-title-widget .title-container .expand-collapse-icon {
-	background: url("tree-expanded-dark.svg") 50% 50% no-repeat;
-}
-
-.monaco-editor .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
-	background: url("tree-collapsed-light.svg") 50% 50% no-repeat;
-}
-
-.monaco-editor.vs-dark .settings-group-title-widget .title-container.collapsed .expand-collapse-icon,
-.monaco-editor.hc-black .settings-group-title-widget .title-container.collapsed .expand-collapse-icon {
-	background: url("tree-collapsed-dark.svg") 50% 50% no-repeat;
-}
-
-.monaco-editor .edit-preferences-widget {
-	background: url('edit-light.svg') center center no-repeat;
-	transform: rotate(-90deg);
-	width:16px;
-	height: 16px;
-	cursor: pointer;
-}
-
-.monaco-editor .edit-preferences-widget.hidden {
-	display: none;
-	visibility: hidden;
-}
-
-.monaco-editor.hc-black .edit-preferences-widget,
-.monaco-editor.vs-dark .edit-preferences-widget {
-	background: url('edit-dark.svg') center center no-repeat;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .monaco-editor .dim-configuration {
 	color: #b1b1b1;
-}
-
-.monaco-editor .floating-click-widget {
-	padding: 10px;
-	border-radius: 5px;
-	cursor: pointer;
 }

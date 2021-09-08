@@ -11,28 +11,59 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { renderExpressionValue, replaceWhitespace } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { coalesce } from 'vs/base/common/arrays';
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
+import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isMacintosh } from 'vs/base/common/platform';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 
 const $ = dom.$;
-const MAX_TREE_HEIGHT = 324;
+
+async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
+	if (!container) {
+		return Promise.resolve(null);
+	}
+
+	const children = await container.getChildren();
+	// look for our variable in the list. First find the parents of the hovered variable if there are any.
+	const filtered = children.filter(v => namesToFind[0] === v.name);
+	if (filtered.length !== 1) {
+		return null;
+	}
+
+	if (namesToFind.length === 1) {
+		return filtered[0];
+	} else {
+		return doFindExpression(filtered[0], namesToFind.slice(1));
+	}
+}
+
+export async function findExpressionInStackFrame(stackFrame: IStackFrame, namesToFind: string[]): Promise<IExpression | undefined> {
+	const scopes = await stackFrame.getScopes();
+	const nonExpensive = scopes.filter(s => !s.expensive);
+	const expressions = coalesce(await Promise.all(nonExpensive.map(scope => doFindExpression(scope, namesToFind))));
+
+	// only show if all expressions found have the same value
+	return expressions.length > 0 && expressions.every(e => e.value === expressions[0].value) ? expressions[0] : undefined;
+}
 
 export class DebugHoverWidget implements IContentWidget {
 
@@ -41,9 +72,11 @@ export class DebugHoverWidget implements IContentWidget {
 	allowEditorOverflow = true;
 
 	private _isVisible: boolean;
+	private showCancellationSource?: CancellationTokenSource;
 	private domNode!: HTMLElement;
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
 	private showAtPosition: Position | null;
+	private positionPreference: ContentWidgetPositionPreference[];
 	private highlightDecorations: string[];
 	private complexValueContainer!: HTMLElement;
 	private complexValueTitle!: HTMLElement;
@@ -56,13 +89,14 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
 		this._isVisible = false;
 		this.showAtPosition = null;
 		this.highlightDecorations = [];
+		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
 	private create(): void {
@@ -71,14 +105,22 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
+		const tip = dom.append(this.complexValueContainer, $('.tip'));
+		tip.textContent = nls.localize({ key: 'quickTip', comment: ['"switch to editor language hover" means to show the programming language hover widget instead of the debug hover'] }, 'Hold {0} key to switch to editor language hover', isMacintosh ? 'Option' : 'Alt');
 		const dataSource = new DebugHoverDataSource();
-
-		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
+		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer, linkeDetector)],
 			dataSource, {
-			ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
-			horizontalScrolling: true
+			horizontalScrolling: true,
+			useShadows: false,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression) => e.name },
+			filterOnType: false,
+			simpleKeyboardNavigation: true,
+			overrideStyles: {
+				listBackground: editorHoverBackground
+			}
 		});
 
 		this.valueContainer = $('.value');
@@ -90,19 +132,24 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.editor.applyFontInfo(this.domNode);
 
-		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
+		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder, editorHoverForeground }, colors => {
 			if (colors.editorHoverBackground) {
 				this.domNode.style.backgroundColor = colors.editorHoverBackground.toString();
 			} else {
-				this.domNode.style.backgroundColor = null;
+				this.domNode.style.backgroundColor = '';
 			}
 			if (colors.editorHoverBorder) {
 				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
 			} else {
-				this.domNode.style.border = null;
+				this.domNode.style.border = '';
+			}
+			if (colors.editorHoverForeground) {
+				this.domNode.style.color = colors.editorHoverForeground.toString();
+			} else {
+				this.domNode.style.color = '';
 			}
 		}));
-		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
+		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
@@ -122,11 +169,15 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	isHovered(): boolean {
-		return this.domNode.matches(':hover');
+		return !!this.domNode?.matches(':hover');
 	}
 
 	isVisible(): boolean {
 		return this._isVisible;
+	}
+
+	willBeVisible(): boolean {
+		return !!this.showCancellationSource;
 	}
 
 	getId(): string {
@@ -137,79 +188,89 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	showAt(range: Range, focus: boolean): Promise<void> {
+	async showAt(range: Range, focus: boolean): Promise<void> {
+		this.showCancellationSource?.cancel();
+		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
+		const session = this.debugService.getViewModel().focusedSession;
+
+		if (!session || !this.editor.hasModel()) {
+			return Promise.resolve(this.hide());
+		}
+
+		const model = this.editor.getModel();
 		const pos = range.getStartPosition();
 
-		const session = this.debugService.getViewModel().focusedSession;
-		if (!this.editor.hasModel()) {
-			return Promise.resolve(this.hide());
-		}
+		let rng: IRange | undefined = undefined;
+		let matchingExpression: string | undefined;
 
-		const lineContent = this.editor.getModel().getLineContent(pos.lineNumber);
-		const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
-		// use regex to extract the sub-expression #9821
-		const matchingExpression = lineContent.substring(start - 1, end);
-		if (!matchingExpression || !session) {
-			return Promise.resolve(this.hide());
-		}
+		if (EvaluatableExpressionProviderRegistry.has(model)) {
+			const supports = EvaluatableExpressionProviderRegistry.ordered(model);
 
-		let promise: Promise<IExpression | undefined>;
-		if (session.capabilities.supportsEvaluateForHovers) {
-			const result = new Expression(matchingExpression);
-			promise = result.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover').then(() => result);
-		} else {
-			promise = this.findExpressionInStackFrame(coalesce(matchingExpression.split('.').map(word => word.trim())));
-		}
+			const promises = supports.map(support => {
+				return Promise.resolve(support.provideEvaluatableExpression(model, pos, cancellationSource.token)).then(expression => {
+					return expression;
+				}, err => {
+					//onUnexpectedExternalError(err);
+					return undefined;
+				});
+			});
 
-		return promise.then(expression => {
-			if (!expression || (expression instanceof Expression && !expression.available)) {
-				this.hide();
-				return undefined;
+			const results = await Promise.all(promises).then(coalesce);
+			if (results.length > 0) {
+				matchingExpression = results[0].expression;
+				rng = results[0].range;
+
+				if (!matchingExpression) {
+					const lineContent = model.getLineContent(pos.lineNumber);
+					matchingExpression = lineContent.substring(rng.startColumn - 1, rng.endColumn - 1);
+				}
 			}
 
+		} else {	// old one-size-fits-all strategy
+			const lineContent = model.getLineContent(pos.lineNumber);
+			const { start, end } = getExactExpressionStartAndEnd(lineContent, range.startColumn, range.endColumn);
+
+			// use regex to extract the sub-expression #9821
+			matchingExpression = lineContent.substring(start - 1, end);
+			rng = new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length);
+		}
+
+		if (!matchingExpression) {
+			return Promise.resolve(this.hide());
+		}
+
+		let expression;
+		if (session.capabilities.supportsEvaluateForHovers) {
+			expression = new Expression(matchingExpression);
+			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
+		} else {
+			const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+			if (focusedStackFrame) {
+				expression = await findExpressionInStackFrame(focusedStackFrame, coalesce(matchingExpression.split('.').map(word => word.trim())));
+			}
+		}
+
+		if (cancellationSource.token.isCancellationRequested || !expression || (expression instanceof Expression && !expression.available)) {
+			this.hide();
+			return;
+		}
+
+		if (rng) {
 			this.highlightDecorations = this.editor.deltaDecorations(this.highlightDecorations, [{
-				range: new Range(pos.lineNumber, start, pos.lineNumber, start + matchingExpression.length),
+				range: rng,
 				options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 			}]);
+		}
 
-			return this.doShow(pos, expression, focus);
-		});
+		return this.doShow(pos, expression, focus);
 	}
 
-	private static _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
+		description: 'bdebug-hover-highlight',
 		className: 'hoverHighlight'
 	});
 
-	private doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
-		if (!container) {
-			return Promise.resolve(null);
-		}
-
-		return container.getChildren().then(children => {
-			// look for our variable in the list. First find the parents of the hovered variable if there are any.
-			const filtered = children.filter(v => namesToFind[0] === v.name);
-			if (filtered.length !== 1) {
-				return null;
-			}
-
-			if (namesToFind.length === 1) {
-				return filtered[0];
-			} else {
-				return this.doFindExpression(filtered[0], namesToFind.slice(1));
-			}
-		});
-	}
-
-	private findExpressionInStackFrame(namesToFind: string[]): Promise<IExpression | undefined> {
-		return this.debugService.getViewModel().focusedStackFrame!.getScopes()
-			.then(scopes => scopes.filter(s => !s.expensive))
-			.then(scopes => Promise.all(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
-			.then(coalesce)
-			// only show if all expressions found have the same value
-			.then(expressions => (expressions.length > 0 && expressions.every(e => e.value === expressions[0].value)) ? expressions[0] : undefined);
-	}
-
-	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
+	private async doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
 		if (!this.domNode) {
 			this.create();
 		}
@@ -222,7 +283,6 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				preserveWhitespace: true,
 				colorize: true
 			});
 			this.valueContainer.title = '';
@@ -237,50 +297,62 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		this.valueContainer.hidden = true;
+
+		await this.tree.setInput(expression);
+		this.complexValueTitle.textContent = expression.value;
+		this.complexValueTitle.title = expression.value;
+		this.layoutTreeAndContainer(true);
+		this.tree.scrollTop = 0;
+		this.tree.scrollLeft = 0;
 		this.complexValueContainer.hidden = false;
 
-		return this.tree.setInput(expression).then(() => {
-			this.complexValueTitle.textContent = replaceWhitespace(expression.value);
-			this.complexValueTitle.title = expression.value;
-			this.layoutTreeAndContainer();
-			this.editor.layoutContentWidget(this);
-			this.scrollbar.scanDomNode();
-			this.tree.scrollTop = 0;
-			this.tree.scrollLeft = 0;
-
-			if (focus) {
-				this.editor.render();
-				this.tree.domFocus();
-			}
-		});
+		if (focus) {
+			this.editor.render();
+			this.tree.domFocus();
+		}
 	}
 
-	private layoutTreeAndContainer(): void {
-		const scrollBarHeight = 8;
-		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.contentHeight + scrollBarHeight);
+	private layoutTreeAndContainer(initialLayout: boolean): void {
+		const scrollBarHeight = 10;
+		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
-		this.tree.layout(treeHeight, 324);
+		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
+		this.editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
 	}
+
+	afterRender(positionPreference: ContentWidgetPositionPreference | null) {
+		if (positionPreference) {
+			// Remember where the editor placed you to keep position stable #109226
+			this.positionPreference = [positionPreference];
+		}
+	}
+
 
 	hide(): void {
+		if (this.showCancellationSource) {
+			this.showCancellationSource.cancel();
+			this.showCancellationSource = undefined;
+		}
+
 		if (!this._isVisible) {
 			return;
 		}
 
+		if (dom.isAncestor(document.activeElement, this.domNode)) {
+			this.editor.focus();
+		}
 		this._isVisible = false;
 		this.editor.deltaDecorations(this.highlightDecorations, []);
 		this.highlightDecorations = [];
 		this.editor.layoutContentWidget(this);
-		this.editor.focus();
+		this.positionPreference = [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW];
 	}
 
 	getPosition(): IContentWidgetPosition | null {
 		return this._isVisible ? {
 			position: this.showAtPosition,
-			preference: [
-				ContentWidgetPositionPreference.ABOVE,
-				ContentWidgetPositionPreference.BELOW
-			]
+			preference: this.positionPreference
 		} : null;
 	}
 
@@ -289,9 +361,14 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 }
 
-class DebugHoverAccessibilityProvider implements IAccessibilityProvider<IExpression> {
+class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('treeAriaLabel', "Debug Hover");
+	}
+
 	getAriaLabel(element: IExpression): string {
-		return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
+		return nls.localize({ key: 'variableAriaLabel', comment: ['Do not translate placeholders. Placeholders are name and value of a variable.'] }, "{0}, value {1}, variables, debug", element.name, element.value);
 	}
 }
 

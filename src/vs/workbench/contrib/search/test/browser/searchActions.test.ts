@@ -18,6 +18,8 @@ import { IFileMatch } from 'vs/workbench/services/search/common/search';
 import { ReplaceAction } from 'vs/workbench/contrib/search/browser/searchActions';
 import { FileMatch, FileMatchOrMatch, Match } from 'vs/workbench/contrib/search/common/searchModel';
 import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSearchTree';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('Search Actions', () => {
 
@@ -42,7 +44,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[4], actual);
+		assert.strictEqual(data[4], actual);
 	});
 
 	test('get next element to focus after removing a match when it does not have next sibling match', function () {
@@ -54,7 +56,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[4], actual);
+		assert.strictEqual(data[4], actual);
 	});
 
 	test('get next element to focus after removing a match when it does not have next sibling match and previous match is file match', function () {
@@ -66,7 +68,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[2], actual);
+		assert.strictEqual(data[2], actual);
 	});
 
 	test('get next element to focus after removing a match when it is the only match', function () {
@@ -77,7 +79,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(undefined, actual);
+		assert.strictEqual(undefined, actual);
 	});
 
 	test('get next element to focus after removing a file match when it has next sibling', function () {
@@ -90,7 +92,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[4], actual);
+		assert.strictEqual(data[4], actual);
 	});
 
 	test('get next element to focus after removing a file match when it has no next sibling', function () {
@@ -103,7 +105,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(data[3], actual);
+		assert.strictEqual(data[3], actual);
 	});
 
 	test('get next element to focus after removing a file match when it is only match', function () {
@@ -114,7 +116,7 @@ suite('Search Actions', () => {
 		const testObject: ReplaceAction = instantiationService.createInstance(ReplaceAction, tree, target, null);
 
 		const actual = testObject.getElementToFocusAfterRemoved(tree, target);
-		assert.equal(undefined, actual);
+		assert.strictEqual(undefined, actual);
 	});
 
 	function aFileMatch(): FileMatch {
@@ -153,6 +155,7 @@ suite('Search Actions', () => {
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IThemeService, new TestThemeService());
 		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

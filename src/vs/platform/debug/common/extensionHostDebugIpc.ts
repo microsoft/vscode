@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IReloadSessionEvent, ICloseSessionEvent, IAttachSessionEvent, ILogToSessionEvent, ITerminateSessionEvent, IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IRemoteConsoleLog } from 'vs/base/common/console';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IAttachSessionEvent, ICloseSessionEvent, IExtensionHostDebugService, INullableProcessEnvironment, IOpenExtensionWindowResult, IReloadSessionEvent, ITerminateSessionEvent } from 'vs/platform/debug/common/extensionHostDebug';
 
 export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChannel<TContext> {
 
 	static readonly ChannelName = 'extensionhostdebugservice';
 
-	private _onCloseEmitter = new Emitter<ICloseSessionEvent>();
-	private _onReloadEmitter = new Emitter<IReloadSessionEvent>();
-	private _onTerminateEmitter = new Emitter<ITerminateSessionEvent>();
-	private _onLogToEmitter = new Emitter<ILogToSessionEvent>();
-	private _onAttachEmitter = new Emitter<IAttachSessionEvent>();
+	private readonly _onCloseEmitter = new Emitter<ICloseSessionEvent>();
+	private readonly _onReloadEmitter = new Emitter<IReloadSessionEvent>();
+	private readonly _onTerminateEmitter = new Emitter<ITerminateSessionEvent>();
+	private readonly _onAttachEmitter = new Emitter<IAttachSessionEvent>();
 
 	call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		switch (command) {
@@ -27,8 +25,6 @@ export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChan
 				return Promise.resolve(this._onReloadEmitter.fire({ sessionId: arg[0] }));
 			case 'terminate':
 				return Promise.resolve(this._onTerminateEmitter.fire({ sessionId: arg[0] }));
-			case 'log':
-				return Promise.resolve(this._onLogToEmitter.fire({ sessionId: arg[0], log: arg[1] }));
 			case 'attach':
 				return Promise.resolve(this._onAttachEmitter.fire({ sessionId: arg[0], port: arg[1], subId: arg[2] }));
 		}
@@ -43,8 +39,6 @@ export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChan
 				return this._onReloadEmitter.event;
 			case 'terminate':
 				return this._onTerminateEmitter.event;
-			case 'log':
-				return this._onLogToEmitter.event;
 			case 'attach':
 				return this._onAttachEmitter.event;
 		}
@@ -54,7 +48,7 @@ export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChan
 
 export class ExtensionHostDebugChannelClient extends Disposable implements IExtensionHostDebugService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private channel: IChannel) {
 		super();
@@ -84,19 +78,15 @@ export class ExtensionHostDebugChannelClient extends Disposable implements IExte
 		return this.channel.listen('attach');
 	}
 
-	logToSession(sessionId: string, log: IRemoteConsoleLog): void {
-		this.channel.call('log', [sessionId, log]);
-	}
-
-	get onLogToSession(): Event<ILogToSessionEvent> {
-		return this.channel.listen('log');
-	}
-
 	terminateSession(sessionId: string, subId?: string): void {
 		this.channel.call('terminate', [sessionId, subId]);
 	}
 
 	get onTerminateSession(): Event<ITerminateSessionEvent> {
 		return this.channel.listen('terminate');
+	}
+
+	openExtensionDevelopmentHostWindow(args: string[], env: INullableProcessEnvironment | undefined, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
+		return this.channel.call('openExtensionDevelopmentHostWindow', [args, env || {}, debugRenderer]);
 	}
 }

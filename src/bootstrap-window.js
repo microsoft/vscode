@@ -3,215 +3,270 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference path="typings/require.d.ts" />
+
 //@ts-check
 'use strict';
 
-const bootstrap = require('./bootstrap');
+// Simple module style to support node.js and browser environments
+(function (globalThis, factory) {
 
-/**
- * @param {object} destination
- * @param {object} source
- * @returns {object}
- */
-exports.assign = function assign(destination, source) {
-	return Object.keys(source).reduce(function (r, key) { r[key] = source[key]; return r; }, destination);
-};
+	// Node.js
+	if (typeof exports === 'object') {
+		module.exports = factory();
+	}
 
-/**
- *
- * @param {string[]} modulePaths
- * @param {(result, configuration: object) => any} resultCallback
- * @param {{ forceEnableDeveloperKeybindings?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
- */
-exports.load = function (modulePaths, resultCallback, options) {
+	// Browser
+	else {
+		globalThis.MonacoBootstrapWindow = factory();
+	}
+}(this, function () {
+	const bootstrapLib = bootstrap();
+	const preloadGlobals = sandboxGlobals();
+	const safeProcess = preloadGlobals.process;
 
-	// @ts-ignore
-	const webFrame = require('electron').webFrame;
-	const path = require('path');
-
-	const args = parseURLQueryArgs();
 	/**
-	 * // configuration: IWindowConfiguration
-	 * @type {{
-	 * zoomLevel?: number,
-	 * extensionDevelopmentPath?: string[],
-	 * extensionTestsPath?: string,
-	 * userEnv?: { [key: string]: string | undefined },
-	 * appRoot?: string,
-	 * nodeCachedDataDir?: string
-	 * }} */
-	const configuration = JSON.parse(args['config'] || '{}') || {};
+	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
+	 * @param {string[]} modulePaths
+	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
+	 * @param {{
+	 *  configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 		forceDisableShowDevtoolsOnError?: boolean,
+	 * 		forceEnableDeveloperKeybindings?: boolean,
+	 * 		disallowReloadKeybinding?: boolean,
+	 * 		removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 	},
+	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
+	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *  beforeRequire?: () => void
+	 * }} [options]
+	 */
+	async function load(modulePaths, resultCallback, options) {
+		const isDev = !!safeProcess.env['VSCODE_DEV'];
 
-	// Apply zoom level early to avoid glitches
-	const zoomLevel = configuration.zoomLevel;
-	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-		webFrame.setZoomLevel(zoomLevel);
+		// Error handler (TODO@sandbox non-sandboxed only)
+		let showDevtoolsOnError = isDev;
+		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
+			onUnexpectedError(error, showDevtoolsOnError);
+		});
+
+		// Await window configuration from preload
+		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
+		performance.mark('code/willWaitForWindowConfig');
+		/** @type {ISandboxConfiguration} */
+		const configuration = await preloadGlobals.context.resolveConfiguration();
+		performance.mark('code/didWaitForWindowConfig');
+		clearTimeout(timeout);
+
+		// Signal DOM modifications are now OK
+		if (typeof options?.canModifyDOM === 'function') {
+			options.canModifyDOM(configuration);
+		}
+
+		// Developer settings
+		const {
+			forceDisableShowDevtoolsOnError,
+			forceEnableDeveloperKeybindings,
+			disallowReloadKeybinding,
+			removeDeveloperKeybindingsAfterLoad
+		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
+			forceDisableShowDevtoolsOnError: false,
+			forceEnableDeveloperKeybindings: false,
+			disallowReloadKeybinding: false,
+			removeDeveloperKeybindingsAfterLoad: false
+		};
+		showDevtoolsOnError = isDev && !forceDisableShowDevtoolsOnError;
+		const enableDeveloperKeybindings = isDev || forceEnableDeveloperKeybindings;
+		let developerDeveloperKeybindingsDisposable;
+		if (enableDeveloperKeybindings) {
+			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
+		}
+
+		// Enable ASAR support (TODO@sandbox non-sandboxed only)
+		if (!safeProcess.sandboxed) {
+			globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
+		}
+
+		// Get the nls configuration into the process.env as early as possible
+		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
+
+		let locale = nlsConfig.availableLanguages['*'] || 'en';
+		if (locale === 'zh-tw') {
+			locale = 'zh-Hant';
+		} else if (locale === 'zh-cn') {
+			locale = 'zh-Hans';
+		}
+
+		window.document.documentElement.setAttribute('lang', locale);
+
+		// Replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
+		if (!safeProcess.sandboxed) {
+			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
+		}
+
+		window['MonacoEnvironment'] = {};
+
+		const loaderConfig = {
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
+			'vs/nls': nlsConfig,
+			preferScriptTags: true
+		};
+
+		// use a trusted types policy when loading via script tags
+		if (loaderConfig.preferScriptTags) {
+			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					throw new Error(`Invalid script url: ${value}`);
+				}
+			});
+		}
+
+		// Teach the loader the location of the node modules we use in renderers
+		// This will enable to load these modules via <script> tags instead of
+		// using a fallback such as node.js require which does not exist in sandbox
+		const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
+		loaderConfig.paths = {
+			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
+			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
+			'xterm': `${baseNodeModulesPath}/xterm/lib/xterm.js`,
+			'xterm-addon-search': `${baseNodeModulesPath}/xterm-addon-search/lib/xterm-addon-search.js`,
+			'xterm-addon-unicode11': `${baseNodeModulesPath}/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
+			'xterm-addon-webgl': `${baseNodeModulesPath}/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+			'iconv-lite-umd': `${baseNodeModulesPath}/iconv-lite-umd/lib/iconv-lite-umd.js`,
+			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
+			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
+			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
+		};
+
+		// For priviledged renderers, allow to load built-in and other node.js
+		// modules via AMD which has a fallback to using node.js `require`
+		if (!safeProcess.sandboxed) {
+			loaderConfig.amdModulesPattern = /(^vs\/)|(^vscode-textmate$)|(^vscode-oniguruma$)|(^xterm$)|(^xterm-addon-search$)|(^xterm-addon-unicode11$)|(^xterm-addon-webgl$)|(^iconv-lite-umd$)|(^jschardet$)|(^@vscode\/vscode-languagedetection$)|(^tas-client-umd$)/;
+		}
+
+		// Signal before require.config()
+		if (typeof options?.beforeLoaderConfig === 'function') {
+			options.beforeLoaderConfig(loaderConfig);
+		}
+
+		// Configure loader
+		require.config(loaderConfig);
+
+		// Handle pseudo NLS
+		if (nlsConfig.pseudo) {
+			require(['vs/nls'], function (nlsPlugin) {
+				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
+			});
+		}
+
+		// Signal before require()
+		if (typeof options?.beforeRequire === 'function') {
+			options.beforeRequire();
+		}
+
+		// Actually require the main module as specified
+		require(modulePaths, async result => {
+			try {
+
+				// Callback only after process environment is resolved
+				const callbackResult = resultCallback(result, configuration);
+				if (callbackResult instanceof Promise) {
+					await callbackResult;
+
+					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
+						developerDeveloperKeybindingsDisposable();
+					}
+				}
+			} catch (error) {
+				onUnexpectedError(error, enableDeveloperKeybindings);
+			}
+		}, onUnexpectedError);
 	}
 
-	// Error handler
-	// @ts-ignore
-	process.on('uncaughtException', function (error) {
-		onUnexpectedError(error, enableDeveloperTools);
-	});
+	/**
+	 * @param {boolean | undefined} disallowReloadKeybinding
+	 * @returns {() => void}
+	 */
+	function registerDeveloperKeybindings(disallowReloadKeybinding) {
+		const ipcRenderer = preloadGlobals.ipcRenderer;
 
-	// Developer tools
-	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
-	let developerToolsUnbind;
-	if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-		developerToolsUnbind = registerDeveloperKeybindings();
-	}
+		const extractKey =
+			/**
+			 * @param {KeyboardEvent} e
+			 */
+			function (e) {
+				return [
+					e.ctrlKey ? 'ctrl-' : '',
+					e.metaKey ? 'meta-' : '',
+					e.altKey ? 'alt-' : '',
+					e.shiftKey ? 'shift-' : '',
+					e.keyCode
+				].join('');
+			};
 
-	// Correctly inherit the parent's environment
-	exports.assign(process.env, configuration.userEnv);
+		// Devtools & reload support
+		const TOGGLE_DEV_TOOLS_KB = (safeProcess.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
+		const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
+		const RELOAD_KB = (safeProcess.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
-	// Enable ASAR support
-	bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));
+		/** @type {((e: KeyboardEvent) => void) | undefined} */
+		let listener = function (e) {
+			const key = extractKey(e);
+			if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
+				ipcRenderer.send('vscode:toggleDevTools');
+			} else if (key === RELOAD_KB && !disallowReloadKeybinding) {
+				ipcRenderer.send('vscode:reloadWindow');
+			}
+		};
 
-	if (options && typeof options.canModifyDOM === 'function') {
-		options.canModifyDOM(configuration);
-	}
+		window.addEventListener('keydown', listener);
 
-	// Get the nls configuration into the process.env as early as possible.
-	const nlsConfig = bootstrap.setupNLS();
-
-	let locale = nlsConfig.availableLanguages['*'] || 'en';
-	if (locale === 'zh-tw') {
-		locale = 'zh-Hant';
-	} else if (locale === 'zh-cn') {
-		locale = 'zh-Hans';
-	}
-
-	window.document.documentElement.setAttribute('lang', locale);
-
-	// Load the loader
-	const amdLoader = require(configuration.appRoot + '/out/vs/loader.js');
-	const amdRequire = amdLoader.require;
-	const amdDefine = amdLoader.require.define;
-	const nodeRequire = amdLoader.require.nodeRequire;
-
-	window['nodeRequire'] = nodeRequire;
-	window['require'] = amdRequire;
-
-	// replace the patched electron fs with the original node fs for all AMD code
-	amdDefine('fs', ['original-fs'], function (originalFS) { return originalFS; });
-
-	window['MonacoEnvironment'] = {};
-
-	const loaderConfig = {
-		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
-		'vs/nls': nlsConfig,
-		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
-	};
-
-	// cached data config
-	if (configuration.nodeCachedDataDir) {
-		loaderConfig.nodeCachedData = {
-			path: configuration.nodeCachedDataDir,
-			seed: modulePaths.join('')
+		return function () {
+			if (listener) {
+				window.removeEventListener('keydown', listener);
+				listener = undefined;
+			}
 		};
 	}
 
-	if (options && typeof options.beforeLoaderConfig === 'function') {
-		options.beforeLoaderConfig(configuration, loaderConfig);
-	}
-
-	amdRequire.config(loaderConfig);
-
-	if (nlsConfig.pseudo) {
-		amdRequire(['vs/nls'], function (nlsPlugin) {
-			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-		});
-	}
-
-	if (options && typeof options.beforeRequire === 'function') {
-		options.beforeRequire();
-	}
-
-	amdRequire(modulePaths, result => {
-		try {
-			const callbackResult = resultCallback(result, configuration);
-			if (callbackResult && typeof callbackResult.then === 'function') {
-				callbackResult.then(() => {
-					if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
-						developerToolsUnbind();
-					}
-				}, error => {
-					onUnexpectedError(error, enableDeveloperTools);
-				});
-			}
-		} catch (error) {
-			onUnexpectedError(error, enableDeveloperTools);
+	/**
+	 * @param {string | Error} error
+	 * @param {boolean} [showDevtoolsOnError]
+	 */
+	function onUnexpectedError(error, showDevtoolsOnError) {
+		if (showDevtoolsOnError) {
+			const ipcRenderer = preloadGlobals.ipcRenderer;
+			ipcRenderer.send('vscode:openDevTools');
 		}
-	});
-};
 
-/**
- * @returns {{[param: string]: string }}
- */
-function parseURLQueryArgs() {
-	const search = window.location.search || '';
+		console.error(`[uncaught exception]: ${error}`);
 
-	return search.split(/[?&]/)
-		.filter(function (param) { return !!param; })
-		.map(function (param) { return param.split('='); })
-		.filter(function (param) { return param.length === 2; })
-		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-}
-
-/**
- * @returns {() => void}
- */
-function registerDeveloperKeybindings() {
-
-	// @ts-ignore
-	const ipc = require('electron').ipcRenderer;
-
-	const extractKey = function (e) {
-		return [
-			e.ctrlKey ? 'ctrl-' : '',
-			e.metaKey ? 'meta-' : '',
-			e.altKey ? 'alt-' : '',
-			e.shiftKey ? 'shift-' : '',
-			e.keyCode
-		].join('');
-	};
-
-	// Devtools & reload support
-	const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
-	const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
-	const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
-
-	let listener = function (e) {
-		const key = extractKey(e);
-		if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
-			ipc.send('vscode:toggleDevTools');
-		} else if (key === RELOAD_KB) {
-			ipc.send('vscode:reloadWindow');
+		if (error && typeof error !== 'string' && error.stack) {
+			console.error(error.stack);
 		}
-	};
-
-	window.addEventListener('keydown', listener);
-
-	return function () {
-		if (listener) {
-			window.removeEventListener('keydown', listener);
-			listener = undefined;
-		}
-	};
-}
-
-function onUnexpectedError(error, enableDeveloperTools) {
-
-	// @ts-ignore
-	const ipc = require('electron').ipcRenderer;
-
-	if (enableDeveloperTools) {
-		ipc.send('vscode:openDevTools');
 	}
 
-	console.error('[uncaught exception]: ' + error);
-
-	if (error.stack) {
-		console.error(error.stack);
+	/**
+	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
+	 */
+	function bootstrap() {
+		// @ts-ignore (defined in bootstrap.js)
+		return window.MonacoBootstrap;
 	}
-}
+
+	/**
+	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
+	 */
+	function sandboxGlobals() {
+		// @ts-ignore (defined in globals.js)
+		return window.vscode;
+	}
+
+	return {
+		load
+	};
+}));

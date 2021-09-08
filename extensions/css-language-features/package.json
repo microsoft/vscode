@@ -15,13 +15,19 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
-  "main": "./client/out/cssMain",
+  "main": "./client/out/node/cssClientMain",
+  "browser": "./client/dist/browser/cssClientMain",
   "enableProposedApi": true,
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "scripts": {
-    "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
-    "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
-    "test": "mocha",
-    "postinstall": "cd server && yarn install",
+    "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
+    "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
+    "test": "node ../../node_modules/mocha/bin/mocha",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "categories": [
@@ -43,27 +49,35 @@
             },
             "scope": "resource"
           },
-          "css.experimental.customData": {
-            "type": "array",
-            "description": "A list of JSON file paths that define custom CSS data that loads custom properties, at directives, pseudo classes / elements.",
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "scope": "resource",
-            "deprecationMessage": "This setting is no longe experimental. Use `css.customData` instead."
-          },
           "css.completion.triggerPropertyValueCompletion": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%css.completion.triggerPropertyValueCompletion.desc%"
           },
+          "css.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.completion.completePropertyWithSemicolon.desc%"
+          },
           "css.validate": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%css.validate.desc%"
+          },
+          "css.hover.documentation": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.hover.documentation%"
+          },
+          "css.hover.references": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%css.hover.references%"
           },
           "css.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -302,11 +316,35 @@
         "order": 24,
         "title": "%scss.title%",
         "properties": {
+          "scss.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "scss.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.completion.completePropertyWithSemicolon.desc%"
+          },
           "scss.validate": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%scss.validate.desc%"
+          },
+          "scss.hover.documentation": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.hover.documentation%"
+          },
+          "scss.hover.references": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%scss.hover.references%"
           },
           "scss.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -515,6 +553,17 @@
             ],
             "default": "ignore",
             "description": "%scss.lint.idSelector.desc%"
+          },
+          "scss.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%scss.lint.unknownAtRules.desc%"
           }
         }
       },
@@ -524,11 +573,35 @@
         "type": "object",
         "title": "%less.title%",
         "properties": {
+          "less.completion.triggerPropertyValueCompletion": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.completion.triggerPropertyValueCompletion.desc%"
+          },
+          "less.completion.completePropertyWithSemicolon": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.completion.completePropertyWithSemicolon.desc%"
+          },
           "less.validate": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
             "description": "%less.validate.desc%"
+          },
+          "less.hover.documentation": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.hover.documentation%"
+          },
+          "less.hover.references": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%less.hover.references%"
           },
           "less.lint.compatibleVendorPrefixes": {
             "type": "string",
@@ -737,14 +810,36 @@
             ],
             "default": "ignore",
             "description": "%less.lint.idSelector.desc%"
+          },
+          "less.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%less.lint.unknownAtRules.desc%"
           }
         }
       }
     ],
+    "configurationDefaults": {
+      "[css]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[scss]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[less]": {
+        "editor.suggest.insertMode": "replace"
+      }
+    },
     "jsonValidation": [
       {
         "fileMatch": "*.css-data.json",
-        "url": "https://raw.githubusercontent.com/Microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
+        "url": "https://raw.githubusercontent.com/microsoft/vscode-css-languageservice/master/docs/customData.schema.json"
       },
       {
         "fileMatch": "package.json",
@@ -753,11 +848,15 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "^5.3.0-next.6",
-    "vscode-nls": "^4.1.1"
+    "vscode-languageclient": "^7.0.0",
+    "vscode-nls": "^5.0.0",
+    "vscode-uri": "^3.0.2"
   },
   "devDependencies": {
-    "@types/node": "^10.14.8",
-    "mocha": "^5.2.0"
+    "@types/node": "14.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

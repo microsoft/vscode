@@ -14,12 +14,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
 	readonly label: string = localize('label', "Problems");
-	readonly onDidChange: Event<URI[]>;
+	readonly onDidChange: Event<readonly URI[]>;
 
 	constructor(
 		private readonly _markerService: IMarkerService

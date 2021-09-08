@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { WatcherChannelClient } from 'vs/platform/files/node/watcher/unix/watcherIpc';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWatcherRequest, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
+import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { IWatcherOptions, IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 
 export class FileWatcher extends Disposable {
+
 	private static readonly MAX_RESTARTS = 5;
 
 	private isDisposed: boolean;
 	private restartCounter: number;
-	private service: WatcherChannelClient | undefined;
+	private service: IWatcherService | undefined;
 
 	constructor(
 		private folders: IWatcherRequest[],
-		private onFileChanges: (changes: IDiskFileChange[]) => void,
-		private onLogMessage: (msg: ILogMessage) => void,
+		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
-		private watcherOptions: IWatcherOptions = {}
+		private readonly watcherOptions: IWatcherOptions = {}
 	) {
 		super();
 
@@ -35,14 +35,14 @@ export class FileWatcher extends Disposable {
 
 	private startWatching(): void {
 		const client = this._register(new Client(
-			getPathFromAmdModule(require, 'bootstrap-fork'),
+			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'File Watcher (chokidar)',
 				args: ['--type=watcherService'],
 				env: {
-					AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/unix/watcherApp',
-					PIPE_LOGGING: 'true',
-					VERBOSE_LOGGING: 'true' // transmit console logs from server to client
+					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/unix/watcherApp',
+					VSCODE_PIPE_LOGGING: 'true',
+					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
 			}
 		));
@@ -62,14 +62,11 @@ export class FileWatcher extends Disposable {
 		}));
 
 		// Initialize watcher
-		const channel = getNextTickChannel(client.getChannel('watcher'));
-		this.service = new WatcherChannelClient(channel);
+		this.service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
+		this.service.init({ ...this.watcherOptions, verboseLogging: this.verboseLogging });
 
-		this.service.setVerboseLogging(this.verboseLogging);
-
-		this._register(this.service.watch(this.watcherOptions)(e => !this.isDisposed && this.onFileChanges(e)));
-
-		this._register(this.service.onLogMessage(m => this.onLogMessage(m)));
+		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
+		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
 
 		// Start watching
 		this.service.setRoots(this.folders);
@@ -95,7 +92,7 @@ export class FileWatcher extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.isDisposed = true;
 
 		super.dispose();

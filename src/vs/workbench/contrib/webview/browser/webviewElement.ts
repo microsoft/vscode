@@ -3,21 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClass, addDisposableListener } from 'vs/base/browser/dom';
+import { isFirefox } from 'vs/base/browser/browser';
+import { addDisposableListener } from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IAction } from 'vs/base/common/actions';
+import { ThrottledDelayer } from 'vs/base/common/async';
+import { streamToBuffer } from 'vs/base/common/buffer';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
-import { loadLocalResource } from 'vs/workbench/contrib/webview/common/resourceLoader';
-import { getWebviewThemeData } from 'vs/workbench/contrib/webview/common/themeing';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
+import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/api/common/shared/webview';
+import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
+import { areWebviewContentOptionsEqual, Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+
+export const enum WebviewMessageChannels {
+	onmessage = 'onmessage',
+	didClickLink = 'did-click-link',
+	didScroll = 'did-scroll',
+	didFocus = 'did-focus',
+	didBlur = 'did-blur',
+	didLoad = 'did-load',
+	doUpdateState = 'do-update-state',
+	doReload = 'do-reload',
+	setConfirmBeforeClose = 'set-confirm-before-close',
+	loadResource = 'load-resource',
+	loadLocalhost = 'load-localhost',
+	webviewReady = 'webview-ready',
+	wheel = 'did-scroll-wheel',
+	fatalError = 'fatal-error',
+	noCspFound = 'no-csp-found',
+	didKeydown = 'did-keydown',
+	didKeyup = 'did-keyup',
+	didContextMenu = 'did-context-menu',
+}
+
+interface IKeydownEvent {
+	key: string;
+	keyCode: number;
+	code: string;
+	shiftKey: boolean;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	repeat: boolean;
+}
 
 interface WebviewContent {
 	readonly html: string;
@@ -25,38 +72,71 @@ interface WebviewContent {
 	readonly state: string | undefined;
 }
 
-export class IFrameWebview extends Disposable implements Webview {
-	private element?: HTMLIFrameElement;
+namespace WebviewState {
+	export const enum Type { Initializing, Ready }
 
-	private readonly _ready: Promise<void>;
+	export class Initializing {
+		readonly type = Type.Initializing;
+
+		constructor(
+			public readonly pendingMessages: Array<{ readonly channel: string, readonly data?: any }>
+		) { }
+	}
+
+	export const Ready = { type: Type.Ready } as const;
+
+	export type State = typeof Ready | Initializing;
+}
+
+export class IFrameWebview extends Disposable implements Webview {
+
+	protected get platform(): string { return 'browser'; }
+
+	private readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
+
+	private _element: HTMLIFrameElement | undefined;
+	protected get element(): HTMLIFrameElement | undefined { return this._element; }
+
+	private _focused: boolean | undefined;
+	public get isFocused(): boolean { return !!this._focused; }
+
+	private _state: WebviewState.State = new WebviewState.Initializing([]);
 
 	private content: WebviewContent;
-	private _focused = false;
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
 
+	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
+
+	private _contextKeyService: IContextKeyService | undefined;
+
+	private _confirmBeforeClose: string;
+
+	private readonly _focusDelayer = this._register(new ThrottledDelayer(50));
+
+	private readonly _onDidHtmlChange: Emitter<string> = this._register(new Emitter<string>());
+	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
+
+	private readonly _messageHandlers = new Map<string, Set<(data: any) => void>>();
+
 	constructor(
-		private readonly id: string,
-		private _options: WebviewOptions,
+		public readonly id: string,
+		private readonly options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		@IThemeService themeService: IThemeService,
-		@ITunnelService tunnelService: ITunnelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IFileService private readonly fileService: IFileService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		public extension: WebviewExtensionDescription | undefined,
+		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@INotificationService notificationService: INotificationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ITunnelService private readonly _tunnelService: ITunnelService,
 	) {
 		super();
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-
-		if (!useExternalEndpoint && (!environmentService.options || typeof environmentService.options.webviewEndpoint !== 'string')) {
-			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewEndpoint`');
-		}
-
-		this._portMappingManager = this._register(new WebviewPortMappingManager(
-			this._options.extension ? this._options.extension.location : undefined,
-			() => this.content.options.portMapping || [],
-			tunnelService
-		));
 
 		this.content = {
 			html: '',
@@ -64,94 +144,267 @@ export class IFrameWebview extends Disposable implements Webview {
 			state: undefined
 		};
 
-		this.element = document.createElement('iframe');
-		this.element.sandbox.add('allow-scripts', 'allow-same-origin');
-		this.element.setAttribute('src', `${this.endpoint}/index.html?id=${this.id}`);
-		this.element.style.border = 'none';
-		this.element.style.width = '100%';
-		this.element.style.height = '100%';
+		this._portMappingManager = this._register(new WebviewPortMappingManager(
+			() => this.extension?.location,
+			() => this.content.options.portMapping || [],
+			this._tunnelService
+		));
 
-		this._register(addDisposableListener(window, 'message', e => {
-			if (!e || !e.data || e.data.target !== this.id) {
+		this._element = this.createElement(options, contentOptions);
+
+		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
+			this._logService.debug(`Webview(${this.id}): webview ready`);
+
+			this.element?.classList.add('ready');
+
+			if (this._state.type === WebviewState.Type.Initializing) {
+				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
+			}
+			this._state = WebviewState.Ready;
+
+			subscription.dispose();
+		}));
+
+		this._register(this.on(WebviewMessageChannels.noCspFound, () => {
+			this.handleNoCspFound();
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didClickLink, (uri: string) => {
+			this._onDidClickLink.fire(uri);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any, transfer?: ArrayBuffer[] }) => {
+			this._onMessage.fire({
+				message: data.message,
+				transfer: data.transfer,
+			});
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didScroll, (scrollYPercentage: number) => {
+			this._onDidScroll.fire({ scrollYPercentage: scrollYPercentage });
+		}));
+
+		this._register(this.on(WebviewMessageChannels.doReload, () => {
+			this.reload();
+		}));
+
+		this._register(this.on(WebviewMessageChannels.doUpdateState, (state: any) => {
+			this.state = state;
+			this._onDidUpdateState.fire(state);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didFocus, () => {
+			this.handleFocusChange(true);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
+			this._onDidWheel.fire(event);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didBlur, () => {
+			this.handleFocusChange(false);
+		}));
+
+		this._register(this.on<{ message: string }>(WebviewMessageChannels.fatalError, (e) => {
+			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didKeydown, (data: KeyboardEvent) => {
+			// Electron: workaround for https://github.com/electron/electron/issues/14258
+			// We have to detect keyboard events in the <webview> and dispatch them to our
+			// keybinding service because these events do not bubble to the parent window anymore.
+			this.handleKeyEvent('keydown', data);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didKeyup, (data: KeyboardEvent) => {
+			this.handleKeyEvent('keyup', data);
+		}));
+
+		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number, clientY: number }) => {
+			if (!this.element) {
 				return;
 			}
+			if (!this._contextKeyService) {
+				return;
+			}
+			const elementBox = this.element.getBoundingClientRect();
+			contextMenuService.showContextMenu({
+				getActions: () => {
+					const result: IAction[] = [];
+					const menu = menuService.createMenu(MenuId.WebviewContext, this._contextKeyService!);
+					createAndFillInContextMenuActions(menu, undefined, result);
+					menu.dispose();
+					return result;
+				},
+				getAnchor: () => ({
+					x: elementBox.x + data.clientX,
+					y: elementBox.y + data.clientY
+				})
+			});
+		}));
 
-			switch (e.data.channel) {
-				case 'onmessage':
-					if (e.data.data) {
-						this._onMessage.fire(e.data.data);
-					}
-					return;
-
-				case 'did-click-link':
-					const uri = e.data.data;
-					this._onDidClickLink.fire(URI.parse(uri));
-					return;
-
-				case 'did-scroll':
-					// if (e.args && typeof e.args[0] === 'number') {
-					// 	this._onDidScroll.fire({ scrollYPercentage: e.args[0] });
-					// }
-					return;
-
-				case 'do-reload':
-					this.reload();
-					return;
-
-				case 'do-update-state':
-					const state = e.data.data;
-					this.state = state;
-					this._onDidUpdateState.fire(state);
-					return;
-
-				case 'did-focus':
-					this.handleFocusChange(true);
-					return;
-
-				case 'did-blur':
-					this.handleFocusChange(false);
-					return;
-
-				case 'load-resource':
-					{
-						const requestPath = e.data.data.path;
-						const uri = URI.file(decodeURIComponent(requestPath));
-						this.loadResource(requestPath, uri);
-						return;
-					}
-
-				case 'load-localhost':
-					{
-						this.localLocalhost(e.data.data.origin);
-						return;
-					}
+		this._register(this.on(WebviewMessageChannels.loadResource, (entry: { id: number, path: string, query: string, scheme: string, authority: string, ifNoneMatch?: string }) => {
+			try {
+				// Restore the authority we previously encoded
+				const authority = decodeAuthority(entry.authority);
+				const uri = URI.from({
+					scheme: entry.scheme,
+					authority: authority,
+					path: decodeURIComponent(entry.path), // This gets re-encoded
+					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
+				});
+				this.loadResource(entry.id, uri, entry.ifNoneMatch);
+			} catch (e) {
+				this._send('did-load-resource', {
+					id: entry.id,
+					status: 404,
+					path: entry.path,
+				});
 			}
 		}));
 
-		this._ready = new Promise(resolve => {
-			const subscription = this._register(addDisposableListener(window, 'message', (e) => {
-				if (e.data && e.data.target === this.id && e.data.channel === 'webview-ready') {
-					if (this.element) {
-						addClass(this.element, 'ready');
-					}
-					subscription.dispose();
-					resolve();
-				}
-			}));
+		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
+			this.localLocalhost(entry.id, entry.origin);
+		}));
+
+		this.style();
+		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
+
+		/* __GDPR__
+			"webview.createWebview" : {
+				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"webviewElementType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			}
+		*/
+		this._telemetryService.publicLog('webview.createWebview', {
+			extension: extension?.id.value,
+			webviewElementType: 'iframe',
 		});
 
-		this.style(themeService.getTheme());
-		this._register(themeService.onThemeChange(this.style, this));
+		this._confirmBeforeClose = configurationService.getValue<string>('window.confirmBeforeClose');
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.confirmBeforeClose')) {
+				this._confirmBeforeClose = configurationService.getValue('window.confirmBeforeClose');
+				this._send(WebviewMessageChannels.setConfirmBeforeClose, this._confirmBeforeClose);
+			}
+		}));
+
+		this._register(addDisposableListener(window, 'message', e => {
+			if (e?.data?.target === this.id) {
+				if (e.origin !== this.webviewContentOrigin) {
+					console.log(`Skipped renderer receiving message due to mismatched origins: ${e.origin} ${this.webviewContentOrigin}`);
+					return;
+				}
+
+				const handlers = this._messageHandlers.get(e.data.channel);
+				handlers?.forEach(handler => handler(e.data.data));
+			}
+		}));
+
+		this.initElement(extension, options);
 	}
 
-	private get endpoint(): string {
-		const useExternalEndpoint = this._configurationService.getValue<string>('webview.experimental.useExternalEndpoint');
-		const baseEndpoint = useExternalEndpoint ? 'https://{{uuid}}.vscode-webview-test.com/8fa811108f0f0524c473020ef57b6620f6c201e1' : this.environmentService.options!.webviewEndpoint!;
-		const endpoint = baseEndpoint.replace('{{uuid}}', this.id);
-		if (endpoint[endpoint.length - 1] === '/') {
-			return endpoint.slice(0, endpoint.length - 1);
+	override dispose(): void {
+		if (this.element) {
+			this.element.remove();
 		}
-		return endpoint;
+		this._element = undefined;
+
+		this._onDidDispose.fire();
+
+		this._resourceLoadingCts.dispose(true);
+
+		super.dispose();
+	}
+
+	setContextKeyService(contextKeyService: IContextKeyService) {
+		this._contextKeyService = contextKeyService;
+	}
+
+	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
+	public readonly onMissingCsp = this._onMissingCsp.event;
+
+	private readonly _onDidClickLink = this._register(new Emitter<string>());
+	public readonly onDidClickLink = this._onDidClickLink.event;
+
+	private readonly _onDidReload = this._register(new Emitter<void>());
+	public readonly onDidReload = this._onDidReload.event;
+
+	private readonly _onMessage = this._register(new Emitter<WebviewMessageReceivedEvent>());
+	public readonly onMessage = this._onMessage.event;
+
+	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
+	public readonly onDidScroll = this._onDidScroll.event;
+
+	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
+	public readonly onDidWheel = this._onDidWheel.event;
+
+	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
+	public readonly onDidUpdateState = this._onDidUpdateState.event;
+
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	public readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	public readonly onDidBlur = this._onDidBlur.event;
+
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	public readonly onDidDispose = this._onDidDispose.event;
+
+	public postMessage(message: any, transfer?: ArrayBuffer[]): void {
+		this._send('message', { message, transfer });
+	}
+
+	protected _send(channel: string, data?: any): void {
+		if (this._state.type === WebviewState.Type.Initializing) {
+			this._state.pendingMessages.push({ channel, data });
+		} else {
+			this.doPostMessage(channel, data);
+		}
+	}
+
+	private createElement(options: WebviewOptions, _contentOptions: WebviewContentOptions) {
+		// Do not start loading the webview yet.
+		// Wait the end of the ctor when all listeners have been hooked up.
+		const element = document.createElement('iframe');
+		element.name = this.id;
+		element.className = `webview ${options.customClasses || ''}`;
+		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
+		if (!isFirefox) {
+			element.setAttribute('allow', 'clipboard-read; clipboard-write;');
+		}
+		element.style.border = 'none';
+		element.style.width = '100%';
+		element.style.height = '100%';
+
+		element.focus = () => {
+			this.doFocus();
+		};
+
+		return element;
+	}
+
+	private initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
+		// The extensionId and purpose in the URL are used for filtering in js-debug:
+		const params: { [key: string]: string } = {
+			id: this.id,
+			swVersion: String(this._expectedServiceWorkerVersion),
+			extensionId: extension?.id.value ?? '',
+			platform: this.platform,
+			'vscode-resource-base-authority': webviewRootResourceAuthority,
+			parentOrigin: window.origin,
+		};
+
+		if (options.purpose) {
+			params.purpose = options.purpose;
+		}
+
+		const queryString = (Object.keys(params) as Array<keyof typeof params>)
+			.map((key) => `${key}=${encodeURIComponent(params[key]!)}`)
+			.join('&');
+
+		this.element!.setAttribute('src', `${this.webviewContentEndpoint}/index.html?${queryString}`);
 	}
 
 	public mountTo(parent: HTMLElement) {
@@ -160,121 +413,129 @@ export class IFrameWebview extends Disposable implements Webview {
 		}
 	}
 
-	public set contentOptions(options: WebviewContentOptions) {
-		if (areWebviewInputOptionsEqual(options, this.content.options)) {
-			return;
+	protected get webviewContentEndpoint(): string {
+		const endpoint = this._environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
+		if (endpoint[endpoint.length - 1] === '/') {
+			return endpoint.slice(0, endpoint.length - 1);
+		}
+		return endpoint;
+	}
+
+	private _webviewContentOrigin?: string;
+
+	private get webviewContentOrigin(): string {
+		if (!this._webviewContentOrigin) {
+			const uri = URI.parse(this.webviewContentEndpoint);
+			this._webviewContentOrigin = uri.scheme + '://' + uri.authority.toLowerCase();
+		}
+		return this._webviewContentOrigin;
+	}
+
+	private doPostMessage(channel: string, data?: any): void {
+		if (this.element) {
+			this.element.contentWindow!.postMessage({ channel, args: data }, this.webviewContentEndpoint);
+		}
+	}
+
+	protected on<T = unknown>(channel: WebviewMessageChannels, handler: (data: T) => void): IDisposable {
+		let handlers = this._messageHandlers.get(channel);
+		if (!handlers) {
+			handlers = new Set();
+			this._messageHandlers.set(channel, handlers);
 		}
 
-		this.content = {
-			html: this.content.html,
-			options: options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
-	}
-
-	public set html(value: string) {
-		this.content = {
-			html: this.preprocessHtml(value),
-			options: this.content.options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
-	}
-
-	private preprocessHtml(value: string): string {
-		return value.replace(/(["'])vscode-resource:([^\s'"]+?)(["'])/gi, (_, startQuote, path, endQuote) =>
-			`${startQuote}${this.endpoint}/vscode-resource${path}${endQuote}`);
-	}
-
-	public update(html: string, options: WebviewContentOptions, retainContextWhenHidden: boolean) {
-		if (retainContextWhenHidden && html === this.content.html && areWebviewInputOptionsEqual(options, this.content.options)) {
-			return;
-		}
-		this.content = {
-			html: this.preprocessHtml(html),
-			options: options,
-			state: this.content.state,
-		};
-		this.doUpdateContent();
-	}
-
-	private doUpdateContent() {
-		this._send('content', {
-			contents: this.content.html,
-			options: this.content.options,
-			state: this.content.state,
-			endpoint: this.endpoint,
+		handlers.add(handler);
+		return toDisposable(() => {
+			this._messageHandlers.get(channel)?.delete(handler);
 		});
 	}
 
-	private handleFocusChange(isFocused: boolean): void {
-		this._focused = isFocused;
-		if (this._focused) {
-			this._onDidFocus.fire();
+	private _hasAlertedAboutMissingCsp = false;
+	private handleNoCspFound(): void {
+		if (this._hasAlertedAboutMissingCsp) {
+			return;
 		}
-	}
+		this._hasAlertedAboutMissingCsp = true;
 
-	initialScrollProgress: number = 0;
-
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	public readonly onDidFocus = this._onDidFocus.event;
-
-	private readonly _onDidClickLink = this._register(new Emitter<URI>());
-	public readonly onDidClickLink = this._onDidClickLink.event;
-
-	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
-	public readonly onDidScroll = this._onDidScroll.event;
-
-	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
-	public readonly onDidUpdateState = this._onDidUpdateState.event;
-
-	private readonly _onMessage = this._register(new Emitter<any>());
-	public readonly onMessage = this._onMessage.event;
-
-	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
-	public readonly onMissingCsp = this._onMissingCsp.event;
-
-
-	sendMessage(data: any): void {
-		this._send('message', data);
-	}
-
-	layout(): void {
-		// noop
-	}
-
-	focus(): void {
-		if (this.element) {
-			this.element.focus();
-		}
-	}
-
-	dispose(): void {
-		if (this.element) {
-			if (this.element.parentElement) {
-				this.element.parentElement.removeChild(this.element);
+		if (this.extension && this.extension.id) {
+			if (this._environmentService.isExtensionDevelopment) {
+				this._onMissingCsp.fire(this.extension.id);
 			}
+
+			type TelemetryClassification = {
+				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			};
+			type TelemetryData = {
+				extension?: string,
+			};
+
+			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
+				extension: this.extension.id.value
+			});
+		}
+	}
+
+	public reload(): void {
+		this.doUpdateContent(this.content);
+
+		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
+			this._onDidReload.fire();
+			subscription.dispose();
+		}));
+	}
+
+	public set html(value: string) {
+		const rewrittenHtml = this.rewriteVsCodeResourceUrls(value);
+		this.doUpdateContent({
+			html: rewrittenHtml,
+			options: this.content.options,
+			state: this.content.state,
+		});
+		this._onDidHtmlChange.fire(value);
+	}
+
+	private rewriteVsCodeResourceUrls(value: string): string {
+		const isRemote = this.extension?.location.scheme === Schemas.vscodeRemote;
+		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
+		return value
+			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
+				const uri = URI.from({
+					scheme: scheme || 'file',
+					path: decodeURIComponent(path),
+				});
+				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
+				return `${startQuote}${webviewUri}${endQuote}`;
+			})
+			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
+				const uri = URI.from({
+					scheme: scheme || 'file',
+					path: decodeURIComponent(path),
+				});
+				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
+				return `${startQuote}${webviewUri}${endQuote}`;
+			});
+	}
+
+	public set contentOptions(options: WebviewContentOptions) {
+		this._logService.debug(`Webview(${this.id}): will update content options`);
+
+		if (areWebviewContentOptionsEqual(options, this.content.options)) {
+			this._logService.debug(`Webview(${this.id}): skipping content options update`);
+			return;
 		}
 
-		this.element = undefined!;
-		super.dispose();
+		this.doUpdateContent({
+			html: this.content.html,
+			options: options,
+			state: this.content.state,
+		});
 	}
 
-	reload(): void {
-		this.doUpdateContent();
-	}
-
-	showFind(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	hideFind(): void {
-		throw new Error('Method not implemented.');
-	}
-
-	runFindAction(previous: boolean): void {
-		throw new Error('Method not implemented.');
+	public set localResourcesRoot(resources: readonly URI[]) {
+		this.content = {
+			...this.content,
+			options: { ...this.content.options, localResourceRoots: resources }
+		};
 	}
 
 	public set state(state: string | undefined) {
@@ -285,53 +546,221 @@ export class IFrameWebview extends Disposable implements Webview {
 		};
 	}
 
-	private _send(channel: string, data: any): void {
-		this._ready
-			.then(() => {
-				if (!this.element) {
-					return;
-				}
-				this.element.contentWindow!.postMessage({
-					channel: channel,
-					args: data
-				}, '*');
-			})
-			.catch(err => console.error(err));
+	public set initialScrollProgress(value: number) {
+		this._send('initial-scroll-position', value);
 	}
 
-	private style(theme: ITheme): void {
-		const { styles, activeTheme } = getWebviewThemeData(theme, this._configurationService);
-		this._send('styles', { styles, activeTheme });
+	private doUpdateContent(newContent: WebviewContent) {
+		this._logService.debug(`Webview(${this.id}): will update content`);
+
+		this.content = newContent;
+
+		const allowScripts = !!this.content.options.allowScripts;
+		this._send('content', {
+			contents: this.content.html,
+			options: {
+				allowMultipleAPIAcquire: !!this.content.options.allowMultipleAPIAcquire,
+				allowScripts: allowScripts,
+				allowForms: this.content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
+			},
+			state: this.content.state,
+			cspSource: webviewGenericCspSource,
+			confirmBeforeClose: this._confirmBeforeClose,
+		});
 	}
 
-	private async loadResource(requestPath: string, uri: URI) {
+	protected style(): void {
+		let { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
+		if (this.options.transformCssVariables) {
+			styles = this.options.transformCssVariables(styles);
+		}
+
+		this._send('styles', { styles, activeTheme, themeName: themeLabel });
+	}
+
+	private handleFocusChange(isFocused: boolean): void {
+		this._focused = isFocused;
+		if (isFocused) {
+			this._onDidFocus.fire();
+		} else {
+			this._onDidBlur.fire();
+		}
+	}
+
+	private handleKeyEvent(type: 'keydown' | 'keyup', event: IKeydownEvent) {
+		// Create a fake KeyboardEvent from the data provided
+		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
+		// Force override the target
+		Object.defineProperty(emulatedKeyboardEvent, 'target', {
+			get: () => this.element,
+		});
+		// And re-dispatch
+		window.dispatchEvent(emulatedKeyboardEvent);
+	}
+
+	windowDidDragStart(): void {
+		// Webview break drag and droping around the main window (no events are generated when you are over them)
+		// Work around this by disabling pointer events during the drag.
+		// https://github.com/electron/electron/issues/18226
+		if (this.element) {
+			this.element.style.pointerEvents = 'none';
+		}
+	}
+
+	windowDidDragEnd(): void {
+		if (this.element) {
+			this.element.style.pointerEvents = '';
+		}
+	}
+
+	public selectAll() {
+		this.execCommand('selectAll');
+	}
+
+	public copy() {
+		this.execCommand('copy');
+	}
+
+	public paste() {
+		this.execCommand('paste');
+	}
+
+	public cut() {
+		this.execCommand('cut');
+	}
+
+	public undo() {
+		this.execCommand('undo');
+	}
+
+	public redo() {
+		this.execCommand('redo');
+	}
+
+	private execCommand(command: string) {
+		if (this.element) {
+			this._send('execCommand', command);
+		}
+	}
+
+	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined) {
 		try {
-			const result = await loadLocalResource(uri, this.fileService, this._options.extension ? this._options.extension.location : undefined,
-				() => (this.content.options.localResourceRoots || []));
+			const result = await loadLocalResource(uri, {
+				ifNoneMatch,
+				roots: this.content.options.localResourceRoots || [],
+			}, this._fileService, this._logService, this._resourceLoadingCts.token);
 
-			if (result.type === 'success') {
-				return this._send('did-load-resource', {
-					status: 200,
-					path: requestPath,
-					mime: result.mimeType,
-					data: result.data.buffer
-				});
+			switch (result.type) {
+				case WebviewResourceResponse.Type.Success:
+					{
+						const { buffer } = await streamToBuffer(result.stream);
+						return this._send('did-load-resource', {
+							id,
+							status: 200,
+							path: uri.path,
+							mime: result.mimeType,
+							data: buffer,
+							etag: result.etag,
+							mtime: result.mtime
+						});
+					}
+				case WebviewResourceResponse.Type.NotModified:
+					{
+						return this._send('did-load-resource', {
+							id,
+							status: 304, // not modified
+							path: uri.path,
+							mime: result.mimeType,
+							mtime: result.mtime
+						});
+					}
+				case WebviewResourceResponse.Type.AccessDenied:
+					{
+						return this._send('did-load-resource', {
+							id,
+							status: 401, // unauthorized
+							path: uri.path,
+						});
+					}
 			}
-		} catch  {
+		} catch {
 			// noop
 		}
 
 		return this._send('did-load-resource', {
+			id,
 			status: 404,
-			path: uri.path
+			path: uri.path,
 		});
 	}
 
-	private async localLocalhost(origin: string) {
-		const redirect = await this._portMappingManager.getRedirect(origin);
+	private async localLocalhost(id: string, origin: string) {
+		const authority = this._environmentService.remoteAuthority;
+		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
+		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 		return this._send('did-load-localhost', {
+			id,
 			origin,
 			location: redirect
 		});
+	}
+
+	public focus(): void {
+		this.doFocus();
+
+		// Handle focus change programmatically (do not rely on event from <webview>)
+		this.handleFocusChange(true);
+	}
+
+	private doFocus() {
+		if (!this.element) {
+			return;
+		}
+
+		// Clear the existing focus first if not already on the webview.
+		// This is required because the next part where we set the focus is async.
+		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
+			// Don't blur if on the webview because this will also happen async and may unset the focus
+			// after the focus trigger fires below.
+			document.activeElement.blur();
+		}
+
+		// Workaround for https://github.com/microsoft/vscode/issues/75209
+		// Electron's webview.focus is async so for a sequence of actions such as:
+		//
+		// 1. Open webview
+		// 1. Show quick pick from command palette
+		//
+		// We end up focusing the webview after showing the quick pick, which causes
+		// the quick pick to instantly dismiss.
+		//
+		// Workaround this by debouncing the focus and making sure we are not focused on an input
+		// when we try to re-focus.
+		this._focusDelayer.trigger(async () => {
+			if (!this.isFocused || !this.element) {
+				return;
+			}
+			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
+				return;
+			}
+			try {
+				this.element?.contentWindow?.focus();
+			} catch {
+				// noop
+			}
+			this._send('focus');
+		});
+	}
+
+	public showFind(): void {
+		// noop
+	}
+
+	public hideFind(): void {
+		// noop
+	}
+
+	public runFindAction(previous: boolean): void {
+		// noop
 	}
 }

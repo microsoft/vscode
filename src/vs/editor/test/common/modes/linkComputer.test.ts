@@ -49,7 +49,7 @@ function assertLink(text: string, extractedLink: string): void {
 	}
 
 	let r = myComputeLinks([text]);
-	assert.deepEqual(r, [{
+	assert.deepStrictEqual(r, [{
 		range: {
 			startLineNumber: 1,
 			startColumn: startColumn,
@@ -64,7 +64,7 @@ suite('Editor Modes - Link Computer', () => {
 
 	test('Null model', () => {
 		let r = computeLinks(null);
-		assert.deepEqual(r, []);
+		assert.deepStrictEqual(r, []);
 	});
 
 	test('Parsing', () => {
@@ -200,6 +200,55 @@ suite('Editor Modes - Link Computer', () => {
 		assertLink(
 			'let x = "http://[::1]:5000/connect/token"',
 			'         http://[::1]:5000/connect/token  '
+		);
+	});
+
+	test('issue #70254: bold links dont open in markdown file using editor mode with ctrl + click', () => {
+		assertLink(
+			'2. Navigate to **https://portal.azure.com**',
+			'                 https://portal.azure.com  '
+		);
+	});
+
+	test('issue #86358: URL wrong recognition pattern', () => {
+		assertLink(
+			'POST|https://portal.azure.com|2019-12-05|',
+			'     https://portal.azure.com            '
+		);
+	});
+
+	test('issue #67022: Space as end of hyperlink isn\'t always good idea', () => {
+		assertLink(
+			'aa  https://foo.bar/[this is foo site]  aa',
+			'    https://foo.bar/[this is foo site]    '
+		);
+	});
+
+	test('issue #100353: Link detection stops at ＆(double-byte)', () => {
+		assertLink(
+			'aa  http://tree-mark.chips.jp/レーズン＆ベリーミックス  aa',
+			'    http://tree-mark.chips.jp/レーズン＆ベリーミックス    '
+		);
+	});
+
+	test('issue #121438: Link detection stops at【...】', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/【我推的孩子】 aa',
+			'    https://zh.wikipedia.org/wiki/【我推的孩子】   '
+		);
+	});
+
+	test('issue #121438: Link detection stops at《...》', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/《新青年》编辑部旧址 aa',
+			'    https://zh.wikipedia.org/wiki/《新青年》编辑部旧址   '
+		);
+	});
+
+	test('issue #121438: Link detection stops at “...”', () => {
+		assertLink(
+			'aa  https://zh.wikipedia.org/wiki/“常凯申”误译事件 aa',
+			'    https://zh.wikipedia.org/wiki/“常凯申”误译事件   '
 		);
 	});
 });

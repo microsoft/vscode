@@ -6,299 +6,295 @@
 //@ts-check
 'use strict';
 
-//#region global bootstrapping
+// Simple module style to support node.js and browser environments
+(function (globalThis, factory) {
 
-// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-Error.stackTraceLimit = 100;
-
-// Workaround for Electron not installing a handler to ignore SIGPIPE
-// (https://github.com/electron/electron/issues/13254)
-// @ts-ignore
-process.on('SIGPIPE', () => {
-	console.error(new Error('Unexpected SIGPIPE'));
-});
-
-//#endregion
-
-//#region Add support for redirecting the loading of node modules
-exports.injectNodeModuleLookupPath = function (injectPath) {
-	if (!injectPath) {
-		throw new Error('Missing injectPath');
+	// Node.js
+	if (typeof exports === 'object') {
+		module.exports = factory();
 	}
 
-	// @ts-ignore
-	const Module = require('module');
-	const path = require('path');
-
-	const nodeModulesPath = path.join(__dirname, '../node_modules');
-
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent, newReturn) {
-		const result = originalResolveLookupPaths(moduleName, parent, newReturn);
-
-		const paths = newReturn ? result : result[1];
-		for (let i = 0, len = paths.length; i < len; i++) {
-			if (paths[i] === nodeModulesPath) {
-				paths.splice(i, 0, injectPath);
-				break;
-			}
-		}
-
-		return result;
-	};
-};
-//#endregion
-
-//#region Add support for using node_modules.asar
-/**
- * @param {string=} nodeModulesPath
- */
-exports.enableASARSupport = function (nodeModulesPath) {
-
-	// @ts-ignore
-	const Module = require('module');
-	const path = require('path');
-
-	let NODE_MODULES_PATH = nodeModulesPath;
-	if (!NODE_MODULES_PATH) {
-		NODE_MODULES_PATH = path.join(__dirname, '../node_modules');
+	// Browser
+	else {
+		globalThis.MonacoBootstrap = factory();
 	}
+}(this, function () {
+	const Module = typeof require === 'function' ? require('module') : undefined;
+	const path = typeof require === 'function' ? require('path') : undefined;
+	const fs = typeof require === 'function' ? require('fs') : undefined;
 
-	const NODE_MODULES_ASAR_PATH = NODE_MODULES_PATH + '.asar';
+	//#region global bootstrapping
 
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
-	// @ts-ignore
-	Module._resolveLookupPaths = function (request, parent, newReturn) {
-		const result = originalResolveLookupPaths(request, parent, newReturn);
+	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+	Error.stackTraceLimit = 100;
 
-		const paths = newReturn ? result : result[1];
-		for (let i = 0, len = paths.length; i < len; i++) {
-			if (paths[i] === NODE_MODULES_PATH) {
-				paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-				break;
-			}
-		}
-
-		return result;
-	};
-};
-//#endregion
-
-//#region URI helpers
-/**
- * @param {string} _path
- * @returns {string}
- */
-exports.uriFromPath = function (_path) {
-	const path = require('path');
-
-	let pathName = path.resolve(_path).replace(/\\/g, '/');
-	if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-		pathName = '/' + pathName;
-	}
-
-	/** @type {string} */
-	let uri;
-	if (process.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
-		uri = encodeURI('file:' + pathName);
-	} else {
-		uri = encodeURI('file://' + pathName);
-	}
-
-	return uri.replace(/#/g, '%23');
-};
-//#endregion
-
-//#region FS helpers
-/**
- * @param {string} file
- * @returns {Promise<string>}
- */
-exports.readFile = function (file) {
-	const fs = require('fs');
-
-	return new Promise(function (resolve, reject) {
-		fs.readFile(file, 'utf8', function (err, data) {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(data);
+	// Workaround for Electron not installing a handler to ignore SIGPIPE
+	// (https://github.com/electron/electron/issues/13254)
+	if (typeof process !== 'undefined') {
+		process.on('SIGPIPE', () => {
+			console.error(new Error('Unexpected SIGPIPE'));
 		});
-	});
-};
-
-/**
- * @param {string} file
- * @param {string} content
- * @returns {Promise<void>}
- */
-exports.writeFile = function (file, content) {
-	const fs = require('fs');
-
-	return new Promise(function (resolve, reject) {
-		fs.writeFile(file, content, 'utf8', function (err) {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve();
-		});
-	});
-};
-
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-function mkdir(dir) {
-	const fs = require('fs');
-
-	return new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
-}
-
-/**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-exports.mkdirp = function mkdirp(dir) {
-	const path = require('path');
-
-	return mkdir(dir).then(null, err => {
-		if (err && err.code === 'ENOENT') {
-			const parent = path.dirname(dir);
-
-			if (parent !== dir) { // if not arrived at root
-				return mkdirp(parent).then(() => mkdir(dir));
-			}
-		}
-
-		throw err;
-	});
-};
-//#endregion
-
-//#region NLS helpers
-/**
- * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean }}
- */
-exports.setupNLS = function () {
-	const path = require('path');
-
-	// Get the nls configuration into the process.env as early as possible.
-	let nlsConfig = { availableLanguages: {} };
-	if (process.env['VSCODE_NLS_CONFIG']) {
-		try {
-			nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
-		} catch (e) {
-			// Ignore
-		}
 	}
 
-	if (nlsConfig._resolvedLanguagePackCoreLocation) {
-		const bundles = Object.create(null);
+	//#endregion
 
-		nlsConfig.loadBundle = function (bundle, language, cb) {
-			const result = bundles[bundle];
-			if (result) {
-				cb(undefined, result);
 
-				return;
+	//#region Add support for using node_modules.asar
+
+	/**
+	 * TODO@sandbox remove the support for passing in `appRoot` once
+	 * sandbox is fully enabled
+	 *
+	 * @param {string=} appRoot
+	 */
+	function enableASARSupport(appRoot) {
+		if (!path || !Module || typeof process === 'undefined') {
+			console.warn('enableASARSupport() is only available in node.js environments');
+			return;
+		}
+
+		const NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : path.join(__dirname, '../node_modules');
+
+		// Windows only:
+		// use both lowercase and uppercase drive letter
+		// as a way to ensure we do the right check on
+		// the node modules path: node.js might internally
+		// use a different case compared to what we have
+		let NODE_MODULES_ALTERNATIVE_PATH;
+		if (appRoot /* only used from renderer until `sandbox` enabled */ && process.platform === 'win32') {
+			const driveLetter = appRoot.substr(0, 1);
+
+			let alternativeDriveLetter;
+			if (driveLetter.toLowerCase() !== driveLetter) {
+				alternativeDriveLetter = driveLetter.toLowerCase();
+			} else {
+				alternativeDriveLetter = driveLetter.toUpperCase();
 			}
 
-			const bundleFile = path.join(nlsConfig._resolvedLanguagePackCoreLocation, bundle.replace(/\//g, '!') + '.nls.json');
-			exports.readFile(bundleFile).then(function (content) {
-				const json = JSON.parse(content);
-				bundles[bundle] = json;
+			NODE_MODULES_ALTERNATIVE_PATH = alternativeDriveLetter + NODE_MODULES_PATH.substr(1);
+		} else {
+			NODE_MODULES_ALTERNATIVE_PATH = undefined;
+		}
 
-				cb(undefined, json);
-			}).catch((error) => {
-				try {
-					if (nlsConfig._corruptedFile) {
-						exports.writeFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
+		const NODE_MODULES_ASAR_ALTERNATIVE_PATH = NODE_MODULES_ALTERNATIVE_PATH ? `${NODE_MODULES_ALTERNATIVE_PATH}.asar` : undefined;
+
+		// @ts-ignore
+		const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+		// @ts-ignore
+		Module._resolveLookupPaths = function (request, parent) {
+			const paths = originalResolveLookupPaths(request, parent);
+			if (Array.isArray(paths)) {
+				let asarPathAdded = false;
+				for (let i = 0, len = paths.length; i < len; i++) {
+					if (paths[i] === NODE_MODULES_PATH) {
+						asarPathAdded = true;
+						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
+						break;
+					} else if (paths[i] === NODE_MODULES_ALTERNATIVE_PATH) {
+						asarPathAdded = true;
+						paths.splice(i, 0, NODE_MODULES_ASAR_ALTERNATIVE_PATH);
+						break;
 					}
-				} finally {
-					cb(error, undefined);
 				}
-			});
+				if (!asarPathAdded && appRoot) {
+					// Assuming that adding just `NODE_MODULES_ASAR_PATH` is sufficient
+					// because nodejs should find it even if it has a different driver letter case
+					paths.push(NODE_MODULES_ASAR_PATH);
+				}
+			}
+
+			return paths;
 		};
 	}
 
-	return nlsConfig;
-};
-//#endregion
+	//#endregion
 
-//#region Portable helpers
-/**
- * @returns {{ portableDataPath: string, isPortable: boolean }}
- */
-exports.configurePortable = function () {
-	// @ts-ignore
-	const product = require('../product.json');
-	const path = require('path');
-	const fs = require('fs');
 
-	const appRoot = path.dirname(__dirname);
+	//#region URI helpers
 
-	function getApplicationPath() {
-		if (process.env['VSCODE_DEV']) {
-			return appRoot;
+	/**
+	 * @param {string} path
+	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
+	 * @returns {string}
+	 */
+	function fileUriFromPath(path, config) {
+
+		// Since we are building a URI, we normalize any backslash
+		// to slashes and we ensure that the path begins with a '/'.
+		let pathName = path.replace(/\\/g, '/');
+		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+			pathName = `/${pathName}`;
 		}
 
-		if (process.platform === 'darwin') {
-			return path.dirname(path.dirname(path.dirname(appRoot)));
+		/** @type {string} */
+		let uri;
+
+		// Windows: in order to support UNC paths (which start with '//')
+		// that have their own authority, we do not use the provided authority
+		// but rather preserve it.
+		if (config.isWindows && pathName.startsWith('//')) {
+			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
 		}
 
-		return path.dirname(path.dirname(appRoot));
-	}
-
-	function getPortableDataPath() {
-		if (process.env['VSCODE_PORTABLE']) {
-			return process.env['VSCODE_PORTABLE'];
+		// Otherwise we optionally add the provided authority if specified
+		else {
+			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
 		}
 
-		if (process.platform === 'win32' || process.platform === 'linux') {
-			return path.join(getApplicationPath(), 'data');
+		return uri.replace(/#/g, '%23');
+	}
+
+	//#endregion
+
+
+	//#region NLS helpers
+
+	/**
+	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
+	 */
+	function setupNLS() {
+
+		// Get the nls configuration as early as possible.
+		const process = safeProcess();
+		let nlsConfig = { availableLanguages: {} };
+		if (process && process.env['VSCODE_NLS_CONFIG']) {
+			try {
+				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
+			} catch (e) {
+				// Ignore
+			}
 		}
 
-		const portableDataName = product.portable || `${product.applicationName}-portable-data`;
-		return path.join(path.dirname(getApplicationPath()), portableDataName);
+		if (nlsConfig._resolvedLanguagePackCoreLocation) {
+			const bundles = Object.create(null);
+
+			nlsConfig.loadBundle = function (bundle, language, cb) {
+				const result = bundles[bundle];
+				if (result) {
+					cb(undefined, result);
+
+					return;
+				}
+
+				safeReadNlsFile(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`).then(function (content) {
+					const json = JSON.parse(content);
+					bundles[bundle] = json;
+
+					cb(undefined, json);
+				}).catch((error) => {
+					try {
+						if (nlsConfig._corruptedFile) {
+							safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+						}
+					} finally {
+						cb(error, undefined);
+					}
+				});
+			};
+		}
+
+		return nlsConfig;
 	}
 
-	const portableDataPath = getPortableDataPath();
-	const isPortable = !('target' in product) && fs.existsSync(portableDataPath);
-	const portableTempPath = path.join(portableDataPath, 'tmp');
-	const isTempPortable = isPortable && fs.existsSync(portableTempPath);
+	/**
+	 * @returns {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals') | undefined}
+	 */
+	function safeSandboxGlobals() {
+		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
-	if (isPortable) {
-		process.env['VSCODE_PORTABLE'] = portableDataPath;
-	} else {
-		delete process.env['VSCODE_PORTABLE'];
+		return globals.vscode;
 	}
 
-	if (isTempPortable) {
-		process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
+	/**
+	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process}
+	 */
+	function safeProcess() {
+		const sandboxGlobals = safeSandboxGlobals();
+		if (sandboxGlobals) {
+			return sandboxGlobals.process; // Native environment (sandboxed)
+		}
+
+		if (typeof process !== 'undefined') {
+			return process; // Native environment (non-sandboxed)
+		}
+
+		return undefined;
 	}
+
+	/**
+	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer | undefined}
+	 */
+	function safeIpcRenderer() {
+		const sandboxGlobals = safeSandboxGlobals();
+		if (sandboxGlobals) {
+			return sandboxGlobals.ipcRenderer;
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * @param {string[]} pathSegments
+	 * @returns {Promise<string>}
+	 */
+	async function safeReadNlsFile(...pathSegments) {
+		const ipcRenderer = safeIpcRenderer();
+		if (ipcRenderer) {
+			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
+		}
+
+		if (fs && path) {
+			return (await fs.promises.readFile(path.join(...pathSegments))).toString();
+		}
+
+		throw new Error('Unsupported operation (read NLS files)');
+	}
+
+	/**
+	 * @param {string} path
+	 * @param {string} content
+	 * @returns {Promise<void>}
+	 */
+	function safeWriteNlsFile(path, content) {
+		const ipcRenderer = safeIpcRenderer();
+		if (ipcRenderer) {
+			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
+		}
+
+		if (fs) {
+			return fs.promises.writeFile(path, content);
+		}
+
+		throw new Error('Unsupported operation (write NLS files)');
+	}
+
+	//#endregion
+
+
+	//#region ApplicationInsights
+
+	// Prevents appinsights from monkey patching modules.
+	// This should be called before importing the applicationinsights module
+	function avoidMonkeyPatchFromAppInsights() {
+		if (typeof process === 'undefined') {
+			console.warn('avoidMonkeyPatchFromAppInsights() is only available in node.js environments');
+			return;
+		}
+
+		// @ts-ignore
+		process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
+		global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
+	}
+
+	//#endregion
+
 
 	return {
-		portableDataPath,
-		isPortable
+		enableASARSupport,
+		avoidMonkeyPatchFromAppInsights,
+		setupNLS,
+		fileUriFromPath
 	};
-};
-//#endregion
-
-//#region ApplicationInsights
-/**
- * Prevents appinsights from monkey patching modules.
- * This should be called before importing the applicationinsights module
- */
-exports.avoidMonkeyPatchFromAppInsights = function () {
-	// @ts-ignore
-	process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
-	global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
-};
-//#endregion
+}));

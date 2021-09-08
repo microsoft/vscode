@@ -5,9 +5,6 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { join } from 'vs/base/common/path';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ILogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
@@ -16,27 +13,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class OpenLogsFolderAction extends Action {
-
-	static ID = 'workbench.action.openLogsFolder';
-	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
-
-	constructor(id: string, label: string,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IWindowsService private readonly windowsService: IWindowsService,
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.windowsService.showItemInFolder(URI.file(join(this.environmentService.logsPath, 'main.log')));
-	}
-}
-
 export class SetLogLevelAction extends Action {
 
-	static ID = 'workbench.action.setLogLevel';
-	static LABEL = nls.localize('setLogLevel', "Set Log Level...");
+	static readonly ID = 'workbench.action.setLogLevel';
+	static readonly LABEL = nls.localize('setLogLevel', "Set Log Level...");
 
 	constructor(id: string, label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -45,7 +25,7 @@ export class SetLogLevelAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		const current = this.logService.getLevel();
 		const entries = [
 			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, current) },
@@ -80,8 +60,8 @@ export class SetLogLevelAction extends Action {
 
 export class OpenWindowSessionLogFileAction extends Action {
 
-	static ID = 'workbench.action.openSessionLogFile';
-	static LABEL = nls.localize('openSessionLogFile', "Open Window Log File (Session)...");
+	static readonly ID = 'workbench.action.openSessionLogFile';
+	static readonly LABEL = nls.localize('openSessionLogFile', "Open Window Log File (Session)...");
 
 	constructor(id: string, label: string,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -92,7 +72,7 @@ export class OpenWindowSessionLogFileAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		const sessionResult = await this.quickInputService.pick(
 			this.getSessions().then(sessions => sessions.map((s, index) => (<IQuickPickItem>{
 				id: s.toString(),
@@ -114,7 +94,7 @@ export class OpenWindowSessionLogFileAction extends Action {
 					placeHolder: nls.localize('log placeholder', "Select Log file")
 				});
 			if (logFileResult) {
-				return this.editorService.openEditor({ resource: URI.parse(logFileResult.id!) }).then(() => undefined);
+				return this.editorService.openEditor({ resource: URI.parse(logFileResult.id!), options: { pinned: true } }).then(() => undefined);
 			}
 		}
 	}

@@ -4,38 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Arrows */
-.monaco-scrollable-element > .scrollbar > .up-arrow {
-	background: url('arrow-up.svg');
+.monaco-scrollable-element > .scrollbar > .scra {
 	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .down-arrow {
-	background: url('arrow-down.svg');
-	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .left-arrow {
-	background: url('arrow-left.svg');
-	cursor: pointer;
-}
-.monaco-scrollable-element > .scrollbar > .right-arrow {
-	background: url('arrow-right.svg');
-	cursor: pointer;
-}
-
-.hc-black .monaco-scrollable-element > .scrollbar > .up-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .up-arrow {
-	background: url('arrow-up-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .down-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .down-arrow {
-	background: url('arrow-down-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .left-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .left-arrow {
-	background: url('arrow-left-dark.svg');
-}
-.hc-black .monaco-scrollable-element > .scrollbar > .right-arrow,
-.vs-dark .monaco-scrollable-element > .scrollbar > .right-arrow {
-	background: url('arrow-right-dark.svg');
+	font-size: 11px !important;
 }
 
 .monaco-scrollable-element > .visible {

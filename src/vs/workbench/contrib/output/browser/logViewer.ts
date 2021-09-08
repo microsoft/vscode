@@ -3,40 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { dirname, basename } from 'vs/base/common/path';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { LOG_SCHEME, IFileOutputChannelDescriptor } from 'vs/workbench/contrib/output/common/output';
+import { LOG_SCHEME } from 'vs/workbench/contrib/output/common/output';
+import { IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
-export class LogViewerInput extends ResourceEditorInput {
+export class LogViewerInput extends TextResourceEditorInput {
 
-	public static readonly ID = 'workbench.editorinputs.output';
+	static override readonly ID = 'workbench.editorinputs.output';
 
-	constructor(private outputChannelDescriptor: IFileOutputChannelDescriptor,
-		@ITextModelService textModelResolverService: ITextModelService
-	) {
-		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), undefined, textModelResolverService);
-	}
-
-	public getTypeId(): string {
+	override get typeId(): string {
 		return LogViewerInput.ID;
 	}
 
-	public getResource(): URI {
-		return this.outputChannelDescriptor.file;
+	constructor(
+		outputChannelDescriptor: IFileOutputChannelDescriptor,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService,
+		@IEditorResolverService editorResolverService: IEditorResolverService
+	) {
+		super(
+			URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }),
+			basename(outputChannelDescriptor.file.path),
+			dirname(outputChannelDescriptor.file.path),
+			undefined,
+			undefined,
+			textModelResolverService,
+			textFileService,
+			editorService,
+			fileService,
+			labelService,
+			editorResolverService
+		);
 	}
 }
 
@@ -48,22 +65,24 @@ export class LogViewer extends AbstractTextResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService baseConfigurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IWindowService windowService: IWindowService
+		@IEditorService editorService: IEditorService
 	) {
-		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService, windowService);
+		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}
 
-	protected getConfigurationOverrides(): IEditorOptions {
+	protected override getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 		options.wordWrap = 'off'; // all log viewers do not wrap
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
+		options.renderValidationDecorations = 'editable';
 		return options;
+	}
+
+	protected getAriaLabel(): string {
+		return localize('logViewerAriaLabel', "Log viewer");
 	}
 }

@@ -3,61 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* File icon themeable OLD tree style */
-.file-icon-themable-tree .monaco-tree-row .content {
-	display: flex;
-}
-
-.file-icon-themable-tree .monaco-tree-row .content::before {
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-	padding-right: 6px;
-	width: 16px;
-	height: 22px;
-	display: inline-block;
-	vertical-align: top;
-	content: ' ';
-}
-
-.file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("tree-expanded-light.svg");
-}
-
-.file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	display: inline-block;
-	background-image: url("tree-collapsed-light.svg");
-}
-
-.vs-dark .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("tree-expanded-dark.svg");
-}
-
-.vs-dark .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("tree-collapsed-dark.svg");
-}
-
-.hc-black .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("tree-expanded-hc.svg");
-}
-
-.hc-black .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("tree-collapsed-hc.svg");
-}
-
-.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
-.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
-	display: none;
-}
-
 /* File icons in trees */
 
-.file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.collapsible),
-.file-icon-themable-tree .align-icon-with-twisty .monaco-tl-twistie:not(.collapsible),
-.file-icon-themable-tree.hide-arrows .monaco-tl-twistie {
+.file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
+.file-icon-themable-tree .align-icon-with-twisty .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
+.file-icon-themable-tree.hide-arrows .monaco-tl-twistie:not(.force-twistie),
+.file-icon-themable-tree .monaco-tl-twistie.force-no-twistie {
 	background-image: none !important;
 	width: 0 !important;
-	margin-right: 0 !important;
+	padding-right: 0 !important;
+	visibility: hidden;
 }
 
 /* Misc */
@@ -68,8 +23,9 @@
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .message {
 	display: flex;
-	padding: 4px 12px 0px 18px;
-	user-select: text
+	padding: 4px 12px 4px 18px;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .message p {
@@ -92,6 +48,52 @@
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree.hide {
 	display: none;
+}
+
+.monaco-workbench .pane > .pane-body > .welcome-view {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench .pane > .pane-body:not(.welcome) > .welcome-view,
+.monaco-workbench .pane > .pane-body.welcome > :not(.welcome-view) {
+	display: none;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content {
+	display: flex;
+	flex-direction: column;
+	padding: 0 20px 1em 20px;
+	box-sizing: border-box;
+	align-items: center;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container {
+	width: 100%;
+	max-width: 300px;
+	transition: 0.2s max-width ease-out;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content.wide > .button-container {
+	max-width: 100%;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container > .monaco-button {
+	max-width: 300px;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > p {
+	width: 100%;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > * {
+	margin-block-start: 1em;
+	margin-block-end: 0;
+	margin-inline-start: 0px;
+	margin-inline-end: 0px;
 }
 
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
@@ -118,10 +120,20 @@
 	padding-left: 3px;
 }
 
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-inputbox {
+	line-height: normal;
+	flex: 1;
+}
+
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-icon-label-container::after {
+	content: '';
+	display: block;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
@@ -131,10 +143,24 @@
 	padding-right: 6px;
 	width: 16px;
 	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
+/* makes spinning icons square */
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
+	padding-left: 6px;
+	margin-left: -6px;
+}
+
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon {
+	color: currentColor !important;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
 	flex: 1;
 }
 
@@ -146,16 +172,12 @@
 	display: none;
 }
 
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions .action-label {
+	padding: 2px;
+}
+
 .customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {
 	display: block;
-}
-
-.customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label {
-	width: 16px;
-	height: 100%;
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
 }

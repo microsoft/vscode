@@ -60,7 +60,11 @@ export interface LanguageConfiguration {
 	 * settings will be used.
 	 */
 	surroundingPairs?: IAutoClosingPair[];
-
+	/**
+	 * Defines a list of bracket pairs that are colorized depending on their nesting level.
+	 * If not set, the configured brackets will be used.
+	*/
+	colorizedBracketPairs?: CharacterPair[];
 	/**
 	 * Defines what characters must be after the cursor for bracket or quote autoclosing to occur when using the \'languageDefined\' autoclosing setting.
 	 *
@@ -150,7 +154,7 @@ export interface OnEnterRule {
 	/**
 	 * This rule will only execute if the text above the this line matches this regular expression.
 	 */
-	oneLineAboveText?: RegExp;
+	previousLineText?: RegExp;
 	/**
 	 * The action to execute.
 	 */
@@ -231,8 +235,30 @@ export interface EnterAction {
 /**
  * @internal
  */
+export interface CompleteEnterAction {
+	/**
+	 * Describe what to do with the indentation.
+	 */
+	indentAction: IndentAction;
+	/**
+	 * Describes text to be appended after the new line and after the indentation.
+	 */
+	appendText: string;
+	/**
+	 * Describes the number of characters to remove from the new line's indentation.
+	 */
+	removeText: number;
+	/**
+	 * The line's indentation minus removeText
+	 */
+	indentation: string;
+}
+
+/**
+ * @internal
+ */
 export class StandardAutoClosingPairConditional {
-	_standardAutoClosingPairConditionalBrand: void;
+	_standardAutoClosingPairConditionalBrand: void = undefined;
 
 	readonly open: string;
 	readonly close: string;
@@ -247,7 +273,7 @@ export class StandardAutoClosingPairConditional {
 
 		if (Array.isArray(source.notIn)) {
 			for (let i = 0, len = source.notIn.length; i < len; i++) {
-				let notIn = source.notIn[i];
+				const notIn: string = source.notIn[i];
 				switch (notIn) {
 					case 'string':
 						this._standardTokenMask |= StandardTokenType.String;
@@ -265,5 +291,48 @@ export class StandardAutoClosingPairConditional {
 
 	public isOK(standardToken: StandardTokenType): boolean {
 		return (this._standardTokenMask & <number>standardToken) === 0;
+	}
+}
+
+/**
+ * @internal
+ */
+export class AutoClosingPairs {
+	// it is useful to be able to get pairs using either end of open and close
+
+	/** Key is first character of open */
+	public readonly autoClosingPairsOpenByStart: Map<string, StandardAutoClosingPairConditional[]>;
+	/** Key is last character of open */
+	public readonly autoClosingPairsOpenByEnd: Map<string, StandardAutoClosingPairConditional[]>;
+	/** Key is first character of close */
+	public readonly autoClosingPairsCloseByStart: Map<string, StandardAutoClosingPairConditional[]>;
+	/** Key is last character of close */
+	public readonly autoClosingPairsCloseByEnd: Map<string, StandardAutoClosingPairConditional[]>;
+	/** Key is close. Only has pairs that are a single character */
+	public readonly autoClosingPairsCloseSingleChar: Map<string, StandardAutoClosingPairConditional[]>;
+
+	constructor(autoClosingPairs: StandardAutoClosingPairConditional[]) {
+		this.autoClosingPairsOpenByStart = new Map<string, StandardAutoClosingPairConditional[]>();
+		this.autoClosingPairsOpenByEnd = new Map<string, StandardAutoClosingPairConditional[]>();
+		this.autoClosingPairsCloseByStart = new Map<string, StandardAutoClosingPairConditional[]>();
+		this.autoClosingPairsCloseByEnd = new Map<string, StandardAutoClosingPairConditional[]>();
+		this.autoClosingPairsCloseSingleChar = new Map<string, StandardAutoClosingPairConditional[]>();
+		for (const pair of autoClosingPairs) {
+			appendEntry(this.autoClosingPairsOpenByStart, pair.open.charAt(0), pair);
+			appendEntry(this.autoClosingPairsOpenByEnd, pair.open.charAt(pair.open.length - 1), pair);
+			appendEntry(this.autoClosingPairsCloseByStart, pair.close.charAt(0), pair);
+			appendEntry(this.autoClosingPairsCloseByEnd, pair.close.charAt(pair.close.length - 1), pair);
+			if (pair.close.length === 1 && pair.open.length === 1) {
+				appendEntry(this.autoClosingPairsCloseSingleChar, pair.close, pair);
+			}
+		}
+	}
+}
+
+function appendEntry<K, V>(target: Map<K, V[]>, key: K, value: V): void {
+	if (target.has(key)) {
+		target.get(key)!.push(value);
+	} else {
+		target.set(key, [value]);
 	}
 }

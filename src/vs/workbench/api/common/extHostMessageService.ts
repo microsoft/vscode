@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Severity from 'vs/base/common/severity';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 function isMessageItem(item: any): item is vscode.MessageItem {
 	return item && item.title;
@@ -16,14 +18,18 @@ export class ExtHostMessageService {
 
 	private _proxy: MainThreadMessageServiceShape;
 
-	constructor(mainContext: IMainContext) {
+	constructor(
+		mainContext: IMainContext,
+		@ILogService private readonly _logService: ILogService
+	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadMessageService);
 	}
 
-	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string, rest: string[]): Promise<string | undefined>;
-	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem, rest: vscode.MessageItem[]): Promise<vscode.MessageItem | undefined>;
-	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem | string, rest: Array<vscode.MessageItem | string>): Promise<string | vscode.MessageItem | undefined>;
-	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem, rest: Array<string | vscode.MessageItem>): Promise<string | vscode.MessageItem | undefined> {
+
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | undefined, rest: string[]): Promise<string | undefined>;
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem | undefined, rest: vscode.MessageItem[]): Promise<vscode.MessageItem | undefined>;
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem | string | undefined, rest: Array<vscode.MessageItem | string>): Promise<string | vscode.MessageItem | undefined>;
+	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem | undefined, rest: Array<string | vscode.MessageItem>): Promise<string | vscode.MessageItem | undefined> {
 
 		const options: MainThreadMessageOptions = { extension };
 		let items: (string | vscode.MessageItem)[];
@@ -31,8 +37,14 @@ export class ExtHostMessageService {
 		if (typeof optionsOrFirstItem === 'string' || isMessageItem(optionsOrFirstItem)) {
 			items = [optionsOrFirstItem, ...rest];
 		} else {
-			options.modal = optionsOrFirstItem && optionsOrFirstItem.modal;
+			options.modal = optionsOrFirstItem?.modal;
+			options.useCustom = optionsOrFirstItem?.useCustom;
+			options.detail = optionsOrFirstItem?.detail;
 			items = rest;
+		}
+
+		if (options.useCustom) {
+			checkProposedApiEnabled(extension);
 		}
 
 		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
@@ -45,7 +57,7 @@ export class ExtHostMessageService {
 				let { title, isCloseAffordance } = command;
 				commands.push({ title, isCloseAffordance: !!isCloseAffordance, handle });
 			} else {
-				console.warn('Invalid message item:', command);
+				this._logService.warn('Invalid message item:', command);
 			}
 		}
 

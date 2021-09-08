@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 .suggest-input-container {
-	padding: 3px 4px 5px;
+	padding: 2px 4px;
 }
 
 .suggest-input-container .monaco-editor-background,
 .suggest-input-container .monaco-editor,
 .suggest-input-container .mtk1 {
-	/* allow the embedded monaco to be styled from the outer context */
-	background-color: transparent;
 	color: inherit;
 }
 
@@ -22,7 +20,10 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	pointer-events: none;
-	margin-top: 2px;
-	margin-left: 1px;
+	margin-top: 1px;
 }
 
+.suggest-input-container .monaco-editor,
+.suggest-input-container .monaco-editor .lines-content {
+	background: none;
+}

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getLocation, Location } from 'jsonc-parser';
+import { getLocation, Location, parse } from 'jsonc-parser';
 import * as nls from 'vscode-nls';
+import { provideInstalledExtensionProposals } from './extensionsProposals';
 
 const localize = nls.loadMessageBundle();
 
@@ -13,7 +14,7 @@ export class SettingsDocument {
 
 	constructor(private document: vscode.TextDocument) { }
 
-	public provideCompletionItems(position: vscode.Position, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.CompletionItem[]> {
+	public provideCompletionItems(position: vscode.Position, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
 		const location = getLocation(this.document.getText(), this.document.offsetAt(position));
 		const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 
@@ -34,7 +35,34 @@ export class SettingsDocument {
 
 		// files.defaultLanguage
 		if (location.path[0] === 'files.defaultLanguage') {
-			return this.provideLanguageCompletionItems(location, range);
+			return this.provideLanguageCompletionItems(location, range).then(items => {
+
+				// Add special item '${activeEditorLanguage}'
+				return [this.newSimpleCompletionItem(JSON.stringify('${activeEditorLanguage}'), range, localize('activeEditor', "Use the language of the currently active text editor if any")), ...items];
+			});
+		}
+
+		// settingsSync.ignoredExtensions
+		if (location.path[0] === 'settingsSync.ignoredExtensions') {
+			let ignoredExtensions = [];
+			try {
+				ignoredExtensions = parse(this.document.getText())['settingsSync.ignoredExtensions'];
+			} catch (e) {/* ignore error */ }
+			return provideInstalledExtensionProposals(ignoredExtensions, '', range, true);
+		}
+
+		// remote.extensionKind
+		if (location.path[0] === 'remote.extensionKind' && location.path.length === 2 && location.isAtPropertyKey) {
+			let alreadyConfigured: string[] = [];
+			try {
+				alreadyConfigured = Object.keys(parse(this.document.getText())['remote.extensionKind']);
+			} catch (e) {/* ignore error */ }
+			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
+		}
+
+		// remote.portsAttributes
+		if (location.path[0] === 'remote.portsAttributes' && location.path.length === 2 && location.isAtPropertyKey) {
+			return this.providePortsAttributesCompletionItem(range);
 		}
 
 		return this.provideLanguageOverridesCompletionItems(location, position);
@@ -54,6 +82,7 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem('${folderName}', range, localize('folderName', "name of the workspace folder the file is contained in (e.g. myFolder)")));
 		completions.push(this.newSimpleCompletionItem('${folderPath}', range, localize('folderPath', "file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)")));
 		completions.push(this.newSimpleCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));
+		completions.push(this.newSimpleCompletionItem('${remoteName}', range, localize('remoteName', "e.g. SSH")));
 		completions.push(this.newSimpleCompletionItem('${dirty}', range, localize('dirty', "a dirty indicator if the active editor is dirty")));
 		completions.push(this.newSimpleCompletionItem('${separator}', range, localize('separator', "a conditional separator (' - ') that only shows when surrounded by variables with values")));
 
@@ -81,7 +110,7 @@ export class SettingsDocument {
 				}));
 			} else {
 				// Value
-				return this.provideLanguageCompletionItems(location, range);
+				return this.provideLanguageCompletionItemsForLanguageOverrides(location, range);
 			}
 		}
 
@@ -152,7 +181,12 @@ export class SettingsDocument {
 		return Promise.resolve(completions);
 	}
 
-	private provideLanguageCompletionItems(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideLanguageCompletionItems(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): Thenable<vscode.CompletionItem[]> {
+		return vscode.languages.getLanguages()
+			.then(languages => languages.map(l => this.newSimpleCompletionItem(formatFunc(l), range)));
+	}
+
+	private provideLanguageCompletionItemsForLanguageOverrides(_location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): Thenable<vscode.CompletionItem[]> {
 		return vscode.languages.getLanguages().then(languages => {
 			const completionItems = [];
 			const configuration = vscode.workspace.getConfiguration();
@@ -177,7 +211,7 @@ export class SettingsDocument {
 			let text = this.document.getText(range);
 			if (text && text.trim().startsWith('[')) {
 				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + text.indexOf('[')), range.end);
-				return this.provideLanguageCompletionItems(location, range, language => `"[${language}]"`);
+				return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
 			}
 
 			range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
@@ -203,10 +237,35 @@ export class SettingsDocument {
 		if (location.path.length === 1 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
 			// Suggestion model word matching includes closed sqaure bracket and ending quote
 			// Hence include them in the proposal to replace
-			let range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
-			return this.provideLanguageCompletionItems(location, range, language => `"[${language}]"`);
+			const range = this.document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
 		}
 		return Promise.resolve([]);
+	}
+
+	private providePortsAttributesCompletionItem(range: vscode.Range): vscode.CompletionItem[] {
+		return [this.newSnippetCompletionItem(
+			{
+				label: '\"3000\"',
+				documentation: 'Single Port Attribute',
+				range,
+				snippet: '\n  \"${1:3000}\": {\n    \"label\": \"${2:Application}\",\n    \"onAutoForward\": \"${3:openPreview}\"\n  }\n'
+			}),
+		this.newSnippetCompletionItem(
+			{
+				label: '\"5000-6000\"',
+				documentation: 'Ranged Port Attribute',
+				range,
+				snippet: '\n  \"${1:40000-55000}\": {\n    \"onAutoForward\": \"${2:ignore}\"\n  }\n'
+			}),
+		this.newSnippetCompletionItem(
+			{
+				label: '\".+\\\\/server.js\"',
+				documentation: 'Command Match Port Attribute',
+				range,
+				snippet: '\n  \"${1:.+\\\\/server.js\}\": {\n    \"label\": \"${2:Application}\",\n    \"onAutoForward\": \"${3:openPreview}\"\n  }\n'
+			})
+		];
 	}
 
 	private newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {

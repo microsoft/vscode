@@ -3,33 +3,57 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Promises } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const NullTelemetryService = new class implements ITelemetryService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
+	readonly sendErrorTelemetry = false;
+
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as ITelemetryData);
 	}
+	publicLogError(eventName: string, data?: ITelemetryData) {
+		return Promise.resolve(undefined);
+	}
+	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLogError(eventName, data as ITelemetryData);
+	}
+
+	setExperimentProperty() { }
 	setEnabled() { }
-	isOptedIn: true;
+	isOptedIn = true;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
 		});
 	}
 };
+
+export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
+	_serviceBrand: undefined;
+
+	async publicLog(_endpoint: ITelemetryEndpoint, _eventName: string, _data?: ITelemetryData): Promise<void> {
+		// noop
+	}
+
+	async publicLogError(_endpoint: ITelemetryEndpoint, _errorEventName: string, _data?: ITelemetryData): Promise<void> {
+		// noop
+	}
+}
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
@@ -39,32 +63,12 @@ export interface ITelemetryAppender {
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
 	return {
 		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		flush: () => Promise.all(appenders.map(a => a.flush()))
+		flush: () => Promises.settled(appenders.map(a => a.flush())),
 	};
 }
 
 export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
 
-
-export class LogAppender implements ITelemetryAppender {
-
-	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
-	constructor(@ILogService private readonly _logService: ILogService) { }
-
-	flush(): Promise<any> {
-		return Promise.resolve(undefined);
-	}
-
-	log(eventName: string, data: any): void {
-		const strippedData: { [key: string]: any } = {};
-		Object.keys(data).forEach(key => {
-			if (!this.commonPropertiesRegex.test(key)) {
-				strippedData[key] = data[key];
-			}
-		});
-		this._logService.trace(`telemetry/${eventName}`, strippedData);
-	}
-}
 
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
@@ -81,120 +85,6 @@ export interface URIDescriptor {
 	path?: string;
 }
 
-/**
- * Only add settings that cannot contain any personal/private information of users (PII).
- */
-const configurationValueWhitelist = [
-	'editor.fontFamily',
-	'editor.fontWeight',
-	'editor.fontSize',
-	'editor.lineHeight',
-	'editor.letterSpacing',
-	'editor.lineNumbers',
-	'editor.rulers',
-	'editor.wordSeparators',
-	'editor.tabSize',
-	'editor.indentSize',
-	'editor.insertSpaces',
-	'editor.detectIndentation',
-	'editor.roundedSelection',
-	'editor.scrollBeyondLastLine',
-	'editor.minimap.enabled',
-	'editor.minimap.side',
-	'editor.minimap.renderCharacters',
-	'editor.minimap.maxColumn',
-	'editor.minimap.backgroundAlpha',
-	'editor.minimap.textAlpha',
-	'editor.find.seedSearchStringFromSelection',
-	'editor.find.autoFindInSelection',
-	'editor.wordWrap',
-	'editor.wordWrapColumn',
-	'editor.wrappingIndent',
-	'editor.mouseWheelScrollSensitivity',
-	'editor.multiCursorModifier',
-	'editor.quickSuggestions',
-	'editor.quickSuggestionsDelay',
-	'editor.parameterHints.enabled',
-	'editor.parameterHints.cycle',
-	'editor.autoClosingBrackets',
-	'editor.autoClosingQuotes',
-	'editor.autoSurround',
-	'editor.autoIndent',
-	'editor.formatOnType',
-	'editor.formatOnPaste',
-	'editor.suggestOnTriggerCharacters',
-	'editor.acceptSuggestionOnEnter',
-	'editor.acceptSuggestionOnCommitCharacter',
-	'editor.snippetSuggestions',
-	'editor.emptySelectionClipboard',
-	'editor.wordBasedSuggestions',
-	'editor.suggestSelection',
-	'editor.suggestFontSize',
-	'editor.suggestLineHeight',
-	'editor.tabCompletion',
-	'editor.selectionHighlight',
-	'editor.occurrencesHighlight',
-	'editor.overviewRulerLanes',
-	'editor.overviewRulerBorder',
-	'editor.cursorBlinking',
-	'editor.cursorSmoothCaretAnimation',
-	'editor.cursorStyle',
-	'editor.mouseWheelZoom',
-	'editor.fontLigatures',
-	'editor.hideCursorInOverviewRuler',
-	'editor.renderWhitespace',
-	'editor.renderControlCharacters',
-	'editor.renderIndentGuides',
-	'editor.renderLineHighlight',
-	'editor.codeLens',
-	'editor.folding',
-	'editor.showFoldingControls',
-	'editor.matchBrackets',
-	'editor.glyphMargin',
-	'editor.useTabStops',
-	'editor.trimAutoWhitespace',
-	'editor.stablePeek',
-	'editor.dragAndDrop',
-	'editor.formatOnSave',
-	'editor.colorDecorators',
-
-	'breadcrumbs.enabled',
-	'breadcrumbs.filePath',
-	'breadcrumbs.symbolPath',
-	'breadcrumbs.symbolSortOrder',
-	'breadcrumbs.useQuickPick',
-	'explorer.openEditors.visible',
-	'extensions.autoUpdate',
-	'files.associations',
-	'files.autoGuessEncoding',
-	'files.autoSave',
-	'files.autoSaveDelay',
-	'files.encoding',
-	'files.eol',
-	'files.hotExit',
-	'files.trimTrailingWhitespace',
-	'git.confirmSync',
-	'git.enabled',
-	'http.proxyStrictSSL',
-	'javascript.validate.enable',
-	'php.builtInCompletions.enable',
-	'php.validate.enable',
-	'php.validate.run',
-	'terminal.integrated.fontFamily',
-	'window.openFilesInNewWindow',
-	'window.restoreWindows',
-	'window.nativeFullScreen',
-	'window.zoomLevel',
-	'workbench.editor.enablePreview',
-	'workbench.editor.enablePreviewFromQuickOpen',
-	'workbench.editor.showTabs',
-	'workbench.editor.highlightModifiedTabs',
-	'workbench.sideBar.location',
-	'workbench.startupEditor',
-	'workbench.statusBar.visible',
-	'workbench.welcome.enabled',
-];
-
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
@@ -210,43 +100,37 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				configurationSource: ConfigurationTargetToString(event.source),
 				configurationKeys: flattenKeys(event.sourceConfig)
 			});
-			type UpdateConfigurationValuesClassification = {
-				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				configurationValues: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
-			};
-			type UpdateConfigurationValuesEvent = {
-				configurationSource: string;
-				configurationValues: { [key: string]: any }[];
-			};
-			telemetryService.publicLog2<UpdateConfigurationValuesEvent, UpdateConfigurationValuesClassification>('updateConfigurationValues', {
-				configurationSource: ConfigurationTargetToString(event.source),
-				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
-			});
 		}
 	});
 }
 
-export function keybindingsTelemetry(telemetryService: ITelemetryService, keybindingService: IKeybindingService): IDisposable {
-	return keybindingService.onDidUpdateKeybindings(event => {
-		if (event.source === KeybindingSource.User && event.keybindings) {
-			type UpdateKeybindingsClassification = {
-				bindings: { classification: 'CustomerContent', purpose: 'FeatureInsight' };
-			};
-			type UpdateKeybindingsEvents = {
-				bindings: { key: string, command: string, when: string | undefined, args: boolean | undefined }[];
-			};
-			telemetryService.publicLog2<UpdateKeybindingsEvents, UpdateKeybindingsClassification>('updateKeybindings', {
-				bindings: event.keybindings.map(binding => ({
-					key: binding.key,
-					command: binding.command,
-					when: binding.when,
-					args: binding.args ? true : undefined
-				}))
-			});
-		}
-	});
+export const enum TelemetryLevel {
+	NONE = 0,
+	LOG = 1,
+	USER = 2
 }
 
+/**
+ * Determines how telemetry is handled based on the current running configuration.
+ * To log telemetry locally, the client must not disable telemetry via the CLI
+ * If client is a built product and telemetry is enabled via the product.json, defer to user setting
+ * Note that when running from sources, we log telemetry locally but do not send it
+ *
+ * @param productService
+ * @param environmentService
+ * @returns NONE - telemetry is completely disabled, LOG - telemetry is logged locally but not sent, USER - verify with user setting
+ */
+export function getTelemetryLevel(productService: IProductService, environmentService: IEnvironmentService): TelemetryLevel {
+	if (environmentService.disableTelemetry || !productService.enableTelemetry) {
+		return TelemetryLevel.NONE;
+	}
+
+	if (!environmentService.isBuilt) {
+		return TelemetryLevel.LOG;
+	}
+
+	return TelemetryLevel.USER;
+}
 
 export interface Properties {
 	[key: string]: string;
@@ -296,8 +180,8 @@ export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	}
 
 	let ret = 'other';
-	// Whitelisted remote authorities
-	['ssh-remote', 'dev-container', 'attached-container', 'wsl'].forEach((res: string) => {
+	const allowedAuthorities = ['ssh-remote', 'dev-container', 'attached-container', 'wsl'];
+	allowedAuthorities.forEach((res: string) => {
 		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
 			ret = res;
 		}
@@ -350,19 +234,4 @@ function flatKeys(result: string[], prefix: string, value: { [key: string]: any 
 	} else {
 		result.push(prefix);
 	}
-}
-
-function flattenValues(value: { [key: string]: any } | undefined, keys: string[]): { [key: string]: any }[] {
-	if (!value) {
-		return [];
-	}
-
-	return keys.reduce((array, key) => {
-		const v = key.split('.')
-			.reduce((tmp, k) => tmp && typeof tmp === 'object' ? tmp[k] : undefined, value);
-		if (typeof v !== 'undefined') {
-			array.push({ [key]: v });
-		}
-		return array;
-	}, <{ [key: string]: any }[]>[]);
 }

@@ -14,19 +14,29 @@
 		{
 			"type": "node",
 			"request": "attach",
-			"name": "Attach to Extension Host",
-			"port": 5870,
 			"restart": true,
+			"name": "Attach to Extension Host",
+			// set to a large number: if there is an issue we're debugging that keeps
+			// the extension host from coming up, or the renderer is paused/crashes
+			// before it happens, developers will get an annoying alert, e.g. #126826.
+			// This can be set to 0 in 1.59.
+			"timeout": 999999999,
+			"port": 5870,
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js",
+				"${workspaceFolder}/extensions/*/out/**/*.js"
 			]
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
+			"timeout": 30000,
 			"port": 9222,
-			"urlFilter": "*"
+			"urlFilter": "*sharedProcess.html*",
+			"presentation": {
+				"hidden": true
+			}
 		},
 		{
 			"type": "node",
@@ -50,10 +60,14 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Main Process",
+			"timeout": 30000,
 			"port": 5875,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"hidden": true,
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -61,13 +75,35 @@
 			"name": "VS Code Emmet Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/emmet/test-fixtures",
+				"${workspaceFolder}/extensions/emmet/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/emmet",
 				"--extensionTestsPath=${workspaceFolder}/extensions/emmet/out/test"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Git Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"/tmp/my4g9l",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/git",
+				"--extensionTestsPath=${workspaceFolder}/extensions/git/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/extensions/git/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -78,11 +114,16 @@
 				// "${workspaceFolder}", // Uncomment for running out of sources.
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests"
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests",
+				"--disable-extensions"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 3
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -96,7 +137,11 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 4
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -110,21 +155,50 @@
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 5
+			}
 		},
 		{
-			"type": "chrome",
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Custom Editor Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/vscode-custom-editor-tests/test-workspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-custom-editor-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-custom-editor-tests/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
+			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
-			"port": 9222
+			"browserAttachLocation": "workspace",
+			"port": 9222,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"perScriptSourcemaps": "yes"
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "launch",
-			"name": "Launch VS Code",
+			"name": "Launch VS Code Internal",
 			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
-				"timeout": 20000
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
 			"osx": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
@@ -132,31 +206,93 @@
 			"linux": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
 			},
+			"port": 9222,
+			"timeout": 20000,
 			"env": {
-				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
+				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
-			"breakOnLoad": false,
+			"cleanUp": "wholeBrowser",
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
 				"--inspect=5875",
-				"--no-cached-data"
+				"--no-cached-data",
+				// for breakpoint freeze: https://github.com/microsoft/vscode/issues/122225#issuecomment-885377304
+				"--js-flags=\"--regexp_interpret_all\"",
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
+				"--disable-features=CalculateNativeWinOcclusion",
 			],
-			"webRoot": "${workspaceFolder}"
+			"webRoot": "${workspaceFolder}",
+			"cascadeTerminateToConfigurations": [
+				"Attach to Extension Host"
+			],
+			"userDataDir": "${workspaceFolder}/.profile-oss",
+			"pauseForSourceMap": false,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"browserLaunchLocation": "workspace",
+			"presentation": {
+				"hidden": true,
+			}
 		},
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Launch VS Code (Main Process)",
+			"name": "VS Code (Web)",
+			"program": "${workspaceFolder}/resources/web/code-web.js",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 2
+			}
+		},
+		{
+			"type": "pwa-node",
+			"request": "launch",
+			"name": "Main Process",
+			"attachSimplePort": 5875,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
 			},
 			"runtimeArgs": [
-				"--no-cached-data"
+				"--inspect-brk=5875",
+				"--no-cached-data",
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 1
+			}
+		},
+		{
+			"type": "pwa-chrome",
+			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
+			"name": "VS Code (Web, Chrome)",
+			"url": "http://localhost:8080",
+			"preLaunchTask": "Run web",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
+		},
+		{
+			"type": "pwa-msedge",
+			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
+			"name": "VS Code (Web, Edge)",
+			"url": "http://localhost:8080",
+			"pauseForSourceMap": false,
+			"preLaunchTask": "Run web",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 3
+			}
 		},
 		{
 			"type": "node",
@@ -167,7 +303,41 @@
 			"cwd": "${workspaceFolder}/extensions/git",
 			"outFiles": [
 				"${workspaceFolder}/extensions/git/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 10
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "HTML Server Unit Tests",
+			"program": "${workspaceFolder}/extensions/html-language-features/server/test/index.js",
+			"stopOnEntry": false,
+			"cwd": "${workspaceFolder}/extensions/html-language-features/server",
+			"outFiles": [
+				"${workspaceFolder}/extensions/html-language-features/server/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 10
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "CSS Server Unit Tests",
+			"program": "${workspaceFolder}/extensions/css-language-features/server/test/index.js",
+			"stopOnEntry": false,
+			"cwd": "${workspaceFolder}/extensions/css-language-features/server",
+			"outFiles": [
+				"${workspaceFolder}/extensions/css-language-features/server/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 10
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -175,13 +345,17 @@
 			"name": "Markdown Extension Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/markdown-language-features/test-fixtures",
+				"${workspaceFolder}/extensions/markdown-language-features/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/markdown-language-features",
 				"--extensionTestsPath=${workspaceFolder}/extensions/markdown-language-features/out/test"
 			],
 			"outFiles": [
 				"${workspaceFolder}/extensions/markdown-language-features/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 7
+			}
 		},
 		{
 			"type": "extensionHost",
@@ -189,19 +363,23 @@
 			"name": "TypeScript Extension Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/typescript-language-features/test-fixtures",
+				"${workspaceFolder}/extensions/typescript-language-features/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/typescript-language-features",
 				"--extensionTestsPath=${workspaceFolder}/extensions/typescript-language-features/out/test"
 			],
 			"outFiles": [
 				"${workspaceFolder}/extensions/typescript-language-features/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 8
+			}
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
 			"name": "Run Unit Tests",
-			"program": "${workspaceFolder}/test/electron/index.js",
+			"program": "${workspaceFolder}/test/unit/electron/index.js",
 			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
@@ -216,7 +394,48 @@
 			"cwd": "${workspaceFolder}",
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"cascadeTerminateToConfigurations": [
+				"Attach to VS Code"
+			],
+			"env": {
+				"MOCHA_COLORS": "true"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"type": "pwa-node",
+			"request": "launch",
+			"name": "Run Unit Tests For Current File",
+			"program": "${workspaceFolder}/test/unit/electron/index.js",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
+			},
+			"cascadeTerminateToConfigurations": [
+				"Attach to VS Code"
+			],
+			"outputCapture": "std",
+			"args": [
+				"--remote-debugging-port=9222",
+				"--run",
+				"${relativeFile}"
+			],
+			"cwd": "${workspaceFolder}",
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"env": {
+				"MOCHA_COLORS": "true"
+			},
+			"presentation": {
+				"hidden": true
+			}
 		},
 		{
 			"type": "node",
@@ -251,32 +470,71 @@
 	],
 	"compounds": [
 		{
-			"name": "Debug VS Code Main and Renderer",
+			"name": "VS Code",
+			"stopAll": true,
 			"configurations": [
-				"Launch VS Code",
-				"Attach to Main Process"
-			]
+				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Extension Host",
+				"Attach to Shared Process",
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 1
+			}
 		},
 		{
 			"name": "Search and Renderer processes",
 			"configurations": [
-				"Launch VS Code",
+				"Launch VS Code Internal",
 				"Attach to Search Process"
-			]
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 4
+			}
 		},
 		{
 			"name": "Renderer and Extension Host processes",
 			"configurations": [
-				"Launch VS Code",
+				"Launch VS Code Internal",
 				"Attach to Extension Host"
-			]
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 3
+			}
 		},
 		{
 			"name": "Debug Unit Tests",
 			"configurations": [
 				"Attach to VS Code",
 				"Run Unit Tests"
-			]
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 2
+			}
+		},
+		{
+			"name": "Debug Unit Tests (Current File)",
+			"configurations": [
+				"Attach to VS Code",
+				"Run Unit Tests For Current File"
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 2
+			}
+		},
+		{
+			"name": "Launch VS Code",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal",
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},
 	]
 }

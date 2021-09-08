@@ -45,7 +45,9 @@
         ],
         "filenamePatterns": [
           "tsconfig.*.json",
-          "tsconfig-*.json"
+          "jsconfig.*.json",
+          "tsconfig-*.json",
+          "jsconfig-*.json"
         ]
       }
     ],
@@ -55,6 +57,7 @@
         "scopeName": "source.ts",
         "path": "./syntaxes/TypeScript.tmLanguage.json",
         "tokenTypes": {
+          "meta.template.expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -72,6 +75,7 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         },
         "tokenTypes": {
+          "meta.template.expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -79,55 +83,95 @@
         }
       },
       {
-        "scopeName": "documentation.injection",
-        "path": "./syntaxes/jsdoc.injection.tmLanguage.json",
+        "scopeName": "documentation.injection.ts",
+        "path": "./syntaxes/jsdoc.ts.injection.tmLanguage.json",
         "injectTo": [
           "source.ts",
-          "source.tsx",
+          "source.tsx"
+        ]
+      },
+      {
+        "scopeName": "documentation.injection.js.jsx",
+        "path": "./syntaxes/jsdoc.js.injection.tmLanguage.json",
+        "injectTo": [
           "source.js",
           "source.js.jsx"
         ]
       }
     ],
-    "snippets": [
+    "semanticTokenScopes": [
       {
         "language": "typescript",
-        "path": "./snippets/typescript.json"
+        "scopes": {
+          "property": [
+            "variable.other.property.ts"
+          ],
+          "property.readonly": [
+            "variable.other.constant.property.ts"
+          ],
+          "variable": [
+            "variable.other.readwrite.ts"
+          ],
+          "variable.readonly": [
+            "variable.other.constant.object.ts"
+          ],
+          "function": [
+            "entity.name.function.ts"
+          ],
+          "namespace": [
+            "entity.name.type.module.ts"
+          ],
+          "variable.defaultLibrary": [
+            "support.variable.ts"
+          ],
+          "function.defaultLibrary": [
+            "support.function.ts"
+          ]
+        }
       },
       {
         "language": "typescriptreact",
-        "path": "./snippets/typescript.json"
+        "scopes": {
+          "property": [
+            "variable.other.property.tsx"
+          ],
+          "property.readonly": [
+            "variable.other.constant.property.tsx"
+          ],
+          "variable": [
+            "variable.other.readwrite.tsx"
+          ],
+          "variable.readonly": [
+            "variable.other.constant.object.tsx"
+          ],
+          "function": [
+            "entity.name.function.tsx"
+          ],
+          "namespace": [
+            "entity.name.type.module.tsx"
+          ],
+          "variable.defaultLibrary": [
+            "support.variable.tsx"
+          ],
+          "function.defaultLibrary": [
+            "support.function.tsx"
+          ]
+        }
       }
     ],
-    "jsonValidation": [
+    "snippets": [
       {
-        "fileMatch": "tsconfig.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+        "language": "typescript",
+        "path": "./snippets/typescript.code-snippets"
       },
       {
-        "fileMatch": "tsconfig.json",
-        "url": "./schemas/tsconfig.schema.json"
-      },
-      {
-        "fileMatch": "tsconfig.*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
-      },
-      {
-        "fileMatch": "tsconfig-*.json",
-        "url": "./schemas/tsconfig.schema.json"
-      },
-      {
-        "fileMatch": "tsconfig-*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
-      },
-      {
-        "fileMatch": "tsconfig.*.json",
-        "url": "./schemas/tsconfig.schema.json"
-      },
-      {
-        "fileMatch": "typings.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
+        "language": "typescriptreact",
+        "path": "./snippets/typescript.code-snippets"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

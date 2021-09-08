@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ChordKeybinding, KeyChord, KeyCode, KeyMod, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, createKeybinding, Keybinding, KeyChord, KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 suite('keyCodes', () => {
 
 	function testBinaryEncoding(expected: Keybinding | null, k: number, OS: OperatingSystem): void {
-		assert.deepEqual(createKeybinding(k, OS), expected);
+		assert.deepStrictEqual(createKeybinding(k, OS), expected);
 	}
 
 	test('MAC binary encoding', () => {

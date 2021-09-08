@@ -4,16 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+(function () {
+	'use strict';
 
-const bootstrap = require('../../../../bootstrap');
-const bootstrapWindow = require('../../../../bootstrap-window');
+	const bootstrap = bootstrapLib();
+	const bootstrapWindow = bootstrapWindowLib();
 
-// Avoid Monkey Patches from Application Insights
-bootstrap.avoidMonkeyPatchFromAppInsights();
+	// Avoid Monkey Patches from Application Insights
+	bootstrap.avoidMonkeyPatchFromAppInsights();
 
-bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
-	sharedProcess.startup({
-		machineId: configuration.machineId
-	});
-});
+	// Load shared process into window
+	bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
+		return sharedProcess.main(configuration);
+	},
+		{
+			configureDeveloperSettings: function () {
+				return {
+					disallowReloadKeybinding: true
+				};
+			}
+		}
+	);
+
+	/**
+	 * @returns {{ avoidMonkeyPatchFromAppInsights: () => void; }}
+	 */
+	function bootstrapLib() {
+		// @ts-ignore (defined in bootstrap.js)
+		return window.MonacoBootstrap;
+	}
+
+	/**
+	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
+	 * @returns {{
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 			forceEnableDeveloperKeybindings?: boolean,
+	 * 			disallowReloadKeybinding?: boolean,
+	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 		 }
+	 *     }
+	 *   ) => Promise<unknown>
+	 * }}
+	 */
+	function bootstrapWindowLib() {
+		// @ts-ignore (defined in bootstrap-window.js)
+		return window.MonacoBootstrapWindow;
+	}
+}());

@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileSystemProvider, FileSystemProviderCapabilities, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-
+import { FileSystemProviderCapabilities, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileSystemProviderError, FileSystemProviderErrorCode, IFileSystemProviderWithFileReadWriteCapability } from 'vs/platform/files/common/files';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { NotImplementedError } from 'vs/base/common/errors';
+import { NotSupportedError } from 'vs/base/common/errors';
 
-export class FetchFileSystemProvider implements IFileSystemProvider {
+export class FetchFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
 
 	readonly capabilities = FileSystemProviderCapabilities.Readonly + FileSystemProviderCapabilities.FileReadWrite + FileSystemProviderCapabilities.PathCaseSensitive;
 	readonly onDidChangeCapabilities = Event.None;
@@ -45,18 +44,18 @@ export class FetchFileSystemProvider implements IFileSystemProvider {
 
 	// error implementations
 	writeFile(_resource: URI, _content: Uint8Array, _opts: FileWriteOptions): Promise<void> {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 	readdir(_resource: URI): Promise<[string, FileType][]> {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 	mkdir(_resource: URI): Promise<void> {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 	delete(_resource: URI, _opts: FileDeleteOptions): Promise<void> {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 	rename(_from: URI, _to: URI, _opts: FileOverwriteOptions): Promise<void> {
-		throw new NotImplementedError();
+		throw new NotSupportedError();
 	}
 }

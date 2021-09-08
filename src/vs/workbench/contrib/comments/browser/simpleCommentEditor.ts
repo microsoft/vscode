@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorAction, EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -46,13 +46,14 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		const codeEditorWidgetOptions = {
-			contributions: [
-				MenuPreventer,
-				ContextMenuController,
-				SuggestController,
-				SnippetController2,
-				TabCompletionController,
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: <IEditorContributionDescription[]>[
+				{ id: MenuPreventer.ID, ctor: MenuPreventer },
+				{ id: ContextMenuController.ID, ctor: ContextMenuController },
+				{ id: SuggestController.ID, ctor: SuggestController },
+				{ id: SnippetController2.ID, ctor: SnippetController2 },
+				{ id: TabCompletionController.ID, ctor: TabCompletionController },
 			]
 		};
 
@@ -105,7 +106,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			acceptSuggestionOnEnter: 'smart',
 			minimap: {
 				enabled: false
-			}
+			},
+			quickSuggestions: false
 		};
 	}
 }

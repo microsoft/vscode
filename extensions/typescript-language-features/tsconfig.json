@@ -1,8 +1,14 @@
 {
-	"extends": "../shared.tsconfig.json",
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"experimentalDecorators": true
+		"experimentalDecorators": true,
+		"types": ["node"],
+		"paths": {
+			"vscode": [
+				"../../src/vs/vscode.d.ts"
+			]
+		}
 	},
 	"include": [
 		"src/**/*"

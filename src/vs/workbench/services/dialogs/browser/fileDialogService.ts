@@ -3,320 +3,252 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IWindowService, INativeOpenDialogOptions, OpenDialogOptions, IURIToOpen, FileFilter } from 'vs/platform/windows/common/windows';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, FileFilter } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import * as resources from 'vs/base/common/resources';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { RemoteFileDialog } from 'vs/workbench/services/dialogs/browser/remoteFileDialog';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isWeb } from 'vs/base/common/platform';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
+import { Schemas } from 'vs/base/common/network';
+import { memoize } from 'vs/base/common/decorators';
+import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
+import { localize } from 'vs/nls';
+import { getMediaOrTextMime } from 'vs/base/common/mime';
+import { basename } from 'vs/base/common/resources';
+import { triggerDownload, triggerUpload, WebFileSystemAccess } from 'vs/base/browser/dom';
+import Severity from 'vs/base/common/severity';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { extractFilesDropData } from 'vs/workbench/browser/dnd';
 
-export class FileDialogService implements IFileDialogService {
+export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
-	_serviceBrand: undefined;
-
-	constructor(
-		@IWindowService private readonly windowService: IWindowService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
-		@IOpenerService private readonly openerService: IOpenerService
-	) { }
-
-	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
-
-		// Check for last active file first...
-		let candidate = this.historyService.getLastActiveFile(schemeFilter);
-
-		// ...then for last active file root
-		if (!candidate) {
-			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-		} else {
-			candidate = candidate && resources.dirname(candidate);
-		}
-
-		return candidate || undefined;
+	@memoize
+	private get fileSystemProvider(): HTMLFileSystemProvider {
+		return this.fileService.getProvider(Schemas.file) as HTMLFileSystemProvider;
 	}
 
-	defaultFolderPath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
-
-		// Check for last active file root first...
-		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
-
-		// ...then for last active file
-		if (!candidate) {
-			candidate = this.historyService.getLastActiveFile(schemeFilter);
-		}
-
-		return candidate && resources.dirname(candidate) || undefined;
-	}
-
-	defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
-
-		// Check for current workspace config file first...
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && !isUntitledWorkspace(configuration, this.environmentService)) {
-				return resources.dirname(configuration) || undefined;
-			}
-		}
-
-		// ...then fallback to default file path
-		return this.defaultFilePath(schemeFilter);
-	}
-
-	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
-		return {
-			forceNewWindow: options.forceNewWindow,
-			telemetryExtraData: options.telemetryExtraData,
-			defaultPath: options.defaultUri && options.defaultUri.fsPath
-		};
-	}
-
-	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
-		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
-
-		return { useSimplified: (schema !== Schemas.file) || setting, isSetting: (schema === Schemas.file) && setting };
-	}
-
-	private addFileSchemaIfNeeded(schema: string): string[] {
-		// Include File schema unless the schema is web
-		// Don't allow untitled schema through.
-		if (isWeb) {
-			return schema === Schemas.untitled ? [Schemas.file] : [schema];
-		} else {
-			return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
-		}
-	}
-
-	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFilePath(schema);
+			options.defaultUri = await this.defaultFilePath(schema);
 		}
 
-		const shouldUseSimplified = this.shouldUseSimplified(schema);
-		if (shouldUseSimplified.useSimplified) {
-			const title = nls.localize('openFileOrFolder.title', 'Open File Or Folder');
-			const availableFileSystems = this.addFileSchemaIfNeeded(schema);
-
-			const uri = await this.pickRemoteResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
-
-			if (uri) {
-				const stat = await this.fileService.resolve(uri);
-
-				const toOpen: IURIToOpen = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
-				if (stat.isDirectory || options.forceNewWindow || shouldUseSimplified.isSetting) {
-					return this.windowService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
-				} else {
-					return this.openerService.open(uri);
-				}
-			}
-
-			return;
+		if (this.shouldUseSimplified(schema)) {
+			return this.pickFileFolderAndOpenSimplified(schema, options, false);
 		}
 
-		return this.windowService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
 	}
 
-	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	protected override addFileSchemaIfNeeded(schema: string, isFolder: boolean): string[] {
+		return (schema === Schemas.untitled) ? [Schemas.file]
+			: (((schema !== Schemas.file) && (!isFolder || (schema !== Schemas.vscodeRemote))) ? [schema, Schemas.file] : [schema]);
+	}
+
+	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFilePath(schema);
+			options.defaultUri = await this.defaultFilePath(schema);
 		}
 
-		const shouldUseSimplified = this.shouldUseSimplified(schema);
-		if (shouldUseSimplified.useSimplified) {
-			const title = nls.localize('openFile.title', 'Open File');
-			const availableFileSystems = this.addFileSchemaIfNeeded(schema);
-
-			const uri = await this.pickRemoteResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
-			if (uri) {
-				if (options.forceNewWindow || shouldUseSimplified.isSetting) {
-					return this.windowService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
-				} else {
-					return this.openerService.open(uri);
-				}
-			}
-
-			return;
+		if (this.shouldUseSimplified(schema)) {
+			return this.pickFileAndOpenSimplified(schema, options, false);
 		}
 
-		return this.windowService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
+		if (!WebFileSystemAccess.supported(window)) {
+			return this.showUnsupportedBrowserWarning('open');
+		}
+
+		let fileHandle: FileSystemHandle | undefined = undefined;
+		try {
+			([fileHandle] = await window.showOpenFilePicker({ multiple: false }));
+		} catch (error) {
+			return; // `showOpenFilePicker` will throw an error when the user cancels
+		}
+
+		const uri = this.fileSystemProvider.registerFileHandle(fileHandle);
+
+		await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
 	}
 
-	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFolderPath(schema);
+			options.defaultUri = await this.defaultFolderPath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			const title = nls.localize('openFolder.title', 'Open Folder');
-			const availableFileSystems = this.addFileSchemaIfNeeded(schema);
-
-			const uri = await this.pickRemoteResource({ canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
-			if (uri) {
-				return this.windowService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow });
-			}
-
-			return;
+		if (this.shouldUseSimplified(schema)) {
+			return this.pickFolderAndOpenSimplified(schema, options);
 		}
 
-		return this.windowService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		options.availableFileSystems = this.getWorkspaceAvailableFileSystems(options);
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultWorkspacePath(schema);
+			options.defaultUri = await this.defaultWorkspacePath(schema);
 		}
 
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			const title = nls.localize('openWorkspace.title', 'Open Workspace');
-			const filters: FileFilter[] = [{ name: nls.localize('filterName.workspace', 'Workspace'), extensions: [WORKSPACE_EXTENSION] }];
-			const availableFileSystems = this.addFileSchemaIfNeeded(schema);
-
-			const uri = await this.pickRemoteResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, filters, availableFileSystems });
-			if (uri) {
-				return this.windowService.openWindow([{ workspaceUri: uri }], { forceNewWindow: options.forceNewWindow });
-			}
-
-			return;
+		if (this.shouldUseSimplified(schema)) {
+			return this.pickWorkspaceAndOpenSimplified(schema, options);
 		}
 
-		return this.windowService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
+		throw new Error(localize('pickWorkspaceAndOpen', "Can't open workspaces, try adding a folder to the workspace instead."));
 	}
 
-	async pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			if (!options.availableFileSystems) {
-				options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
-			}
+	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
 
-			options.title = nls.localize('saveFileAs.title', 'Save As');
-			return this.saveRemoteResource(options);
+		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
+		if (this.shouldUseSimplified(schema)) {
+			return this.pickFileToSaveSimplified(schema, options);
 		}
 
-		const result = await this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-		if (result) {
-			return URI.file(result);
+		if (!WebFileSystemAccess.supported(window)) {
+			return this.showUnsupportedBrowserWarning('save');
 		}
 
-		return;
+		let fileHandle: FileSystemHandle | undefined = undefined;
+		try {
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri) } });
+		} catch (error) {
+			return; // `showSaveFilePicker` will throw an error when the user cancels
+		}
+
+		return this.fileSystemProvider.registerFileHandle(fileHandle);
 	}
 
-	private toNativeSaveDialogOptions(options: ISaveDialogOptions): Electron.SaveDialogOptions {
-		options.defaultUri = options.defaultUri ? URI.file(options.defaultUri.path) : undefined;
-		return {
-			defaultPath: options.defaultUri && options.defaultUri.fsPath,
-			buttonLabel: options.saveLabel,
-			filters: options.filters,
-			title: options.title
-		};
+	private getFilePickerTypes(filters?: FileFilter[]): FilePickerAcceptType[] | undefined {
+		return filters?.filter(filter => {
+			return !((filter.extensions.length === 1) && ((filter.extensions[0] === '*') || filter.extensions[0] === ''));
+		}).map(filter => {
+			const accept: Record<string, string[]> = {};
+			const extensions = filter.extensions.filter(ext => (ext.indexOf('-') < 0) && (ext.indexOf('*') < 0) && (ext.indexOf('_') < 0));
+			accept[getMediaOrTextMime(`fileName.${filter.extensions[0]}`) ?? 'text/plain'] = extensions.map(ext => ext.startsWith('.') ? ext : `.${ext}`);
+			return {
+				description: filter.name,
+				accept
+			};
+		});
 	}
 
 	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			if (!options.availableFileSystems) {
-				options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
-			}
 
-			return this.saveRemoteResource(options);
+		if (this.shouldUseSimplified(schema)) {
+			return this.showSaveDialogSimplified(schema, options);
 		}
 
-		const result = await this.windowService.showSaveDialog(this.toNativeSaveDialogOptions(options));
-		if (result) {
-			return URI.file(result);
+		if (!WebFileSystemAccess.supported(window)) {
+			return this.showUnsupportedBrowserWarning('save');
 		}
 
-		return;
+		let fileHandle: FileSystemHandle | undefined = undefined;
+		try {
+			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined });
+		} catch (error) {
+			return; // `showSaveFilePicker` will throw an error when the user cancels
+		}
+
+		return this.fileSystemProvider.registerFileHandle(fileHandle);
 	}
 
 	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema).useSimplified) {
-			if (!options.availableFileSystems) {
-				options.availableFileSystems = this.addFileSchemaIfNeeded(schema);
+
+		if (this.shouldUseSimplified(schema)) {
+			return this.showOpenDialogSimplified(schema, options);
+		}
+
+		if (!WebFileSystemAccess.supported(window)) {
+			return this.showUnsupportedBrowserWarning('open');
+		}
+
+		let uri: URI | undefined;
+		try {
+			if (options.canSelectFiles) {
+				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters) });
+				if (handle.length === 1) {
+					uri = this.fileSystemProvider.registerFileHandle(handle[0]);
+				}
+			} else {
+				const handle = await window.showDirectoryPicker();
+				uri = this.fileSystemProvider.registerDirectoryHandle(handle);
 			}
-
-			const uri = await this.pickRemoteResource(options);
-
-			return uri ? [uri] : undefined;
+		} catch (error) {
+			// ignore - `showOpenFilePicker` / `showDirectoryPicker` will throw an error when the user cancels
 		}
 
-		const defaultUri = options.defaultUri;
+		return uri ? [uri] : undefined;
+	}
 
-		const newOptions: OpenDialogOptions = {
-			title: options.title,
-			defaultPath: defaultUri && defaultUri.fsPath,
-			buttonLabel: options.openLabel,
-			filters: options.filters,
-			properties: []
-		};
+	private async showUnsupportedBrowserWarning(context: 'save' | 'open'): Promise<undefined> {
 
-		newOptions.properties!.push('createDirectory');
-
-		if (options.canSelectFiles) {
-			newOptions.properties!.push('openFile');
+		// When saving, try to just download the contents
+		// of the active text editor if any as a workaround
+		if (context === 'save') {
+			const activeTextModel = this.codeEditorService.getActiveCodeEditor()?.getModel();
+			if (activeTextModel) {
+				triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
+				return;
+			}
 		}
 
-		if (options.canSelectFolders) {
-			newOptions.properties!.push('openDirectory');
+		// Otherwise inform the user about options
+
+		const buttons = context === 'open' ?
+			[localize('openRemote', "Open Remote..."), localize('upload', "Upload..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")] :
+			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")];
+
+		const cancelId = context === 'open' ? 3 : 2;
+
+		const res = await this.dialogService.show(
+			Severity.Warning,
+			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
+			buttons,
+			{
+				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
+				cancelId
+			}
+		);
+
+		switch (res.choice) {
+
+			// Open Remote...
+			case 0:
+				this.commandService.executeCommand('workbench.action.remote.showMenu');
+				break;
+
+			// Upload... (context === 'open')
+			case 1:
+				if (context === 'open') {
+					const files = await triggerUpload();
+					if (files) {
+						this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
+							this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() });
+						}));
+					}
+					break;
+				} else {
+					// Fallthrough for "Learn More"
+				}
+
+			// Learn More
+			case 2:
+				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
+				break;
 		}
 
-		if (options.canSelectMany) {
-			newOptions.properties!.push('multiSelections');
-		}
-
-		const result = await this.windowService.showOpenDialog(newOptions);
-
-		return result ? result.map(URI.file) : undefined;
+		return undefined;
 	}
 
-	private pickRemoteResource(options: IOpenDialogOptions): Promise<URI | undefined> {
-		const remoteFileDialog = this.instantiationService.createInstance(RemoteFileDialog);
-
-		return remoteFileDialog.showOpenDialog(options);
+	private shouldUseSimplified(scheme: string): boolean {
+		return ![Schemas.file, Schemas.userData, Schemas.tmp].includes(scheme);
 	}
-
-	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const remoteFileDialog = this.instantiationService.createInstance(RemoteFileDialog);
-
-		return remoteFileDialog.showSaveDialog(options);
-	}
-
-	private getSchemeFilterForWindow(): string {
-		return !this.environmentService.configuration.remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
-	}
-
-	private getFileSystemSchema(options: { availableFileSystems?: string[], defaultUri?: URI }): string {
-		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow();
-	}
-}
-
-function isUntitledWorkspace(path: URI, environmentService: IWorkbenchEnvironmentService): boolean {
-	return resources.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 
 registerSingleton(IFileDialogService, FileDialogService, true);

@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 import * as path from 'vs/base/common/path';
 import { dirname } from 'vs/base/common/resources';
-import { ITextModel } from 'vs/editor/common/model';
+import { commonPrefixLength, getLeadingWhitespace, isFalsyOrWhitespace, splitLines } from 'vs/base/common/strings';
+import { generateUuid } from 'vs/base/common/uuid';
 import { Selection } from 'vs/editor/common/core/selection';
-import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
+import { ITextModel } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { Text, Variable, VariableResolver } from 'vs/editor/contrib/snippet/snippetParser';
+import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
+import * as nls from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -39,10 +42,15 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
 	'WORKSPACE_NAME': true,
+	'WORKSPACE_FOLDER': true,
+	'RANDOM': true,
+	'RANDOM_HEX': true,
+	'UUID': true
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -66,7 +74,9 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+		private readonly _selection: Selection,
+		private readonly _selectionIdx: number,
+		private readonly _overtypingCapturer: OvertypingCapturer | undefined
 	) {
 		//
 	}
@@ -77,7 +87,18 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
-			if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
+			let isMultiline = this._selection.startLineNumber !== this._selection.endLineNumber;
+
+			// If there was no selected text, try to get last overtyped text
+			if (!value && this._overtypingCapturer) {
+				const info = this._overtypingCapturer.getLastOvertypedInfo(this._selectionIdx);
+				if (info) {
+					value = info.value;
+					isMultiline = info.multiline;
+				}
+			}
+
+			if (value && isMultiline && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
@@ -92,7 +113,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 						return false;
 					}
 					if (marker instanceof Text) {
-						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop()!);
+						varLeadingWhitespace = getLeadingWhitespace(splitLines(marker.value).pop()!);
 					}
 					return true;
 				});
@@ -128,7 +149,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _labelService: ILabelService | undefined,
+		private readonly _labelService: ILabelService,
 		private readonly _model: ITextModel
 	) {
 		//
@@ -150,26 +171,33 @@ export class ModelBasedVariableResolver implements VariableResolver {
 				return name.slice(0, idx);
 			}
 
-		} else if (name === 'TM_DIRECTORY' && this._labelService) {
+		} else if (name === 'TM_DIRECTORY') {
 			if (path.dirname(this._model.uri.fsPath) === '.') {
 				return '';
 			}
 			return this._labelService.getUriLabel(dirname(this._model.uri));
 
-		} else if (name === 'TM_FILEPATH' && this._labelService) {
+		} else if (name === 'TM_FILEPATH') {
 			return this._labelService.getUriLabel(this._model.uri);
+		} else if (name === 'RELATIVE_FILEPATH') {
+			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
 		}
 
 		return undefined;
 	}
 }
 
+export interface IReadClipboardText {
+	(): string | undefined;
+}
+
 export class ClipboardBasedVariableResolver implements VariableResolver {
 
 	constructor(
-		private readonly _clipboardText: string | undefined,
+		private readonly _readClipboardText: IReadClipboardText,
 		private readonly _selectionIdx: number,
-		private readonly _selectionCount: number
+		private readonly _selectionCount: number,
+		private readonly _spread: boolean
 	) {
 		//
 	}
@@ -179,28 +207,34 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
-		if (!this._clipboardText) {
+		const clipboardText = this._readClipboardText();
+		if (!clipboardText) {
 			return undefined;
 		}
 
-		const lines = this._clipboardText.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
-		if (lines.length === this._selectionCount) {
-			return lines[this._selectionIdx];
-		} else {
-			return this._clipboardText;
+		// `spread` is assigning each cursor a line of the clipboard
+		// text whenever there the line count equals the cursor count
+		// and when enabled
+		if (this._spread) {
+			const lines = clipboardText.split(/\r\n|\n|\r/).filter(s => !isFalsyOrWhitespace(s));
+			if (lines.length === this._selectionCount) {
+				return lines[this._selectionIdx];
+			}
 		}
+		return clipboardText;
 	}
 }
 export class CommentBasedVariableResolver implements VariableResolver {
 	constructor(
-		private readonly _model: ITextModel
+		private readonly _model: ITextModel,
+		private readonly _selection: Selection
 	) {
 		//
 	}
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
-		const language = this._model.getLanguageIdentifier();
-		const config = LanguageConfigurationRegistry.getComments(language.id);
+		const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
+		const config = LanguageConfigurationRegistry.getComments(langId);
 		if (!config) {
 			return undefined;
 		}
@@ -221,33 +255,35 @@ export class TimeBasedVariableResolver implements VariableResolver {
 	private static readonly monthNames = [nls.localize('January', "January"), nls.localize('February', "February"), nls.localize('March', "March"), nls.localize('April', "April"), nls.localize('May', "May"), nls.localize('June', "June"), nls.localize('July', "July"), nls.localize('August', "August"), nls.localize('September', "September"), nls.localize('October', "October"), nls.localize('November', "November"), nls.localize('December', "December")];
 	private static readonly monthNamesShort = [nls.localize('JanuaryShort', "Jan"), nls.localize('FebruaryShort', "Feb"), nls.localize('MarchShort', "Mar"), nls.localize('AprilShort', "Apr"), nls.localize('MayShort', "May"), nls.localize('JuneShort', "Jun"), nls.localize('JulyShort', "Jul"), nls.localize('AugustShort', "Aug"), nls.localize('SeptemberShort', "Sep"), nls.localize('OctoberShort', "Oct"), nls.localize('NovemberShort', "Nov"), nls.localize('DecemberShort', "Dec")];
 
+	private readonly _date = new Date();
+
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
 
 		if (name === 'CURRENT_YEAR') {
-			return String(new Date().getFullYear());
+			return String(this._date.getFullYear());
 		} else if (name === 'CURRENT_YEAR_SHORT') {
-			return String(new Date().getFullYear()).slice(-2);
+			return String(this._date.getFullYear()).slice(-2);
 		} else if (name === 'CURRENT_MONTH') {
-			return pad((new Date().getMonth().valueOf() + 1), 2);
+			return String(this._date.getMonth().valueOf() + 1).padStart(2, '0');
 		} else if (name === 'CURRENT_DATE') {
-			return pad(new Date().getDate().valueOf(), 2);
+			return String(this._date.getDate().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_HOUR') {
-			return pad(new Date().getHours().valueOf(), 2);
+			return String(this._date.getHours().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_MINUTE') {
-			return pad(new Date().getMinutes().valueOf(), 2);
+			return String(this._date.getMinutes().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_SECOND') {
-			return pad(new Date().getSeconds().valueOf(), 2);
+			return String(this._date.getSeconds().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_DAY_NAME') {
-			return TimeBasedVariableResolver.dayNames[new Date().getDay()];
+			return TimeBasedVariableResolver.dayNames[this._date.getDay()];
 		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
-			return TimeBasedVariableResolver.dayNamesShort[new Date().getDay()];
+			return TimeBasedVariableResolver.dayNamesShort[this._date.getDay()];
 		} else if (name === 'CURRENT_MONTH_NAME') {
-			return TimeBasedVariableResolver.monthNames[new Date().getMonth()];
+			return TimeBasedVariableResolver.monthNames[this._date.getMonth()];
 		} else if (name === 'CURRENT_MONTH_NAME_SHORT') {
-			return TimeBasedVariableResolver.monthNamesShort[new Date().getMonth()];
+			return TimeBasedVariableResolver.monthNamesShort[this._date.getMonth()];
 		} else if (name === 'CURRENT_SECONDS_UNIX') {
-			return String(Math.floor(Date.now() / 1000));
+			return String(Math.floor(this._date.getTime() / 1000));
 		}
 
 		return undefined;
@@ -262,7 +298,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 	}
 
 	resolve(variable: Variable): string | undefined {
-		if (variable.name !== 'WORKSPACE_NAME' || !this._workspaceService) {
+		if (!this._workspaceService) {
 			return undefined;
 		}
 
@@ -271,14 +307,51 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 			return undefined;
 		}
 
+		if (variable.name === 'WORKSPACE_NAME') {
+			return this._resolveWorkspaceName(workspaceIdentifier);
+		} else if (variable.name === 'WORKSPACE_FOLDER') {
+			return this._resoveWorkspacePath(workspaceIdentifier);
+		}
+
+		return undefined;
+	}
+	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return path.basename(workspaceIdentifier.path);
+			return path.basename(workspaceIdentifier.uri.path);
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
-		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+		if (filename.endsWith(WORKSPACE_EXTENSION)) {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 		return filename;
+	}
+	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
+		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return normalizeDriveLetter(workspaceIdentifier.uri.fsPath);
+		}
+
+		let filename = path.basename(workspaceIdentifier.configPath.path);
+		let folderpath = workspaceIdentifier.configPath.fsPath;
+		if (folderpath.endsWith(filename)) {
+			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
+		}
+		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
+	}
+}
+
+export class RandomBasedVariableResolver implements VariableResolver {
+	resolve(variable: Variable): string | undefined {
+		const { name } = variable;
+
+		if (name === 'RANDOM') {
+			return Math.random().toString().slice(-6);
+		} else if (name === 'RANDOM_HEX') {
+			return Math.random().toString(16).slice(-6);
+		} else if (name === 'UUID') {
+			return generateUuid();
+		}
+
+		return undefined;
 	}
 }

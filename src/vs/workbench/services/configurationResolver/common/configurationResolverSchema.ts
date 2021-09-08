@@ -44,6 +44,10 @@ export const inputsSchema: IJSONSchema = {
 								type: 'string',
 								description: defaultDescription
 							},
+							password: {
+								type: 'boolean',
+								description: nls.localize('JsonSchema.input.password', "Controls if a password input is shown. Password input hides the typed text."),
+							},
 						}
 					},
 					{
@@ -73,9 +77,28 @@ export const inputsSchema: IJSONSchema = {
 							},
 							options: {
 								type: 'array',
-								description: nls.localize('JsonSchema.input.options', 'An array of strings that defines the options for a quick pick.'),
+								description: nls.localize('JsonSchema.input.options', "An array of strings that defines the options for a quick pick."),
 								items: {
-									type: 'string'
+									oneOf: [
+										{
+											type: 'string'
+										},
+										{
+											type: 'object',
+											required: ['value'],
+											additionalProperties: false,
+											properties: {
+												label: {
+													type: 'string',
+													description: nls.localize('JsonSchema.input.pickString.optionLabel', "Label for the option.")
+												},
+												value: {
+													type: 'string',
+													description: nls.localize('JsonSchema.input.pickString.optionValue', "Value for the option.")
+												}
+											}
+										}
+									]
 								}
 							}
 						}

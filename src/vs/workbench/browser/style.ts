@@ -4,17 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/style';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground, toolbarHoverOutline, listFocusHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { createMetaElement } from 'vs/base/browser/dom';
+import { isSafari, isStandalone } from 'vs/base/browser/browser';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
-import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
-import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
-import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 
 	// Foreground
 	const windowForeground = theme.getColor(foreground);
 	if (windowForeground) {
 		collector.addRule(`.monaco-workbench { color: ${windowForeground}; }`);
+	}
+
+	// Background (We need to set the workbench background color so that on Windows we get subpixel-antialiasing)
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+
+	// Icon defaults
+	const iconForegroundColor = theme.getColor(iconForeground);
+	if (iconForegroundColor) {
+		collector.addRule(`.codicon { color: ${iconForegroundColor}; }`);
 	}
 
 	// Selection
@@ -26,24 +39,37 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Input placeholder
 	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
 	if (placeholderForeground) {
-		collector.addRule(`.monaco-workbench input::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
-		collector.addRule(`.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
+		collector.addRule(`
+			.monaco-workbench input::placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench input::-webkit-input-placeholder  { color: ${placeholderForeground}; }
+			.monaco-workbench input::-moz-placeholder { color: ${placeholderForeground}; }
+		`);
+		collector.addRule(`
+			.monaco-workbench textarea::placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }
+			.monaco-workbench textarea::-moz-placeholder { color: ${placeholderForeground}; }
+		`);
 	}
 
 	// List highlight
 	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
 	if (listHighlightForegroundColor) {
 		collector.addRule(`
-			.monaco-workbench .monaco-tree .monaco-tree-row .monaco-highlighted-label .highlight,
 			.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
 				color: ${listHighlightForegroundColor};
 			}
 		`);
 	}
 
-	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
-	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+	// List highlight w/ focus
+	const listHighlightFocusForegroundColor = theme.getColor(listFocusHighlightForeground);
+	if (listHighlightFocusForegroundColor) {
+		collector.addRule(`
+			.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
+				color: ${listHighlightFocusForegroundColor};
+			}
+		`);
+	}
 
 	// Scrollbars
 	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
@@ -98,7 +124,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		.monaco-workbench [tabindex="-1"]:focus,
 		.monaco-workbench .synthetic-focus,
 		.monaco-workbench select:focus,
-		.monaco-workbench .monaco-tree.focused.no-focused-item:focus:before,
 		.monaco-workbench .monaco-list:not(.element-focused):focus:before,
 		.monaco-workbench input[type="button"]:focus,
 		.monaco-workbench input[type="text"]:focus,
@@ -112,7 +137,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	// High Contrast theme overwrites for outline
-	if (theme.type === HIGH_CONTRAST) {
+	if (theme.type === ColorScheme.HIGH_CONTRAST) {
 		collector.addRule(`
 		.hc-black [tabindex="0"]:focus,
 		.hc-black [tabindex="-1"]:focus,
@@ -126,14 +151,88 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			outline-width: 1px;
 		}
 
-		.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-			outline-width: 1px;
-			outline-offset: -2px;
-		}
-
 		.hc-black .synthetic-focus input {
 			background: transparent; /* Search input focus fix when in high contrast */
 		}
 		`);
 	}
+
+	// Update <meta name="theme-color" content=""> based on selected theme
+	if (isWeb) {
+		const titleBackground = theme.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
+		if (titleBackground) {
+			const metaElementId = 'monaco-workbench-meta-theme-color';
+			let metaElement = document.getElementById(metaElementId) as HTMLMetaElement | null;
+			if (!metaElement) {
+				metaElement = createMetaElement();
+				metaElement.name = 'theme-color';
+				metaElement.id = metaElementId;
+			}
+
+			metaElement.content = titleBackground.toString();
+		}
+	}
+
+	// We disable user select on the root element, however on Safari this seems
+	// to prevent any text selection in the monaco editor. As a workaround we
+	// allow to select text in monaco editor instances.
+	if (isSafari) {
+		collector.addRule(`
+			body.web {
+				touch-action: none;
+			}
+			.monaco-workbench .monaco-editor .view-lines {
+				user-select: text;
+				-webkit-user-select: text;
+			}
+		`);
+	}
+
+	// Update body background color to ensure the home indicator area looks similar to the workbench
+	if (isIOS && isStandalone) {
+		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
+	}
+
+	// Action bars
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`
+		.monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+			background-color: ${toolbarHoverBackgroundColor};
+		}
+		.monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
+			background-color: ${toolbarHoverBackgroundColor};
+		}
+	`);
+	}
+
+	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
+	if (toolbarActiveBackgroundColor) {
+		collector.addRule(`
+		.monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
+		.monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
+			background-color: ${toolbarActiveBackgroundColor};
+		}
+	`);
+	}
+
+	const toolbarHoverOutlineColor = theme.getColor(toolbarHoverOutline);
+	if (toolbarHoverOutlineColor) {
+		collector.addRule(`
+			.monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
+				outline: 1px dashed ${toolbarHoverOutlineColor};
+				outline-offset: -1px;
+			}
+		`);
+	}
 });
+
+/**
+ * The best font-family to be used in CSS based on the platform:
+ * - Windows: Segoe preferred, fallback to sans-serif
+ * - macOS: standard system font, fallback to sans-serif
+ * - Linux: standard system font preferred, fallback to Ubuntu fonts
+ *
+ * Note: this currently does not adjust for different locales.
+ */
+export const DEFAULT_FONT_FAMILY = isWindows ? '"Segoe WPC", "Segoe UI", sans-serif' : isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';

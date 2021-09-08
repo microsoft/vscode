@@ -3,8 +3,107 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watch",
-			"label": "Build VS Code",
+			"script": "watch-clientd",
+			"label": "Core - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch-extensionsd",
+			"label": "Ext - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"label": "VS Code - Build",
+			"dependsOn": [
+				"Core - Build",
+				"Ext - Build"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-clientd",
+			"label": "Kill Core - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-extensionsd",
+			"label": "Kill Ext - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Kill VS Code - Build",
+			"dependsOn": [
+				"Kill Core - Build",
+				"Kill Ext - Build"
+			],
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "watch-webd",
+			"label": "Web Ext - Build",
 			"group": "build",
 			"isBackground": true,
 			"presentation": {
@@ -30,25 +129,13 @@
 		},
 		{
 			"type": "npm",
-			"script": "strict-initialization-watch",
-			"label": "TS - Strict Initialization",
-			"isBackground": true,
+			"script": "kill-watch-webd",
+			"label": "Kill Web Ext - Build",
+			"group": "build",
 			"presentation": {
 				"reveal": "never"
 			},
-			"problemMatcher": {
-				"base": "$tsc-watch",
-				"owner": "typescript-strict-initialization",
-				"applyTo": "allDocuments"
-			}
-		},
-		{
-			"type": "gulp",
-			"task": "tslint",
-			"label": "Run tslint",
-			"problemMatcher": [
-				"$tslint5"
-			]
+			"problemMatcher": "$tsc"
 		},
 		{
 			"label": "Run tests",
@@ -73,8 +160,8 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "gulp",
-			"task": "electron",
+			"type": "npm",
+			"script": "electron",
 			"label": "Download electron"
 		},
 		{
@@ -82,6 +169,54 @@
 			"task": "hygiene",
 			"problemMatcher": []
 		},
-
+		{
+			"type": "shell",
+			"command": "yarn web --no-launch",
+			"label": "Run web",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "never"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "eslint",
+			"problemMatcher": {
+				"source": "eslint",
+				"base": "$eslint-stylish"
+			}
+		},
+		{
+			"type": "shell",
+			"command": "node build/lib/preLaunch.js",
+			"label": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"reveal": "silent",
+				"close": true
+			}
+		},
+		{
+			"type": "npm",
+			"script": "tsec-compile-check",
+			"problemMatcher": [
+				{
+					"base": "$tsc",
+					"applyTo": "allDocuments",
+					"owner": "tsec"
+				}
+			],
+			"group": "build",
+			"label": "npm: tsec-compile-check",
+			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+		}
 	]
 }

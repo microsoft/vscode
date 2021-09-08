@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
-import { Slug, githubSlugifier } from './slugify';
+import { githubSlugifier, Slug } from './slugify';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -15,12 +15,17 @@ export interface TocEntry {
 	readonly location: vscode.Location;
 }
 
+export interface SkinnyTextLine {
+	text: string;
+}
+
 export interface SkinnyTextDocument {
 	readonly uri: vscode.Uri;
 	readonly version: number;
 	readonly lineCount: number;
+
+	lineAt(line: number): SkinnyTextLine;
 	getText(): string;
-	lineAt(line: number): vscode.TextLine;
 }
 
 export class TableOfContentsProvider {
@@ -52,19 +57,19 @@ export class TableOfContentsProvider {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document);
 
-		const slugCount = new Map<string, number>();
+		const existingSlugEntries = new Map<string, { count: number }>();
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 
 			let slug = githubSlugifier.fromHeading(line.text);
-			if (slugCount.has(slug.value)) {
-				const count = slugCount.get(slug.value)!;
-				slugCount.set(slug.value, count + 1);
-				slug = githubSlugifier.fromHeading(slug.value + '-' + (count + 1));
+			const existingSlugEntry = existingSlugEntries.get(slug.value);
+			if (existingSlugEntry) {
+				++existingSlugEntry.count;
+				slug = githubSlugifier.fromHeading(slug.value + '-' + existingSlugEntry.count);
 			} else {
-				slugCount.set(slug.value, 0);
+				existingSlugEntries.set(slug.value, { count: 0 });
 			}
 
 			toc.push({
@@ -72,7 +77,8 @@ export class TableOfContentsProvider {
 				text: TableOfContentsProvider.getHeaderText(line.text),
 				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
 				line: lineNumber,
-				location: new vscode.Location(document.uri, line.range)
+				location: new vscode.Location(document.uri,
+					new vscode.Range(lineNumber, 0, lineNumber, line.text.length))
 			});
 		}
 
@@ -85,13 +91,13 @@ export class TableOfContentsProvider {
 					break;
 				}
 			}
-			const endLine = typeof end === 'number' ? end : document.lineCount - 1;
+			const endLine = end ?? document.lineCount - 1;
 			return {
 				...entry,
 				location: new vscode.Location(document.uri,
 					new vscode.Range(
 						entry.location.range.start,
-						new vscode.Position(endLine, document.lineAt(endLine).range.end.character)))
+						new vscode.Position(endLine, document.lineAt(endLine).text.length)))
 			};
 		});
 	}

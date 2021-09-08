@@ -5,17 +5,29 @@
 
 /* Debug repl */
 
-.repl {
+.monaco-workbench .repl {
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
 }
 
-.repl .repl-tree .monaco-tl-contents {
+.monaco-workbench .repl .repl-tree .monaco-tl-contents {
 	user-select: text;
+	-webkit-user-select: text;
+	white-space: pre;
 }
 
-.repl .repl-tree.word-wrap .monaco-tl-contents {
+.monaco-workbench .repl .repl-tree .monaco-tl-contents .expression {
+	font-family: var(--vscode-repl-font-family);
+	font-size: var(--vscode-repl-font-size);
+	line-height: var(--vscode-repl-line-height);
+}
+
+.monaco-workbench .repl .repl-tree .monaco-tl-twistie {
+	background-position-y: calc(100% - (var(--vscode-repl-font-size-for-twistie)));
+}
+
+.monaco-workbench .repl .repl-tree.word-wrap .monaco-tl-contents {
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
 	white-space: pre-wrap;
@@ -28,113 +40,147 @@
 	cursor: pointer;
 }
 
-
-.repl .repl-tree .output.expression.value-and-source {
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source {
 	display: flex;
 }
 
-.repl .repl-tree .output.expression.value-and-source .value {
-	flex: 1;
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
+	margin-right: 4px;
 }
 
-.repl .repl-tree .output.expression.value-and-source .source {
-	margin-left: 4px;
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper {
+	margin-right: 4px;
+}
+
+/* Allow the badge to be a bit shorter so it does not look cut off */
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .count-badge-wrapper .monaco-count-badge {
+	min-height: 16px;
+}
+
+.monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
+	position:absolute;
+	left: 2px;
+}
+
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
+	margin-left: auto;
 	margin-right: 8px;
 	cursor: pointer;
 	text-decoration: underline;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: right;
+	/*Use direction so the source shows elipses on the left*/
+	direction: rtl;
+	max-width: 400px;
 }
 
-.repl .repl-tree .monaco-list-row {
-	cursor: text;
-}
-
-.repl .repl-tree .output.expression > .value {
+.monaco-workbench .repl .repl-tree .output.expression > .value,
+.monaco-workbench .repl .repl-tree .evaluation-result.expression > .value {
 	margin-left: 0px;
 }
 
-.repl .repl-tree .output.expression > .annotation {
-	font-size: inherit;
-	padding-left: 6px;
-}
-
-.repl .repl-tree .output.expression .name:not(:empty) {
+.monaco-workbench .repl .repl-tree .output.expression .name:not(:empty) {
 	margin-right: 6px;
 }
 
-.repl .repl-input-wrapper {
-	padding-left: 20px;
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
+.monaco-workbench .repl .repl-input-wrapper {
+	display: flex;
+	align-items: center;
 }
 
-/* Only show 'stale expansion' info when the element gets expanded. */
-.repl .repl-tree .input-output-pair > .output > .annotation::before  {
-	content: '';
+/* Do not render show more in REPL suggest widget status bar */
+.monaco-workbench .repl .repl-input-wrapper .suggest-status-bar .monaco-action-bar.right {
+	display: none;
 }
 
-.hc-black .repl .repl-input-wrapper {
-	border-top-color: #6FC3DF;
-}
-
-.repl .repl-input-wrapper:before {
-	left: 8px;
-	position: absolute;
-	content: '\276f';
-	line-height: 18px;
-}
-
-.monaco-workbench.linux .repl .repl-input-wrapper:before {
-	font-size: 9px;
-}
-
-/* Actions */
-.debug-action.clear-repl {
-	background: url('clear-light.svg') center center no-repeat;
-}
-
-.vs-dark .debug-action.clear-repl {
-	background: url('clear-dark.svg') center center no-repeat;
-}
-
-.hc-black .debug-action.clear-repl {
-	background: url('clear-hc.svg') center center no-repeat;
+.monaco-workbench .repl .repl-input-wrapper .repl-input-chevron {
+	padding: 0 6px 0 8px;
+	width: 16px;
+	height: 100%;
+	display: flex;
+	flex-shrink: 0;
+	justify-content: center;
+	font-weight: 600;
 }
 
 /* Output coloring  and styling */
-.repl .repl-tree .output.expression > .ignore {
+.monaco-workbench .repl .repl-tree .output.expression > .ignore {
 	font-style: italic;
-}
-
-.vs .repl .repl-tree .output.expression > .warn {
-	color: #cd9731;
-}
-
-.vs-dark .repl .repl-tree .output.expression > .warn {
-	color: #cd9731;
-}
-
-.hc-black .repl .repl-tree .output.expression > .warn {
-	color: #008000;
-}
-
-.vs .repl .repl-tree .output.expression > .annotation {
-	color: #007ACC;
-}
-
-.vs-dark .repl .repl-tree .output.expression > .annotation {
-	color: #1B80B2;
-}
-
-.hc-black .repl .repl-tree .output.expression > .annotation {
-	color: #0000FF;
 }
 
 /* ANSI Codes */
 .monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
 .monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
-.monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
+.monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline;  text-decoration-style:solid; }
+.monaco-workbench .repl .repl-tree .output.expression .code-double-underline { text-decoration: underline;  text-decoration-style:double; }
+.monaco-workbench .repl .repl-tree .output.expression .code-strike-through { text-decoration:line-through;  text-decoration-style:solid; }
+.monaco-workbench .repl .repl-tree .output.expression .code-overline { text-decoration:overline;  text-decoration-style:solid; }
+/* because they can exist at same time we need all the possible underline(or double-underline),overline and strike-through combinations */
+.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-underline.code-strike-through { text-decoration: overline underline line-through; text-decoration-style:solid; }
+.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-underline { text-decoration: overline underline; text-decoration-style:solid; }
+.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-strike-through { text-decoration: overline line-through; text-decoration-style:solid; }
+.monaco-workbench .repl .repl-tree .output.expression .code-underline.code-strike-through { text-decoration: underline line-through; text-decoration-style:solid; }
+.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-double-underline.code-strike-through { text-decoration: overline underline line-through; text-decoration-style:double; }
+.monaco-workbench .repl .repl-tree .output.expression .code-overline.code-double-underline { text-decoration: overline underline; text-decoration-style:double; }
+.monaco-workbench .repl .repl-tree .output.expression .code-double-underline.code-strike-through { text-decoration: underline line-through; text-decoration-style:double; }
+.monaco-workbench .repl .repl-tree .output.expression .code-dim	{ opacity: 0.4; }
+.monaco-workbench .repl .repl-tree .output.expression .code-hidden { opacity: 0; }
+.monaco-workbench .repl .repl-tree .output.expression .code-blink { animation: code-blink-key 1s cubic-bezier(1, 0, 0, 1) infinite alternate; }
+.monaco-workbench .repl .repl-tree .output.expression .code-rapid-blink { animation: code-blink-key 0.3s cubic-bezier(1, 0, 0, 1) infinite alternate; }
+@keyframes code-blink-key {
+	to { opacity: 0.4; }
+}
+.monaco-workbench .repl .repl-tree .output.expression .code-subscript { vertical-align: sub; font-size: smaller; line-height: normal; }
+.monaco-workbench .repl .repl-tree .output.expression .code-superscript { vertical-align: super; font-size: smaller; line-height: normal; }
 
-/* Links */
-.monaco-workbench .repl .repl-tree .output.expression a {
-	text-decoration: underline;
-	cursor: pointer;
+.monaco-action-bar .action-item.repl-panel-filter-container {
+	cursor: default;
+	display: flex;
+}
+
+.monaco-action-bar .panel-action-tree-filter{
+	display: flex;
+	align-items: center;
+	flex: 1;
+}
+
+.monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 24px;
+	font-size: 12px;
+	flex: 1;
+}
+
+.pane-header .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 20px;
+	line-height: 18px;
+}
+
+.monaco-workbench.vs .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 25px;
+}
+
+.panel > .title .monaco-action-bar .action-item.repl-panel-filter-container {
+	min-width: 300px;
+	margin-right: 10px;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls {
+	position: absolute;
+	top: 0px;
+	bottom: 0;
+	right: 0px;
+	display: flex;
+	align-items: center;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge {
+	margin: 4px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge.hidden {
+	display: none;
 }

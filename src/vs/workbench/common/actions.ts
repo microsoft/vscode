@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
@@ -22,17 +23,18 @@ export interface IWorkbenchActionRegistry {
 	/**
 	 * Registers a workbench action to the platform. Workbench actions are not
 	 * visible by default and can only be invoked through a keybinding if provided.
+	 * @deprecated Register directly with KeybindingsRegistry and MenuRegistry or use registerAction2 instead.
 	 */
 	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable;
 }
 
 Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
 
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable {
 		return this.registerWorkbenchCommandFromAction(descriptor, alias, category, when);
 	}
 
-	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
+	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable {
 		const registrations = new DisposableStore();
 
 		// command
@@ -44,17 +46,20 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
-			when: (descriptor.keybindingContext || when ? ContextKeyExpr.and(descriptor.keybindingContext, when) : null),
+			when:
+				descriptor.keybindingContext && when
+					? ContextKeyExpr.and(descriptor.keybindingContext, when)
+					: descriptor.keybindingContext || when || null,
 			primary: keybindings ? keybindings.primary : 0,
-			secondary: keybindings && keybindings.secondary,
-			win: keybindings && keybindings.win,
-			mac: keybindings && keybindings.mac,
-			linux: keybindings && keybindings.linux
+			secondary: keybindings?.secondary,
+			win: keybindings?.win,
+			mac: keybindings?.mac,
+			linux: keybindings?.linux
 		});
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
+		// https://github.com/microsoft/vscode/blob/main/src/vs/workbench/contrib/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
 			let idx = alias.indexOf(': ');
@@ -95,7 +100,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		};
 	}
 
-	private async triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Promise<void> {
+	private async triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: unknown): Promise<void> {
 
 		// run action when workbench is created
 		await lifecycleService.when(LifecyclePhase.Ready);
@@ -112,10 +117,18 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// otherwise run and dispose
 		try {
-			const from = args && args.from || 'keybinding';
+			const from = (args as any)?.from || 'keybinding';
 			await actionInstance.run(undefined, { from });
 		} finally {
 			actionInstance.dispose();
 		}
 	}
 });
+
+export const CATEGORIES = {
+	View: { value: localize('view', "View"), original: 'View' },
+	Help: { value: localize('help', "Help"), original: 'Help' },
+	Test: { value: localize('test', "Test"), original: 'Test' },
+	Preferences: { value: localize('preferences', "Preferences"), original: 'Preferences' },
+	Developer: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' }
+};

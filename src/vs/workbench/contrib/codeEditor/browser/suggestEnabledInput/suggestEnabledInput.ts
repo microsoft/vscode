@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./suggestEnabledInput';
-import { $, Dimension, addClass, append, removeClass } from 'vs/base/browser/dom';
+import { $, Dimension, append } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -24,22 +24,29 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/common/styler';
+import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IThemable } from 'vs/base/common/styler';
+import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { createAndBindHistoryNavigationWidgetScopedContextKeyService, IHistoryNavigationContext } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
-interface SuggestResultsProvider {
+export interface SuggestResultsProvider {
 	/**
 	 * Provider function for suggestion results.
 	 *
 	 * @param query the full text of the input.
 	 */
-	provideResults: (query: string) => string[];
+	provideResults: (query: string) => (Partial<modes.CompletionItem> & ({ label: string }) | string)[];
 
 	/**
 	 * Trigger characters for this input. Suggestions will appear when one of these is typed,
@@ -80,32 +87,32 @@ export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
 }
 
 type ISuggestEnabledInputStyles = {
-	[P in keyof ISuggestEnabledInputStyleOverrides]: Color;
+	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
 };
 
 export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
-		inputBackground: (style && style.inputBackground) || inputBackground,
-		inputForeground: (style && style.inputForeground) || inputForeground,
-		inputBorder: (style && style.inputBorder) || inputBorder,
-		inputPlaceholderForeground: (style && style.inputPlaceholderForeground) || inputPlaceholderForeground,
+		inputBackground: style?.inputBackground || inputBackground,
+		inputForeground: style?.inputForeground || inputForeground,
+		inputBorder: style?.inputBorder || inputBorder,
+		inputPlaceholderForeground: style?.inputPlaceholderForeground || inputPlaceholderForeground,
 	} as ISuggestEnabledInputStyleOverrides, widget);
 }
 
 export class SuggestEnabledInput extends Widget implements IThemable {
 
-	private _onShouldFocusResults = new Emitter<void>();
+	private readonly _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
 
-	private _onEnter = new Emitter<void>();
+	private readonly _onEnter = new Emitter<void>();
 	readonly onEnter: Event<void> = this._onEnter.event;
 
-	private _onInputDidChange = new Emitter<string | undefined>();
+	private readonly _onInputDidChange = new Emitter<string | undefined>();
 	readonly onInputDidChange: Event<string | undefined> = this._onInputDidChange.event;
 
-	private readonly inputWidget: CodeEditorWidget;
+	protected readonly inputWidget: CodeEditorWidget;
 	private readonly inputModel: ITextModel;
-	private stylingContainer: HTMLDivElement;
+	protected stylingContainer: HTMLDivElement;
 	private placeholderText: HTMLDivElement;
 
 	constructor(
@@ -115,8 +122,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		ariaLabel: string,
 		resourceHandle: string,
 		options: SuggestEnabledInputOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService defaultInstantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -127,10 +135,22 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
 
+		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService, parent);
+
+		const instantiationService = scopedContextKeyService
+			? defaultInstantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
+			: defaultInstantiationService;
+
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
-				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
+				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+					SuggestController.ID,
+					SnippetController2.ID,
+					ContextMenuController.ID,
+					MenuPreventer.ID,
+					SelectionClipboardContributionID,
+				]),
 				isSimpleWidget: true,
 			});
 		this._register(this.inputWidget);
@@ -143,11 +163,11 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		this._register((this.inputWidget.onDidFocusEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(true); }
-			addClass(this.stylingContainer, 'synthetic-focus');
+			this.stylingContainer.classList.add('synthetic-focus');
 		})));
 		this._register((this.inputWidget.onDidBlurEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(false); }
-			removeClass(this.stylingContainer, 'synthetic-focus');
+			this.stylingContainer.classList.remove('synthetic-focus');
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
@@ -179,25 +199,47 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
 
-				let wordStart = query.lastIndexOf(' ', position.column - 1) + 1;
-				let alreadyTypedCount = position.column - wordStart - 1;
+				const zeroIndexedColumn = position.column - 1;
+
+				let zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+				let alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && (validatedSuggestProvider.triggerCharacters).indexOf(query[wordStart]) === -1) { return { suggestions: [] }; }
+				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
+					return { suggestions: [] };
+				}
 
 				return {
-					suggestions: suggestionProvider.provideResults(query).map(result => {
-						return <modes.CompletionItem>{
-							label: result,
-							insertText: result,
+					suggestions: suggestionProvider.provideResults(query).map((result): modes.CompletionItem => {
+						let label: string;
+						let rest: Partial<modes.CompletionItem> | undefined;
+						if (typeof result === 'string') {
+							label = result;
+						} else {
+							label = result.label;
+							rest = result;
+						}
+
+						return {
+							label,
+							insertText: label,
 							range: Range.fromPositions(position.delta(0, -alreadyTypedCount), position),
-							sortText: validatedSuggestProvider.sortKey(result),
-							kind: modes.CompletionItemKind.Keyword
+							sortText: validatedSuggestProvider.sortKey(label),
+							kind: modes.CompletionItemKind.Keyword,
+							...rest
 						};
 					})
 				};
 			}
 		}));
+	}
+
+	protected getScopedContextKeyService(_contextKeyService: IContextKeyService, _parent: HTMLElement): IContextKeyService | undefined {
+		return undefined;
+	}
+
+	public updateAriaLabel(label: string): void {
+		this.inputWidget.updateOptions({ ariaLabel: label });
 	}
 
 	public get onFocus(): Event<void> { return this.inputWidget.onDidFocusEditorText; }
@@ -214,11 +256,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		return this.inputWidget.getValue();
 	}
 
-
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
+		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
+		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
+		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
 
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
@@ -228,7 +269,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : null;
+			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : '';
 		}
 	}
 
@@ -240,13 +281,138 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}
 	}
 
+	public onHide(): void {
+		this.inputWidget.onHide();
+	}
+
 	public layout(dimension: Dimension): void {
 		this.inputWidget.layout(dimension);
-		this.placeholderText.style.width = `${dimension.width}px`;
+		this.placeholderText.style.width = `${dimension.width - 2}px`;
 	}
 
 	private selectAll(): void {
 		this.inputWidget.setSelection(new Range(1, 1, 1, this.getValue().length + 1));
+	}
+}
+
+export interface ISuggestEnabledHistoryOptions {
+	id: string,
+	ariaLabel: string,
+	parent: HTMLElement,
+	suggestionProvider: SuggestResultsProvider,
+	resourceHandle: string,
+	suggestOptions: SuggestEnabledInputOptions,
+	history: string[],
+}
+
+export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implements IHistoryNavigationWidget {
+	protected readonly history: HistoryNavigator<string>;
+
+	constructor(
+		{ id, parent, ariaLabel, suggestionProvider, resourceHandle, suggestOptions, history }: ISuggestEnabledHistoryOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService);
+		this.history = new HistoryNavigator<string>(history, 100);
+	}
+
+	public addToHistory(): void {
+		const value = this.getValue();
+		if (value && value !== this.getCurrentValue()) {
+			this.history.add(value);
+		}
+	}
+
+	public getHistory(): string[] {
+		return this.history.getHistory();
+	}
+
+	public showNextValue(): void {
+		if (!this.history.has(this.getValue())) {
+			this.addToHistory();
+		}
+
+		let next = this.getNextValue();
+		if (next) {
+			next = next === this.getValue() ? this.getNextValue() : next;
+		}
+
+		if (next) {
+			this.setValue(next);
+		}
+	}
+
+	public showPreviousValue(): void {
+		if (!this.history.has(this.getValue())) {
+			this.addToHistory();
+		}
+
+		let previous = this.getPreviousValue();
+		if (previous) {
+			previous = previous === this.getValue() ? this.getPreviousValue() : previous;
+		}
+
+		if (previous) {
+			this.setValue(previous);
+			this.inputWidget.setPosition({ lineNumber: 0, column: 0 });
+		}
+	}
+
+	public clearHistory(): void {
+		this.history.clear();
+	}
+
+	private getCurrentValue(): string | null {
+		let currentValue = this.history.current();
+		if (!currentValue) {
+			currentValue = this.history.last();
+			this.history.next();
+		}
+		return currentValue;
+	}
+
+	private getPreviousValue(): string | null {
+		return this.history.previous() || this.history.first();
+	}
+
+	private getNextValue(): string | null {
+		return this.history.next() || this.history.last();
+	}
+}
+
+export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledInputWithHistory {
+	private historyContext!: IHistoryNavigationContext;
+
+	constructor(
+		options: ISuggestEnabledHistoryOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IModelService modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super(options, instantiationService, modelService, contextKeyService);
+
+		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this.historyContext;
+		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {
+			const viewModel = this.inputWidget._getViewModel()!;
+			const lastLineNumber = viewModel.getLineCount();
+			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+			historyNavigationBackwardsEnablement.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
+			historyNavigationForwardsEnablement.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
+		}));
+	}
+
+	protected override getScopedContextKeyService(contextKeyService: IContextKeyService, parent: HTMLElement) {
+		const scoped = this.historyContext = createAndBindHistoryNavigationWidgetScopedContextKeyService(
+			contextKeyService,
+			{ target: parent, historyNavigator: this },
+		);
+
+		this._register(scoped.scopedContextKeyService);
+
+		return scoped.scopedContextKeyService;
 	}
 }
 
@@ -274,6 +440,11 @@ registerThemingParticipant((theme, collector) => {
 	if (inputForegroundColor) {
 		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
 	}
+
+	const backgroundColor = theme.getColor(inputBackground);
+	if (backgroundColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+	}
 });
 
 
@@ -286,10 +457,10 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		roundedSelection: false,
 		renderIndentGuides: false,
 		cursorWidth: 1,
-		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+		fontFamily: DEFAULT_FONT_FAMILY,
 		ariaLabel: ariaLabel || '',
-
 		snippetSuggestions: 'none',
-		suggest: { filterGraceful: false, showIcons: false }
+		suggest: { filterGraceful: false, showIcons: false },
+		autoClosingBrackets: 'never'
 	};
 }

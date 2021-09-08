@@ -4,10 +4,12 @@
 	"files.exclude": {
 		".git": true,
 		".build": true,
+		".profile-oss": true,
 		"**/.DS_Store": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
-		}
+		},
+		"src/vs/server": false
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc"
@@ -22,7 +24,11 @@
 		"i18n/**": true,
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
-		"src/vs/base/test/node/uri.test.data.txt": true
+		"test/automation/out/**": true,
+		"test/integration/browser/out/**": true,
+		"src/vs/base/test/node/uri.test.data.txt": true,
+		"src/vs/workbench/test/browser/api/extHostDocumentData.test.perf-data.ts": true,
+		"src/vs/server": false
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -37,8 +43,14 @@
 			}
 		}
 	],
+	"eslint.options": {
+		"rulePaths": [
+			"./build/lib/eslint"
+		]
+	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
+	"npm.packageManager": "yarn",
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
 	"typescript.preferences.quoteStyle": "single",
@@ -60,5 +72,20 @@
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
-	"files.insertFinalNewline": true
+	"gulp.autoDetect": "off",
+	"files.insertFinalNewline": true,
+	"[plaintext]": {
+		"files.insertFinalNewline": false,
+	},
+	"[typescript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.formatOnSave": true,
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.formatOnSave": true,
+	},
+	"typescript.tsc.autoDetect": "off",
+	"notebook.experimental.useMarkdownRenderer": true,
+	"testing.autoRun.mode": "rerun",
 }

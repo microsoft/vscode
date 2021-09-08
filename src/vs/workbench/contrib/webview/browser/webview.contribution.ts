@@ -3,88 +3,73 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
-import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
-import { WebviewEditor } from '../browser/webviewEditor';
-import { WebviewEditorInput } from '../browser/webviewEditorInput';
-import { IWebviewEditorService, WebviewEditorService } from '../browser/webviewEditorService';
+import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
+import * as nls from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-(Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
-	WebviewEditor,
-	WebviewEditor.ID,
-	localize('webview.editor.label', "webview editor")),
-	[new SyncDescriptor(WebviewEditorInput)]);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
-	WebviewEditorInputFactory.ID,
-	WebviewEditorInputFactory);
+const PRIORITY = 100;
 
-registerSingleton(IWebviewEditorService, WebviewEditorService, true);
-
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-
-function registerWebViewCommands(editorId: string): void {
-	const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', editorId), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */);
-
-	const showNextFindWidgetCommand = new ShowWebViewEditorFindWidgetCommand({
-		id: ShowWebViewEditorFindWidgetCommand.ID,
-		precondition: contextKeyExpr,
-		kbOpts: {
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-			weight: KeybindingWeight.EditorContrib
+function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
+	command?.addImplementation(PRIORITY, 'webview', accessor => {
+		const webviewService = accessor.get(IWebviewService);
+		const webview = webviewService.activeWebview;
+		if (webview?.isFocused) {
+			f(webview);
+			return true;
 		}
+
+		// When focused in a custom menu try to fallback to the active webview
+		// This is needed for context menu actions and the menubar
+		if (document.activeElement?.classList.contains('action-menu-item')) {
+			const editorService = accessor.get(IEditorService);
+			if (editorService.activeEditor instanceof WebviewInput) {
+				f(editorService.activeEditor.webview);
+				return true;
+			}
+		}
+
+		return false;
 	});
-	showNextFindWidgetCommand.register();
-
-	(new HideWebViewEditorFindCommand({
-		id: HideWebViewEditorFindCommand.ID,
-		precondition: ContextKeyExpr.and(
-			contextKeyExpr,
-			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
-		kbOpts: {
-			primary: KeyCode.Escape,
-			weight: KeybindingWeight.EditorContrib
-		}
-	})).register();
-
-	(new WebViewEditorFindNextCommand({
-		id: WebViewEditorFindNextCommand.ID,
-		precondition: ContextKeyExpr.and(
-			contextKeyExpr,
-			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-		kbOpts: {
-			primary: KeyCode.Enter,
-			weight: KeybindingWeight.EditorContrib
-		}
-	})).register();
-
-	(new WebViewEditorFindPreviousCommand({
-		id: WebViewEditorFindPreviousCommand.ID,
-		precondition: ContextKeyExpr.and(
-			contextKeyExpr,
-			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-		kbOpts: {
-			primary: KeyMod.Shift | KeyCode.Enter,
-			weight: KeybindingWeight.EditorContrib
-		}
-	})).register();
 }
 
-registerWebViewCommands(WebviewEditor.ID);
+overrideCommandForWebview(UndoCommand, webview => webview.undo());
+overrideCommandForWebview(RedoCommand, webview => webview.redo());
+overrideCommandForWebview(SelectAllCommand, webview => webview.selectAll());
+overrideCommandForWebview(CopyAction, webview => webview.copy());
+overrideCommandForWebview(PasteAction, webview => webview.paste());
+overrideCommandForWebview(CutAction, webview => webview.cut());
 
-actionRegistry.registerWorkbenchAction(
-	new SyncActionDescriptor(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
-	'Reload Webviews',
-	webviewDeveloperCategory);
+if (CutAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: CutAction.id,
+			title: nls.localize('cut', "Cut"),
+		},
+		order: 1,
+	});
+}
+
+if (CopyAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: CopyAction.id,
+			title: nls.localize('copy', "Copy"),
+		},
+		order: 2,
+	});
+}
+
+if (PasteAction) {
+	MenuRegistry.appendMenuItem(MenuId.WebviewContext, {
+		command: {
+			id: PasteAction.id,
+			title: nls.localize('paste', "Paste"),
+		},
+		order: 3,
+	});
+}

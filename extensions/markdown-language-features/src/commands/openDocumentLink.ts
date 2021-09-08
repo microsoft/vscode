@@ -4,17 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { extname } from 'path';
-
 import { Command } from '../commandManager';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
 import { isMarkdownFile } from '../util/file';
+import { extname } from '../util/path';
 
+
+type UriComponents = {
+	readonly scheme?: string;
+	readonly path: string;
+	readonly fragment?: string;
+	readonly authority?: string;
+	readonly query?: string;
+};
 
 export interface OpenDocumentLinkArgs {
-	path: string;
-	fragment: string;
+	readonly parts: UriComponents;
+	readonly fragment: string;
+	readonly fromResource: UriComponents;
+}
+
+enum OpenMarkdownLinks {
+	beside = 'beside',
+	currentGroup = 'currentGroup',
 }
 
 export class OpenDocumentLinkCommand implements Command {
@@ -22,59 +35,129 @@ export class OpenDocumentLinkCommand implements Command {
 	public readonly id = OpenDocumentLinkCommand.id;
 
 	public static createCommandUri(
-		path: string,
-		fragment: string
+		fromResource: vscode.Uri,
+		path: vscode.Uri,
+		fragment: string,
 	): vscode.Uri {
-		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ path: encodeURIComponent(path), fragment }))}`);
+		const toJson = (uri: vscode.Uri): UriComponents => {
+			return {
+				scheme: uri.scheme,
+				authority: uri.authority,
+				path: uri.path,
+				fragment: uri.fragment,
+				query: uri.query,
+			};
+		};
+		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify(<OpenDocumentLinkArgs>{
+			parts: toJson(path),
+			fragment,
+			fromResource: toJson(fromResource),
+		}))}`);
 	}
 
 	public constructor(
 		private readonly engine: MarkdownEngine
 	) { }
 
-	public execute(args: OpenDocumentLinkArgs) {
-		const p = decodeURIComponent(args.path);
-		return this.tryOpen(p, args).catch(() => {
-			if (p && extname(p) === '') {
-				return this.tryOpen(p + '.md', args);
-			}
-			const resource = vscode.Uri.file(p);
-			return Promise.resolve(undefined)
-				.then(() => vscode.commands.executeCommand('vscode.open', resource))
-				.then(() => undefined);
-		});
+	public async execute(args: OpenDocumentLinkArgs) {
+		return OpenDocumentLinkCommand.execute(this.engine, args);
 	}
 
-	private async tryOpen(path: string, args: OpenDocumentLinkArgs) {
-		const resource = vscode.Uri.file(path);
-		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
-			if (!path || vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
-				return this.tryRevealLine(vscode.window.activeTextEditor, args.fragment);
-			}
+	public static async execute(engine: MarkdownEngine, args: OpenDocumentLinkArgs): Promise<void> {
+		const fromResource = vscode.Uri.parse('').with(args.fromResource);
+
+		const targetResource = reviveUri(args.parts);
+
+		const column = this.getViewColumn(fromResource);
+
+		const didOpen = await this.tryOpen(engine, targetResource, args, column);
+		if (didOpen) {
+			return;
 		}
-		return vscode.workspace.openTextDocument(resource)
-			.then(vscode.window.showTextDocument)
-			.then(editor => this.tryRevealLine(editor, args.fragment));
+
+		if (extname(targetResource.path) === '') {
+			await this.tryOpen(engine, targetResource.with({ path: targetResource.path + '.md' }), args, column);
+			return;
+		}
 	}
 
-	private async tryRevealLine(editor: vscode.TextEditor, fragment?: string) {
-		if (editor && fragment) {
-			const toc = new TableOfContentsProvider(this.engine, editor.document);
+	private static async tryOpen(engine: MarkdownEngine, resource: vscode.Uri, args: OpenDocumentLinkArgs, column: vscode.ViewColumn): Promise<boolean> {
+		const tryUpdateForActiveFile = async (): Promise<boolean> => {
+			if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+				if (vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
+					await this.tryRevealLine(engine, vscode.window.activeTextEditor, args.fragment);
+					return true;
+				}
+			}
+			return false;
+		};
+
+		if (await tryUpdateForActiveFile()) {
+			return true;
+		}
+
+		let stat: vscode.FileStat;
+		try {
+			stat = await vscode.workspace.fs.stat(resource);
+			if (stat.type === vscode.FileType.Directory) {
+				await vscode.commands.executeCommand('revealInExplorer', resource);
+				return true;
+			}
+		} catch {
+			// noop
+			// If resource doesn't exist, execute `vscode.open` either way so an error
+			// notification is shown to the user with a create file action #113475
+		}
+
+		try {
+			await vscode.commands.executeCommand('vscode.open', resource, column);
+		} catch {
+			return false;
+		}
+
+		return tryUpdateForActiveFile();
+	}
+
+	private static getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
+		const config = vscode.workspace.getConfiguration('markdown', resource);
+		const openLinks = config.get<OpenMarkdownLinks>('links.openLocation', OpenMarkdownLinks.currentGroup);
+		switch (openLinks) {
+			case OpenMarkdownLinks.beside:
+				return vscode.ViewColumn.Beside;
+			case OpenMarkdownLinks.currentGroup:
+			default:
+				return vscode.ViewColumn.Active;
+		}
+	}
+
+	private static async tryRevealLine(engine: MarkdownEngine, editor: vscode.TextEditor, fragment?: string) {
+		if (fragment) {
+			const toc = new TableOfContentsProvider(engine, editor.document);
 			const entry = await toc.lookup(fragment);
 			if (entry) {
-				return editor.revealRange(new vscode.Range(entry.line, 0, entry.line, 0), vscode.TextEditorRevealType.AtTop);
+				const lineStart = new vscode.Range(entry.line, 0, entry.line, 0);
+				editor.selection = new vscode.Selection(lineStart.start, lineStart.end);
+				return editor.revealRange(lineStart, vscode.TextEditorRevealType.AtTop);
 			}
 			const lineNumberFragment = fragment.match(/^L(\d+)$/i);
 			if (lineNumberFragment) {
 				const line = +lineNumberFragment[1] - 1;
 				if (!isNaN(line)) {
-					return editor.revealRange(new vscode.Range(line, 0, line, 0), vscode.TextEditorRevealType.AtTop);
+					const lineStart = new vscode.Range(line, 0, line, 0);
+					editor.selection = new vscode.Selection(lineStart.start, lineStart.end);
+					return editor.revealRange(lineStart, vscode.TextEditorRevealType.AtTop);
 				}
 			}
 		}
 	}
 }
 
+function reviveUri(parts: any) {
+	if (parts.scheme === 'file') {
+		return vscode.Uri.file(parts.path);
+	}
+	return vscode.Uri.parse('').with(parts);
+}
 
 export async function resolveLinkToMarkdownFile(path: string): Promise<vscode.Uri | undefined> {
 	try {

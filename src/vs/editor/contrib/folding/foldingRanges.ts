@@ -93,6 +93,19 @@ export class FoldingRegions {
 		}
 	}
 
+	public setCollapsedAllOfType(type: string, newState: boolean) {
+		let hasChanged = false;
+		if (this._types) {
+			for (let i = 0; i < this._types.length; i++) {
+				if (this._types[i] === type) {
+					this.setCollapsed(i, newState);
+					hasChanged = true;
+				}
+			}
+		}
+		return hasChanged;
+	}
+
 	public toRegion(index: number): FoldingRegion {
 		return new FoldingRegion(this, index);
 	}
@@ -150,6 +163,26 @@ export class FoldingRegions {
 			res[i] = `[${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}
 		return res.join(', ');
+	}
+
+	public equals(b: FoldingRegions) {
+		if (this.length !== b.length) {
+			return false;
+		}
+
+		for (let i = 0; i < this.length; i++) {
+			if (this.getStartLineNumber(i) !== b.getStartLineNumber(i)) {
+				return false;
+			}
+			if (this.getEndLineNumber(i) !== b.getEndLineNumber(i)) {
+				return false;
+			}
+			if (this.getType(i) !== b.getType(i)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
 

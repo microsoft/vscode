@@ -6,23 +6,25 @@
 //@ts-check
 'use strict';
 
+const performance = require('./vs/base/common/performance');
+performance.mark('code/fork/start');
+
 const bootstrap = require('./bootstrap');
+const bootstrapNode = require('./bootstrap-node');
+
+// Remove global paths from the node module lookup
+bootstrapNode.removeGlobalNodeModuleLookupPaths();
 
 // Enable ASAR in our forked processes
 bootstrap.enableASARSupport();
 
 if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrap.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
 }
 
 // Configure: pipe logging to parent process
-if (!!process.send && process.env.PIPE_LOGGING === 'true') {
+if (!!process.send && process.env['VSCODE_PIPE_LOGGING'] === 'true') {
 	pipeLoggingToParent();
-}
-
-// Disable IO if configured
-if (!process.env['VSCODE_ALLOW_IO']) {
-	disableSTDIO();
 }
 
 // Handle Exceptions
@@ -39,19 +41,22 @@ if (process.env['VSCODE_PARENT_PID']) {
 configureCrashReporter();
 
 // Load AMD entry point
-require('./bootstrap-amd').load(process.env['AMD_ENTRYPOINT']);
+require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
+
 
 //#region Helpers
 
 function pipeLoggingToParent() {
 	const MAX_LENGTH = 100000;
 
-	// Prevent circular stringify and convert arguments to real array
+	/**
+	 * Prevent circular stringify and convert arguments to real array
+	 *
+	 * @param {IArguments} args
+	 */
 	function safeToArray(args) {
 		const seen = [];
 		const argsArray = [];
-
-		let res;
 
 		// Massage some arguments with special treatment
 		if (args.length) {
@@ -81,13 +86,15 @@ function pipeLoggingToParent() {
 
 		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
 		// to start the stacktrace where the console message was being written
-		if (process.env.VSCODE_LOG_STACK === 'true') {
+		if (process.env['VSCODE_LOG_STACK'] === 'true') {
 			const stack = new Error().stack;
-			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
+			if (stack) {
+				argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
+			}
 		}
 
 		try {
-			res = JSON.stringify(argsArray, function (key, value) {
+			const res = JSON.stringify(argsArray, function (key, value) {
 
 				// Objects get special treatment to prevent circles
 				if (isObject(value) || Array.isArray(value)) {
@@ -100,25 +107,33 @@ function pipeLoggingToParent() {
 
 				return value;
 			});
+
+			if (res.length > MAX_LENGTH) {
+				return 'Output omitted for a large object that exceeds the limits';
+			}
+
+			return res;
 		} catch (error) {
-			return 'Output omitted for an object that cannot be inspected (' + error.toString() + ')';
+			return `Output omitted for an object that cannot be inspected ('${error.toString()}')`;
 		}
-
-		if (res && res.length > MAX_LENGTH) {
-			return 'Output omitted for a large object that exceeds the limits';
-		}
-
-		return res;
 	}
 
+	/**
+	 * @param {{ type: string; severity: string; arguments: string; }} arg
+	 */
 	function safeSend(arg) {
 		try {
-			process.send(arg);
+			if (process.send) {
+				process.send(arg);
+			}
 		} catch (error) {
 			// Can happen if the parent channel is closed meanwhile
 		}
 	}
 
+	/**
+	 * @param {unknown} obj
+	 */
 	function isObject(obj) {
 		return typeof obj === 'object'
 			&& obj !== null
@@ -127,44 +142,57 @@ function pipeLoggingToParent() {
 			&& !(obj instanceof Date);
 	}
 
+	/**
+	 *
+	 * @param {'log' | 'warn' | 'error'} severity
+	 * @param {string} args
+	 */
+	function safeSendConsoleMessage(severity, args) {
+		safeSend({ type: '__$console', severity, arguments: args });
+	}
+
+	/**
+	 * @param {'log' | 'info' | 'warn' | 'error'} method
+	 * @param {'log' | 'warn' | 'error'} severity
+	 */
+	function wrapConsoleMethod(method, severity) {
+		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
+			const original = console[method];
+			console[method] = function () {
+				safeSendConsoleMessage(severity, safeToArray(arguments));
+
+				const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
+				stream.write('\nSTART_NATIVE_LOG\n');
+				original.apply(console, arguments);
+				stream.write('\nEND_NATIVE_LOG\n');
+			};
+		} else {
+			console[method] = function () { safeSendConsoleMessage(severity, safeToArray(arguments)); };
+		}
+	}
+
 	// Pass console logging to the outside so that we have it in the main side if told so
-	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
-		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
-	} else {
+	if (process.env['VSCODE_VERBOSE_LOGGING'] === 'true') {
+		wrapConsoleMethod('info', 'log');
+		wrapConsoleMethod('log', 'log');
+		wrapConsoleMethod('warn', 'warn');
+		wrapConsoleMethod('error', 'error');
+	} else if (process.env['VSCODE_LOG_NATIVE'] !== 'true') {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
+		wrapConsoleMethod('error', 'error');
 	}
-
-	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
-}
-
-function disableSTDIO() {
-
-	// const stdout, stderr and stdin be no-op streams. This prevents an issue where we would get an EBADF
-	// error when we are inside a forked process and this process tries to access those channels.
-	const stream = require('stream');
-	const writable = new stream.Writable({
-		write: function () { /* No OP */ }
-	});
-
-	process['__defineGetter__']('stdout', function () { return writable; });
-	process['__defineGetter__']('stderr', function () { return writable; });
-	process['__defineGetter__']('stdin', function () { return writable; });
 }
 
 function handleExceptions() {
 
 	// Handle uncaught exceptions
-	// @ts-ignore
 	process.on('uncaughtException', function (err) {
 		console.error('Uncaught Exception: ', err);
 	});
 
 	// Handle unhandled promise rejections
-	// @ts-ignore
 	process.on('unhandledRejection', function (reason) {
 		console.error('Unhandled Promise Rejection: ', reason);
 	});
@@ -185,11 +213,11 @@ function terminateWhenParentTerminates() {
 }
 
 function configureCrashReporter() {
-	const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
+	const crashReporterOptionsRaw = process.env['VSCODE_CRASH_REPORTER_START_OPTIONS'];
 	if (typeof crashReporterOptionsRaw === 'string') {
 		try {
 			const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
-			if (crashReporterOptions) {
+			if (crashReporterOptions && process['crashReporter'] /* Electron only */) {
 				process['crashReporter'].start(crashReporterOptions);
 			}
 		} catch (error) {

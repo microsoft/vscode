@@ -5,18 +5,7 @@
 
 .monaco-action-bar .action-item.markers-panel-action-filter-container {
 	cursor: default;
-	margin-right: 10px;
-	min-width: 150px;
-	max-width: 500px;
 	display: flex;
-}
-
-.monaco-action-bar .markers-panel-action-filter-container {
-	flex: 0.7;
-}
-
-.monaco-action-bar .markers-panel-action-filter-container.small {
-	flex: 0.5;
 }
 
 .monaco-action-bar .markers-panel-action-filter {
@@ -31,16 +20,20 @@
 	flex: 1;
 }
 
-.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
+.pane-header .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
+	height: 20px;
+	line-height: 18px;
+}
+
+.monaco-workbench.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
-	border: 1px solid transparent;
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls {
 	position: absolute;
 	top: 0px;
 	bottom: 0;
-	right: 4px;
+	right: 0px;
 	display: flex;
 	align-items: center;
 }
@@ -52,31 +45,41 @@
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.hidden,
-.markers-panel-action-filter-container.small .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge {
+.markers-panel-action-filter.small > .markers-panel-filter-controls > .markers-panel-filter-badge {
 	display: none;
 }
 
-.vs .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-light.svg') center center no-repeat;
+.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-item .action-label.codicon.markers-filters {
+	padding: 2px;
 }
 
-.vs-dark .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude,
-.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-dark.svg') center center no-repeat;
+.panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
+	max-width: 400px;
+	min-width: 300px;
+	margin-right: 10px;
 }
 
-.hc-black .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	background: url('exclude-settings-hc.svg') center center no-repeat;
+.markers-panel-container .monaco-action-bar.markers-panel-filter-container .action-item.markers-panel-action-filter-container,
+.panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container.grow {
+	flex: 1;
 }
 
 .markers-panel .markers-panel-container {
 	height: 100%;
 }
 
+.markers-panel .hide {
+	display: none;
+}
+
+.markers-panel-container .monaco-action-bar.markers-panel-filter-container {
+	margin: 10px 20px;
+	height: initial;
+}
+
 .markers-panel .markers-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;
-	height: 100%;
 }
 
 .markers-panel .markers-panel-container .message-box-container .messageAction {
@@ -100,7 +103,7 @@
 	padding-right: 10px;
 }
 
-.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
+.monaco-workbench.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	line-height: 20px;
 }
 
@@ -109,7 +112,11 @@
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .count-badge-wrapper {
+.markers-panel:not(.wide) .markers-panel-container .tree-container .monaco-tl-contents .resource-label-container {
+	flex: 1;
+}
+
+.markers-panel.wide .markers-panel-container .tree-container .monaco-tl-contents .count-badge-wrapper {
 	margin-left: 10px;
 }
 
@@ -132,6 +139,15 @@
 	display: flex;
 }
 
+.markers-panel .markers-panel-container .tree-container .monaco-list:focus .monaco-list-row.focused .monaco-tl-contents .details-container a.monaco-link {
+	color: inherit;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.monaco-link .monaco-highlighted-label {
+	text-decoration: underline;
+	text-underline-position: under;
+}
+
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:before {
 	content: '(';
 }
@@ -143,11 +159,6 @@
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-source,
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-line {
 	margin-left: 6px;
-}
-
-.markers-panel .monaco-tl-contents .marker-icon,
-.markers-panel .monaco-tl-contents .actions .action-item {
-	margin-right: 6px;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
@@ -164,31 +175,10 @@
 
 .markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
-}
-
-.markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-light.svg') center no-repeat;
-	margin-right: 0px;
-}
-
-.markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
-	background: url('lightbulb-autofix-light.svg') center center no-repeat;
-}
-
-.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-dark.svg') center no-repeat;
-}
-
-.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix {
-	background: url('lightbulb-hc.svg') center no-repeat;
-}
-
-.vs-dark .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
-	background: url('lightbulb-autofix-dark.svg') center center no-repeat;
-}
-
-.hc-black .markers-panel .monaco-tl-contents .actions .action-label.icon.markers-panel-action-quickfix.autofixable {
-	background: url('lightbulb-autofix-hc.svg') center center no-repeat;
+	margin: 0 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .markers-panel .monaco-tl-contents .actions .monaco-action-bar {
@@ -207,16 +197,18 @@
 	display: block;
 }
 
-.markers-panel .monaco-tl-contents .multiline-actions .action-label,
-.markers-panel .monaco-tl-contents .actions .action-label {
-	width: 16px;
-	height: 100%;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
+.markers-panel .monaco-tl-contents .actions,
+.markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar {
+	height: 22px;
 }
 
-.markers-panel .monaco-tl-contents .multiline-actions .action-label {
-	line-height: 22px;
+.markers-panel .monaco-tl-contents .actions .action-label,
+.markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar .action-label {
+	padding: 2px;
+}
+
+.markers-panel .monaco-tl-contents .actions .action-item {
+	margin: 0 4px;
 }
 
 .markers-panel .monaco-tl-contents .multiline-actions .action-item.disabled,

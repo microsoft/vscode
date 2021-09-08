@@ -6,6 +6,10 @@
 .extension-editor {
 	height: 100%;
 	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+	margin: 0px auto;
+	max-width: 1000px;
 }
 
 .extension-editor .clickable {
@@ -46,7 +50,8 @@
 	justify-content: center;
 }
 
-.extension-editor > .header > .icon-container .extension-remote-badge .octicon {
+.extension-editor > .header > .icon-container .extension-remote-badge .codicon {
+	color: currentColor;
 	font-size: 28px;
 }
 
@@ -54,6 +59,7 @@
 	padding-left: 20px;
 	overflow: hidden;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .extension-editor > .header > .details > .title {
@@ -69,14 +75,10 @@
 	white-space: nowrap;
 }
 
-.extension-editor > .header > .details > .title > .identifier {
+.extension-editor > .header > .details > .title > .version {
 	margin-left: 10px;
-	font-size: 14px;
-	opacity: 0.6;
-	background: rgba(173, 173, 173, 0.31);
-	padding: 0px 4px;
-	border-radius: 4px;
 	user-select: text;
+	-webkit-user-select: text;
 	white-space: nowrap;
 }
 
@@ -86,7 +88,7 @@
 	margin-left: 10px;
 }
 
-.vs .extension-editor > .header > .details > .title > .preview {
+.monaco-workbench.vs .extension-editor > .header > .details > .title > .preview {
 	color: white;
 }
 
@@ -98,6 +100,7 @@
 	padding: 0px 4px;
 	border-radius: 4px;
 	user-select: none;
+	-webkit-user-select: none;
 }
 
 .extension-editor > .header > .details > .subtitle {
@@ -107,16 +110,26 @@
 	line-height: 20px;
 }
 
-.extension-editor > .header > .details > .subtitle > .publisher {
+.extension-editor > .header > .details > .subtitle .hide {
+	display: none;
+}
+
+.extension-editor > .header > .details > .subtitle .publisher {
 	font-size: 18px;
 }
 
-.extension-editor > .header > .details > .subtitle > .install > .count {
+.extension-editor > .header > .details > .subtitle,
+.extension-editor > .header > .details > .subtitle .install,
+.extension-editor > .header > .details > .subtitle .rating {
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .subtitle .install > .count {
 	margin-left: 6px;
 }
 
-.extension-editor > .header > .details > .subtitle > span:not(:first-child):not(:empty),
-.extension-editor > .header > .details > .subtitle > a:not(:first-child):not(:empty) {
+.extension-editor > .header > .details > .subtitle > div:not(:first-child):not(:empty) {
 	border-left: 1px solid rgba(128, 128, 128, 0.7);
 	margin-left: 14px;
 	padding-left: 14px;
@@ -129,56 +142,130 @@
 	overflow: hidden;
 }
 
-.extension-editor > .header > .details > .actions {
+.extension-editor > .header > .details > .actions-status-container {
 	margin-top: 10px;
+	display: flex;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar {
+.extension-editor > .header > .details > .actions-status-container.list-layout {
+	display: inherit;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar {
 	text-align: initial;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container {
-	justify-content: flex-start;
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item {
+	margin-right: 0;
+	overflow: hidden;
+	flex-shrink: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.disabled {
+	min-width: 0;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action {
+	margin-bottom: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
+	margin-left: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	margin-right: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
+	border-radius: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	line-height: 22px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
+	margin-right: 6px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
 	font-weight: 600;
-	margin: 4px 8px 4px 0px;
-	padding: 1px 6px;
-}
-
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
 	max-width: 300px;
 }
 
-.extension-editor > .header > .details > .subtext-container {
-	display: block;
-	float: left;
-	margin-top: 0;
-	font-size: 13px;
-	font-style: italic;
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .action-label.extension-status {
+	margin-right: 0;
 }
 
-.extension-editor > .header > .details > .subtext-container > .monaco-action-bar {
-	float: left;
-	margin-top: 2px;
-	font-style: normal;
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.extension-status-label,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.disable-status {
+	font-weight: normal;
 }
 
-.extension-editor > .header > .details > .subtext-container > .subtext {
-	float:left;
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.extension-status-label:hover,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar .action-item .action-label.disable-status:hover {
+	opacity: 0.9;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status {
+	line-height: 22px;
+	font-size: 90%;
+	display: flex;
+}
+
+.extension-editor > .header > .details > .actions-status-container.list-layout > .status {
 	margin-top: 5px;
-	margin-right: 4px;
 }
-.extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
-	margin-top: 4px;
-	margin-left: 4px;
-	padding-top: 0;
-	padding-bottom: 2px;
+
+.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar {
+	height: 22px;
+	margin-right: 2px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status > .monaco-action-bar .extension-action {
+	margin-top: 3px;
+}
+
+.extension-editor > .header > .details > .actions-status-container.list-layout > .status > .monaco-action-bar .extension-action {
+	margin-top: 0px;
+}
+
+.extension-editor > .header > .details > .actions-status-container:not(.list-layout) > .status > .status-text {
+	margin-top: 2px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status > .status-text p {
+	margin-top: 0px;
+	margin-bottom: 0px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover {
+	text-decoration: underline;
+}
+
+.extension-editor > .header > .details > .recommendation {
+	display: flex;
+	margin-top: 5px;
+}
+
+.extension-editor > .header > .details > .recommendation .codicon {
+	font-size: inherit;
+	margin-right: 5px;
+}
+
+.extension-editor > .header > .details > .recommendation .recommendation-text {
+	vertical-align: text-bottom;
+	font-size: 90%;
 }
 
 .extension-editor > .body {
-	height: calc(100% - 168px);
+	flex: 1;
 	overflow: hidden;
 }
 
@@ -198,11 +285,12 @@
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	margin-right: 16px;
+	font-size: inherit;
+	opacity: 0.7;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	font-size: inherit;
-	opacity: 0.7;
+	background: none !important;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
@@ -219,6 +307,7 @@
 	position: relative;
 	overflow: hidden;
 	user-select: text;
+	-webkit-user-select: text;
 }
 
 .extension-editor > .body > .content.loading {
@@ -231,6 +320,159 @@
 
 .extension-editor > .body > .content > .nocontent {
 	margin-left: 20px;
+}
+
+.extension-editor > .body > .content > .details {
+	height: 100%;
+	display: flex;
+}
+
+.extension-editor > .body > .content > .details > .readme-container {
+	margin: 0px auto;
+	max-width: 75%;
+	height: 100%;
+	flex: 1;
+}
+
+.extension-editor > .body > .content > .details.narrow > .readme-container {
+	margin: inherit;
+	max-width: inherit;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container {
+	width: 25%;
+	min-width: 175px;
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details.narrow > .additional-details-container {
+	display: none;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element > .additional-details-content {
+	height: 100%;
+	overflow-y: scroll;
+	padding: 20px;
+	box-sizing: border-box;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .additional-details-title {
+	font-size: 120%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories,
+.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags,
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources,
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info {
+	margin: 15px 0px;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .categories-container > .categories > .category,
+.extension-editor > .body > .content > .details > .additional-details-container .tags-container > .tags > .tag {
+	display: inline-block;
+	border: 1px solid rgba(136, 136, 136, 0.45);
+	padding: 2px 4px;
+	border-radius: 2px;
+	font-size: 90%;
+	margin: 0px 6px 3px 0px;
+	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
+	display: block;
+	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {
+	text-decoration: underline;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry {
+	font-size: 90%;
+	display: flex;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :first-child {
+	width: 40%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry :last-child {
+	width: 60%;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry code {
+	background-color: transparent;
+	padding: 0px;
+}
+
+.extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack {
+	height: 224px;
+	padding-left: 20px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .extension-pack {
+	height: 142px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .extension-pack {
+	height: 224px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .extension-pack {
+	height: 306px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .extension-pack {
+	height: 326px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.one-row > .readme-content {
+	height: calc(100% - 142px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.two-rows > .readme-content {
+	height: calc(100% - 224px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .readme-content {
+	height: calc(100% - 306px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .readme-content {
+	height: calc(100% - 326px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .header,
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .footer {
+	margin-bottom: 10px;
+	margin-right: 30px;
+	font-weight: bold;
+	font-size: 120%;
+	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
+	padding: 4px 6px;
+	line-height: 22px;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content {
+	height: calc(100% - 60px);
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme > .extension-pack > .extension-pack-content > .monaco-scrollable-element > .subcontent {
+	height: 100%;
+	overflow-y: scroll;
+	box-sizing: border-box;
 }
 
 .extension-editor > .body > .content > .monaco-scrollable-element > .subcontent {
@@ -260,10 +502,6 @@
 	line-height: 22px;
 }
 
-.extension-editor > .body > .content details > summary::-webkit-details-marker {
-	color: rgba(128, 128, 128, 0.5);
-}
-
 .extension-editor > .body > .content table tr:nth-child(odd) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
@@ -287,7 +525,13 @@
 	word-break: keep-all;
 }
 
-.extension-editor > .body > .content table code:not(:empty) {
+.extension-editor > .body > .content table td > div,
+.extension-editor > .body > .content table td > div > p {
+	padding: 0px;
+	margin: 0px;
+}
+
+.extension-editor code:not(:empty) {
 	font-family: var(--monaco-monospace-font);
 	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);
@@ -307,8 +551,8 @@
 	vertical-align: middle;
 }
 
-.vs-dark .extension-editor > .body > .content table .colorBox,
-.hc-black .extension-editor > .body > .content table .colorBox {
+.monaco-workbench.vs-dark .extension-editor > .body > .content table .colorBox,
+.monaco-workbench.hc-black .extension-editor > .body > .content table .colorBox {
 	border-color: rgb(238, 238, 238);
 }
 
@@ -383,4 +627,48 @@
 	font-size: 90%;
 	font-weight: 600;
 	opacity: 0.6;
+}
+
+.extension-editor .extensions-grid-view {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.extension-editor .extensions-grid-view > .extension-container {
+	width: 350px;
+	margin: 0 10px 20px 0;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item {
+	cursor: default;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item > .details .header > .name {
+	cursor: pointer;
+}
+
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .version,
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .ratings,
+.extension-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .install-count {
+	display: none;
+}
+
+.extension-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name,
+.extension-editor .extensions-grid-view > .extension-container:hover > .extension-list-item > .details .header > .name {
+	text-decoration: underline;
+}
+
+.extension-editor > .body > .content .runtime-status .no-status-message,
+.extension-editor > .body > .content .runtime-status .activation-message {
+	font-size: medium;
+}
+
+.extension-editor > .body > .content .runtime-status .message-entry {
+	display: flex;
+	align-items: center;
+	margin: 5px;
+}
+
+.extension-editor > .body > .content .runtime-status .message-entry .codicon {
+	padding-right: 2px;
 }

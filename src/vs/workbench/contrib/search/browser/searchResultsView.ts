@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -27,9 +27,8 @@ import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { URI } from 'vs/base/common/uri';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -135,7 +134,7 @@ export class FolderMatchRenderer extends Disposable implements ITreeRenderer<Fol
 			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, this.searchView.getControl(), folderMatch));
 		}
 
-		actions.push(new RemoveAction(this.searchView.getControl(), folderMatch));
+		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), folderMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
@@ -197,7 +196,7 @@ export class FileMatchRenderer extends Disposable implements ITreeRenderer<FileM
 		if (this.searchModel.isReplaceActive() && count > 0) {
 			actions.push(this.instantiationService.createInstance(ReplaceAllAction, this.searchView, fileMatch));
 		}
-		actions.push(new RemoveAction(this.searchView.getControl(), fileMatch));
+		actions.push(this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), fileMatch));
 		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
@@ -225,7 +224,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	}
 
 	renderTemplate(container: HTMLElement): IMatchTemplate {
-		DOM.addClass(container, 'linematch');
+		container.classList.add('linematch');
 
 		const parent = DOM.append(container, DOM.$('a.plain.match'));
 		const before = DOM.append(parent, DOM.$('span'));
@@ -254,7 +253,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		templateData.before.textContent = preview.before;
 		templateData.match.textContent = preview.inside;
-		DOM.toggleClass(templateData.match, 'replace', replace);
+		templateData.match.classList.toggle('replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
 		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
@@ -264,16 +263,16 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
 		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
-		DOM.toggleClass(templateData.lineNumber, 'show', (numLines > 0) || showLineNumbers);
+		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
 		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
 
 		templateData.actions.clear();
 		if (this.searchModel.isReplaceActive()) {
-			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), new RemoveAction(this.searchView.getControl(), match)], { icon: true, label: false });
+			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, this.searchView.getControl(), match, this.searchView), this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), match)], { icon: true, label: false });
 		} else {
-			templateData.actions.push([new RemoveAction(this.searchView.getControl(), match)], { icon: true, label: false });
+			templateData.actions.push([this.instantiationService.createInstance(RemoveAction, this.searchView.getControl(), match)], { icon: true, label: false });
 		}
 	}
 
@@ -300,12 +299,16 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	}
 }
 
-export class SearchAccessibilityProvider implements IAccessibilityProvider<RenderableMatch> {
+export class SearchAccessibilityProvider implements IListAccessibilityProvider<RenderableMatch> {
 
 	constructor(
 		private searchModel: SearchModel,
 		@ILabelService private readonly labelService: ILabelService
 	) {
+	}
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('search', "Search");
 	}
 
 	getAriaLabel(element: RenderableMatch): string | null {
@@ -329,10 +332,10 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 			const range = match.range();
 			const matchText = match.text().substr(0, range.endColumn + 150);
 			if (replace) {
-				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
+				return nls.localize('replacePreviewResultAria', "Replace '{0}' with '{1}' at column {2} in line {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
 			}
 
-			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
+			return nls.localize('searchResultAria', "Found '{0}' at column {1} in line '{2}'", matchString, range.startColumn + 1, matchText);
 		}
 		return null;
 	}
@@ -368,13 +371,13 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const elements = (data as ElementsDragAndDropData<RenderableMatch>).elements;
-		const resources: URI[] = elements
-			.filter(e => e instanceof FileMatch)
+		const resources = elements
+			.filter<FileMatch>((e): e is FileMatch => e instanceof FileMatch)
 			.map((fm: FileMatch) => fm.resource);
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 

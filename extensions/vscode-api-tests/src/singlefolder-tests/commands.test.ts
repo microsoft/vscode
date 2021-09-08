@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
+import 'mocha';
 import { join } from 'path';
-import { commands, workspace, window, Uri, ViewColumn, Range, Position } from 'vscode';
+import { commands, Position, Range, Uri, ViewColumn, window, workspace } from 'vscode';
+import { assertNoRpc } from '../utils';
 
-suite('commands namespace tests', () => {
+suite('vscode API - commands', () => {
+
+	teardown(assertNoRpc);
 
 	test('getCommands', function (done) {
 
@@ -49,8 +52,8 @@ suite('commands namespace tests', () => {
 		await commands.executeCommand('t1', 'start');
 		registration.dispose();
 		assert.ok(args!);
-		assert.equal(args!.length, 1);
-		assert.equal(args![0], 'start');
+		assert.strictEqual(args!.length, 1);
+		assert.strictEqual(args![0], 'start');
 	});
 
 	test('editorCommand with extra args', function () {
@@ -65,7 +68,7 @@ suite('commands namespace tests', () => {
 				return commands.executeCommand('t1', 12345, commands);
 			}).then(() => {
 				assert.ok(args);
-				assert.equal(args.length, 4);
+				assert.strictEqual(args.length, 4);
 				assert.ok(args[2] === 12345);
 				assert.ok(args[3] === commands);
 				registration.dispose();
@@ -105,7 +108,7 @@ suite('commands namespace tests', () => {
 	});
 
 	test('api-command: vscode.open', function () {
-		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/image.png');
+		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/far.js');
 		let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
 		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
 		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));

@@ -4,98 +4,103 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as env from 'vs/base/common/platform';
-import { getSystemShell } from 'vs/workbench/contrib/terminal/node/terminal';
-import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
+import * as platform from 'vs/base/common/platform';
+import { getDriveLetter } from 'vs/base/common/extpath';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
+
+
+
+function spawnAsPromised(command: string, args: string[]): Promise<string> {
+	return new Promise((resolve, reject) => {
+		let stdout = '';
+		const child = cp.spawn(command, args);
+		if (child.pid) {
+			child.stdout.on('data', (data: Buffer) => {
+				stdout += data.toString();
+			});
+		}
+		child.on('error', err => {
+			reject(err);
+		});
+		child.on('close', code => {
+			resolve(stdout);
+		});
+	});
+}
 
 let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
-export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): void {
+export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
 	if (!externalTerminalService) {
-		if (env.isWindows) {
-			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else if (env.isMacintosh) {
-			externalTerminalService = new MacExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else if (env.isLinux) {
-			externalTerminalService = new LinuxExternalTerminalService(<IConfigurationService><unknown>undefined);
+		if (platform.isWindows) {
+			externalTerminalService = new WindowsExternalTerminalService();
+		} else if (platform.isMacintosh) {
+			externalTerminalService = new MacExternalTerminalService();
+		} else if (platform.isLinux) {
+			externalTerminalService = new LinuxExternalTerminalService();
+		} else {
+			throw new Error('external terminals not supported on this platform');
 		}
 	}
-	if (externalTerminalService) {
-		const config = configProvider.getConfiguration('terminal');
-		externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
-	}
+	const config = configProvider.getConfiguration('terminal');
+	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 }
 
-export function hasChildProcesses(processId: number): boolean {
+export function hasChildProcesses(processId: number | undefined): Promise<boolean> {
 	if (processId) {
-		try {
-			// if shell has at least one child process, assume that shell is busy
-			if (env.isWindows) {
-				const result = cp.spawnSync('wmic', ['process', 'get', 'ParentProcessId']);
-				if (result.stdout) {
-					const pids = result.stdout.toString().split('\r\n');
-					if (!pids.some(p => parseInt(p) === processId)) {
-						return false;
-					}
+
+		// if shell has at least one child process, assume that shell is busy
+		if (platform.isWindows) {
+			return new Promise<boolean>(async (resolve) => {
+				// See #123296
+				const windowsProcessTree = await import('windows-process-tree');
+				windowsProcessTree.getProcessTree(processId, (processTree) => {
+					resolve(processTree.children.length > 0);
+				});
+			});
+		} else {
+			return spawnAsPromised('/usr/bin/pgrep', ['-lP', String(processId)]).then(stdout => {
+				const r = stdout.trim();
+				if (r.length === 0 || r.indexOf(' tmux') >= 0) { // ignore 'tmux'; see #43683
+					return false;
+				} else {
+					return true;
 				}
-			} else {
-				const result = cp.spawnSync('/usr/bin/pgrep', ['-lP', String(processId)]);
-				if (result.stdout) {
-					const r = result.stdout.toString().trim();
-					if (r.length === 0 || r.indexOf(' tmux') >= 0) { // ignore 'tmux'; see #43683
-						return false;
-					}
-				}
-			}
-		}
-		catch (e) {
-			// silently ignore
+			}, error => {
+				return true;
+			});
 		}
 	}
 	// fall back to safe side
-	return true;
+	return Promise.resolve(true);
 }
 
 const enum ShellType { cmd, powershell, bash }
 
-export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, shell: string, configProvider: ExtHostConfigProvider): string {
 
-	let shellType = env.isWindows ? ShellType.cmd : ShellType.bash;	// pick a good default
+export function prepareCommand(shell: string, args: string[], cwd?: string, env?: { [key: string]: string | null; }): string {
 
-	if (shell) {
-
-		const config = configProvider.getConfiguration('terminal');
-
-		// get the shell configuration for the current platform
-		const shell_config = config.integrated.shell;
-		if (env.isWindows) {
-			shell = shell_config.windows || getSystemShell(env.Platform.Windows);
-		} else if (env.isLinux) {
-			shell = shell_config.linux || getSystemShell(env.Platform.Linux);
-		} else if (env.isMacintosh) {
-			shell = shell_config.osx || getSystemShell(env.Platform.Mac);
-		} else {
-			throw new Error('Unknown platform');
-		}
-	}
+	shell = shell.trim().toLowerCase();
 
 	// try to determine the shell type
-	shell = shell.trim().toLowerCase();
+	let shellType;
 	if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0) {
 		shellType = ShellType.powershell;
 	} else if (shell.indexOf('cmd.exe') >= 0) {
 		shellType = ShellType.cmd;
 	} else if (shell.indexOf('bash') >= 0) {
 		shellType = ShellType.bash;
-	} else if (shell.indexOf('git\\bin\\bash.exe') >= 0) {
-		shellType = ShellType.bash;
+	} else if (platform.isWindows) {
+		shellType = ShellType.cmd; // pick a good default for Windows
+	} else {
+		shellType = ShellType.bash;	// pick a good default for anything else
 	}
 
 	let quote: (s: string) => string;
-	let command = '';
+	// begin command with a space to avoid polluting shell history
+	let command = ' ';
 
 	switch (shellType) {
 
@@ -109,12 +114,16 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 				return `'${s}'`;
 			};
 
-			if (args.cwd) {
-				command += `cd '${args.cwd}'; `;
+			if (cwd) {
+				const driveLetter = getDriveLetter(cwd);
+				if (driveLetter) {
+					command += `${driveLetter}:; `;
+				}
+				command += `cd ${quote(cwd)}; `;
 			}
-			if (args.env) {
-				for (let key in args.env) {
-					const value = args.env[key];
+			if (env) {
+				for (let key in env) {
+					const value = env[key];
 					if (value === null) {
 						command += `Remove-Item env:${key}; `;
 					} else {
@@ -122,10 +131,10 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 					}
 				}
 			}
-			if (args.args && args.args.length > 0) {
-				const cmd = quote(args.args.shift()!);
+			if (args.length > 0) {
+				const cmd = quote(args.shift()!);
 				command += (cmd[0] === '\'') ? `& ${cmd} ` : `${cmd} `;
-				for (let a of args.args) {
+				for (let a of args) {
 					command += `${quote(a)} `;
 				}
 			}
@@ -138,25 +147,29 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 				return (s.indexOf(' ') >= 0 || s.indexOf('"') >= 0 || s.length === 0) ? `"${s}"` : s;
 			};
 
-			if (args.cwd) {
-				command += `cd ${quote(args.cwd)} && `;
+			if (cwd) {
+				const driveLetter = getDriveLetter(cwd);
+				if (driveLetter) {
+					command += `${driveLetter}: && `;
+				}
+				command += `cd ${quote(cwd)} && `;
 			}
-			if (args.env) {
+			if (env) {
 				command += 'cmd /C "';
-				for (let key in args.env) {
-					let value = args.env[key];
+				for (let key in env) {
+					let value = env[key];
 					if (value === null) {
 						command += `set "${key}=" && `;
 					} else {
-						value = value.replace(/[\^\&]/g, s => `^${s}`);
+						value = value.replace(/[\^\&\|\<\>]/g, s => `^${s}`);
 						command += `set "${key}=${value}" && `;
 					}
 				}
 			}
-			for (let a of args.args) {
+			for (let a of args) {
 				command += `${quote(a)} `;
 			}
-			if (args.env) {
+			if (env) {
 				command += '"';
 			}
 			break;
@@ -164,21 +177,21 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 		case ShellType.bash:
 
 			quote = (s: string) => {
-				s = s.replace(/([\"\\])/g, '\\$1');
-				return (s.indexOf(' ') >= 0 || s.length === 0) ? `"${s}"` : s;
+				s = s.replace(/(["'\\\$])/g, '\\$1');
+				return (s.indexOf(' ') >= 0 || s.indexOf(';') >= 0 || s.length === 0) ? `"${s}"` : s;
 			};
 
 			const hardQuote = (s: string) => {
 				return /[^\w@%\/+=,.:^-]/.test(s) ? `'${s.replace(/'/g, '\'\\\'\'')}'` : s;
 			};
 
-			if (args.cwd) {
-				command += `cd ${quote(args.cwd)} ; `;
+			if (cwd) {
+				command += `cd ${quote(cwd)} ; `;
 			}
-			if (args.env) {
-				command += 'env';
-				for (let key in args.env) {
-					const value = args.env[key];
+			if (env) {
+				command += '/usr/bin/env';
+				for (let key in env) {
+					const value = env[key];
 					if (value === null) {
 						command += ` -u ${hardQuote(key)}`;
 					} else {
@@ -187,7 +200,7 @@ export function prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments
 				}
 				command += ' ';
 			}
-			for (let a of args.args) {
+			for (let a of args) {
 				command += `${quote(a)} `;
 			}
 			break;

@@ -3,16 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions } from '../../application';
+import { Application, ApplicationOptions, Quality } from '../../../../automation';
 import { join } from 'path';
+import { ParsedArgs } from 'minimist';
+import { timeout } from '../../utils';
 
-export function setup(stableCodePath: string, testDataPath: string) {
+export function setup(opts: ParsedArgs, testDataPath: string) {
 
-
-	describe('Data Migration: This test MUST run before releasing by providing the --stable-build command line argument', () => {
+	describe('Datamigration', () => {
 		it(`verifies opened editors are restored`, async function () {
+			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath) {
 				this.skip();
+			}
+
+			// On macOS, the stable app fails to launch on first try,
+			// so let's retry this once
+			// https://github.com/microsoft/vscode/pull/127799
+			if (process.platform === 'darwin') {
+				this.retries(2);
 			}
 
 			const userDataDir = join(testDataPath, 'd2'); // different data dir from the other tests
@@ -20,16 +29,17 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
+			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
-			await stableApp!.start();
+			await stableApp.start();
 
 			// Open 3 editors and pin 2 of them
-			await stableApp.workbench.quickopen.openFile('www');
-			await stableApp.workbench.quickopen.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.openFile('www');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
 
-			await stableApp.workbench.quickopen.openFile('app.js');
-			await stableApp.workbench.quickopen.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.openFile('app.js');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
 
 			await stableApp.workbench.editors.newUntitledFile();
 
@@ -39,10 +49,10 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough path */);
+			await insidersApp.start();
 
 			// Verify 3 editors are open
-			await insidersApp.workbench.editors.waitForEditorFocus('Untitled-1');
+			await insidersApp.workbench.editors.selectTab('Untitled-1');
 			await insidersApp.workbench.editors.selectTab('app.js');
 			await insidersApp.workbench.editors.selectTab('www');
 
@@ -50,6 +60,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 		});
 
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
+			const stableCodePath = opts['stable-build'];
 			if (!stableCodePath) {
 				this.skip();
 			}
@@ -59,20 +70,23 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
 			stableOptions.codePath = stableCodePath;
 			stableOptions.userDataDir = userDataDir;
+			stableOptions.quality = Quality.Stable;
 
 			const stableApp = new Application(stableOptions);
-			await stableApp!.start();
+			await stableApp.start();
 
 			await stableApp.workbench.editors.newUntitledFile();
 
 			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello, Untitled Code';
+			const textToTypeInUntitled = 'Hello from Untitled';
 			await stableApp.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
 
 			const readmeMd = 'readme.md';
 			const textToType = 'Hello, Code';
-			await stableApp.workbench.quickopen.openFile(readmeMd);
+			await stableApp.workbench.quickaccess.openFile(readmeMd);
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
+
+			await timeout(2000); // give time to store the backup before stopping the app
 
 			await stableApp.stop();
 
@@ -80,13 +94,14 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			insiderOptions.userDataDir = userDataDir;
 
 			const insidersApp = new Application(insiderOptions);
-			await insidersApp!.start(false /* not expecting walkthrough path */);
+			await insidersApp.start();
 
-			await insidersApp.workbench.editors.waitForActiveTab(readmeMd, true);
+			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
+			await insidersApp.workbench.editors.selectTab(readmeMd);
 			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
 			await insidersApp.workbench.editors.waitForTab(untitled, true);
-			await insidersApp.workbench.editors.selectTab(untitled, true);
+			await insidersApp.workbench.editors.selectTab(untitled);
 			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 
 			await insidersApp.stop();

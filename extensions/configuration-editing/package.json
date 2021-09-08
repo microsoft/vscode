@@ -8,18 +8,26 @@
   "engines": {
     "vscode": "^1.0.0"
   },
+  "icon": "images/icon.png",
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:jsonc"
   ],
-  "main": "./out/extension",
+  "main": "./out/configurationEditingMain",
+  "browser": "./dist/browser/configurationEditingMain",
   "scripts": {
     "compile": "gulp compile-extension:configuration-editing",
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^2.1.1",
-    "vscode-nls": "^4.0.0"
+    "jsonc-parser": "^2.2.1",
+    "vscode-nls": "^5.0.0"
+  },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "contributes": {
     "languages": [
@@ -37,8 +45,14 @@
           "launch.json",
           "tasks.json",
           "keybindings.json",
-          "extensions.json"
-        ]
+          "extensions.json",
+          "argv.json",
+          "profiles.json",
+          ".devcontainer.json"
+        ],
+        "filenamePatterns": [
+					"**/.devcontainer/devcontainer.json"
+				]
       }
     ],
     "jsonValidation": [
@@ -51,7 +65,7 @@
         "url": "vscode://schemas/keybindings"
       },
       {
-        "fileMatch": "vscode://defaultsettings/settings.json",
+        "fileMatch": "vscode://defaultsettings/*.json",
         "url": "vscode://schemas/settings/default"
       },
       {
@@ -71,8 +85,8 @@
         "url": "vscode://schemas/workspaceConfig"
       },
       {
-        "fileMatch": "%APP_SETTINGS_HOME%/locale.json",
-        "url": "vscode://schemas/locale"
+        "fileMatch": "**/argv.json",
+        "url": "vscode://schemas/argv"
       },
       {
         "fileMatch": "/.vscode/settings.json",
@@ -87,7 +101,15 @@
         "url": "vscode://schemas/tasks"
       },
       {
+        "fileMatch": "%APP_SETTINGS_HOME%/tasks.json",
+        "url": "vscode://schemas/tasks"
+      },
+      {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
+        "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/sync/snippets/preview/*.json",
         "url": "vscode://schemas/snippets"
       },
       {
@@ -100,15 +122,27 @@
       },
       {
         "fileMatch": "/.devcontainer/devcontainer.json",
-        "url": "./schemas/devContainer.schema.json"
+        "url": "./schemas/devContainer.schema.generated.json"
       },
       {
         "fileMatch": "/.devcontainer.json",
-        "url": "./schemas/devContainer.schema.json"
+        "url": "./schemas/devContainer.schema.generated.json"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/nameConfigs/*.json",
+        "url": "./schemas/attachContainer.schema.json"
+      },
+      {
+        "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
+        "url": "./schemas/attachContainer.schema.json"
       }
     ]
   },
   "devDependencies": {
-    "@types/node": "^10.14.8"
+    "@types/node": "14.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

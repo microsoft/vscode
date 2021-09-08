@@ -79,14 +79,22 @@ function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): 
 // Lexer helpers
 
 /**
- * Compiles a regular expression string, adding the 'i' flag if 'ignoreCase' is set.
+ * Compiles a regular expression string, adding the 'i' flag if 'ignoreCase' is set, and the 'u' flag if 'unicode' is set.
  * Also replaces @\w+ or sequences with the content of the specified attribute
+ * @\w+ replacement can be avoided by escaping `@` signs with another `@` sign.
+ * @example /@attr/ will be replaced with the value of lexer[attr]
+ * @example /@@text/ will not be replaced and will become /@text/.
  */
 function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
+	// @@ must be interpreted as a literal @, so we replace all occurences of @@ with a placeholder character
+	str = str.replace(/@@/g, `\x01`);
+
 	let n = 0;
-	while (str.indexOf('@') >= 0 && n < 5) { // at most 5 expansions
-		n++;
+	let hadExpansion: boolean;
+	do {
+		hadExpansion = false;
 		str = str.replace(/@(\w+)/g, function (s, attr?) {
+			hadExpansion = true;
 			let sub = '';
 			if (typeof (lexer[attr]) === 'string') {
 				sub = lexer[attr];
@@ -101,9 +109,14 @@ function compileRegExp(lexer: monarchCommon.ILexerMin, str: string): RegExp {
 			}
 			return (monarchCommon.empty(sub) ? '' : '(?:' + sub + ')');
 		});
-	}
+		n++;
+	} while (hadExpansion && n < 5);
 
-	return new RegExp(str, (lexer.ignoreCase ? 'i' : ''));
+	// handle escaped @@
+	str = str.replace(/\x01/g, '@');
+
+	let flags = (lexer.ignoreCase ? 'i' : '') + (lexer.unicode ? 'u' : '');
+	return new RegExp(str, flags);
 }
 
 /**
@@ -394,12 +407,14 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	// Create our lexer
 	let lexer: monarchCommon.ILexer = <monarchCommon.ILexer>{};
 	lexer.languageId = languageId;
+	lexer.includeLF = bool(json.includeLF, false);
 	lexer.noThrow = false; // raise exceptions during compilation
 	lexer.maxStack = 100;
 
 	// Set standard fields: be defensive about types
 	lexer.start = (typeof json.start === 'string' ? json.start : null);
 	lexer.ignoreCase = bool(json.ignoreCase, false);
+	lexer.unicode = bool(json.unicode, false);
 
 	lexer.tokenPostfix = string(json.tokenPostfix, '.' + lexer.languageId);
 	lexer.defaultToken = string(json.defaultToken, 'source');
@@ -409,7 +424,9 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	// For calling compileAction later on
 	let lexerMin: monarchCommon.ILexerMin = <any>json;
 	lexerMin.languageId = languageId;
+	lexerMin.includeLF = lexer.includeLF;
 	lexerMin.ignoreCase = lexer.ignoreCase;
+	lexerMin.unicode = lexer.unicode;
 	lexerMin.noThrow = lexer.noThrow;
 	lexerMin.usesEmbedded = lexer.usesEmbedded;
 	lexerMin.stateNames = json.tokenizer;

@@ -37,7 +37,7 @@ suite('WordPartOperations', () => {
 	test('cursorWordPartLeft - basic', () => {
 		const EXPECTED = [
 			'|start| |line|',
-			'|this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|',
+			'|this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|',
 			'|end| |line'
 		].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
@@ -49,7 +49,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartLeft - issue #53899: whitespace', () => {
@@ -63,11 +63,11 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartLeft - issue #53899: underscores', () => {
-		const EXPECTED = '|myvar| |=| |\'|demonstration|_____of| |selection| |with| |space|\'';
+		const EXPECTED = '|myvar| |=| |\'|demonstration_____|of| |selection| |with| |space|\'';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -77,13 +77,13 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartRight - basic', () => {
 		const EXPECTED = [
 			'start| |line|',
-			'|this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|',
+			'|this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|',
 			'|end| |line|'
 		].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
@@ -95,7 +95,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(3, 9))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartRight - issue #53899: whitespace', () => {
@@ -109,11 +109,11 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 52))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartRight - issue #53899: underscores', () => {
-		const EXPECTED = 'myvar| |=| |\'|demonstration_____|of| |selection| |with| |space|\'|';
+		const EXPECTED = 'myvar| |=| |\'|demonstration|_____of| |selection| |with| |space|\'|';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -123,7 +123,7 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 52))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordPartRight - issue #53899: second case', () => {
@@ -142,11 +142,43 @@ suite('WordPartOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(4, 7))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('issue #93239 - cursorWordPartRight', () => {
+		const EXPECTED = [
+			'foo|_bar|',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 1),
+			ed => cursorWordPartRight(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 8))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
+	});
+
+	test('issue #93239 - cursorWordPartLeft', () => {
+		const EXPECTED = [
+			'|foo_|bar',
+		].join('\n');
+		const [text,] = deserializePipePositions(EXPECTED);
+		const actualStops = testRepeatedActionAndExtractPositions(
+			text,
+			new Position(1, 8),
+			ed => cursorWordPartLeft(ed),
+			ed => ed.getPosition()!,
+			ed => ed.getPosition()!.equals(new Position(1, 1))
+		);
+		const actual = serializePipePositions(text, actualStops);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordPartLeft - basic', () => {
-		const EXPECTED = '|   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use';
+		const EXPECTED = '|   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -156,11 +188,11 @@ suite('WordPartOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordPartRight - basic', () => {
-		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this_|is_|a_|snake_|case_|var| |THIS_|IS_|CAPS_|SNAKE| |this_|IS|Mixed|Use|';
+		const EXPECTED = '   |/*| |Just| |some| |text| |a|+=| |3| |+|5|-|3| |*/|  |this|Is|A|Camel|Case|Var|  |this|_is|_a|_snake|_case|_var| |THIS|_IS|_CAPS|_SNAKE| |this|_IS|Mixed|Use|';
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -170,6 +202,6 @@ suite('WordPartOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 });

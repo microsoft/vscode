@@ -1,0 +1,85 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
+.open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
+.open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar,
+.open-editors .monaco-list .monaco-list-row.sticky > .monaco-action-bar {
+	visibility: visible;
+}
+
+.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-label {
+	display: block;
+	padding: 2px;
+}
+
+.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .codicon {
+	color: inherit;
+}
+
+.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-pinned::before {
+	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
+}
+
+.open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
+	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
+}
+
+.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,
+.open-editors .monaco-list .monaco-list-row > .monaco-action-bar .save-all {
+	width: 23px;
+	height: 22px;
+}
+
+.open-editors .monaco-list .monaco-list-row > .open-editor {
+	flex: 1;
+}
+
+.open-editors .monaco-list .monaco-list-row > .editor-group {
+	flex: 1;
+}
+
+.open-editors .monaco-list .monaco-list-row {
+	padding-left: 22px;
+	display: flex;
+}
+
+.open-editors .monaco-list .monaco-list-row > .monaco-action-bar {
+	visibility: hidden;
+	display: flex;
+	align-items: center;
+}
+
+.open-editors .monaco-list .monaco-list-row .editor-group {
+	font-size: 11px;
+	font-weight: bold;
+	text-transform: uppercase;
+	cursor: default;
+}
+
+/* Bold font style does not go well with CJK fonts */
+.composite:lang(zh-Hans) .open-editors .monaco-list .monaco-list-row .editor-group,
+.composite:lang(zh-Hant) .open-editors .monaco-list .monaco-list-row .editor-group,
+.composite:lang(ja) .open-editors .monaco-list .monaco-list-row .editor-group,
+.composite:lang(ko) .open-editors .monaco-list .monaco-list-row .editor-group {
+	font-weight: normal;
+}
+
+.open-editors .open-editor,
+.open-editors .editor-group {
+	height: 22px;
+	line-height: 22px;
+}
+
+.open-editors .open-editor > a,
+.open-editors .editor-group {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.monaco-workbench.hc-black .open-editors .open-editor,
+.monaco-workbench.hc-black .open-editors .editor-group {
+	line-height: 20px;
+}

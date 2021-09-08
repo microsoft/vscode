@@ -1,0 +1,21 @@
+{
+  "name": "code-oss-dev-integration-test",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "./index.js",
+  "scripts": {
+    "compile": "tsc"
+  },
+  "devDependencies": {
+    "@types/mkdirp": "^1.0.1",
+    "@types/node": "14.x",
+    "@types/optimist": "0.0.29",
+    "@types/rimraf": "^2.0.4",
+    "@types/tmp": "0.1.0",
+    "rimraf": "^2.6.1",
+    "tmp": "0.0.33",
+    "tree-kill": "1.2.2",
+    "typescript": "3.7.5",
+    "vscode-uri": "2.1.1"
+  }
+}

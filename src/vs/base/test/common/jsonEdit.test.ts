@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { FormattingOptions, Edit } from 'vs/base/common/jsonFormatter';
-import { setProperty, removeProperty } from 'vs/base/common/jsonEdit';
 import * as assert from 'assert';
+import { removeProperty, setProperty } from 'vs/base/common/jsonEdit';
+import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
 
 suite('JSON - edits', () => {
 
@@ -19,7 +19,7 @@ suite('JSON - edits', () => {
 			lastEditOffset = edit.offset;
 			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
 		}
-		assert.equal(content, expected);
+		assert.strictEqual(content, expected);
 	}
 
 	let formatterOptions: FormattingOptions = {
@@ -118,13 +118,43 @@ suite('JSON - edits', () => {
 		assertEdit(content, edits, '{\n  "x": "y"\n}');
 	});
 
-	test('insert item to empty array', () => {
+	test('insert item at 0', () => {
+		let content = '[\n  2,\n  3\n]';
+		let edits = setProperty(content, [0], 1, formatterOptions);
+		assertEdit(content, edits, '[\n  1,\n  2,\n  3\n]');
+	});
+
+	test('insert item at 0 in empty array', () => {
+		let content = '[\n]';
+		let edits = setProperty(content, [0], 1, formatterOptions);
+		assertEdit(content, edits, '[\n  1\n]');
+	});
+
+	test('insert item at an index', () => {
+		let content = '[\n  1,\n  3\n]';
+		let edits = setProperty(content, [1], 2, formatterOptions);
+		assertEdit(content, edits, '[\n  1,\n  2,\n  3\n]');
+	});
+
+	test('insert item at an index im empty array', () => {
+		let content = '[\n]';
+		let edits = setProperty(content, [1], 1, formatterOptions);
+		assertEdit(content, edits, '[\n  1\n]');
+	});
+
+	test('insert item at end index', () => {
+		let content = '[\n  1,\n  2\n]';
+		let edits = setProperty(content, [2], 3, formatterOptions);
+		assertEdit(content, edits, '[\n  1,\n  2,\n  3\n]');
+	});
+
+	test('insert item at end to empty array', () => {
 		let content = '[\n]';
 		let edits = setProperty(content, [-1], 'bar', formatterOptions);
 		assertEdit(content, edits, '[\n  "bar"\n]');
 	});
 
-	test('insert item', () => {
+	test('insert item at end', () => {
 		let content = '[\n  1,\n  2\n]';
 		let edits = setProperty(content, [-1], 'bar', formatterOptions);
 		assertEdit(content, edits, '[\n  1,\n  2,\n  "bar"\n]');

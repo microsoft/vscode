@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { FoldingModel, CollapseMemento } from 'vs/editor/contrib/folding/foldingModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Selection } from 'vs/editor/common/core/selection';
 import { findFirstInSorted } from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CollapseMemento, FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
 
 export class HiddenRangeModel {
 	private readonly _foldingModel: FoldingModel;
 	private _hiddenRanges: IRange[];
 	private _foldingModelListener: IDisposable | null;
-	private _updateEventEmitter = new Emitter<IRange[]>();
+	private readonly _updateEventEmitter = new Emitter<IRange[]>();
 
 	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; }
 	public get hiddenRanges() { return this._hiddenRanges; }

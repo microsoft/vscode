@@ -12,7 +12,7 @@
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
- * Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
+ * Please make sure to make edits in the .ts file at https://github.com/microsoft/vscode-loader/
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
@@ -36,7 +36,7 @@ var AMDLoader;
                 this._detect();
                 return this._isWindows;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isNode", {
@@ -44,7 +44,7 @@ var AMDLoader;
                 this._detect();
                 return this._isNode;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isElectronRenderer", {
@@ -52,7 +52,7 @@ var AMDLoader;
                 this._detect();
                 return this._isElectronRenderer;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Object.defineProperty(Environment.prototype, "isWebWorker", {
@@ -60,7 +60,7 @@ var AMDLoader;
                 this._detect();
                 return this._isWebWorker;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Environment.prototype._detect = function () {
@@ -195,7 +195,11 @@ var AMDLoader;
             return isEmpty;
         };
         Utilities.recursiveClone = function (obj) {
-            if (!obj || typeof obj !== 'object') {
+            if (!obj || typeof obj !== 'object' || obj instanceof RegExp) {
+                return obj;
+            }
+            if (!Array.isArray(obj) && Object.getPrototypeOf(obj) !== Object.prototype) {
+                // only clone "simple" objects
                 return obj;
             }
             var result = Array.isArray(obj) ? [] : {};
@@ -303,6 +307,9 @@ var AMDLoader;
             }
             if (typeof options.cspNonce !== 'string') {
                 options.cspNonce = '';
+            }
+            if (typeof options.preferScriptTags === 'undefined') {
+                options.preferScriptTags = false;
             }
             if (!Array.isArray(options.nodeModules)) {
                 options.nodeModules = [];
@@ -459,7 +466,9 @@ var AMDLoader;
          * Transform a module id to a location. Appends .js to module ids
          */
         Configuration.prototype.moduleIdToPaths = function (moduleId) {
-            if (this.nodeModulesMap[moduleId] === true) {
+            var isNodeModule = ((this.nodeModulesMap[moduleId] === true)
+                || (this.options.amdModulesPattern instanceof RegExp && !this.options.amdModulesPattern.test(moduleId)));
+            if (isNodeModule) {
                 // This is a node module...
                 if (this.isBuild()) {
                     // ...and we are at build time, drop it
@@ -567,11 +576,24 @@ var AMDLoader;
         OnlyOnceScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
             var _this = this;
             if (!this._scriptLoader) {
-                this._scriptLoader = (this._env.isWebWorker
-                    ? new WorkerScriptLoader()
-                    : this._env.isNode
-                        ? new NodeScriptLoader(this._env)
-                        : new BrowserScriptLoader());
+                if (this._env.isWebWorker) {
+                    this._scriptLoader = new WorkerScriptLoader();
+                }
+                else if (this._env.isElectronRenderer) {
+                    var preferScriptTags = moduleManager.getConfig().getOptionsLiteral().preferScriptTags;
+                    if (preferScriptTags) {
+                        this._scriptLoader = new BrowserScriptLoader();
+                    }
+                    else {
+                        this._scriptLoader = new NodeScriptLoader(this._env);
+                    }
+                }
+                else if (this._env.isNode) {
+                    this._scriptLoader = new NodeScriptLoader(this._env);
+                }
+                else {
+                    this._scriptLoader = new BrowserScriptLoader();
+                }
             }
             var scriptCallbacks = {
                 callback: callback,
@@ -605,7 +627,7 @@ var AMDLoader;
         }
         /**
          * Attach load / error listeners to a script element and remove them when either one has fired.
-         * Implemented for browssers supporting HTML5 standard 'load' and 'error' events.
+         * Implemented for browsers supporting HTML5 standard 'load' and 'error' events.
          */
         BrowserScriptLoader.prototype.attachListeners = function (script, callback, errorback) {
             var unbind = function () {
@@ -624,17 +646,38 @@ var AMDLoader;
             script.addEventListener('error', errorEventListener);
         };
         BrowserScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
-            var script = document.createElement('script');
-            script.setAttribute('async', 'async');
-            script.setAttribute('type', 'text/javascript');
-            this.attachListeners(script, callback, errorback);
-            script.setAttribute('src', scriptSrc);
-            // Propagate CSP nonce to dynamically created script tag.
-            var cspNonce = moduleManager.getConfig().getOptionsLiteral().cspNonce;
-            if (cspNonce) {
-                script.setAttribute('nonce', cspNonce);
+            if (/^node\|/.test(scriptSrc)) {
+                var opts = moduleManager.getConfig().getOptionsLiteral();
+                var nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || AMDLoader.global.nodeRequire));
+                var pieces = scriptSrc.split('|');
+                var moduleExports_1 = null;
+                try {
+                    moduleExports_1 = nodeRequire(pieces[1]);
+                }
+                catch (err) {
+                    errorback(err);
+                    return;
+                }
+                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_1; });
+                callback();
             }
-            document.getElementsByTagName('head')[0].appendChild(script);
+            else {
+                var script = document.createElement('script');
+                script.setAttribute('async', 'async');
+                script.setAttribute('type', 'text/javascript');
+                this.attachListeners(script, callback, errorback);
+                var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+                if (trustedTypesPolicy) {
+                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
+                }
+                script.setAttribute('src', scriptSrc);
+                // Propagate CSP nonce to dynamically created script tag.
+                var cspNonce = moduleManager.getConfig().getOptionsLiteral().cspNonce;
+                if (cspNonce) {
+                    script.setAttribute('nonce', cspNonce);
+                }
+                document.getElementsByTagName('head')[0].appendChild(script);
+            }
         };
         return BrowserScriptLoader;
     }());
@@ -642,7 +685,30 @@ var AMDLoader;
         function WorkerScriptLoader() {
         }
         WorkerScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
+            var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+            var isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, self.origin.length) !== self.origin);
+            if (!isCrossOrigin) {
+                // use `fetch` if possible because `importScripts`
+                // is synchronous and can lead to deadlocks on Safari
+                fetch(scriptSrc).then(function (response) {
+                    if (response.status !== 200) {
+                        throw new Error(response.statusText);
+                    }
+                    return response.text();
+                }).then(function (text) {
+                    text = text + "\n//# sourceURL=" + scriptSrc;
+                    var func = (trustedTypesPolicy
+                        ? self.eval(trustedTypesPolicy.createScript('', text))
+                        : new Function(text));
+                    func.call(self);
+                    callback();
+                }).then(undefined, errorback);
+                return;
+            }
             try {
+                if (trustedTypesPolicy) {
+                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
+                }
                 importScripts(scriptSrc);
                 callback();
             }
@@ -694,8 +760,11 @@ var AMDLoader;
                         // nothing
                     }
                 };
-                require.resolve = function resolve(request) {
-                    return Module._resolveFilename(request, mod);
+                require.resolve = function resolve(request, options) {
+                    return Module._resolveFilename(request, mod, false, options);
+                };
+                require.resolve.paths = function paths(request) {
+                    return Module._resolveLookupPaths(request, mod);
                 };
                 require.main = process.mainModule;
                 require.extensions = Module._extensions;
@@ -728,29 +797,29 @@ var AMDLoader;
                 var result = compileWrapper.apply(this.exports, args);
                 // cached data aftermath
                 that._handleCachedData(script, scriptSource, cachedDataPath, !options.cachedData, moduleManager);
-                that._verifyCachedData(script, scriptSource, cachedDataPath, hashData);
+                that._verifyCachedData(script, scriptSource, cachedDataPath, hashData, moduleManager);
                 return result;
             };
         };
         NodeScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
             var _this = this;
             var opts = moduleManager.getConfig().getOptionsLiteral();
-            var nodeRequire = (opts.nodeRequire || AMDLoader.global.nodeRequire);
+            var nodeRequire = ensureRecordedNodeRequire(moduleManager.getRecorder(), (opts.nodeRequire || AMDLoader.global.nodeRequire));
             var nodeInstrumenter = (opts.nodeInstrumenter || function (c) { return c; });
             this._init(nodeRequire);
             this._initNodeRequire(nodeRequire, moduleManager);
             var recorder = moduleManager.getRecorder();
             if (/^node\|/.test(scriptSrc)) {
                 var pieces = scriptSrc.split('|');
-                var moduleExports_1 = null;
+                var moduleExports_2 = null;
                 try {
-                    moduleExports_1 = nodeRequire(pieces[1]);
+                    moduleExports_2 = nodeRequire(pieces[1]);
                 }
                 catch (err) {
                     errorback(err);
                     return;
                 }
-                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_1; });
+                moduleManager.enqueueDefineAnonymousModule([], function () { return moduleExports_2; });
                 callback();
             }
             else {
@@ -775,7 +844,7 @@ var AMDLoader;
                     var scriptOpts = { filename: vmScriptPathOrUri_1, cachedData: cachedData };
                     var script = _this._createAndEvalScript(moduleManager, scriptSource, scriptOpts, callback, errorback);
                     _this._handleCachedData(script, scriptSource, cachedDataPath_1, wantsCachedData_1 && !cachedData, moduleManager);
-                    _this._verifyCachedData(script, scriptSource, cachedDataPath_1, hashData);
+                    _this._verifyCachedData(script, scriptSource, cachedDataPath_1, hashData, moduleManager);
                 });
             }
         };
@@ -816,7 +885,7 @@ var AMDLoader;
             }
         };
         NodeScriptLoader.prototype._getCachedDataPath = function (config, filename) {
-            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(config.seed, 'utf8').digest('hex');
+            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(config.seed, 'utf8').update(process.arch, '').digest('hex');
             var basename = this._path.basename(filename).replace(/\.js$/, '');
             return this._path.join(config.path, basename + "-" + hash + ".code");
         };
@@ -853,6 +922,12 @@ var AMDLoader;
                     }
                     var cachedData = script.createCachedData();
                     if (cachedData.length === 0 || cachedData.length === lastSize || iteration >= 5) {
+                        // done
+                        return;
+                    }
+                    if (cachedData.length < lastSize) {
+                        // less data than before: skip, try again next round
+                        createLoop();
                         return;
                     }
                     lastSize = cachedData.length;
@@ -906,7 +981,7 @@ var AMDLoader;
                 });
             }
         };
-        NodeScriptLoader.prototype._verifyCachedData = function (script, scriptSource, cachedDataPath, hashData) {
+        NodeScriptLoader.prototype._verifyCachedData = function (script, scriptSource, cachedDataPath, hashData, moduleManager) {
             var _this = this;
             if (!hashData) {
                 // nothing to do
@@ -922,8 +997,12 @@ var AMDLoader;
                 // for violations of this contract.
                 var hashDataNow = _this._crypto.createHash('md5').update(scriptSource, 'utf8').digest();
                 if (!hashData.equals(hashDataNow)) {
-                    console.warn("FAILED TO VERIFY CACHED DATA. Deleting '" + cachedDataPath + "' now, but a RESTART IS REQUIRED");
-                    _this._fs.unlink(cachedDataPath, function (err) { return console.error("FAILED to unlink: '" + cachedDataPath + "'", err); });
+                    moduleManager.getConfig().onError(new Error("FAILED TO VERIFY CACHED DATA, deleting stale '" + cachedDataPath + "' now, but a RESTART IS REQUIRED"));
+                    _this._fs.unlink(cachedDataPath, function (err) {
+                        if (err) {
+                            moduleManager.getConfig().onError(err);
+                        }
+                    });
                 }
             }, Math.ceil(5000 * (1 + Math.random())));
         };
@@ -932,6 +1011,24 @@ var AMDLoader;
         NodeScriptLoader._SUFFIX = '\n});';
         return NodeScriptLoader;
     }());
+    function ensureRecordedNodeRequire(recorder, _nodeRequire) {
+        if (_nodeRequire.__$__isRecorded) {
+            // it is already recorded
+            return _nodeRequire;
+        }
+        var nodeRequire = function nodeRequire(what) {
+            recorder.record(33 /* NodeBeginNativeRequire */, what);
+            try {
+                return _nodeRequire(what);
+            }
+            finally {
+                recorder.record(34 /* NodeEndNativeRequire */, what);
+            }
+        };
+        nodeRequire.__$__isRecorded = true;
+        return nodeRequire;
+    }
+    AMDLoader.ensureRecordedNodeRequire = ensureRecordedNodeRequire;
     function createScriptLoader(env) {
         return new OnlyOnceScriptLoader(env);
     }
@@ -1143,11 +1240,12 @@ var AMDLoader;
             this._requireFunc = requireFunc;
             this._moduleIdProvider = new ModuleIdProvider();
             this._config = new AMDLoader.Configuration(this._env);
+            this._hasDependencyCycle = false;
             this._modules2 = [];
             this._knownModules2 = [];
             this._inverseDependencies2 = [];
             this._inversePluginDependencies2 = new Map();
-            this._currentAnnonymousDefineCall = null;
+            this._currentAnonymousDefineCall = null;
             this._recorder = null;
             this._buildInfoPath = [];
             this._buildInfoDefineStack = [];
@@ -1229,18 +1327,18 @@ var AMDLoader;
         };
         /**
          * Defines an anonymous module (without an id). Its name will be resolved as we receive a callback from the scriptLoader.
-         * @param dependecies @see defineModule
+         * @param dependencies @see defineModule
          * @param callback @see defineModule
          */
         ModuleManager.prototype.enqueueDefineAnonymousModule = function (dependencies, callback) {
-            if (this._currentAnnonymousDefineCall !== null) {
+            if (this._currentAnonymousDefineCall !== null) {
                 throw new Error('Can only have one anonymous define call per script file');
             }
             var stack = null;
             if (this._config.isBuild()) {
                 stack = new Error('StackLocation').stack || null;
             }
-            this._currentAnnonymousDefineCall = {
+            this._currentAnonymousDefineCall = {
                 stack: stack,
                 dependencies: dependencies,
                 callback: callback
@@ -1347,9 +1445,9 @@ var AMDLoader;
          * This means its code is available and has been executed.
          */
         ModuleManager.prototype._onLoad = function (moduleId) {
-            if (this._currentAnnonymousDefineCall !== null) {
-                var defineCall = this._currentAnnonymousDefineCall;
-                this._currentAnnonymousDefineCall = null;
+            if (this._currentAnonymousDefineCall !== null) {
+                var defineCall = this._currentAnonymousDefineCall;
+                this._currentAnonymousDefineCall = null;
                 // Hit an anonymous define call
                 this.defineModule(this._moduleIdProvider.getStrModuleId(moduleId), defineCall.dependencies, defineCall.callback, null, defineCall.stack);
             }
@@ -1487,6 +1585,13 @@ var AMDLoader;
             result.getStats = function () {
                 return _this.getLoaderEvents();
             };
+            result.hasDependencyCycle = function () {
+                return _this._hasDependencyCycle;
+            };
+            result.config = function (params, shouldOverwrite) {
+                if (shouldOverwrite === void 0) { shouldOverwrite = false; }
+                _this.configure(params, shouldOverwrite);
+            };
             result.__$__nodeRequire = AMDLoader.global.nodeRequire;
             return result;
         };
@@ -1588,6 +1693,7 @@ var AMDLoader;
                         continue;
                     }
                     if (this._hasDependencyPath(dependency.id, module.id)) {
+                        this._hasDependencyCycle = true;
                         console.warn('There is a dependency cycle between \'' + this._moduleIdProvider.getStrModuleId(dependency.id) + '\' and \'' + this._moduleIdProvider.getStrModuleId(module.id) + '\'. The cyclic path follows:');
                         var cyclePath = this._findCyclePath(dependency.id, module.id, 0) || [];
                         cyclePath.reverse();
@@ -1759,18 +1865,10 @@ var AMDLoader;
     };
     function init() {
         if (typeof AMDLoader.global.require !== 'undefined' || typeof require !== 'undefined') {
-            var _nodeRequire_1 = (AMDLoader.global.require || require);
-            if (typeof _nodeRequire_1 === 'function' && typeof _nodeRequire_1.resolve === 'function') {
+            var _nodeRequire = (AMDLoader.global.require || require);
+            if (typeof _nodeRequire === 'function' && typeof _nodeRequire.resolve === 'function') {
                 // re-expose node's require function
-                var nodeRequire = function (what) {
-                    moduleManager.getRecorder().record(33 /* NodeBeginNativeRequire */, what);
-                    try {
-                        return _nodeRequire_1(what);
-                    }
-                    finally {
-                        moduleManager.getRecorder().record(34 /* NodeEndNativeRequire */, what);
-                    }
-                };
+                var nodeRequire = AMDLoader.ensureRecordedNodeRequire(moduleManager.getRecorder(), _nodeRequire);
                 AMDLoader.global.nodeRequire = nodeRequire;
                 RequireFunc.nodeRequire = nodeRequire;
                 RequireFunc.__$__nodeRequire = nodeRequire;

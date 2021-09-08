@@ -8,11 +8,11 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import * as modes from 'vs/editor/common/modes';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface TriggerContext {
 	readonly triggerKind: modes.SignatureHelpTriggerKind;
@@ -26,12 +26,13 @@ namespace ParameterHintState {
 		Pending,
 	}
 
-	export const Default = new class { readonly type = Type.Default; };
+	export const Default = { type: Type.Default } as const;
 
 	export class Pending {
 		readonly type = Type.Pending;
 		constructor(
-			readonly request: CancelablePromise<modes.SignatureHelpResult | undefined | null>
+			readonly request: CancelablePromise<modes.SignatureHelpResult | undefined | null>,
+			readonly previouslyActiveHints: modes.SignatureHelp | undefined,
 		) { }
 	}
 
@@ -55,6 +56,7 @@ export class ParameterHintsModel extends Disposable {
 	private readonly editor: ICodeEditor;
 	private triggerOnType = false;
 	private _state: ParameterHintState.State = ParameterHintState.Default;
+	private _pendingTriggers: TriggerContext[] = [];
 	private readonly _lastSignatureHelpResult = this._register(new MutableDisposable<modes.SignatureHelpResult>());
 	private triggerChars = new CharacterSet();
 	private retriggerChars = new CharacterSet();
@@ -72,6 +74,7 @@ export class ParameterHintsModel extends Disposable {
 
 		this.throttledDelayer = new Delayer(delay);
 
+		this._register(this.editor.onDidBlurEditorWidget(() => this.cancel()));
 		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
 		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
@@ -109,13 +112,12 @@ export class ParameterHintsModel extends Disposable {
 		}
 
 		const triggerId = ++this.triggerId;
-		this.throttledDelayer.trigger(
-			() => this.doTrigger({
-				triggerKind: context.triggerKind,
-				triggerCharacter: context.triggerCharacter,
-				isRetrigger: this.state.type === ParameterHintState.Type.Active || this.state.type === ParameterHintState.Type.Pending,
-				activeSignatureHelp: this.state.type === ParameterHintState.Type.Active ? this.state.hints : undefined
-			}, triggerId), delay).then(undefined, onUnexpectedError);
+
+		this._pendingTriggers.push(context);
+		this.throttledDelayer.trigger(() => {
+			return this.doTrigger(triggerId);
+		}, delay)
+			.catch(onUnexpectedError);
 	}
 
 	public next(): void {
@@ -165,32 +167,48 @@ export class ParameterHintsModel extends Disposable {
 		this._onChangedHints.fire(this.state.hints);
 	}
 
-	private doTrigger(triggerContext: modes.SignatureHelpContext, triggerId: number): Promise<boolean> {
+	private async doTrigger(triggerId: number): Promise<boolean> {
+		const isRetrigger = this.state.type === ParameterHintState.Type.Active || this.state.type === ParameterHintState.Type.Pending;
+		const activeSignatureHelp = this.getLastActiveHints();
 		this.cancel(true);
 
+		if (this._pendingTriggers.length === 0) {
+			return false;
+		}
+
+		const context: TriggerContext = this._pendingTriggers.reduce(mergeTriggerContexts);
+		this._pendingTriggers = [];
+
+		const triggerContext = {
+			triggerKind: context.triggerKind,
+			triggerCharacter: context.triggerCharacter,
+			isRetrigger: isRetrigger,
+			activeSignatureHelp: activeSignatureHelp
+		};
+
 		if (!this.editor.hasModel()) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		const model = this.editor.getModel();
 		const position = this.editor.getPosition();
 
-		this.state = new ParameterHintState.Pending(createCancelablePromise(token =>
-			provideSignatureHelp(model, position, triggerContext, token)));
+		this.state = new ParameterHintState.Pending(
+			createCancelablePromise(token => provideSignatureHelp(model, position, triggerContext, token)),
+			activeSignatureHelp);
 
-		return this.state.request.then(result => {
+		try {
+			const result = await this.state.request;
+
 			// Check that we are still resolving the correct signature help
 			if (triggerId !== this.triggerId) {
-				if (result) {
-					result.dispose();
-				}
+				result?.dispose();
+
 				return false;
 			}
 
 			if (!result || !result.value.signatures || result.value.signatures.length === 0) {
-				if (result) {
-					result.dispose();
-				}
+				result?.dispose();
 				this._lastSignatureHelpResult.clear();
 				this.cancel();
 				return false;
@@ -200,13 +218,21 @@ export class ParameterHintsModel extends Disposable {
 				this._onChangedHints.fire(this.state.hints);
 				return true;
 			}
-		}).catch(error => {
+		} catch (error) {
 			if (triggerId === this.triggerId) {
 				this.state = ParameterHintState.Default;
 			}
 			onUnexpectedError(error);
 			return false;
-		});
+		}
+	}
+
+	private getLastActiveHints(): modes.SignatureHelp | undefined {
+		switch (this.state.type) {
+			case ParameterHintState.Type.Active: return this.state.hints;
+			case ParameterHintState.Type.Pending: return this.state.previouslyActiveHints;
+			default: return undefined;
+		}
 	}
 
 	private get isTriggered(): boolean {
@@ -279,8 +305,24 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.cancel(true);
 		super.dispose();
+	}
+}
+
+function mergeTriggerContexts(previous: TriggerContext, current: TriggerContext) {
+	switch (current.triggerKind) {
+		case modes.SignatureHelpTriggerKind.Invoke:
+			// Invoke overrides previous triggers.
+			return current;
+
+		case modes.SignatureHelpTriggerKind.ContentChange:
+			// Ignore content changes triggers
+			return previous;
+
+		case modes.SignatureHelpTriggerKind.TriggerCharacter:
+		default:
+			return current;
 	}
 }

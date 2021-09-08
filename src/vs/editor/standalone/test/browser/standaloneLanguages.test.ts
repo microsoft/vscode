@@ -12,7 +12,8 @@ import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IIconTheme, ITheme, LIGHT } from 'vs/platform/theme/common/themeService';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IFileIconTheme, IColorTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -24,7 +25,7 @@ suite('TokenizationSupport2Adapter', () => {
 		constructor() {
 			super(null!, null!);
 		}
-		public match(languageId: LanguageId, token: string): number {
+		public override match(languageId: LanguageId, token: string): number {
 			return (
 				((this.counter++) << MetadataConsts.FOREGROUND_OFFSET)
 				| (languageId << MetadataConsts.LANGUAGEID_OFFSET)
@@ -33,20 +34,25 @@ suite('TokenizationSupport2Adapter', () => {
 	}
 
 	class MockThemeService implements IStandaloneThemeService {
-		_serviceBrand: undefined;
+		declare readonly _serviceBrand: undefined;
 		public setTheme(themeName: string): string {
+			throw new Error('Not implemented');
+		}
+		public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
 			throw new Error('Not implemented');
 		}
 		public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 			throw new Error('Not implemented');
 		}
-		public getTheme(): IStandaloneTheme {
+		public getColorTheme(): IStandaloneTheme {
 			return {
+				label: 'mock',
+
 				tokenTheme: new MockTokenTheme(),
 
-				themeName: LIGHT,
+				themeName: ColorScheme.LIGHT,
 
-				type: LIGHT,
+				type: ColorScheme.LIGHT,
 
 				getColor: (color: ColorIdentifier, useDefault?: boolean): Color => {
 					throw new Error('Not implemented');
@@ -54,18 +60,28 @@ suite('TokenizationSupport2Adapter', () => {
 
 				defines: (color: ColorIdentifier): boolean => {
 					throw new Error('Not implemented');
-				}
+				},
+
+				getTokenStyleMetadata: (type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined => {
+					return undefined;
+				},
+
+				semanticHighlighting: false,
+
+				tokenColorMap: []
 			};
 		}
-		public getIconTheme(): IIconTheme {
+		setColorMapOverride(colorMapOverride: Color[] | null): void {
+		}
+		public getFileIconTheme(): IFileIconTheme {
 			return {
 				hasFileIcons: false,
 				hasFolderIcons: false,
 				hidesExplorerArrows: false
 			};
 		}
-		public readonly onThemeChange = new Emitter<ITheme>().event;
-		public readonly onIconThemeChange = new Emitter<IIconTheme>().event;
+		public readonly onDidColorThemeChange = new Emitter<IColorTheme>().event;
+		public readonly onDidFileIconThemeChange = new Emitter<IFileIconTheme>().event;
 	}
 
 	class MockState implements IState {
@@ -95,15 +111,15 @@ suite('TokenizationSupport2Adapter', () => {
 
 		const adapter = new TokenizationSupport2Adapter(new MockThemeService(), languageIdentifier, new BadTokensProvider());
 
-		const actualClassicTokens = adapter.tokenize('whatever', MockState.INSTANCE, offsetDelta);
-		assert.deepEqual(actualClassicTokens.tokens, expectedClassicTokens);
+		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE, offsetDelta);
+		assert.deepStrictEqual(actualClassicTokens.tokens, expectedClassicTokens);
 
-		const actualModernTokens = adapter.tokenize2('whatever', MockState.INSTANCE, offsetDelta);
+		const actualModernTokens = adapter.tokenize2('whatever', true, MockState.INSTANCE, offsetDelta);
 		const modernTokens: number[] = [];
 		for (let i = 0; i < actualModernTokens.tokens.length; i++) {
 			modernTokens[i] = actualModernTokens.tokens[i];
 		}
-		assert.deepEqual(modernTokens, expectedModernTokens);
+		assert.deepStrictEqual(modernTokens, expectedModernTokens);
 	}
 
 	test('tokens always start at index 0 (no offset delta)', () => {

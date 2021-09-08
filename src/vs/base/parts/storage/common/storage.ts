@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export enum StorageHint {
@@ -18,16 +18,23 @@ export enum StorageHint {
 }
 
 export interface IStorageOptions {
-	hint?: StorageHint;
+	readonly hint?: StorageHint;
 }
 
 export interface IUpdateRequest {
-	insert?: Map<string, string>;
-	delete?: Set<string>;
+	readonly insert?: Map<string, string>;
+	readonly delete?: Set<string>;
 }
 
 export interface IStorageItemsChangeEvent {
-	items: Map<string, string>;
+	readonly changed?: Map<string, string>;
+	readonly deleted?: Set<string>;
+}
+
+export function isStorageItemsChangeEvent(thing: unknown): thing is IStorageItemsChangeEvent {
+	const candidate = thing as IStorageItemsChangeEvent | undefined;
+
+	return candidate?.changed instanceof Map || candidate?.deleted instanceof Set;
 }
 
 export interface IStorageDatabase {
@@ -42,9 +49,10 @@ export interface IStorageDatabase {
 
 export interface IStorage extends IDisposable {
 
+	readonly onDidChangeStorage: Event<string>;
+
 	readonly items: Map<string, string>;
 	readonly size: number;
-	readonly onDidChangeStorage: Event<string>;
 
 	init(): Promise<void>;
 
@@ -60,6 +68,8 @@ export interface IStorage extends IDisposable {
 	set(key: string, value: string | boolean | number | undefined | null): Promise<void>;
 	delete(key: string): Promise<void>;
 
+	whenFlushed(): Promise<void>;
+
 	close(): Promise<void>;
 }
 
@@ -73,25 +83,27 @@ export class Storage extends Disposable implements IStorage {
 
 	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
-	private readonly _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChangeStorage: Event<string> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<string>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	private state = StorageState.None;
 
-	private cache: Map<string, string> = new Map<string, string>();
+	private cache = new Map<string, string>();
 
-	private flushDelayer: ThrottledDelayer<void>;
+	private readonly flushDelayer = new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY);
 
-	private pendingDeletes: Set<string> = new Set<string>();
-	private pendingInserts: Map<string, string> = new Map();
+	private pendingDeletes = new Set<string>();
+	private pendingInserts = new Map<string, string>();
+
+	private pendingClose: Promise<void> | undefined = undefined;
+
+	private readonly whenFlushedCallbacks: Function[] = [];
 
 	constructor(
-		protected database: IStorageDatabase,
-		private options: IStorageOptions = Object.create(null)
+		protected readonly database: IStorageDatabase,
+		private readonly options: IStorageOptions = Object.create(null)
 	) {
 		super();
-
-		this.flushDelayer = this._register(new ThrottledDelayer(Storage.DEFAULT_FLUSH_DELAY));
 
 		this.registerListeners();
 	}
@@ -104,10 +116,11 @@ export class Storage extends Disposable implements IStorage {
 		// items that change external require us to update our
 		// caches with the values. we just accept the value and
 		// emit an event if there is a change.
-		e.items.forEach((value, key) => this.accept(key, value));
+		e.changed?.forEach((value, key) => this.accept(key, value));
+		e.deleted?.forEach(key => this.accept(key, undefined));
 	}
 
-	private accept(key: string, value: string): void {
+	private accept(key: string, value: string | undefined): void {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -144,7 +157,7 @@ export class Storage extends Disposable implements IStorage {
 
 	async init(): Promise<void> {
 		if (this.state !== StorageState.None) {
-			return Promise.resolve(); // either closed or already initialized
+			return; // either closed or already initialized
 		}
 
 		this.state = StorageState.Initialized;
@@ -153,7 +166,7 @@ export class Storage extends Disposable implements IStorage {
 			// return early if we know the storage file does not exist. this is a performance
 			// optimization to not load all items of the underlying storage if we know that
 			// there can be no items because the storage does not exist.
-			return Promise.resolve();
+			return;
 		}
 
 		this.cache = await this.database.getItems();
@@ -195,9 +208,9 @@ export class Storage extends Disposable implements IStorage {
 		return parseInt(value, 10);
 	}
 
-	set(key: string, value: string | boolean | number | null | undefined): Promise<void> {
+	async set(key: string, value: string | boolean | number | null | undefined): Promise<void> {
 		if (this.state === StorageState.Closed) {
-			return Promise.resolve(); // Return early if we are already closed
+			return; // Return early if we are already closed
 		}
 
 		// We remove the key for undefined/null values
@@ -211,7 +224,7 @@ export class Storage extends Disposable implements IStorage {
 		// Return early if value already set
 		const currentValue = this.cache.get(key);
 		if (currentValue === valueStr) {
-			return Promise.resolve();
+			return;
 		}
 
 		// Update in cache and pending
@@ -226,15 +239,15 @@ export class Storage extends Disposable implements IStorage {
 		return this.flushDelayer.trigger(() => this.flushPending());
 	}
 
-	delete(key: string): Promise<void> {
+	async delete(key: string): Promise<void> {
 		if (this.state === StorageState.Closed) {
-			return Promise.resolve(); // Return early if we are already closed
+			return; // Return early if we are already closed
 		}
 
 		// Remove from cache and add to pending
 		const wasDeleted = this.cache.delete(key);
 		if (!wasDeleted) {
-			return Promise.resolve(); // Return early if value already deleted
+			return; // Return early if value already deleted
 		}
 
 		if (!this.pendingDeletes.has(key)) {
@@ -251,9 +264,14 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	async close(): Promise<void> {
-		if (this.state === StorageState.Closed) {
-			return Promise.resolve(); // return if already closed
+		if (!this.pendingClose) {
+			this.pendingClose = this.doClose();
 		}
+
+		return this.pendingClose;
+	}
+
+	private async doClose(): Promise<void> {
 
 		// Update state
 		this.state = StorageState.Closed;
@@ -273,9 +291,13 @@ export class Storage extends Disposable implements IStorage {
 		await this.database.close(() => this.cache);
 	}
 
-	private flushPending(): Promise<void> {
-		if (this.pendingInserts.size === 0 && this.pendingDeletes.size === 0) {
-			return Promise.resolve(); // return early if nothing to do
+	private get hasPending() {
+		return this.pendingInserts.size > 0 || this.pendingDeletes.size > 0;
+	}
+
+	private async flushPending(): Promise<void> {
+		if (!this.hasPending) {
+			return; // return early if nothing to do
 		}
 
 		// Get pending data
@@ -285,8 +307,29 @@ export class Storage extends Disposable implements IStorage {
 		this.pendingDeletes = new Set<string>();
 		this.pendingInserts = new Map<string, string>();
 
-		// Update in storage
-		return this.database.updateItems(updateRequest);
+		// Update in storage and release any
+		// waiters we have once done
+		return this.database.updateItems(updateRequest).finally(() => {
+			if (!this.hasPending) {
+				while (this.whenFlushedCallbacks.length) {
+					this.whenFlushedCallbacks.pop()?.();
+				}
+			}
+		});
+	}
+
+	async whenFlushed(): Promise<void> {
+		if (!this.hasPending) {
+			return; // return early if nothing to do
+		}
+
+		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
+	}
+
+	override dispose(): void {
+		this.flushDelayer.dispose();
+
+		super.dispose();
 	}
 }
 
@@ -294,13 +337,13 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 
 	readonly onDidChangeItemsExternal = Event.None;
 
-	private items = new Map<string, string>();
+	private readonly items = new Map<string, string>();
 
-	getItems(): Promise<Map<string, string>> {
-		return Promise.resolve(this.items);
+	async getItems(): Promise<Map<string, string>> {
+		return this.items;
 	}
 
-	updateItems(request: IUpdateRequest): Promise<void> {
+	async updateItems(request: IUpdateRequest): Promise<void> {
 		if (request.insert) {
 			request.insert.forEach((value, key) => this.items.set(key, value));
 		}
@@ -308,11 +351,7 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 		if (request.delete) {
 			request.delete.forEach(key => this.items.delete(key));
 		}
-
-		return Promise.resolve();
 	}
 
-	close(): Promise<void> {
-		return Promise.resolve();
-	}
+	async close(): Promise<void> { }
 }

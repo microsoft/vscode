@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, posix, extname } from 'vs/base/common/path';
-import { endsWith, startsWithUTF8BOM, startsWith } from 'vs/base/common/strings';
-import { coalesce } from 'vs/base/common/arrays';
-import { match } from 'vs/base/common/glob';
-import { URI } from 'vs/base/common/uri';
+import { ParsedPattern, parse } from 'vs/base/common/glob';
 import { Schemas } from 'vs/base/common/network';
+import { basename, extname, posix } from 'vs/base/common/path';
 import { DataUri } from 'vs/base/common/resources';
+import { startsWithUTF8BOM } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
-export const MIME_TEXT = 'text/plain';
-export const MIME_BINARY = 'application/octet-stream';
-export const MIME_UNKNOWN = 'application/unknown';
+export namespace Mimes {
+	export const text = 'text/plain';
+	export const binary = 'application/octet-stream';
+	export const unknown = 'application/unknown';
+	export const markdown = 'text/markdown';
+}
 
 export interface ITextMimeAssociation {
 	readonly id: string;
@@ -28,7 +30,7 @@ export interface ITextMimeAssociation {
 interface ITextMimeAssociationItem extends ITextMimeAssociation {
 	readonly filenameLowercase?: string;
 	readonly extensionLowercase?: string;
-	readonly filepatternLowercase?: string;
+	readonly filepatternLowercase?: ParsedPattern;
 	readonly filepatternOnPath?: boolean;
 }
 
@@ -87,7 +89,7 @@ function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMime
 		userConfigured: association.userConfigured,
 		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
 		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
-		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : undefined,
+		filepatternLowercase: association.filepattern ? parse(association.filepattern.toLowerCase()) : undefined,
 		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(posix.sep) >= 0 : false
 	};
 }
@@ -126,7 +128,7 @@ export function guessMimeTypes(resource: URI | null, firstLine?: string): string
 	}
 
 	if (!path) {
-		return [MIME_UNKNOWN];
+		return [Mimes.unknown];
 	}
 
 	path = path.toLowerCase();
@@ -136,24 +138,24 @@ export function guessMimeTypes(resource: URI | null, firstLine?: string): string
 	// 1.) User configured mappings have highest priority
 	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
 	if (configuredMime) {
-		return [configuredMime, MIME_TEXT];
+		return [configuredMime, Mimes.text];
 	}
 
 	// 2.) Registered mappings have middle priority
 	const registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
 	if (registeredMime) {
-		return [registeredMime, MIME_TEXT];
+		return [registeredMime, Mimes.text];
 	}
 
 	// 3.) Firstline has lowest priority
 	if (firstLine) {
 		const firstlineMime = guessMimeTypeByFirstline(firstLine);
 		if (firstlineMime) {
-			return [firstlineMime, MIME_TEXT];
+			return [firstlineMime, Mimes.text];
 		}
 	}
 
-	return [MIME_UNKNOWN];
+	return [Mimes.unknown];
 }
 
 function guessMimeTypeByPath(path: string, filename: string, associations: ITextMimeAssociationItem[]): string | null {
@@ -162,7 +164,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 	let extensionMatch: ITextMimeAssociationItem | null = null;
 
 	// We want to prioritize associations based on the order they are registered so that the last registered
-	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+	// association wins over all other. This is for https://github.com/microsoft/vscode/issues/20074
 	for (let i = associations.length - 1; i >= 0; i--) {
 		const association = associations[i];
 
@@ -176,7 +178,7 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		if (association.filepattern) {
 			if (!patternMatch || association.filepattern.length > patternMatch.filepattern!.length) {
 				const target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
-				if (match(association.filepatternLowercase!, target)) {
+				if (association.filepatternLowercase?.(target)) {
 					patternMatch = association;
 				}
 			}
@@ -185,14 +187,14 @@ function guessMimeTypeByPath(path: string, filename: string, associations: IText
 		// Longest extension match
 		if (association.extension) {
 			if (!extensionMatch || association.extension.length > extensionMatch.extension!.length) {
-				if (endsWith(filename, association.extensionLowercase!)) {
+				if (filename.endsWith(association.extensionLowercase!)) {
 					extensionMatch = association;
 				}
 			}
 		}
 	}
 
-	// 1.) Exact name match has second highest prio
+	// 1.) Exact name match has second highest priority
 	if (filenameMatch) {
 		return filenameMatch.mime;
 	}
@@ -218,7 +220,7 @@ function guessMimeTypeByFirstline(firstLine: string): string | null {
 	if (firstLine.length > 0) {
 
 		// We want to prioritize associations based on the order they are registered so that the last registered
-		// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+		// association wins over all other. This is for https://github.com/microsoft/vscode/issues/20074
 		for (let i = registeredAssociations.length - 1; i >= 0; i--) {
 			const association = registeredAssociations[i];
 			if (!association.firstline) {
@@ -241,36 +243,27 @@ export function isUnspecific(mime: string[] | string): boolean {
 	}
 
 	if (typeof mime === 'string') {
-		return mime === MIME_BINARY || mime === MIME_TEXT || mime === MIME_UNKNOWN;
+		return mime === Mimes.binary || mime === Mimes.text || mime === Mimes.unknown;
 	}
 
 	return mime.length === 1 && isUnspecific(mime[0]);
 }
 
-/**
- * Returns a suggestion for the filename by the following logic:
- * 1. If a relevant extension exists and is an actual filename extension (starting with a dot), suggest the prefix appended by the first one.
- * 2. Otherwise, if there are other extensions, suggest the first one.
- * 3. Otherwise, suggest the prefix.
- */
-export function suggestFilename(mode: string | undefined, prefix: string): string {
-	const extensions = registeredAssociations
-		.filter(assoc => !assoc.userConfigured && assoc.extension && assoc.id === mode)
-		.map(assoc => assoc.extension);
-
-	const extensionsWithDotFirst = coalesce(extensions)
-		.filter(assoc => startsWith(assoc, '.'));
-
-	if (extensionsWithDotFirst.length > 0) {
-		return prefix + extensionsWithDotFirst[0];
-	}
-
-	return extensions[0] || prefix;
-}
-
 interface MapExtToMediaMimes {
 	[index: string]: string;
 }
+
+const mapExtToTextMimes: MapExtToMediaMimes = {
+	'.css': 'text/css',
+	'.csv': 'text/csv',
+	'.htm': 'text/html',
+	'.html': 'text/html',
+	'.ics': 'text/calendar',
+	'.js': 'text/javascript',
+	'.mjs': 'text/javascript',
+	'.txt': 'text/plain',
+	'.xml': 'text/xml'
+};
 
 // Known media mimes that we can handle
 const mapExtToMediaMimes: MapExtToMediaMimes = {
@@ -324,7 +317,44 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.woff': 'application/font-woff',
 };
 
+export function getMediaOrTextMime(path: string): string | undefined {
+	const ext = extname(path);
+	const textMime = mapExtToTextMimes[ext.toLowerCase()];
+	if (textMime !== undefined) {
+		return textMime;
+	} else {
+		return getMediaMime(path);
+	}
+}
+
 export function getMediaMime(path: string): string | undefined {
 	const ext = extname(path);
 	return mapExtToMediaMimes[ext.toLowerCase()];
+}
+
+export function getExtensionForMimeType(mimeType: string): string | undefined {
+	for (const extension in mapExtToMediaMimes) {
+		if (mapExtToMediaMimes[extension] === mimeType) {
+			return extension;
+		}
+	}
+
+	return undefined;
+}
+
+const _simplePattern = /^(.+)\/(.+?)(;.+)?$/;
+
+export function normalizeMimeType(mimeType: string): string;
+export function normalizeMimeType(mimeType: string, strict: true): string | undefined;
+export function normalizeMimeType(mimeType: string, strict?: true): string | undefined {
+
+	const match = _simplePattern.exec(mimeType);
+	if (!match) {
+		return strict
+			? undefined
+			: mimeType;
+	}
+	// https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
+	// media and subtype must ALWAYS be lowercase, parameter not
+	return `${match[1].toLowerCase()}/${match[2].toLowerCase()}${match[3] ?? ''}`;
 }

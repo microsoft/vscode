@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
 const es = require("event-stream");
 const debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -13,6 +14,7 @@ const fs = require("fs");
 const _rimraf = require("rimraf");
 const git = require("./git");
 const VinylFile = require("vinyl");
+const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
     const input = es.through();
@@ -121,7 +123,7 @@ function loadSourcemaps() {
             return;
         }
         if (!f.contents) {
-            cb(new Error('empty file'));
+            cb(undefined, f);
             return;
         }
         const contents = f.contents.toString('utf8');
@@ -136,7 +138,7 @@ function loadSourcemaps() {
                 version: '3',
                 names: [],
                 mappings: '',
-                sources: [f.relative.replace(/\//g, '/')],
+                sources: [f.relative],
                 sourcesContent: [contents]
             };
             cb(undefined, f);
@@ -165,23 +167,63 @@ function stripSourceMappingURL() {
     return es.duplex(input, output);
 }
 exports.stripSourceMappingURL = stripSourceMappingURL;
+function rewriteSourceMappingURL(sourceMappingURLBase) {
+    const input = es.through();
+    const output = input
+        .pipe(es.mapSync(f => {
+        const contents = f.contents.toString('utf8');
+        const str = `//# sourceMappingURL=${sourceMappingURLBase}/${path.dirname(f.relative).replace(/\\/g, '/')}/$1`;
+        f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, str));
+        return f;
+    }));
+    return es.duplex(input, output);
+}
+exports.rewriteSourceMappingURL = rewriteSourceMappingURL;
 function rimraf(dir) {
-    let retries = 0;
-    const retry = (cb) => {
-        _rimraf(dir, { maxBusyTries: 1 }, (err) => {
-            if (!err) {
-                return cb();
-            }
-            if (err.code === 'ENOTEMPTY' && ++retries < 5) {
-                return setTimeout(() => retry(cb), 10);
-            }
-            return cb(err);
-        });
-    };
-    retry.taskName = `clean-${path.basename(dir).toLowerCase()}`;
-    return retry;
+    const result = () => new Promise((c, e) => {
+        let retries = 0;
+        const retry = () => {
+            _rimraf(dir, { maxBusyTries: 1 }, (err) => {
+                if (!err) {
+                    return c();
+                }
+                if (err.code === 'ENOTEMPTY' && ++retries < 5) {
+                    return setTimeout(() => retry(), 10);
+                }
+                return e(err);
+            });
+        };
+        retry();
+    });
+    result.taskName = `clean-${path.basename(dir).toLowerCase()}`;
+    return result;
 }
 exports.rimraf = rimraf;
+function _rreaddir(dirPath, prepend, result) {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            _rreaddir(path.join(dirPath, entry.name), `${prepend}/${entry.name}`, result);
+        }
+        else {
+            result.push(`${prepend}/${entry.name}`);
+        }
+    }
+}
+function rreddir(dirPath) {
+    let result = [];
+    _rreaddir(dirPath, '', result);
+    return result;
+}
+exports.rreddir = rreddir;
+function ensureDir(dirPath) {
+    if (fs.existsSync(dirPath)) {
+        return;
+    }
+    ensureDir(path.dirname(dirPath));
+    fs.mkdirSync(dirPath);
+}
+exports.ensureDir = ensureDir;
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];
     if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
@@ -219,3 +261,81 @@ function versionStringToNumber(versionStr) {
     return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
 }
 exports.versionStringToNumber = versionStringToNumber;
+function streamToPromise(stream) {
+    return new Promise((c, e) => {
+        stream.on('error', err => e(err));
+        stream.on('end', () => c());
+    });
+}
+exports.streamToPromise = streamToPromise;
+function getElectronVersion() {
+    const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
+    const target = /^target "(.*)"$/m.exec(yarnrc)[1];
+    return target;
+}
+exports.getElectronVersion = getElectronVersion;
+function acquireWebNodePaths() {
+    var _a;
+    const root = path.join(__dirname, '..', '..');
+    const webPackageJSON = path.join(root, '/remote/web', 'package.json');
+    const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
+    const nodePaths = {};
+    for (const key of Object.keys(webPackages)) {
+        const packageJSON = path.join(root, 'node_modules', key, 'package.json');
+        const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
+        let entryPoint = (_a = packageData.browser) !== null && _a !== void 0 ? _a : packageData.main;
+        // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
+        if (!entryPoint) {
+            console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+            entryPoint = `dist/${key}.min.js`;
+        }
+        // Remove any starting path information so it's all relative info
+        if (entryPoint.startsWith('./')) {
+            entryPoint = entryPoint.substr(2);
+        }
+        else if (entryPoint.startsWith('/')) {
+            entryPoint = entryPoint.substr(1);
+        }
+        nodePaths[key] = entryPoint;
+    }
+    return nodePaths;
+}
+exports.acquireWebNodePaths = acquireWebNodePaths;
+function createExternalLoaderConfig(webEndpoint, commit, quality) {
+    if (!webEndpoint || !commit || !quality) {
+        return undefined;
+    }
+    webEndpoint = webEndpoint + `/${quality}/${commit}`;
+    let nodePaths = acquireWebNodePaths();
+    Object.keys(nodePaths).map(function (key, _) {
+        nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
+    });
+    const externalLoaderConfig = {
+        baseUrl: `${webEndpoint}/out`,
+        recordStats: true,
+        paths: nodePaths
+    };
+    return externalLoaderConfig;
+}
+exports.createExternalLoaderConfig = createExternalLoaderConfig;
+function buildWebNodePaths(outDir) {
+    const result = () => new Promise((resolve, _) => {
+        const root = path.join(__dirname, '..', '..');
+        const nodePaths = acquireWebNodePaths();
+        // Now we write the node paths to out/vs
+        const outDirectory = path.join(root, outDir, 'vs');
+        fs.mkdirSync(outDirectory, { recursive: true });
+        const headerWithGeneratedFileWarning = `/*---------------------------------------------------------------------------------------------
+	 *  Copyright (c) Microsoft Corporation. All rights reserved.
+	 *  Licensed under the MIT License. See License.txt in the project root for license information.
+	 *--------------------------------------------------------------------------------------------*/
+
+	// This file is generated by build/npm/postinstall.js. Do not edit.`;
+        const fileContents = `${headerWithGeneratedFileWarning}\nself.webPackagePaths = ${JSON.stringify(nodePaths, null, 2)};`;
+        fs.writeFileSync(path.join(outDirectory, 'webPackagePaths.js'), fileContents, 'utf8');
+        resolve();
+    });
+    result.taskName = 'build-web-node-paths';
+    return result;
+}
+exports.buildWebNodePaths = buildWebNodePaths;

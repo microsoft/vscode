@@ -10,11 +10,11 @@ import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel/vie
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
-	visibleRangeForPosition(position: Position): HorizontalRange | null;
+	visibleRangeForPosition(position: Position): HorizontalPosition | null;
 }
 
 export abstract class RestrictedRenderingContext {
-	_restrictedRenderingContextBrand: void;
+	_restrictedRenderingContextBrand: void = undefined;
 
 	public readonly viewportData: ViewportData;
 
@@ -64,7 +64,7 @@ export abstract class RestrictedRenderingContext {
 }
 
 export class RenderingContext extends RestrictedRenderingContext {
-	_renderingContextBrand: void;
+	_renderingContextBrand: void = undefined;
 
 	private readonly _viewLines: IViewLines;
 
@@ -77,28 +77,33 @@ export class RenderingContext extends RestrictedRenderingContext {
 		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 	}
 
-	public visibleRangeForPosition(position: Position): HorizontalRange | null {
+	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
 		return this._viewLines.visibleRangeForPosition(position);
 	}
 }
 
 export class LineVisibleRanges {
-	_lineVisibleRangesBrand: void;
-
-	public lineNumber: number;
-	public ranges: HorizontalRange[];
-
-	constructor(lineNumber: number, ranges: HorizontalRange[]) {
-		this.lineNumber = lineNumber;
-		this.ranges = ranges;
-	}
+	constructor(
+		public readonly outsideRenderedLine: boolean,
+		public readonly lineNumber: number,
+		public readonly ranges: HorizontalRange[]
+	) { }
 }
 
 export class HorizontalRange {
-	_horizontalRangeBrand: void;
+	_horizontalRangeBrand: void = undefined;
 
 	public left: number;
 	public width: number;
+
+	public static from(ranges: FloatHorizontalRange[]): HorizontalRange[] {
+		const result = new Array(ranges.length);
+		for (let i = 0, len = ranges.length; i < len; i++) {
+			const range = ranges[i];
+			result[i] = new HorizontalRange(range.left, range.width);
+		}
+		return result;
+	}
 
 	constructor(left: number, width: number) {
 		this.left = Math.round(left);
@@ -107,5 +112,48 @@ export class HorizontalRange {
 
 	public toString(): string {
 		return `[${this.left},${this.width}]`;
+	}
+}
+
+export class FloatHorizontalRange {
+	_floatHorizontalRangeBrand: void = undefined;
+
+	public left: number;
+	public width: number;
+
+	constructor(left: number, width: number) {
+		this.left = left;
+		this.width = width;
+	}
+
+	public toString(): string {
+		return `[${this.left},${this.width}]`;
+	}
+
+	public static compare(a: FloatHorizontalRange, b: FloatHorizontalRange): number {
+		return a.left - b.left;
+	}
+}
+
+export class HorizontalPosition {
+	public outsideRenderedLine: boolean;
+	/**
+	 * Math.round(this.originalLeft)
+	 */
+	public left: number;
+	public originalLeft: number;
+
+	constructor(outsideRenderedLine: boolean, left: number) {
+		this.outsideRenderedLine = outsideRenderedLine;
+		this.originalLeft = left;
+		this.left = Math.round(this.originalLeft);
+	}
+}
+
+export class VisibleRanges {
+	constructor(
+		public readonly outsideRenderedLine: boolean,
+		public readonly ranges: FloatHorizontalRange[]
+	) {
 	}
 }

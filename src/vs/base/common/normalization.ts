@@ -5,14 +5,6 @@
 
 import { LRUCache } from 'vs/base/common/map';
 
-/**
- * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
- * the Normalization Form Canonical Composition.
- *
- * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
- */
-export const canNormalize = typeof ((<any>'').normalize) === 'function';
-
 const nfcCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	return normalize(str, 'NFC', nfcCache);
@@ -25,7 +17,7 @@ export function normalizeNFD(str: string): string {
 
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
 function normalize(str: string, form: string, normalizedCache: LRUCache<string, string>): string {
-	if (!canNormalize || !str) {
+	if (!str) {
 		return str;
 	}
 
@@ -36,7 +28,7 @@ function normalize(str: string, form: string, normalizedCache: LRUCache<string, 
 
 	let res: string;
 	if (nonAsciiCharactersPattern.test(str)) {
-		res = (<any>str).normalize(form);
+		res = str.normalize(form);
 	} else {
 		res = str;
 	}
@@ -46,3 +38,12 @@ function normalize(str: string, form: string, normalizedCache: LRUCache<string, 
 
 	return res;
 }
+
+export const removeAccents: (str: string) => string = (function () {
+	// transform into NFD form and remove accents
+	// see: https://stackoverflow.com/questions/990904/remove-accents-diacritics-in-a-string-in-javascript/37511463#37511463
+	const regex = /[\u0300-\u036f]/g;
+	return function (str: string) {
+		return normalizeNFD(str).replace(regex, '');
+	};
+})();
