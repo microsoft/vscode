@@ -401,24 +401,6 @@ export async function main(argv: string[]): Promise<any> {
 			child = spawn('open', spawnArgs, options);
 		}
 
-		if (args.wait && waitMarkerFilePath) {
-			const waitPromise = (child: ChildProcess) => new Promise<void>(resolve => {
-
-				// Complete when process exits
-				child.once('exit', () => resolve(undefined));
-
-				// Or, complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath!).finally(resolve);
-			}).then(() => {
-
-				// Make sure to delete the tmp stdin file if we have any
-				if (stdinFilePath) {
-					unlinkSync(stdinFilePath);
-				}
-			});
-			processCallbacks.push(waitPromise);
-		}
-
 		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}
 }
