@@ -27,6 +27,11 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SIDE_BY_SIDE_EDITOR_BORDER } from 'vs/workbench/common/theme';
 
+enum Side {
+	Primary = 1,
+	Secondary
+}
+
 export class SideBySideEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.sidebysideEditor';
@@ -66,18 +71,21 @@ export class SideBySideEditor extends EditorPane {
 
 	//#endregion
 
-	protected primaryEditorPane: EditorPane | undefined = undefined;
-	protected secondaryEditorPane: EditorPane | undefined = undefined;
+	private primaryEditorPane: EditorPane | undefined = undefined;
+	private secondaryEditorPane: EditorPane | undefined = undefined;
 
 	private primaryEditorContainer: HTMLElement | undefined;
 	private secondaryEditorContainer: HTMLElement | undefined;
 
 	private splitview: SplitView | undefined;
-	private splitviewDisposables = this._register(new DisposableStore());
+
+	private readonly splitviewDisposables = this._register(new DisposableStore());
+	private readonly editorDisposables = this._register(new DisposableStore());
 
 	private orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
+	private dimension = new Dimension(0, 0);
 
-	private dimension: Dimension = new Dimension(0, 0);
+	private lastFocusedSide: Side | undefined = undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -103,12 +111,12 @@ export class SideBySideEditor extends EditorPane {
 			// editor using the new layout orientation if it was
 			// already created.
 			if (this.splitview) {
-				this.recreateEditor();
+				this.recreateSplitview();
 			}
 		}
 	}
 
-	private recreateEditor(): void {
+	private recreateSplitview(): void {
 		const container = assertIsDefined(this.getContainer());
 
 		// Clear old (if any)
@@ -139,8 +147,8 @@ export class SideBySideEditor extends EditorPane {
 		parent.classList.add('side-by-side-editor');
 
 		// Editor pane containers
-		this.secondaryEditorContainer = $('.side-by-side-editor-container');
-		this.primaryEditorContainer = $('.side-by-side-editor-container');
+		this.secondaryEditorContainer = $('.side-by-side-editor-container.editor-instance');
+		this.primaryEditorContainer = $('.side-by-side-editor-container.editor-instance');
 
 		// Split view
 		this.createSplitView(parent);
@@ -197,8 +205,6 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	override async setInput(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-
-		// Set input and resolve
 		const oldInput = this.input;
 		await super.setInput(input, options, context, token);
 
@@ -210,6 +216,8 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+
+		// Forward to both sides
 		this.primaryEditorPane?.setVisible(visible, group);
 		this.secondaryEditorPane?.setVisible(visible, group);
 
@@ -230,7 +238,15 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	override focus(): void {
-		this.primaryEditorPane?.focus();
+		this.getLastFocusedEditorPane()?.focus();
+	}
+
+	private getLastFocusedEditorPane(): EditorPane | undefined {
+		if (this.lastFocusedSide === Side.Secondary) {
+			return this.secondaryEditorPane;
+		}
+
+		return this.primaryEditorPane;
 	}
 
 	layout(dimension: Dimension): void {
@@ -245,7 +261,7 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	override getControl(): IEditorControl | undefined {
-		return this.primaryEditorPane?.getControl();
+		return this.getLastFocusedEditorPane()?.getControl();
 	}
 
 	getPrimaryEditorPane(): IEditorPane | undefined {
@@ -267,14 +283,10 @@ export class SideBySideEditor extends EditorPane {
 			return this.setNewInput(newInput, options, context, token);
 		}
 
-		if (!this.secondaryEditorPane || !this.primaryEditorPane) {
-			return;
-		}
-
 		// Otherwise set to existing editor panes if matching
 		await Promise.all([
-			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, options, context, token),
-			this.primaryEditorPane.setInput(newInput.primary as EditorInput, options, context, token)
+			this.secondaryEditorPane?.setInput(newInput.secondary as EditorInput, undefined, context, token),
+			this.primaryEditorPane?.setInput(newInput.primary as EditorInput, options, context, token)
 		]);
 	}
 
@@ -284,18 +296,23 @@ export class SideBySideEditor extends EditorPane {
 		this.secondaryEditorPane = this.doCreateEditor(newInput.secondary as EditorInput, assertIsDefined(this.secondaryEditorContainer));
 		this.primaryEditorPane = this.doCreateEditor(newInput.primary as EditorInput, assertIsDefined(this.primaryEditorContainer));
 
+		// Layout
 		this.layout(this.dimension);
 
+		// Eventing
 		this._onDidChangeSizeConstraints.input = Event.any(
 			Event.map(this.secondaryEditorPane.onDidChangeSizeConstraints, () => undefined),
 			Event.map(this.primaryEditorPane.onDidChangeSizeConstraints, () => undefined)
 		);
-
 		this.onDidCreateEditors.fire(undefined);
+
+		// Track focus
+		this.editorDisposables.add(this.primaryEditorPane.onDidFocus(() => this.lastFocusedSide = Side.Primary));
+		this.editorDisposables.add(this.secondaryEditorPane.onDidFocus(() => this.lastFocusedSide = Side.Secondary));
 
 		// Set input to all
 		await Promise.all([
-			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, options, context, token),
+			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, undefined, context, token),
 			this.primaryEditorPane.setInput(newInput.primary as EditorInput, options, context, token)]
 		);
 	}
@@ -310,6 +327,9 @@ export class SideBySideEditor extends EditorPane {
 		const editorPane = editorPaneDescriptor.instantiate(this.instantiationService);
 		editorPane.create(container);
 		editorPane.setVisible(this.isVisible(), this.group);
+
+		// Track for disposal
+		this.editorDisposables.add(editorPane);
 
 		return editorPane;
 	}
@@ -341,11 +361,12 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	private disposeEditors(): void {
-		this.secondaryEditorPane?.dispose();
-		this.secondaryEditorPane = undefined;
+		this.editorDisposables.clear();
 
-		this.primaryEditorPane?.dispose();
+		this.secondaryEditorPane = undefined;
 		this.primaryEditorPane = undefined;
+
+		this.lastFocusedSide = undefined;
 
 		if (this.secondaryEditorContainer) {
 			clearNode(this.secondaryEditorContainer);
