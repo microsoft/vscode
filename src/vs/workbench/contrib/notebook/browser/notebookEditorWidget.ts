@@ -68,6 +68,7 @@ import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/not
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { IAckOutputHeight, IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 
 const $ = DOM.$;
 
@@ -2600,6 +2601,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		};
 	}
 }
+
+registerZIndex(ZIndex.Base, 5, 'notebook-progress-bar',);
+registerZIndex(ZIndex.Base, 10, 'notebook-list-insertion-indicator');
+registerZIndex(ZIndex.Base, 20, 'notebook-cell-editor-outline');
+registerZIndex(ZIndex.Base, 25, 'notebook-scrollbar');
+registerZIndex(ZIndex.Base, 26, 'notebook-cell-status');
+registerZIndex(ZIndex.Base, 26, 'notebook-cell-drag-handle');
+registerZIndex(ZIndex.Base, 26, 'notebook-folding-indicator');
+registerZIndex(ZIndex.Base, 27, 'notebook-output');
+registerZIndex(ZIndex.Base, 28, 'notebook-cell-bottom-toolbar-container');
+registerZIndex(ZIndex.Base, 29, 'notebook-run-button-container');
+registerZIndex(ZIndex.Base, 29, 'notebook-input-collapse-condicon');
+registerZIndex(ZIndex.Base, 30, 'notebook-cell-output-toolbar');
+registerZIndex(ZIndex.Sash, 1, 'notebook-cell-toolbar');
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(listInactiveSelectionBackground, 1),
