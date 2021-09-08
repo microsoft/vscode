@@ -52,7 +52,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { basename } from 'vs/base/common/path';
 
-type InstanceCwd = { instance: ITerminalInstance, cwd: string };
+type TerminalCwd = { terminal: ITerminalInstance, cwd: string };
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -316,26 +316,28 @@ export class TerminalService implements ITerminalService {
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 
-		//TODO:@meganrogge better way to do this?
-		this.onDidCreateInstance(async () => await this._refreshDescriptionCwd());
+		//TODO:@meganrogge is there a better way to do this?
 		this.onDidReceiveProcessId(async () => await this._refreshDescriptionCwd());
 		this.onDidDisposeInstance(async () => await this._refreshDescriptionCwd());
 	}
 
 	private async _refreshDescriptionCwd(): Promise<void> {
-		const folderToTerminals: Map<string, InstanceCwd[]> = new Map();
+		if (!this._configHelper.config.description.includes('cwdFolder')) {
+			return;
+		}
+		const folderToTerminals: Map<string, TerminalCwd[]> = new Map();
 		const foldersToDistinguish: string[] = [];
-		for (const instance of this.instances) {
-			const cwd = await instance.getCwd();
+		for (const terminal of this.instances) {
+			const cwd = await terminal.getCwd();
 			const folder = basename(cwd);
-			const terms = folderToTerminals.get(folder);
-			if (!terms) {
-				folderToTerminals.set(folder, [{ instance, cwd }]);
+			const termsForThisFolder = folderToTerminals.get(folder);
+			if (!termsForThisFolder) {
+				folderToTerminals.set(folder, [{ terminal, cwd }]);
 			} else {
-				let shouldDistinguish = terms.find(t => t.cwd !== cwd);
-				if (shouldDistinguish || terms.length === 1) {
-					terms.push({ instance, cwd });
-					folderToTerminals.set(folder, terms);
+				let shouldDistinguish = termsForThisFolder.find(t => t.cwd !== cwd);
+				if (shouldDistinguish || termsForThisFolder.length === 1) {
+					termsForThisFolder.push({ terminal: terminal, cwd });
+					folderToTerminals.set(folder, termsForThisFolder);
 					if (!foldersToDistinguish.includes(folder)) {
 						foldersToDistinguish.push(folder);
 					}
@@ -346,16 +348,18 @@ export class TerminalService implements ITerminalService {
 				if (!terms) {
 					return;
 				}
-				terms = this._shortenCwds(terms);
+
+				terms = this._differentiateFolders(terms);
+
 				for (const term of terms) {
-					//TODO:@meganrogge better way to do this? maybe a new TitleEventSource?
-					term.instance.setTitle(term.cwd, TitleEventSource.Api, term.cwd);
+					//TODO:@meganrogge is there a better way to do this? maybe a new TitleEventSource?
+					term.terminal.setTitle(term.cwd, TitleEventSource.Api, term.cwd);
 				}
 			}
 		}
 	}
 
-	private _shortenCwds(terms: InstanceCwd[]): InstanceCwd[] {
+	private _differentiateFolders(terms: TerminalCwd[]): TerminalCwd[] {
 		const uniqueCwds = Array.from(new Set(terms.map(t => t.cwd)));
 		const paths = [];
 		const cwdToPath: Map<string, string[]> = new Map();
@@ -375,13 +379,13 @@ export class TerminalService implements ITerminalService {
 			if (!path) {
 				continue;
 			}
-			term.cwd = this._joinTruncatedPath(index, path);
+			term.cwd = this._createPath(index, path);
 			result.push(term);
 		}
 		return result;
 	}
 
-	private _joinTruncatedPath(index: number, path: string[]): string {
+	private _createPath(index: number, path: string[]): string {
 		let s = '';
 		for (let i = path.length - index; i < path.length; i++) {
 			if (i === path.length - index) {

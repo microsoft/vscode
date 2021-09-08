@@ -231,8 +231,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onTitleChanged = this._onTitleChanged.event;
 	private readonly _onIconChanged = this._register(new Emitter<ITerminalInstance>());
 	readonly onIconChanged = this._onIconChanged.event;
-	private readonly _onCwdChanged = this._register(new Emitter<ITerminalInstance>());
-	readonly onCwdChanged = this._onCwdChanged.event;
 	private readonly _onData = this._register(new Emitter<string>());
 	readonly onData = this._onData.event;
 	private readonly _onBinary = this._register(new Emitter<string>());
