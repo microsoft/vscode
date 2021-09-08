@@ -447,6 +447,8 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.contains(untypedSideBySideInputSame), true);
 		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideMatchingStrategy.ANY_SIDE }), true);
 		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideMatchingStrategy.BOTH_SIDES }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideMatchingStrategy.ANY_SIDE, strictEquals: true }), false);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideMatchingStrategy.BOTH_SIDES, strictEquals: true }), false);
 
 		group.closeEditor(sideBySideInputSame);
 
@@ -555,6 +557,8 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.contains(sideBySideInputSame), true);
 		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideMatchingStrategy.ANY_SIDE }), true);
 		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideMatchingStrategy.BOTH_SIDES }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideMatchingStrategy.ANY_SIDE, strictEquals: true }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideMatchingStrategy.BOTH_SIDES, strictEquals: true }), true);
 
 		group.closeEditor(sideBySideInputSame);
 
@@ -562,7 +566,9 @@ suite('EditorGroupModel', () => {
 		group.openEditor(sideBySideInputDifferent, { pinned: true, active: true });
 		assert.strictEqual(group.contains(sideBySideInputDifferent), true);
 		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideMatchingStrategy.ANY_SIDE }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideMatchingStrategy.ANY_SIDE, strictEquals: true }), true);
 		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideMatchingStrategy.BOTH_SIDES }), false);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideMatchingStrategy.BOTH_SIDES, strictEquals: true }), false);
 	});
 
 	test('group serialization', function () {

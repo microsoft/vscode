@@ -762,10 +762,6 @@ export class EditorGroupModel extends Disposable {
 			return false;
 		}
 
-		if (options?.strictEquals) {
-			return editor === candidate;
-		}
-
 		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput && !(candidate instanceof SideBySideEditorInput)) {
 			switch (options.supportSideBySide) {
 				case SideBySideMatchingStrategy.ANY_SIDE:
@@ -779,7 +775,10 @@ export class EditorGroupModel extends Disposable {
 					}
 					break;
 			}
+		}
 
+		if (options?.strictEquals) {
+			return editor === candidate;
 		}
 
 		return editor.matches(candidate);
