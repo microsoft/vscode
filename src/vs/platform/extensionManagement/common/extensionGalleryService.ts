@@ -906,7 +906,7 @@ export class ExtensionGalleryService extends AbstractExtensionGalleryService {
 	}
 }
 
-export class ExtensionGalleryCLIService extends AbstractExtensionGalleryService {
+export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensionGalleryService {
 
 	constructor(
 		@IRequestService requestService: IRequestService,
