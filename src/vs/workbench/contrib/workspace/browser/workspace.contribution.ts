@@ -9,7 +9,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -140,7 +140,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				});
 
 			// Log dialog result
-			logWorkspaceTrustDialogResult(this.telemetryService, 'workspaceTrustOpenFileRequestDialogResult', Date.now() - startTime, result);
+			this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustOpenFileRequestDialogResult', { duration: Date.now() - startTime, ...result });
 
 			switch (result.choice) {
 				case 0:
@@ -196,7 +196,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			);
 
 			// Log dialog result
-			logWorkspaceTrustDialogResult(this.telemetryService, 'workspaceTrustRequestDialogResult', Date.now() - startTime, result);
+			this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustRequestDialogResult', { duration: Date.now() - startTime, ...result });
 
 			// Dialog result
 			switch (buttons[result.choice].type) {
@@ -298,7 +298,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 						);
 
 						// Log dialog result
-						logWorkspaceTrustDialogResult(this.telemetryService, 'workspaceTrustAddWorkspaceFolderDialogResult', Date.now() - startTime, result);
+						this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustAddWorkspaceFolderDialogResult', { duration: Date.now() - startTime, ...result });
 
 						// Mark added/changed folders as trusted
 						await this.workspaceTrustManagementService.setUrisTrust(addedFoldersTrustInfo.map(i => i.uri), result.choice === 0);
@@ -358,7 +358,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		);
 
 		// Log dialog result
-		logWorkspaceTrustDialogResult(this.telemetryService, 'workspaceTrustStartupDialogResult', Date.now() - startTime, result);
+		this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustStartupDialogResult', { duration: Date.now() - startTime, ...result });
 
 		// Dialog result
 		switch (result.choice) {
@@ -771,6 +771,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 /**
  * Telemetry
  */
+type WorkspaceTrustDialogResultEventClassification = {
+	duration: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
+	choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
+	checkboxChecked?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
+};
+
+type WorkspaceTrustDialogResultEvent = {
+	duration: number;
+	choice: number;
+	checkboxChecked?: boolean;
+};
+
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -908,19 +920,3 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WorkspaceTrustTelemetryContribution, LifecyclePhase.Restored);
-
-function logWorkspaceTrustDialogResult(telemetryService: ITelemetryService, eventName: string, duration: number, result: IShowResult): void {
-	type WorkspaceTrustDialogResultEventClassification = {
-		duration: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
-		choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
-		checkboxChecked?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
-	};
-
-	type WorkspaceTrustDialogResultEvent = {
-		duration: number;
-		choice: number;
-		checkboxChecked?: boolean;
-	};
-
-	telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>(eventName, { duration, ...result });
-}
