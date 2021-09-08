@@ -911,6 +911,7 @@ declare module 'vscode' {
 		 * For more information on events that can send data see "DEC Private Mode Set (DECSET)" on
 		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 		 */
+		// todo@API Maybe, isInteractedWith to align with other isXYZ
 		readonly interactedWith: boolean;
 	}
 
@@ -2901,7 +2902,7 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A type hierarchy provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @returns {@link Disposable disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerTypeHierarchyProvider(selector: DocumentSelector, provider: TypeHierarchyProvider): Disposable;
 	}
