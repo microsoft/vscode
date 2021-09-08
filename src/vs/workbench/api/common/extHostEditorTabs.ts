@@ -15,7 +15,7 @@ export interface IEditorTab {
 	label: string;
 	viewColumn: ViewColumn;
 	resource?: vscode.Uri;
-	editorId?: string;
+	viewId?: string;
 	isActive: boolean;
 }
 
@@ -59,7 +59,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				label: dto.label,
 				viewColumn: typeConverters.ViewColumn.to(dto.viewColumn),
 				resource: URI.revive(dto.resource),
-				editorId: dto.editorId,
+				viewId: dto.editorId,
 				isActive: dto.isActive
 			});
 		});

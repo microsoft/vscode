@@ -2325,12 +2325,11 @@ declare module 'vscode' {
 		readonly resource?: Uri;
 
 		/**
-		 * The identifier of the editor which the tab should contain, because
-		 * not all tabs represent editors this may be undefined.
-		 * This is equivalent to `viewType` for custom editors and notebooks.
+		 * The identifier of the view contained in the tab
+		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly editorId?: string;
+		readonly viewId?: string;
 
 		/**
 		 * Whether or not the tab is currently active
