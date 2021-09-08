@@ -14,7 +14,7 @@ export interface IExtensionManagementServer {
 	readonly id: string;
 	readonly label: string;
 	readonly extensionManagementService: IExtensionManagementService;
-	getTargetPlatform(): Promise<TargetPlatform>;
+	readonly targetPlatform: TargetPlatform;
 }
 
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
