@@ -64,6 +64,9 @@ export const enum TerminalSettingId {
 	DetectLocale = 'terminal.integrated.detectLocale',
 	DefaultLocation = 'terminal.integrated.defaultLocation',
 	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
+	TerminalTitleSeparator = 'terminal.integrated.tabs.separator',
+	TerminalTitle = 'terminal.integrated.tabs.title',
+	TerminalDescription = 'terminal.integrated.tabs.description',
 	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
 	Cwd = 'terminal.integrated.cwd',
 	ConfirmOnExit = 'terminal.integrated.confirmOnExit',
@@ -140,7 +143,9 @@ export enum TitleEventSource {
 	/** From the process name property*/
 	Process,
 	/** From the VT sequence */
-	Sequence
+	Sequence,
+	/** Config changed */
+	Config
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;

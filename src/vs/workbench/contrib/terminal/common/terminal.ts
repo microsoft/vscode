@@ -201,6 +201,9 @@ export interface ITerminalConfiguration {
 		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'singleGroup' | 'never';
 		location: 'left' | 'right';
 		focusMode: 'singleClick' | 'doubleClick';
+		title: string;
+		description: string;
+		separator: string;
 	},
 	bellDuration: number;
 	defaultLocation: TerminalLocationString;
