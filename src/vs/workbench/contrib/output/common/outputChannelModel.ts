@@ -17,7 +17,7 @@ import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDidAppendedContent: Event<void>;
@@ -26,7 +26,6 @@ export interface IOutputChannelModel extends IDisposable {
 	update(): void;
 	loadModel(): Promise<ITextModel>;
 	clear(till?: number): void;
-	setActive(active: boolean): void;
 }
 
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
@@ -72,7 +71,6 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 
 	protected modelUpdater: RunOnceScheduler;
 	protected model: ITextModel | null = null;
-	protected isActive: boolean = false;
 
 	protected startOffset: number = 0;
 	protected endOffset: number = 0;
@@ -88,10 +86,6 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		super();
 		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
 		this._register(toDisposable(() => this.modelUpdater.cancel()));
-	}
-
-	setActive(active: boolean): void {
-		this.isActive = active;
 	}
 
 	clear(till?: number): void {
@@ -157,8 +151,7 @@ class OutputFileListener extends Disposable {
 
 	constructor(
 		private readonly file: URI,
-		private readonly fileService: IFileService,
-		private readonly logService: ILogService,
+		private readonly fileService: IFileService
 	) {
 		super();
 		this.syncDelayer = new ThrottledDelayer<void>(500);
@@ -166,7 +159,6 @@ class OutputFileListener extends Disposable {
 
 	watch(eTag: string | undefined): void {
 		if (!this.watching) {
-			this.logService.trace('Started polling', this.file.toString());
 			this.etag = eTag;
 			this.poll();
 			this.watching = true;
@@ -178,17 +170,18 @@ class OutputFileListener extends Disposable {
 		this.syncDelayer.trigger(loop);
 	}
 
-	private async doWatch(): Promise<void> {
-		const stat = await this.fileService.resolve(this.file, { resolveMetadata: true });
-		if (stat.etag !== this.etag) {
-			this.etag = stat.etag;
-			this._onDidContentChange.fire(stat.size);
-		}
+	private doWatch(): Promise<void> {
+		return this.fileService.resolve(this.file, { resolveMetadata: true })
+			.then(stat => {
+				if (stat.etag !== this.etag) {
+					this.etag = stat.etag;
+					this._onDidContentChange.fire(stat.size);
+				}
+			});
 	}
 
 	unwatch(): void {
 		if (this.watching) {
-			this.logService.trace('Stopped polling', this.file.toString());
 			this.syncDelayer.cancel();
 			this.watching = false;
 		}
@@ -217,23 +210,13 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		file: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService,
+		@IModeService modeService: IModeService
 	) {
 		super(modelUri, mimeType, file, fileService, modelService, modeService);
 
-		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService, logService));
+		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
 		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
-	}
-
-	override setActive(active: boolean): void {
-		super.setActive(active);
-		if (this.isActive) {
-			this.fileHandler.watch(this.etag);
-		} else {
-			this.fileHandler.unwatch();
-		}
 	}
 
 	loadModel(): Promise<ITextModel> {
@@ -286,9 +269,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	protected override onModelCreated(model: ITextModel): void {
-		if (this.isActive) {
-			this.fileHandler.watch(this.etag);
-		}
+		this.fileHandler.watch(this.etag);
 	}
 
 	protected override onModelWillDispose(model: ITextModel | null): void {
@@ -478,10 +459,6 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 
 	clear(till?: number): void {
 		this.outputChannelModel.then(outputChannelModel => outputChannelModel.clear(till));
-	}
-
-	setActive(active: boolean) {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.setActive(active));
 	}
 
 }
