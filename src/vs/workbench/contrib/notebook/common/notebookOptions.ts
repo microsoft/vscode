@@ -61,7 +61,7 @@ export interface NotebookLayoutConfiguration {
 	editorOptionsCustomizations: any | undefined;
 }
 
-interface NotebookOptionsChangeEvent {
+export interface NotebookOptionsChangeEvent {
 	cellStatusBarVisibility?: boolean;
 	cellToolbarLocation?: boolean;
 	cellToolbarInteraction?: boolean;
