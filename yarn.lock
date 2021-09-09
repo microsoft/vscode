@@ -10231,15 +10231,15 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
+typescript@4.5.0-dev.20210908:
+  version "4.5.0-dev.20210908"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.5.0-dev.20210908.tgz#4cddecc1032d77c3e225f8305789a22c0fb5d0aa"
+  integrity sha512-BLCOnAVF7kUF7Df3TKdnq9s9Nbgu+M+EbN0wZq+COgnEtJey92APZL+fEOgMDig3ovqpGiK7E23R/j5jOKgcwg==
+
 typescript@^2.6.2:
   version "2.6.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
-
-typescript@^4.5.0-dev.20210909:
-  version "4.5.0-dev.20210909"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.5.0-dev.20210909.tgz#16db0a54860c33fefdf6150f29e14fc3c517b8aa"
-  integrity sha512-Ho6P7zF4Z69BLYanohqbWkc6XyuR/j853XNwPFxPN+NSvF20chzSb4EuYZW4X0UaFBrJJ5JYV3wIYzCzdnz6dg==
 
 typical@^4.0.0:
   version "4.0.0"
