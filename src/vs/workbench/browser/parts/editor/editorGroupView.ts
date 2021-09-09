@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorgroupview';
-import { EditorGroupModel, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel, SideBySideMatchingStrategy } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorGroupModel, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -613,8 +613,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private canDispose(editor: IEditorInput): boolean {
 		for (const groupView of this.accessor.groups) {
 			if (groupView instanceof EditorGroupView && groupView.model.contains(editor, {
-				strictEquals: true,										// only if this input is not shared across editor groups
-				supportSideBySide: SideBySideMatchingStrategy.ANY_SIDE 	// include any side of an opened side by side editor
+				strictEquals: true,						// only if this input is not shared across editor groups
+				supportSideBySide: SideBySideEditor.ANY // include any side of an opened side by side editor
 			})) {
 				return false;
 			}
@@ -948,7 +948,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region openEditor()
 
 	async openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined> {
-		return this.doOpenEditor(editor, options);
+		return this.doOpenEditor(editor, options, {
+			// Allow to match on a side-by-side editor when same
+			// editor is opened on both sides. In that case we
+			// do not want to open a new editor but reuse that one.
+			supportSideBySide: SideBySideEditor.BOTH
+		});
 	}
 
 	private async doOpenEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
@@ -968,7 +973,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			index: options ? options.index : undefined,
 			pinned: options?.sticky || !this.accessor.partOptions.enablePreview || editor.isDirty() || (options?.pinned ?? typeof options?.index === 'number' /* unless specified, prefer to pin when opening with index */) || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
 			sticky: options?.sticky || (typeof options?.index === 'number' && this.model.isSticky(options.index)),
-			active: this.count === 0 || !options || !options.inactive
+			active: this.count === 0 || !options || !options.inactive,
+			supportSideBySide: internalOptions?.supportSideBySide
 		};
 
 		if (options?.sticky && typeof options?.index === 'number' && !this.model.isSticky(options.index)) {
@@ -1202,7 +1208,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return null;
 		}
 
-		await this.openEditor(firstEditor.editor, firstEditor.options);
+		const openEditorsOptions: IInternalEditorOpenOptions = {
+			// Allow to match on a side-by-side editor when same
+			// editor is opened on both sides. In that case we
+			// do not want to open a new editor but reuse that one.
+			supportSideBySide: SideBySideEditor.BOTH
+		};
+
+		await this.doOpenEditor(firstEditor.editor, firstEditor.options, openEditorsOptions);
 
 		// Open the other ones inactive
 		const inactiveEditors = editorsToOpen.slice(1);
@@ -1214,6 +1227,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				pinned: true,
 				index: startingIndex + index
 			}, {
+				...openEditorsOptions,
 				// optimization: update the title control later
 				// https://github.com/microsoft/vscode/issues/130634
 				skipTitleUpdate: true
@@ -1471,7 +1485,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				ignoreError: internalOptions?.fromError
 			};
 
-			this.openEditor(nextActiveEditor, options);
+			this.doOpenEditor(nextActiveEditor, options);
 		}
 
 		// Otherwise we are empty, so clear from editor control and send event
@@ -1598,7 +1612,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		else {
 
 			// Switch to editor that we want to handle and confirm to save/revert
-			await this.openEditor(editor);
+			await this.doOpenEditor(editor);
 
 			// Let editor handle confirmation if implemented
 			if (typeof editor.confirm === 'function') {
@@ -1821,7 +1835,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		for (const { editor, replacement, forceReplaceDirty, options } of inactiveReplacements) {
 
 			// Open inactive editor
-			await this.openEditor(replacement, options);
+			await this.doOpenEditor(replacement, options);
 
 			// Close replaced inactive editor unless they match
 			if (!editor.matches(replacement)) {
@@ -1842,7 +1856,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (activeReplacement) {
 
 			// Open replacement as active editor
-			const openEditorResult = this.openEditor(activeReplacement.replacement, activeReplacement.options);
+			const openEditorResult = this.doOpenEditor(activeReplacement.replacement, activeReplacement.options);
 
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {

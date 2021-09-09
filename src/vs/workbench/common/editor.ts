@@ -952,7 +952,8 @@ export interface IEditorPartOptionsChangeEvent {
 export enum SideBySideEditor {
 	PRIMARY = 1,
 	SECONDARY = 2,
-	BOTH = 3
+	BOTH = 3,
+	ANY = 4
 }
 
 export interface IEditorResourceAccessorOptions {
@@ -990,7 +991,7 @@ class EditorResourceAccessorImpl {
 	 * such, the original URI and the canonical URI can be different.
 	 */
 	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
-	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
 	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
@@ -1006,6 +1007,8 @@ class EditorResourceAccessorImpl {
 						primary: this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }),
 						secondary: this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme })
 					};
+				} else if (options?.supportSideBySide === SideBySideEditor.ANY) {
+					return this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }) ?? this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme });
 				}
 
 				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
@@ -1051,7 +1054,7 @@ class EditorResourceAccessorImpl {
 	 * such, the original URI and the canonical URI can be different.
 	 */
 	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
-	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
 	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
@@ -1067,6 +1070,8 @@ class EditorResourceAccessorImpl {
 						primary: this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }),
 						secondary: this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme })
 					};
+				} else if (options?.supportSideBySide === SideBySideEditor.ANY) {
+					return this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }) ?? this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme });
 				}
 
 				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
