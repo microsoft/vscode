@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroupModel, ISerializedEditorGroupModel, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -23,6 +23,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { isEqual } from 'vs/base/common/resources';
 
 suite('EditorGroupModel', () => {
 
@@ -180,7 +182,12 @@ suite('EditorGroupModel', () => {
 			if (super.matches(other)) {
 				return true;
 			}
-			return other && this.id === other.id && other instanceof TestFileEditorInput;
+
+			if (other instanceof TestFileEditorInput) {
+				return isEqual(other.resource, this.resource);
+			}
+
+			return false;
 		}
 	}
 
@@ -305,6 +312,50 @@ suite('EditorGroupModel', () => {
 		assert.ok(!group.isActive(untypedNonActiveInput));
 	});
 
+	test('openEditor - prefers existing side by side editor if same', () => {
+		const group = createEditorGroupModel();
+		const input1 = new TestFileEditorInput('testInput', URI.file('fake1'));
+		const input2 = new TestFileEditorInput('testInput', URI.file('fake2'));
+
+		const sideBySideInputSame = new SideBySideEditorInput(undefined, undefined, input1, input1);
+		const sideBySideInputDifferent = new SideBySideEditorInput(undefined, undefined, input1, input2);
+
+		let res = group.openEditor(sideBySideInputSame, { pinned: true, active: true });
+		assert.strictEqual(res.editor, sideBySideInputSame);
+		assert.strictEqual(res.isNew, true);
+
+		res = group.openEditor(input1, { pinned: true, active: true, supportSideBySide: SideBySideEditor.BOTH });
+		assert.strictEqual(res.editor, sideBySideInputSame);
+		assert.strictEqual(res.isNew, false);
+
+		group.closeEditor(sideBySideInputSame);
+		res = group.openEditor(sideBySideInputDifferent, { pinned: true, active: true });
+		assert.strictEqual(res.editor, sideBySideInputDifferent);
+		assert.strictEqual(res.isNew, true);
+
+		res = group.openEditor(input1, { pinned: true, active: true });
+		assert.strictEqual(res.editor, input1);
+		assert.strictEqual(res.isNew, true);
+	});
+
+	test('indexOf() - prefers direct matching editor over side by side matching one', () => {
+		const group = createEditorGroupModel();
+		const input1 = new TestFileEditorInput('testInput', URI.file('fake1'));
+
+		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input1, input1);
+
+		group.openEditor(sideBySideInput, { pinned: true, active: true });
+		assert.strictEqual(group.indexOf(sideBySideInput), 0);
+		assert.strictEqual(group.indexOf(input1), -1);
+		assert.strictEqual(group.indexOf(input1, undefined, { supportSideBySide: SideBySideEditor.BOTH }), 0);
+		assert.strictEqual(group.indexOf(input1, undefined, { supportSideBySide: SideBySideEditor.ANY }), 0);
+
+		group.openEditor(input1, { pinned: true, active: true });
+		assert.strictEqual(group.indexOf(input1), 1);
+		assert.strictEqual(group.indexOf(input1, undefined, { supportSideBySide: SideBySideEditor.BOTH }), 1);
+		assert.strictEqual(group.indexOf(input1, undefined, { supportSideBySide: SideBySideEditor.ANY }), 1);
+	});
+
 	test('contains() - untyped', function () {
 		const group = createEditorGroupModel();
 		const instantiationService = workbenchInstantiationService();
@@ -327,14 +378,28 @@ suite('EditorGroupModel', () => {
 			modified: untypedInput1
 		};
 
+		const sideBySideInputSame = new SideBySideEditorInput('name', undefined, input1, input1);
+		const sideBySideInputDifferent = new SideBySideEditorInput('name', undefined, input1, input2);
+
+		const untypedSideBySideInputSame: IResourceSideBySideEditorInput = {
+			primary: untypedInput1,
+			secondary: untypedInput1
+		};
+		const untypedSideBySideInputDifferent: IResourceSideBySideEditorInput = {
+			primary: untypedInput2,
+			secondary: untypedInput1
+		};
+
 		group.openEditor(input1, { pinned: true, active: true });
 
 		assert.strictEqual(group.contains(untypedInput1), true);
 		assert.strictEqual(group.contains(untypedInput1, { strictEquals: true }), false);
-		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.ANY }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.BOTH }), true);
 		assert.strictEqual(group.contains(untypedInput2), false);
 		assert.strictEqual(group.contains(untypedInput2, { strictEquals: true }), false);
-		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: SideBySideEditor.ANY }), false);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: SideBySideEditor.BOTH }), false);
 		assert.strictEqual(group.contains(untypedDiffInput1), false);
 		assert.strictEqual(group.contains(untypedDiffInput2), false);
 
@@ -362,7 +427,8 @@ suite('EditorGroupModel', () => {
 		group.closeEditor(input1);
 
 		assert.strictEqual(group.contains(untypedInput1), false);
-		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.ANY }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.BOTH }), false);
 		assert.strictEqual(group.contains(untypedInput2), true);
 		assert.strictEqual(group.contains(untypedDiffInput1), true);
 		assert.strictEqual(group.contains(untypedDiffInput2), true);
@@ -370,29 +436,45 @@ suite('EditorGroupModel', () => {
 		group.closeEditor(input2);
 
 		assert.strictEqual(group.contains(untypedInput1), false);
-		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(untypedInput2), false);
-		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(untypedDiffInput1), true);
 		assert.strictEqual(group.contains(untypedDiffInput2), true);
 
 		group.closeEditor(diffInput1);
 
 		assert.strictEqual(group.contains(untypedInput1), false);
-		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(untypedInput2), false);
-		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(untypedDiffInput1), false);
 		assert.strictEqual(group.contains(untypedDiffInput2), true);
 
 		group.closeEditor(diffInput2);
 
 		assert.strictEqual(group.contains(untypedInput1), false);
-		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.ANY }), false);
 		assert.strictEqual(group.contains(untypedInput2), false);
-		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(untypedInput2, { supportSideBySide: SideBySideEditor.ANY }), false);
 		assert.strictEqual(group.contains(untypedDiffInput1), false);
 		assert.strictEqual(group.contains(untypedDiffInput2), false);
+
+		assert.strictEqual(group.count, 0);
+		group.openEditor(sideBySideInputSame, { pinned: true, active: true });
+		assert.strictEqual(group.contains(untypedSideBySideInputSame), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.ANY }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.BOTH }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.ANY, strictEquals: true }), false);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.BOTH, strictEquals: true }), false);
+
+		group.closeEditor(sideBySideInputSame);
+
+		assert.strictEqual(group.count, 0);
+		group.openEditor(sideBySideInputDifferent, { pinned: true, active: true });
+		assert.strictEqual(group.contains(untypedSideBySideInputDifferent), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.ANY }), true);
+		assert.strictEqual(group.contains(untypedInput1, { supportSideBySide: SideBySideEditor.BOTH }), false);
 	});
 
 	test('contains()', () => {
@@ -405,14 +487,17 @@ suite('EditorGroupModel', () => {
 		const diffInput1 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input1, input2, undefined);
 		const diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input2, input1, undefined);
 
+		const sideBySideInputSame = new SideBySideEditorInput('name', undefined, input1, input1);
+		const sideBySideInputDifferent = new SideBySideEditorInput('name', undefined, input1, input2);
+
 		group.openEditor(input1, { pinned: true, active: true });
 
 		assert.strictEqual(group.contains(input1), true);
 		assert.strictEqual(group.contains(input1, { strictEquals: true }), true);
-		assert.strictEqual(group.contains(input1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(input2), false);
 		assert.strictEqual(group.contains(input2, { strictEquals: true }), false);
-		assert.strictEqual(group.contains(input2, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(input2, { supportSideBySide: SideBySideEditor.ANY }), false);
 		assert.strictEqual(group.contains(diffInput1), false);
 		assert.strictEqual(group.contains(diffInput2), false);
 
@@ -440,7 +525,7 @@ suite('EditorGroupModel', () => {
 		group.closeEditor(input1);
 
 		assert.strictEqual(group.contains(input1), false);
-		assert.strictEqual(group.contains(input1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(input2), true);
 		assert.strictEqual(group.contains(diffInput1), true);
 		assert.strictEqual(group.contains(diffInput2), true);
@@ -448,27 +533,27 @@ suite('EditorGroupModel', () => {
 		group.closeEditor(input2);
 
 		assert.strictEqual(group.contains(input1), false);
-		assert.strictEqual(group.contains(input1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(input2), false);
-		assert.strictEqual(group.contains(input2, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(input2, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(diffInput1), true);
 		assert.strictEqual(group.contains(diffInput2), true);
 
 		group.closeEditor(diffInput1);
 
 		assert.strictEqual(group.contains(input1), false);
-		assert.strictEqual(group.contains(input1, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(input2), false);
-		assert.strictEqual(group.contains(input2, { supportSideBySide: true }), true);
+		assert.strictEqual(group.contains(input2, { supportSideBySide: SideBySideEditor.ANY }), true);
 		assert.strictEqual(group.contains(diffInput1), false);
 		assert.strictEqual(group.contains(diffInput2), true);
 
 		group.closeEditor(diffInput2);
 
 		assert.strictEqual(group.contains(input1), false);
-		assert.strictEqual(group.contains(input1, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY }), false);
 		assert.strictEqual(group.contains(input2), false);
-		assert.strictEqual(group.contains(input2, { supportSideBySide: true }), false);
+		assert.strictEqual(group.contains(input2, { supportSideBySide: SideBySideEditor.ANY }), false);
 		assert.strictEqual(group.contains(diffInput1), false);
 		assert.strictEqual(group.contains(diffInput2), false);
 
@@ -483,6 +568,25 @@ suite('EditorGroupModel', () => {
 		group.closeEditor(input3);
 
 		assert.strictEqual(group.contains(input3), false);
+
+		assert.strictEqual(group.count, 0);
+		group.openEditor(sideBySideInputSame, { pinned: true, active: true });
+
+		assert.strictEqual(group.contains(sideBySideInputSame), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.BOTH }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY, strictEquals: true }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.BOTH, strictEquals: true }), true);
+
+		group.closeEditor(sideBySideInputSame);
+
+		assert.strictEqual(group.count, 0);
+		group.openEditor(sideBySideInputDifferent, { pinned: true, active: true });
+		assert.strictEqual(group.contains(sideBySideInputDifferent), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.ANY, strictEquals: true }), true);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.BOTH }), false);
+		assert.strictEqual(group.contains(input1, { supportSideBySide: SideBySideEditor.BOTH, strictEquals: true }), false);
 	});
 
 	test('group serialization', function () {

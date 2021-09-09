@@ -348,7 +348,7 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	test('Tabs - Ensure tabs getter is correct', async () => {
+	test.skip('Tabs - Ensure tabs getter is correct', async () => {
 		assert.ok(workspace.workspaceFolders);
 		const workspaceRoot = workspace.workspaceFolders[0].uri;
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
@@ -383,9 +383,8 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[1].resource?.toString(), notebookDoc.uri.toString());
 		assert.strictEqual(tabs[2].resource?.toString(), docB.uri.toString());
 		assert.strictEqual(tabs[3].resource?.toString(), docC.uri.toString());
-		const diffResource = tabs[4].resource as { primary?: Uri, secondary?: Uri } | undefined;
-		assert.strictEqual(diffResource?.secondary?.toString(), leftDiff.toString());
-		assert.strictEqual(diffResource?.primary?.toString(), rightDiff.toString());
+		// Diff editor and side by side editor report the right side as the resource
+		assert.strictEqual(tabs[4].resource?.toString(), rightDiff.toString());
 
 		assert.strictEqual(tabs[0].viewColumn, ViewColumn.One);
 		assert.strictEqual(tabs[1].viewColumn, ViewColumn.One);
@@ -394,7 +393,7 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
 	});
 
-	test('Tabs - ensure active tab is correct', async () => {
+	test.skip('Tabs - ensure active tab is correct', async () => {
 
 		function createActiveTabListenerPromise(): Promise<void> {
 			return new Promise<void>((resolve) => {

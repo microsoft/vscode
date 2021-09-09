@@ -642,7 +642,7 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 export interface IEditorTabDto {
 	viewColumn: EditorGroupColumn;
 	label: string;
-	resource?: UriComponents | { primary?: UriComponents, secondary?: UriComponents };
+	resource?: UriComponents;
 	editorId?: string;
 	isActive: boolean;
 }

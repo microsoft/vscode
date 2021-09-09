@@ -469,16 +469,9 @@ export interface INotebookEditor {
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string, ui?: boolean): CellViewModel | null;
 
 	/**
-	 * Split a given cell into multiple cells of the same type using the selection start positions.
-	 */
-	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
-
-	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
-
-	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
 	/**
 	 * Execute the given notebook cells
@@ -578,11 +571,6 @@ export interface INotebookEditor {
 	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
-	 * Get the view index of a cell
-	 */
-	getViewIndex(cell: ICellViewModel): number;
-
-	/**
 	 * Get the view height of a cell (from the list view)
 	 */
 	getViewHeight(cell: ICellViewModel): number;
@@ -623,13 +611,17 @@ export interface INotebookEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends INotebookEditorContribution>(id: string): T;
+
+	/**
+	 * Get the view index of a cell at model `index`
+	 */
+	getViewIndexByModelIndex(index: number): number;
 	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel>;
 	cellAt(index: number): ICellViewModel | undefined;
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getCellIndexByHandle(handle: number): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 }
 
 /**
@@ -671,7 +663,7 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 /**
  * A mix of public interface and internal one (used by internal rendering code, e.g., cellRenderer)
  */
-export interface INotebookEditorDelegate extends INotebookEditor, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell' | 'focusNextNotebookCell'> {
+export interface INotebookEditorDelegate extends INotebookEditor, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell'> {
 	hasModel(): this is IActiveNotebookEditorDelegate;
 
 	readonly creationOptions: INotebookEditorCreationOptions;
@@ -692,7 +684,7 @@ export interface INotebookEditorDelegate extends INotebookEditor, Omit<ICommonNo
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
 }
 
-export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell' | 'focusNextNotebookCell'> {
+export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell'> {
 	_getViewModel(): NotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
@@ -999,7 +991,7 @@ export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges:
 			return;
 		}
 
-		const viewIndex = editor.getViewIndex(viewCell);
+		const viewIndex = editor.getViewIndexByModelIndex(index);
 		if (viewIndex < 0) {
 			return;
 		}

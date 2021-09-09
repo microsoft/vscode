@@ -13,7 +13,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { LRUCache, Touch } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
@@ -47,14 +47,21 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
  */
 export abstract class EditorPane extends Composite implements IEditorPane {
 
+	//#region Events
+
+	readonly onDidChangeSizeConstraints = Event.None;
+
+	protected readonly _onDidChangeControl = this._register(new Emitter<void>());
+	readonly onDidChangeControl = this._onDidChangeControl.event;
+
+	//#endregion
+
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 
 	get minimumWidth() { return DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
 	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
 	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
 	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
-
-	readonly onDidChangeSizeConstraints = Event.None;
 
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }
@@ -164,6 +171,12 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		}
 
 		return editorMemento;
+	}
+
+	getViewState(): object | undefined {
+
+		// Subclasses to override
+		return undefined;
 	}
 
 	protected override saveState(): void {

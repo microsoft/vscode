@@ -88,6 +88,12 @@ class RegisterIssueContribution implements IWorkbenchContribution {
 			};
 
 			MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command });
+
+			MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+				group: '3_feedback',
+				command,
+				order: 3
+			});
 		}
 	}
 }

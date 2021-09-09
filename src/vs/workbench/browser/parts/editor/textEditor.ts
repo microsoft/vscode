@@ -228,7 +228,7 @@ export abstract class BaseTextEditor extends EditorPane {
 		return this.editorControl;
 	}
 
-	getViewState(): IEditorViewState | undefined {
+	override getViewState(): IEditorViewState | undefined {
 		const resource = this.input?.resource;
 		if (resource) {
 			return withNullAsUndefined(this.retrieveTextEditorViewState(resource));
