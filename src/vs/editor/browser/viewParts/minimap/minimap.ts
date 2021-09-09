@@ -1568,6 +1568,7 @@ class InnerMinimap extends Disposable {
 				InnerMinimap._renderLine(
 					imageData,
 					renderBackground,
+					background.a,
 					useLighterFont,
 					renderMinimap,
 					minimapCharWidth,
@@ -1697,6 +1698,7 @@ class InnerMinimap extends Disposable {
 	private static _renderLine(
 		target: ImageData,
 		backgroundColor: RGBA8,
+		backgroundAlpha: number,
 		useLighterFont: boolean,
 		renderMinimap: RenderMinimap,
 		charWidth: number,
@@ -1745,9 +1747,9 @@ class InnerMinimap extends Disposable {
 
 					for (let i = 0; i < count; i++) {
 						if (renderMinimap === RenderMinimap.Blocks) {
-							minimapCharRenderer.blockRenderChar(target, dx, dy + innerLinePadding, tokenColor, foregroundAlpha, backgroundColor, force1pxHeight);
+							minimapCharRenderer.blockRenderChar(target, dx, dy + innerLinePadding, tokenColor, foregroundAlpha, backgroundColor, backgroundAlpha, force1pxHeight);
 						} else { // RenderMinimap.Text
-							minimapCharRenderer.renderChar(target, dx, dy + innerLinePadding, charCode, tokenColor, foregroundAlpha, backgroundColor, fontScale, useLighterFont, force1pxHeight);
+							minimapCharRenderer.renderChar(target, dx, dy + innerLinePadding, charCode, tokenColor, foregroundAlpha, backgroundColor, backgroundAlpha, fontScale, useLighterFont, force1pxHeight);
 						}
 
 						dx += charWidth;
