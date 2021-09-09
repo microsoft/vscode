@@ -67,11 +67,6 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 			};
 		}, undefined, true);
 		const newCell = notebookEditor.cellAt(idx);
-
-		if (!newCell) {
-			return;
-		}
-
 		notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
 	} else if (context.selectedCells) {
 		const selectedCells = context.selectedCells;
@@ -131,7 +126,7 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 			editType: CellEditType.Replace, index: selection.start, count: selection.end - selection.start, cells: []
 		}));
 
-		const nextCellAfterContainingSelection = editor.cellAt(containingSelection.end);
+		const nextCellAfterContainingSelection = containingSelection.end >= editor.getLength() ? undefined : editor.cellAt(containingSelection.end);
 
 		textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => {
 			if (nextCellAfterContainingSelection) {
