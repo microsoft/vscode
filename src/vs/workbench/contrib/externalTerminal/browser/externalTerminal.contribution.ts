@@ -67,7 +67,7 @@ CommandsRegistry.registerCommand({
 						return;
 					}
 					opened[cwd.path] = true;
-					const instance = await integratedTerminalService.createTerminal({ config: { cwd } });
+					const instance = await integratedTerminalService.createTerminal({ cwd });
 					if (instance && instance.target !== TerminalLocation.Editor && (resources.length === 1 || !resource || cwd.path === resource.path || cwd.path === dirname(resource.path))) {
 						integratedTerminalService.setActiveInstance(instance);
 						terminalGroupService.showPanel(true);
