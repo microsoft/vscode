@@ -211,8 +211,11 @@ export async function main(argv: string[]): Promise<any> {
 			// - the wait marker file has been deleted (e.g. when closing the editor)
 			// - the launched process terminates (e.g. due to a crash)
 			processCallbacks.push(async child => {
-				let childExitPromise = Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
+				let childExitPromise;
 				if (isMacintosh) {
+					// On macOS, we resolve the following promise only when the child,
+					// i.e. the open command, exited with a signal or error. Otherwise, we
+					// wait for the marker file to be deleted or for the child to error.
 					childExitPromise = new Promise<void>((resolve) => {
 						// Only resolve this promise if the child (i.e. open) exited with an error
 						child.on('exit', (code, signal) => {
@@ -221,6 +224,10 @@ export async function main(argv: string[]): Promise<any> {
 							}
 						});
 					});
+				} else {
+					// On other platforms, we listen for exit in case the child exits before the
+					// marker file is deleted.
+					childExitPromise = Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
 				}
 				try {
 					await Promise.race([
