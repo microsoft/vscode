@@ -1781,7 +1781,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
 
-		this.getCwd().then(cwd => {
+		this?.getCwd().then(cwd => {
 			const properties = {
 				cwd,
 				cwdFolder: path.basename(cwd),
