@@ -141,10 +141,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			useShellEnvironment: launchConfig.useShellEnvironment,
 		};
 		this._extHostTerminals.set(extHostTerminalId, new Promise(async r => {
-			const terminal = await this._terminalService.createTerminal({
+			const terminal = new Promise<ITerminalInstance>(async r => this._terminalService.createTerminal({
 				config: shellLaunchConfig,
 				location: await this._deserializeParentTerminal(launchConfig.location)
-			});
+			}));
 			r(terminal);
 		}));
 	}
