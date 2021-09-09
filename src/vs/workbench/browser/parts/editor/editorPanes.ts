@@ -47,7 +47,7 @@ export interface IOpenEditorResult {
 	readonly error?: Error;
 }
 
-export class EditorControl extends Disposable {
+export class EditorPanes extends Disposable {
 
 	get minimumWidth() { return this._activeEditorPane?.minimumWidth ?? DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
 	get minimumHeight() { return this._activeEditorPane?.minimumHeight ?? DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
