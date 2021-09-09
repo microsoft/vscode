@@ -7,7 +7,7 @@ import 'vs/css!./media/sidebysideeditor';
 import { localize } from 'vs/nls';
 import { Dimension, $, clearNode } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID } from 'vs/workbench/common/editor';
+import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID, SideBySideEditor as Side } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -26,11 +26,6 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SIDE_BY_SIDE_EDITOR_BORDER } from 'vs/workbench/common/theme';
-
-enum Side {
-	Primary = 1,
-	Secondary
-}
 
 export class SideBySideEditor extends EditorPane {
 
@@ -85,7 +80,7 @@ export class SideBySideEditor extends EditorPane {
 	private orientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING) === 'vertical' ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 	private dimension = new Dimension(0, 0);
 
-	private lastFocusedSide: Side | undefined = undefined;
+	private lastFocusedSide: Side.PRIMARY | Side.SECONDARY | undefined = undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -242,7 +237,7 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	private getLastFocusedEditorPane(): EditorPane | undefined {
-		if (this.lastFocusedSide === Side.Secondary) {
+		if (this.lastFocusedSide === Side.SECONDARY) {
 			return this.secondaryEditorPane;
 		}
 
@@ -306,15 +301,22 @@ export class SideBySideEditor extends EditorPane {
 		);
 		this.onDidCreateEditors.fire(undefined);
 
-		// Track focus
-		this.editorDisposables.add(this.primaryEditorPane.onDidFocus(() => this.lastFocusedSide = Side.Primary));
-		this.editorDisposables.add(this.secondaryEditorPane.onDidFocus(() => this.lastFocusedSide = Side.Secondary));
+		// Track focus and signal active control change via event
+		this.editorDisposables.add(this.primaryEditorPane.onDidFocus(() => this.onDidFocusChange(Side.PRIMARY)));
+		this.editorDisposables.add(this.secondaryEditorPane.onDidFocus(() => this.onDidFocusChange(Side.SECONDARY)));
 
 		// Set input to all
 		await Promise.all([
 			this.secondaryEditorPane.setInput(newInput.secondary as EditorInput, undefined, context, token),
 			this.primaryEditorPane.setInput(newInput.primary as EditorInput, options, context, token)]
 		);
+	}
+
+	private onDidFocusChange(side: Side.PRIMARY | Side.SECONDARY): void {
+		this.lastFocusedSide = side;
+
+		// Signal to outside that our active control changed
+		this._onDidChangeControl.fire();
 	}
 
 	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): EditorPane {
