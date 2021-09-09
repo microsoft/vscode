@@ -1781,20 +1781,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
 
-		title = template(this._configHelper.config.tabs.title, {
-			process: this._processName || title,
-			sequence: this._sequence,
-			separator: { label: this._configHelper.config.tabs.separator }
-		});
-
 		this.getCwd().then(cwd => {
-			const description = template(this._configHelper.config.tabs.description, {
-				task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-				local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+			const properties = {
 				cwd,
 				cwdFolder: path.basename(cwd),
+				local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+				process: this._processName || title,
+				sequence: this._sequence,
+				task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
 				separator: { label: this._configHelper.config.tabs.separator }
-			});
+			};
+			title = template(this._configHelper.config.tabs.title, properties);
+			const description = template(this._configHelper.config.tabs.description, properties);
 			const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
 			if (!title || !titleChanged) {
 				return;
