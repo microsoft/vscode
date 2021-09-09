@@ -50,9 +50,6 @@ import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workben
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { basename } from 'vs/base/common/path';
-
-type TerminalCwd = { terminal: ITerminalInstance, cwd: string };
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -263,7 +260,7 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator) ||
 				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
 				for (const instance of this.instances) {
-					instance.setTitle(instance.title, TitleEventSource.Api);
+					instance.setTitle(instance.title, TitleEventSource.Config);
 				}
 			}
 		});
@@ -315,86 +312,6 @@ export class TerminalService implements ITerminalService {
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
-
-		//TODO:@meganrogge is there a better way to do this?
-		this.onDidReceiveProcessId(async () => await this._refreshDescriptionCwd());
-		this.onDidDisposeInstance(async () => await this._refreshDescriptionCwd());
-	}
-
-	private async _refreshDescriptionCwd(): Promise<void> {
-		if (!this._configHelper.config.description.includes('cwdFolder')) {
-			return;
-		}
-		const folderToTerminals: Map<string, TerminalCwd[]> = new Map();
-		const foldersToDistinguish: string[] = [];
-		for (const terminal of this.instances) {
-			const cwd = await terminal.getCwd();
-			const folder = basename(cwd);
-			const termsForThisFolder = folderToTerminals.get(folder);
-			if (!termsForThisFolder) {
-				folderToTerminals.set(folder, [{ terminal, cwd }]);
-			} else {
-				let shouldDistinguish = termsForThisFolder.find(t => t.cwd !== cwd);
-				if (shouldDistinguish || termsForThisFolder.length === 1) {
-					termsForThisFolder.push({ terminal: terminal, cwd });
-					folderToTerminals.set(folder, termsForThisFolder);
-					if (!foldersToDistinguish.includes(folder)) {
-						foldersToDistinguish.push(folder);
-					}
-				}
-			}
-			for (const folder of foldersToDistinguish) {
-				let terms = folderToTerminals.get(folder);
-				if (!terms) {
-					return;
-				}
-
-				terms = this._differentiateFolders(terms);
-
-				for (const term of terms) {
-					//TODO:@meganrogge is there a better way to do this? maybe a new TitleEventSource?
-					term.terminal.setTitle(term.cwd, TitleEventSource.Api, term.cwd);
-				}
-			}
-		}
-	}
-
-	private _differentiateFolders(terms: TerminalCwd[]): TerminalCwd[] {
-		const uniqueCwds = Array.from(new Set(terms.map(t => t.cwd)));
-		const paths = [];
-		const cwdToPath: Map<string, string[]> = new Map();
-		for (const uniqueCwd of uniqueCwds) {
-			paths.push(uniqueCwd.split(isWindows ? '\\' : '/'));
-			cwdToPath.set(uniqueCwd, uniqueCwd.split(isWindows ? '\\' : '/'));
-		}
-		let index = 1;
-		const minLength = paths.sort((a, b) => a.length - b.length)[0].length;
-		while (new Set(paths.map(p => p[p.length - index])).size !== paths.length && minLength > index) {
-			index++;
-		}
-
-		const result = [];
-		for (const term of terms) {
-			const path = cwdToPath.get(term.cwd);
-			if (!path) {
-				continue;
-			}
-			term.cwd = this._createPath(index, path);
-			result.push(term);
-		}
-		return result;
-	}
-
-	private _createPath(index: number, path: string[]): string {
-		let s = '';
-		for (let i = path.length - index; i < path.length; i++) {
-			if (i === path.length - index) {
-				s += `${path[i]}`;
-			} else {
-				s += `${isWindows ? '\\' : '/'}${path[i]}`;
-			}
-		}
-		return s;
 	}
 
 	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {

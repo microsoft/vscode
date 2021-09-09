@@ -1741,7 +1741,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	setTitle(title: string | undefined, eventSource: TitleEventSource, overrideDescription?: string): void {
+	setTitle(title: string | undefined, eventSource: TitleEventSource): void {
 		if (!title) {
 			return;
 		}
@@ -1781,21 +1781,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
 
-		title = template(this._configHelper.config.title, {
+		title = template(this._configHelper.config.tabs.title, {
 			process: this._processName || title,
 			sequence: this._sequence,
-			separator: { label: this._configHelper.config.separator }
+			separator: { label: this._configHelper.config.tabs.separator }
 		});
 
 		this.getCwd().then(cwd => {
-			const description = template(this._configHelper.config.description, {
+			const description = template(this._configHelper.config.tabs.description, {
 				task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
 				local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
 				cwd,
-				cwdFolder: overrideDescription || path.basename(cwd),
-				separator: { label: this._configHelper.config.separator }
+				cwdFolder: path.basename(cwd),
+				separator: { label: this._configHelper.config.tabs.separator }
 			});
-			const titleChanged = title !== this._title || description !== this.description || !!overrideDescription;
+			const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
 			if (!title || !titleChanged) {
 				return;
 			}

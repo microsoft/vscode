@@ -9,21 +9,22 @@ import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAU
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
-let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
-terminalTitleDescription += '\n- ' + [
+
+const terminalDescriptors = '\n- ' + [
+	localize('cwd', "`\${cwd}`: the terminal's current working directory - on Windows, this will not dynamically update"),
+	localize('cwdFolder', "`\${cwdFolder}`: the terminal's current folder - on Windows, this will not dynamically update"),
+	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
 	localize('process', "`\${process}`: the name of the terminal process"),
+	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
 	localize('sequence', "`\${sequence}`: the name provided to xterm.js by the process"),
-	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
+	localize('task', "`\${task}`: indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
+let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
+terminalTitleDescription += terminalDescriptors;
+
 let terminalDescriptionDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
-terminalDescriptionDescription += '\n- ' + [
-	localize('task', "`\${task}`: indicates this terminal is associated with a task"),
-	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
-	localize('cwd', "`\${cwd}`: the terminal's current working directory"),
-	localize('cwdFolder', "`\${cwdFolder}`: the terminal's current folder"),
-	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
-].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
+terminalDescriptionDescription += terminalDescriptors;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -265,7 +266,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
 			'default': isMacintosh ? ' — ' : ' - ',
-			'markdownDescription': localize("terminal.integrated.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
