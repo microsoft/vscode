@@ -7,7 +7,7 @@ import 'vs/css!./media/sidebysideeditor';
 import { localize } from 'vs/nls';
 import { Dimension, $, clearNode } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -34,7 +34,7 @@ enum Side {
 
 export class SideBySideEditor extends EditorPane {
 
-	static readonly ID: string = 'workbench.editor.sidebysideEditor';
+	static readonly ID: string = SIDE_BY_SIDE_EDITOR_ID;
 
 	static SIDE_BY_SIDE_LAYOUT_SETTING = 'workbench.editor.splitInGroupLayout';
 

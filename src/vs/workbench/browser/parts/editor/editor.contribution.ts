@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import {
 	IEditorFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorExtensions, EditorGroupEditorsCountContext,
-	ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, ActiveEditorContext
+	ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext
 } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
@@ -319,7 +319,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_ED
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '5_split', order: 30 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_IN_GROUP, title: localize('splitInGroup', "Split in Group") }, group: '6_split_in_group', order: 10, when: ActiveEditorCanSplitInGroupContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '6_split_in_group', order: 10, when: ActiveEditorContext.isEqualTo(SideBySideEditor.ID) });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '6_split_in_group', order: 10, when: SideBySideEditorActiveContext });
 
 // Editor Title Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
@@ -396,7 +396,7 @@ appendEditorToolItem(
 		title: localize('toggleSplitEditorInGroupLayout', "Toggle Layout"),
 		icon: Codicon.editorLayout
 	},
-	ActiveEditorContext.isEqualTo(SideBySideEditor.ID),
+	SideBySideEditorActiveContext,
 	SPLIT_ORDER - 1, // left to split actions
 );
 
@@ -616,7 +616,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 		id: JOIN_EDITOR_IN_GROUP,
 		title: localize({ key: 'miJoinEditorInGroup', comment: ['&& denotes a mnemonic'] }, "Join in &&Group")
 	},
-	when: ActiveEditorContext.isEqualTo(SideBySideEditor.ID),
+	when: SideBySideEditorActiveContext,
 	order: 1
 });
 
@@ -733,7 +733,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 		id: FOCUS_FIRST_SIDE_EDITOR,
 		title: localize({ key: 'miFirstSideEditor', comment: ['&& denotes a mnemonic'] }, "&&First Side in Editor")
 	},
-	when: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
+	when: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
 	order: 1
 });
 
@@ -743,7 +743,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchEditorMenu, {
 		id: FOCUS_SECOND_SIDE_EDITOR,
 		title: localize({ key: 'miSecondSideEditor', comment: ['&& denotes a mnemonic'] }, "&&Second Side in Editor")
 	},
-	when: ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SideBySideEditor.ID), ActiveEditorContext.isEqualTo(TextDiffEditor.ID)),
+	when: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
 	order: 2
 });
 
