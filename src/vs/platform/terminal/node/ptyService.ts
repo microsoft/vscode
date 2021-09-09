@@ -22,6 +22,8 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent
 import { ITerminalSerializer, TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
+import { Promises as pfs } from 'vs/base/node/pfs';
+import { join } from 'path';
 
 type WorkspaceId = string;
 
@@ -95,6 +97,21 @@ export class PtyService extends Disposable implements IPtyService {
 			processDetails = await this._buildProcessDetails(persistentProcessId, pty);
 		}
 		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
+	}
+
+	async persistTerminalState(): Promise<void> {
+		let processes: any[] = [];
+		for (const [persistentProcessId, persistentProcess] of this._ptys.entries()) {
+			processes.push({
+				id: persistentProcessId,
+				// TODO: Serialize in parallel
+				buffer: await (persistentProcess as any)._serializer.generateReplayEvent()
+			});
+		}
+		const state = {
+			processes
+		};
+		pfs.writeFile(join(process.env.HOME!, 'testbuffer2'), JSON.stringify(state));
 	}
 
 	async shutdownAll(): Promise<void> {

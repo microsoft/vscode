@@ -266,6 +266,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
+	async persistTerminalState(): Promise<void> {
+		return this._proxy.persistTerminalState();
+	}
+
 	async restartPtyHost(): Promise<void> {
 		/* __GDPR__
 			"ptyHost/restart" : {}
@@ -277,9 +281,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _disposePtyHost(): void {
-		if (this._proxy.shutdownAll) {
-			this._proxy.shutdownAll();
-		}
+		this._proxy.shutdownAll?.();
 		this._client.dispose();
 	}
 

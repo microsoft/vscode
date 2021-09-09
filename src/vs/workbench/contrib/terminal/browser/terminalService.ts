@@ -529,10 +529,19 @@ export class TerminalService implements ITerminalService {
 		return this._defaultProfileName;
 	}
 
-	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	private async _onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 		if (this.instances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
+		}
+
+		// TODO: Fine tune which reasons are supported - what is LOAD?
+		console.log('persist buffer, reason: ' + reason);
+		if (reason === ShutdownReason.CLOSE) {
+			// TODO: persist buffer to disk
+			// TODO: This is called once per workspace?
+			// TODO: Either do this or confirm dialog?
+			await this._localTerminalService?.persistTerminalState();
 		}
 
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
@@ -542,7 +551,7 @@ export class TerminalService implements ITerminalService {
 				(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
 			);
 			if (hasDirtyInstances) {
-				return this._onBeforeShutdownAsync();
+				return this._onBeforeShutdownAsync(reason);
 			}
 		}
 
@@ -551,12 +560,13 @@ export class TerminalService implements ITerminalService {
 		return false;
 	}
 
-	private async _onBeforeShutdownAsync(): Promise<boolean> {
+	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
 		// veto if configured to show confirmation and the user chose not to exit
 		const veto = await this._showTerminalCloseConfirmation();
 		if (!veto) {
 			this._isShuttingDown = true;
 		}
+
 		return veto;
 	}
 
@@ -564,13 +574,16 @@ export class TerminalService implements ITerminalService {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
-			this.instances.forEach(instance => instance.detachFromProcess());
+			for (const instance of this.instances) {
+				instance.detachFromProcess();
+			}
 			return;
 		}
 
 		// Force dispose of all terminal instances
-		this.instances.forEach(instance => instance.dispose(true));
-
+		for (const instance of this.instances) {
+			instance.dispose();
+		}
 		this._localTerminalService?.setTerminalLayoutInfo(undefined);
 	}
 

@@ -240,6 +240,7 @@ export interface IPtyService {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	persistTerminalState(): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {

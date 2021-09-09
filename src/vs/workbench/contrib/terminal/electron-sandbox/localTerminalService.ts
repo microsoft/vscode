@@ -138,6 +138,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
+	async persistTerminalState(): Promise<void> {
+		return this._localPtyService.persistTerminalState();
+	}
+
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
 		await this._localPtyService.updateTitle(id, title, titleSource);
 	}

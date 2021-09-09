@@ -97,6 +97,10 @@ export interface IOffProcessTerminalService {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	/**
+	 * Persists a terminal state to disk, this will a
+	 */
+	persistTerminalState(): Promise<void>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
