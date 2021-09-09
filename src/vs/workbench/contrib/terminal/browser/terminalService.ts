@@ -1292,13 +1292,10 @@ export class TerminalService implements ITerminalService {
 		this._evaluateLocalCwd(shellLaunchConfig);
 		const location = this.resolveLocation(options?.location) || this.defaultLocation;
 		const parent = this._getSplitParent(options?.location);
-		let instance;
 		if (parent) {
-			instance = this._splitTerminal(shellLaunchConfig, location, parent);
-		} else {
-			instance = this._createTerminal(shellLaunchConfig, location, options);
+			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
-		return instance;
+		return this._createTerminal(shellLaunchConfig, location, options);
 	}
 
 	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {

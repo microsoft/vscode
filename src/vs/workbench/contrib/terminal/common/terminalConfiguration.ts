@@ -269,18 +269,13 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.TerminalTitle]: {
 			'type': 'string',
-			'default': (() => {
-				return '${process}';
-			})(),
+			'default': '${process}',
 			'markdownDescription': terminalTitleDescription
 		},
 		[TerminalSettingId.TerminalDescription]: {
 			'type': 'string',
-			'default': (() => {
-				return '${task}${separator}${local}${separator}${cwdFolder}';
-			})(),
+			'default': '${task}${separator}${local}${separator}${cwdFolder}',
 			'markdownDescription': terminalDescriptionDescription
-
 		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',

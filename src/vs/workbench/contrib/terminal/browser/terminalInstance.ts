@@ -163,13 +163,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hasHadInput: boolean;
 
 	readonly statusList: ITerminalStatusList;
+	disableLayout: boolean = false;
 	private _description: string | undefined = undefined;
 	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
 	private _processName: string | undefined = undefined;
 	private _sequence: string | undefined = undefined;
 
 	target?: TerminalLocation;
-	disableLayout: boolean = false;
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
 	get cols(): number {
