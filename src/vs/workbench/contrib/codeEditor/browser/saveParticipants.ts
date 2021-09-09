@@ -31,6 +31,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { raceTimeout } from 'vs/base/common/async';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
@@ -275,6 +277,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
 
 	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
@@ -361,17 +364,27 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			}
 		};
 
-		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
-			try {
-				for (const action of actionsToRun.validActions) {
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
-					await this.instantiationService.invokeFunction(applyCodeAction, action);
+		const actionsSets = await raceTimeout(
+			Promise.all(codeActionsOnSave.map(kind => this.getActionsToRun(model, kind, excludes, getActionProgress, token))),
+			2500,
+			() => {
+				this.telemetryService.publicLog('codeEditorCodeactionsTimeout', {
+					uri: model.uri.toString()
+				});
+			});
+
+		if (actionsSets) {
+			for (const actionsToRun of actionsSets) {
+				try {
+					for (const action of actionsToRun.validActions) {
+						progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
+						await this.instantiationService.invokeFunction(applyCodeAction, action);
+					}
+				} catch {
+					// Failure to apply a code action should not block other on save actions
+				} finally {
+					actionsToRun.dispose();
 				}
-			} catch {
-				// Failure to apply a code action should not block other on save actions
-			} finally {
-				actionsToRun.dispose();
 			}
 		}
 	}
