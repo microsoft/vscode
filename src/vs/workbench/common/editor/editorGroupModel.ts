@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,7 @@ export interface IEditorOpenOptions {
 	sticky?: boolean;
 	active?: boolean;
 	readonly index?: number;
+	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 }
 
 export interface IEditorOpenResult {
@@ -61,28 +62,14 @@ export function isSerializedEditorGroupModel(group?: unknown): group is ISeriali
 	return !!(candidate && typeof candidate === 'object' && Array.isArray(candidate.editors) && Array.isArray(candidate.mru));
 }
 
-export enum SideBySideMatchingStrategy {
-
-	/**
-	 * Consider an editor to match a side by side
-	 * editor if any of the two sides match.
-	 */
-	ANY_SIDE = 1,
-
-	/**
-	 * Consider an editor to match a side by side
-	 * editor if both sides match.
-	 */
-	BOTH_SIDES
-}
-
 export interface IMatchOptions {
 
 	/**
-	 * Whether to support side by side editors when
-	 * considering a match.
+	 * Whether to consider a side by side editor as matching.
+	 * By default, side by side editors will not be considered
+	 * as matching, even if the editor is opened in one of the sides.
 	 */
-	supportSideBySide?: SideBySideMatchingStrategy;
+	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 
 	/**
 	 * Only consider an editor to match when the
@@ -220,13 +207,7 @@ export class EditorGroupModel extends Disposable {
 		const makePinned = options?.pinned || options?.sticky;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
-		const existingEditorAndIndex = this.findEditor(candidate, {
-			// Allow to match on a side-by-side editor when same
-			// editor is opened on both sides. In that case we
-			// do not want to open a new editor but reuse that one.
-			// For: https://github.com/microsoft/vscode/issues/36700
-			supportSideBySide: SideBySideMatchingStrategy.BOTH_SIDES
-		});
+		const existingEditorAndIndex = this.findEditor(candidate, options);
 
 		// New editor
 		if (!existingEditorAndIndex) {
@@ -725,17 +706,27 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	indexOf(candidate: IEditorInput | null, editors = this.editors, options?: IMatchOptions): number {
-		if (!candidate) {
-			return -1;
-		}
+		let index = -1;
 
-		for (let i = 0; i < editors.length; i++) {
-			if (this.matches(editors[i], candidate, options)) {
-				return i;
+		if (candidate) {
+			for (let i = 0; i < editors.length; i++) {
+				const editor = editors[i];
+
+				if (this.matches(editor, candidate, options)) {
+					// If we are to support side by side matching, it is possible that
+					// a better direct match is found later. As such, we continue finding
+					// a matching editor and prefer that match over the side by side one.
+					if (options?.supportSideBySide && editor instanceof SideBySideEditorInput && !(candidate instanceof SideBySideEditorInput)) {
+						index = i;
+					} else {
+						index = i;
+						break;
+					}
+				}
 			}
 		}
 
-		return -1;
+		return index;
 	}
 
 	private findEditor(candidate: EditorInput | null, options?: IMatchOptions): [EditorInput, number /* index */] | undefined {
@@ -764,12 +755,12 @@ export class EditorGroupModel extends Disposable {
 
 		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput && !(candidate instanceof SideBySideEditorInput)) {
 			switch (options.supportSideBySide) {
-				case SideBySideMatchingStrategy.ANY_SIDE:
+				case SideBySideEditor.ANY:
 					if (this.matches(editor.primary, candidate, options) || this.matches(editor.secondary, candidate, options)) {
 						return true;
 					}
 					break;
-				case SideBySideMatchingStrategy.BOTH_SIDES:
+				case SideBySideEditor.BOTH:
 					if (this.matches(editor.primary, candidate, options) && this.matches(editor.secondary, candidate, options)) {
 						return true;
 					}

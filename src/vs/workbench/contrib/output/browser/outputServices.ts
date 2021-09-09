@@ -22,7 +22,7 @@ import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
-export class OutputChannel extends Disposable implements IOutputChannel {
+class OutputChannel extends Disposable implements IOutputChannel {
 
 	scrollLock: boolean = false;
 	readonly model: IOutputChannelModel;
@@ -51,10 +51,6 @@ export class OutputChannel extends Disposable implements IOutputChannel {
 
 	clear(till?: number): void {
 		this.model.clear(till);
-	}
-
-	setActive(active: boolean): void {
-		this.model.setActive(active);
 	}
 }
 
@@ -216,7 +212,6 @@ export class LogContentProvider {
 			const outputChannelDescriptor = this.outputService.getChannelDescriptors().filter(({ id }) => id === channelId)[0];
 			if (outputChannelDescriptor && outputChannelDescriptor.file) {
 				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file);
-				channelModel.setActive(true);
 				channelModel.onDispose(() => dispose(channelDisposables), channelDisposables);
 				this.channelModels.set(channelId, channelModel);
 			}

@@ -160,9 +160,7 @@ export class FindModel extends Disposable {
 
 		if (oldCurrMatchCellIndex < 0) {
 			// the cell containing the active match is deleted
-			const focusedCell = this._notebookEditor.cellAt(this._notebookEditor.getFocus().start);
-
-			if (!focusedCell) {
+			if (this._notebookEditor.getLength() === 0) {
 				this.set(findMatches, false);
 				return;
 			}
