@@ -64,8 +64,11 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabOpen(event: IEditorChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_OPEN || !event.editorIndex || !event.editor) {
+		if (event.kind !== GroupChangeKind.EDITOR_OPEN || !event.editor) {
 			return;
+		}
+		if (!this._tabModel.has(event.groupId)) {
+			this._tabModel.set(event.groupId, []);
 		}
 		const editor = event.editor;
 		const tab = {
@@ -75,7 +78,8 @@ export class MainThreadEditorTabs {
 			editorId: editor.editorId,
 			isActive: (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive(editor)
 		};
-		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 0, tab);
+		console.log(`Event Group ID : ${event.groupId}, Active Group Id: ${this._editorGroupsService.activeGroup.id}`);
+		this._tabModel.get(event.groupId)?.push(tab);
 		// Update the currently active tab which may or may not be the opened one
 		if (tab.isActive) {
 			if (this._currentlyActiveTab) {
@@ -104,10 +108,14 @@ export class MainThreadEditorTabs {
 				this._currentlyActiveTab = t;
 			}
 		}, this);
+		// Remove any empye groups
+		if (this._tabModel.get(event.groupId)?.length === 0) {
+			this._tabModel.delete(event.groupId);
+		}
 	}
 
 	private _updateTabsModel(event: IEditorChangeEvent): void {
-
+		// Call the correct function for the change type
 		switch (event.kind) {
 			case GroupChangeKind.EDITOR_OPEN:
 				this._onDidTabOpen(event);
@@ -118,5 +126,9 @@ export class MainThreadEditorTabs {
 			default:
 				break;
 		}
+		// Flatten the map into a singular array to send the ext host
+		let allTabs: IEditorTabDto[] = [];
+		this._tabModel.forEach((tabs) => allTabs = allTabs.concat(tabs));
+		this._proxy.$acceptEditorTabs(allTabs);
 	}
 }

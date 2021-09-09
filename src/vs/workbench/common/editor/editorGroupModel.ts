@@ -294,13 +294,13 @@ export class EditorGroupModel extends Disposable {
 			// Listeners
 			this.registerEditorListeners(newEditor);
 
-			// Event
-			this._onDidOpenEditor.fire(newEditor);
-
 			// Handle active
 			if (makeActive) {
 				this.doSetActive(newEditor);
 			}
+
+			// Event
+			this._onDidOpenEditor.fire(newEditor);
 
 			return {
 				editor: newEditor,
@@ -315,6 +315,7 @@ export class EditorGroupModel extends Disposable {
 			// Pin it
 			if (makePinned) {
 				this.doPin(existingEditor);
+
 			}
 
 			// Activate it
@@ -498,6 +499,7 @@ export class EditorGroupModel extends Disposable {
 			return; // already active
 		}
 
+		console.log(`Making editor ${editor.resource?.toString()} active`);
 		this.active = editor;
 
 		// Bring to front in MRU list
