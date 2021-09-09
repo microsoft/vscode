@@ -211,6 +211,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			target: ConfigurationTarget.USER_LOCAL,
 		};
+		if (options.query) {
+			options.jsonEditor = false;
+		}
+
 		return this.open(this.userSettingsResource, options);
 	}
 
