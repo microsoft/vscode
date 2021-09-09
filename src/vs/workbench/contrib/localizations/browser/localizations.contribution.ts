@@ -216,7 +216,7 @@ workbenchRegistry.registerWorkbenchContribution(LocalizationWorkbenchContributio
 
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'localizations',
-	defaultExtensionKind: ['ui', 'workspace'],
+	defaultExtensionKind: ['ui', 'workspace', 'web'],
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.localizations', "Contributes localizations to the editor"),
 		type: 'array',
