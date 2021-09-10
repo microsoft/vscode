@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-
 .monaco-count-badge {
 	padding: 3px 6px;
 	border-radius: 11px;
@@ -14,7 +12,6 @@
 	line-height: 11px;
 	font-weight: normal;
 	text-align: center;
-	vertical-align: text-top;
 	display: inline-block;
 	box-sizing: border-box;
 }
