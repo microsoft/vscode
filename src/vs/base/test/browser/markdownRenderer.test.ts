@@ -58,6 +58,56 @@ suite('MarkdownRenderer', () => {
 		});
 	});
 
+	suite('Code block renderer', () => {
+		const simpleCodeBlockRenderer = (code: string): Promise<HTMLElement> => {
+			const element = document.createElement('code');
+			element.textContent = code;
+			return Promise.resolve(element);
+		};
+
+		test('asyncRenderCallback should be invoked for code blocks', () => {
+			const markdown = { value: '```js\n1 + 1;\n```' };
+			return new Promise<void>(resolve => {
+				renderMarkdown(markdown, {
+					asyncRenderCallback: resolve,
+					codeBlockRenderer: simpleCodeBlockRenderer
+				});
+			});
+		});
+
+		test('asyncRenderCallback should not be invoked if result is immediately disposed', () => {
+			const markdown = { value: '```js\n1 + 1;\n```' };
+			return new Promise<void>((resolve, reject) => {
+				const result = renderMarkdown(markdown, {
+					asyncRenderCallback: reject,
+					codeBlockRenderer: simpleCodeBlockRenderer
+				});
+				result.dispose();
+				setTimeout(resolve, 1000);
+			});
+		});
+
+		test('asyncRenderCallback should not be invoked if dispose is called before code block is rendered', () => {
+			const markdown = { value: '```js\n1 + 1;\n```' };
+			return new Promise<void>((resolve, reject) => {
+				let resolveCodeBlockRendering: (x: HTMLElement) => void;
+				const result = renderMarkdown(markdown, {
+					asyncRenderCallback: reject,
+					codeBlockRenderer: () => {
+						return new Promise(resolve => {
+							resolveCodeBlockRendering = resolve;
+						});
+					}
+				});
+				setTimeout(() => {
+					result.dispose();
+					resolveCodeBlockRendering(document.createElement('code'));
+					setTimeout(resolve, 1000);
+				}, 500);
+			});
+		});
+	});
+
 	suite('ThemeIcons Support On', () => {
 
 		test('render appendText', () => {
@@ -83,7 +133,6 @@ suite('MarkdownRenderer', () => {
 			let result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
-
 	});
 
 	suite('ThemeIcons Support Off', () => {
@@ -103,7 +152,6 @@ suite('MarkdownRenderer', () => {
 			let result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
-
 	});
 
 	test('npm Hover Run Script not working #90855', function () {
