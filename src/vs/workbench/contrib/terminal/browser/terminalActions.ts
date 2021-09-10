@@ -749,10 +749,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			const terminalService = accessor.get(ITerminalService);
-			const castedResource = URI.isUri(resource) ? resource : undefined;
-			const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
-			instance?.changeIcon();
+			doWithInstance(accessor, resource)?.changeIcon();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -794,10 +791,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			const terminalService = accessor.get(ITerminalService);
-			const castedResource = URI.isUri(resource) ? resource : undefined;
-			const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
-			instance?.changeColor();
+			doWithInstance(accessor, resource)?.changeColor();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -839,10 +833,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
-			const terminalService = accessor.get(ITerminalService);
-			const castedResource = URI.isUri(resource) ? resource : undefined;
-			const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
-			instance?.rename();
+			doWithInstance(accessor, resource)?.rename();
 		}
 	});
 
@@ -2123,4 +2114,12 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 			}
 		}
 	});
+}
+
+/** doc */
+function doWithInstance(accessor: ServicesAccessor, resource: unknown): ITerminalInstance | undefined {
+	const terminalService = accessor.get(ITerminalService);
+	const castedResource = URI.isUri(resource) ? resource : undefined;
+	const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
+	return instance;
 }

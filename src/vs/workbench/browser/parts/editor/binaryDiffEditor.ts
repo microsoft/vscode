@@ -31,8 +31,8 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 	}
 
 	getMetadata(): string | undefined {
-		const primary = this.primaryEditorPane;
-		const secondary = this.secondaryEditorPane;
+		const primary = this.getPrimaryEditorPane();
+		const secondary = this.getSecondaryEditorPane();
 
 		if (primary instanceof BaseBinaryResourceEditor && secondary instanceof BaseBinaryResourceEditor) {
 			return localize('metadataDiff', "{0} ↔ {1}", secondary.getMetadata(), primary.getMetadata());

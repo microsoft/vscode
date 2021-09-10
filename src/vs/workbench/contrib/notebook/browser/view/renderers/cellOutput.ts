@@ -796,7 +796,7 @@ export class CellOutputContainer extends Disposable {
 			supportThemeIcons: true
 		};
 
-		const element = renderMarkdown(md, {
+		const rendered = renderMarkdown(md, {
 			actionHandler: {
 				callback: (content) => {
 					if (content === 'command:workbench.action.openLargeOutput') {
@@ -808,9 +808,10 @@ export class CellOutputContainer extends Disposable {
 				disposables
 			}
 		});
+		disposables.add(rendered);
 
-		element.classList.add('output-show-more');
-		return element;
+		rendered.element.classList.add('output-show-more');
+		return rendered.element;
 	}
 
 	private _relayoutCell() {

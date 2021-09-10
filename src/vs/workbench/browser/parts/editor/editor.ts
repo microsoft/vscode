@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
@@ -149,7 +149,7 @@ export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEdi
 	if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
 		const options: IEditorOptions = {
 			...presetOptions,
-			viewState: group.activeEditorPane?.getViewState?.()
+			viewState: group.activeEditorPane?.getViewState()
 		};
 
 		return options;
@@ -184,7 +184,17 @@ export interface IInternalEditorTitleControlOptions {
 	skipTitleUpdate?: boolean;
 }
 
-export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions { }
+export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions {
+
+	/**
+	 * Whether to consider a side by side editor as matching
+	 * when figuring out if the editor to open is already
+	 * opened or not. By default, side by side editors will
+	 * not be considered as matching, even if the editor is
+	 * opened in one of the sides.
+	 */
+	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+}
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
 

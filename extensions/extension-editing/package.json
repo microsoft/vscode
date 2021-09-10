@@ -11,8 +11,7 @@
   "icon": "images/icon.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:markdown",
-    "onLanguage:typescript"
+    "onLanguage:markdown"
   ],
   "main": "./out/extensionEditingMain",
   "browser": "./dist/browser/extensionEditingBrowserMain",

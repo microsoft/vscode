@@ -88,7 +88,7 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 	protected getViewStateFor(group: GroupIdentifier): object | undefined {
 		for (const editorPane of this.editorService.visibleEditorPanes) {
 			if (editorPane.group.id === group && this.matches(editorPane.input)) {
-				return editorPane.getViewState?.();
+				return editorPane.getViewState();
 			}
 		}
 

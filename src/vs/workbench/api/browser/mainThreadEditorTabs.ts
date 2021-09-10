@@ -27,8 +27,7 @@ export class MainThreadEditorTabs {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
-		//this._dispoables.add(editorService.onDidEditorsChange(this._pushEditorTabs, this));
-		this._dispoables.add(editorService.onDidVisibleEditorsChange(this._pushEditorTabs, this));
+		this._dispoables.add(editorService.onDidEditorsChange(this._pushEditorTabs, this));
 		this._editorGroupsService.whenReady.then(() => this._pushEditorTabs());
 	}
 
@@ -46,7 +45,7 @@ export class MainThreadEditorTabs {
 				tabs.push({
 					viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 					label: editor.getName(),
-					resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) : EditorResourceAccessor.getCanonicalUri(editor),
+					resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 					editorId: editor.editorId,
 					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
 				});

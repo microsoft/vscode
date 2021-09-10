@@ -907,7 +907,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const editorPane = await this.openEditor(editor, groupId);
 			const editorOptions: IEditorOptions = {
 				pinned: true,
-				viewState: editorPane?.getViewState?.()
+				viewState: editorPane?.getViewState()
 			};
 
 			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);

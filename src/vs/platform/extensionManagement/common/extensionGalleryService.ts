@@ -13,12 +13,11 @@ import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CURRENT_TARGET_PLATFORM, DefaultIconPath, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { CURRENT_TARGET_PLATFORM, DefaultIconPath, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, asText, IRequestService, isSuccess } from 'vs/platform/request/common/request';
@@ -341,45 +340,6 @@ function getAllTargetPlatforms(rawGalleryExtension: IRawGalleryExtension): Targe
 	return allTargetPlatforms;
 }
 
-function isNotWebExtensionInWebTargetPlatform(allTargetPlatforms: TargetPlatform[], productTargetPlatform: TargetPlatform): boolean {
-	// Not a web extension in web target platform
-	return productTargetPlatform === TargetPlatform.WEB && !allTargetPlatforms.includes(TargetPlatform.WEB);
-}
-
-function isTargetPlatformCompatible(extensionTargetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[], productTargetPlatform: TargetPlatform): boolean {
-	// Not compatible when extension is not a web extension in web target platform
-	if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, productTargetPlatform)) {
-		return false;
-	}
-
-	// Compatible when extension target platform is not defined
-	if (extensionTargetPlatform === TargetPlatform.UNDEFINED) {
-		return true;
-	}
-
-	// Compatible when extension target platform is universal
-	if (extensionTargetPlatform === TargetPlatform.UNIVERSAL) {
-		return true;
-	}
-
-	// Not compatible when extension target platform is unknown
-	if (extensionTargetPlatform === TargetPlatform.UNKNOWN) {
-		return false;
-	}
-
-	// Compatible when extension and product target platforms matches
-	if (extensionTargetPlatform === productTargetPlatform) {
-		return true;
-	}
-
-	// Fallback
-	switch (productTargetPlatform) {
-		case TargetPlatform.WIN32_X64: return extensionTargetPlatform === TargetPlatform.WIN32_IA32;
-		case TargetPlatform.WIN32_ARM64: return extensionTargetPlatform === TargetPlatform.WIN32_IA32;
-		default: return false;
-	}
-}
-
 function toExtensionWithLatestVersion(galleryExtension: IRawGalleryExtension, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const allTargetPlatforms = getAllTargetPlatforms(galleryExtension);
 	let latestVersion = galleryExtension.versions[0];
@@ -446,7 +406,7 @@ interface IRawExtensionsReport {
 	slow: string[];
 }
 
-export class ExtensionGalleryService implements IExtensionGalleryService {
+abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -456,6 +416,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
 
 	constructor(
+		storageService: IStorageService | undefined,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -463,7 +424,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@optional(IStorageService) storageService: IStorageService,
 	) {
 		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -927,6 +887,37 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 
 		return [...map.values()];
+	}
+}
+
+export class ExtensionGalleryService extends AbstractExtensionGalleryService {
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IRequestService requestService: IRequestService,
+		@ILogService logService: ILogService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IFileService fileService: IFileService,
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super(storageService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService);
+	}
+}
+
+export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensionGalleryService {
+
+	constructor(
+		@IRequestService requestService: IRequestService,
+		@ILogService logService: ILogService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IFileService fileService: IFileService,
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super(undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService);
 	}
 }
 

@@ -100,6 +100,14 @@ export const enum ExtensionHostKind {
 	Remote
 }
 
+export function extensionHostKindToString(kind: ExtensionHostKind): string {
+	switch (kind) {
+		case ExtensionHostKind.LocalProcess: return 'LocalProcess';
+		case ExtensionHostKind.LocalWebWorker: return 'LocalWebWorker';
+		case ExtensionHostKind.Remote: return 'Remote';
+	}
+}
+
 export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
 	readonly remoteAuthority: string | null;
