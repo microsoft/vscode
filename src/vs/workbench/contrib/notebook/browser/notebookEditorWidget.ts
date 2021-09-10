@@ -1629,10 +1629,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		if (this._list.getRenderHeight() < newCellListHeight) {
 			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
 			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
-			this._list.layout(newCellListHeight, dimension.width);
+			this._list.layout(newCellListHeight * 2, dimension.width);
 		} else {
 			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
-			this._list.layout(newCellListHeight, dimension.width);
+			this._list.layout(newCellListHeight * 2, dimension.width);
 			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
 		}
 
