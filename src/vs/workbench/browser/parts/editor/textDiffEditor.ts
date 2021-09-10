@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
 import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
@@ -303,7 +303,11 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 	}
 
 	protected override computeEditorViewState(resource: URI): IDiffEditorViewState | undefined {
-		const control = assertIsDefined(this.getControl());
+		const control = this.getControl();
+		if (!isDiffEditor(control)) {
+			return undefined;
+		}
+
 		const model = control.getModel();
 		if (!model || !model.modified || !model.original) {
 			return undefined; // view state always needs a model

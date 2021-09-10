@@ -28,6 +28,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { isEqual } from 'vs/base/common/resources';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -227,7 +228,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends BaseEdi
 			return undefined; // model URI is needed to make sure we save the view state correctly
 		}
 
-		if (modelUri.toString() !== resource.toString()) {
+		if (!isEqual(modelUri, resource)) {
 			return undefined; // prevent saving view state for a model that is not the expected one
 		}
 
