@@ -258,7 +258,7 @@ stages:
               - template: linux/product-build-alpine.yml
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
-          - job: LinuxAlpine
+          - job: LinuxAlpineArm64
             variables:
               VSCODE_ARCH: arm64
             steps:
