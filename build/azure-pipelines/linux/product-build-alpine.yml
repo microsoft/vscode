@@ -167,25 +167,23 @@ steps:
     displayName: Prepare for publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - ${{ if ne(variables['VSCODE_ARCH'], 'x64') }}:
-    - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
-      artifact: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
-      displayName: Publish $(VSCODE_ARCH) server archive
-      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
+    artifact: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
+    displayName: Publish server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'x64'))
 
-    - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
-      artifact: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
-      displayName: Publish $(VSCODE_ARCH) web server archive
-      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
+    artifact: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+    displayName: Publish web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'x64'))
 
   # Legacy x64 artifact name
-  - ${{ if eq(variables['VSCODE_ARCH'], 'x64') }}:
-    - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
-      artifact: vscode_server_linux_alpine_archive-unsigned
-      displayName: Publish x64 server archive
-      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
+    artifact: vscode_server_linux_alpine_archive-unsigned
+    displayName: Publish x64 server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
 
-    - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine-web.tar.gz
-      artifact: vscode_web_linux_alpine_archive-unsigned
-      displayName: Publish x64 web server archive
-      condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine-web.tar.gz
+    artifact: vscode_web_linux_alpine_archive-unsigned
+    displayName: Publish x64 web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false', eq(variables['VSCODE_ARCH'], 'x64')))
