@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostInteractive';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -33,10 +34,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: SELECT_KERNEL_ID,
+			id: '_notebook.selectKernel',
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
-			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
+			// precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
 			menu: [{
@@ -77,6 +78,9 @@ registerAction2(class extends Action2 {
 								},
 								'extension': {
 									'type': 'string'
+								},
+								'notebookEditorId': {
+									'type': 'string'
 								}
 							}
 						}
@@ -86,7 +90,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: { id: string, extension: string, ui?: boolean, notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
+	async run(accessor: ServicesAccessor, context?: SelectKernelReturnArgs | { ui?: boolean, notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -94,27 +98,45 @@ registerAction2(class extends Action2 {
 		const logService = accessor.get(ILogService);
 		const viewletService = accessor.get(IViewletService);
 
-		const editor = context?.notebookEditor ?? getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		let editor;
+		if (context !== undefined) {
+			if ('notebookEditorId' in context) {
+				const editorId = context.notebookEditorId;
+				const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
+					const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
+					return notebookEditor?.getId() === editorId;
+				});
+				editor = getNotebookEditorFromEditorPane(matchingEditor);
+			} else if ('notebookEditor' in context) {
+				editor = context?.notebookEditor;
+			} else {
+				editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+			}
+		}
+
 		if (!editor || !editor.hasModel()) {
 			return false;
 		}
+		let controllerId = context && 'id' in context ? context.id : undefined;
+		let extensionId = context && 'extension' in context ? context.extension : undefined;
 
-		if (context && (typeof context.id !== 'string' || typeof context.extension !== 'string')) {
+		if (controllerId && (typeof controllerId !== 'string' || typeof extensionId !== 'string')) {
 			// validate context: id & extension MUST be strings
-			context = undefined;
+			controllerId = undefined;
+			extensionId = undefined;
 		}
 
 		const notebook = editor.textModel;
 		const { selected, all } = notebookKernelService.getMatchingKernel(notebook);
 
-		if (selected && context && selected.id === context.id && ExtensionIdentifier.equals(selected.extension, context.extension)) {
+		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
 			// current kernel is wanted kernel -> done
 			return true;
 		}
 
 		let newKernel: INotebookKernel | undefined;
-		if (context) {
-			const wantedId = `${context.extension}/${context.id}`;
+		if (controllerId) {
+			const wantedId = `${extensionId}/${controllerId}`;
 			for (let candidate of all) {
 				if (candidate.id === wantedId) {
 					newKernel = candidate;
@@ -323,7 +345,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 					command: SELECT_KERNEL_ID,
 				},
-				'notebook.selectKernel',
+				'_notebook.selectKernel',
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -341,7 +363,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					command: SELECT_KERNEL_ID,
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
-				'notebook.selectKernel',
+				'_notebook.selectKernel',
 				StatusbarAlignment.RIGHT,
 				10
 			));
