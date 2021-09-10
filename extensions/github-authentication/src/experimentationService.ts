@@ -9,10 +9,41 @@ import { getExperimentationService, IExperimentationService, IExperimentationTel
 
 export class ExperimentationTelemetry implements IExperimentationTelemetry {
 	private sharedProperties: Record<string, string> = {};
+	private experimentationServicePromise: Promise<IExperimentationService> | undefined;
 
-	constructor(private baseReporter: TelemetryReporter) { }
+	constructor(private readonly context: vscode.ExtensionContext, private baseReporter: TelemetryReporter) { }
 
-	sendTelemetryEvent(eventName: string, properties?: Record<string, string>, measurements?: Record<string, number>) {
+	private async createExperimentationService(): Promise<IExperimentationService> {
+		let targetPopulation: TargetPopulation;
+		switch (vscode.env.uriScheme) {
+			case 'vscode':
+				targetPopulation = TargetPopulation.Public;
+			case 'vscode-insiders':
+				targetPopulation = TargetPopulation.Insiders;
+			case 'vscode-exploration':
+				targetPopulation = TargetPopulation.Internal;
+			case 'code-oss':
+				targetPopulation = TargetPopulation.Team;
+			default:
+				targetPopulation = TargetPopulation.Public;
+		}
+
+		const id = this.context.extension.id;
+		const version = this.context.extension.packageJSON.version;
+		const experimentationService = getExperimentationService(id, version, targetPopulation, this, this.context.globalState);
+		await experimentationService.initialFetch;
+		return experimentationService;
+	}
+
+	/**
+	 * @returns A promise that you shouldn't need to await because this is just telemetry.
+	 */
+	async sendTelemetryEvent(eventName: string, properties?: Record<string, string>, measurements?: Record<string, number>) {
+		if (!this.experimentationServicePromise) {
+			this.experimentationServicePromise = this.createExperimentationService();
+		}
+		await this.experimentationServicePromise;
+
 		this.baseReporter.sendTelemetryEvent(
 			eventName,
 			{
@@ -23,11 +54,19 @@ export class ExperimentationTelemetry implements IExperimentationTelemetry {
 		);
 	}
 
-	sendTelemetryErrorEvent(
+	/**
+	 * @returns A promise that you shouldn't need to await because this is just telemetry.
+	 */
+	async sendTelemetryErrorEvent(
 		eventName: string,
 		properties?: Record<string, string>,
-		_measurements?: Record<string, number>,
+		_measurements?: Record<string, number>
 	) {
+		if (!this.experimentationServicePromise) {
+			this.experimentationServicePromise = this.createExperimentationService();
+		}
+		await this.experimentationServicePromise;
+
 		this.baseReporter.sendTelemetryErrorEvent(eventName, {
 			...this.sharedProperties,
 			...properties,
@@ -49,25 +88,4 @@ export class ExperimentationTelemetry implements IExperimentationTelemetry {
 	dispose(): Promise<any> {
 		return this.baseReporter.dispose();
 	}
-}
-
-function getTargetPopulation(): TargetPopulation {
-	switch (vscode.env.uriScheme) {
-		case 'vscode':
-			return TargetPopulation.Public;
-		case 'vscode-insiders':
-			return TargetPopulation.Insiders;
-		case 'vscode-exploration':
-			return TargetPopulation.Internal;
-		case 'code-oss':
-			return TargetPopulation.Team;
-		default:
-			return TargetPopulation.Public;
-	}
-}
-
-export async function createExperimentationService(context: vscode.ExtensionContext, telemetry: ExperimentationTelemetry): Promise<IExperimentationService> {
-	const id = context.extension.id;
-	const version = context.extension.packageJSON.version;
-	return getExperimentationService(id, version, getTargetPopulation(), telemetry, context.globalState);
 }

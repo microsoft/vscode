@@ -5,10 +5,10 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
 import * as pfs from 'vs/base/node/pfs';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { DidUninstallExtensionEvent, IExtensionManagementService, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionsManifestCache extends Disposable {
 
@@ -19,12 +19,12 @@ export class ExtensionsManifestCache extends Disposable {
 		extensionsManagementService: IExtensionManagementService
 	) {
 		super();
-		this._register(extensionsManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(extensionsManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUnInstallExtension(e)));
 	}
 
-	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
-		if (!e.error) {
+	private onDidInstallExtensions(results: readonly InstallExtensionResult[]): void {
+		if (results.some(r => !!r.local)) {
 			this.invalidate();
 		}
 	}

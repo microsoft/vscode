@@ -25,6 +25,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Promises, raceCancellation } from 'vs/base/common/async';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
@@ -41,9 +42,10 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService);
+		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService, workingCopyEditorService, editorService, editorGroupService);
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {

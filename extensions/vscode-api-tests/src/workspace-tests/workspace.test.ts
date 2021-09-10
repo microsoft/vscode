@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { join } from 'path';
 import * as vscode from 'vscode';
 import { closeAllEditors, pathEquals } from '../utils';
-import { join } from 'path';
 
 suite('vscode API - workspace', () => {
 

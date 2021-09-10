@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
@@ -15,7 +15,8 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminal
  */
 export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
-
+	initialCwd: string | undefined = undefined;
+	cwd: string | undefined = undefined;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
@@ -32,6 +33,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
+	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	private readonly _onDidChangeProperty = this._register(new Emitter<TerminalProperty>());
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	constructor(
 		readonly id: number,
@@ -68,11 +73,19 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		}
 		this._localPtyService.resize(this.id, cols, rows);
 	}
-	getInitialCwd(): Promise<string> {
-		return this._localPtyService.getInitialCwd(this.id);
+	async getInitialCwd(): Promise<string> {
+		if (!this.initialCwd) {
+			this.initialCwd = await this._localPtyService.getInitialCwd(this.id);
+		}
+		return this.initialCwd;
 	}
-	getCwd(): Promise<string> {
-		return this._localPtyService.getCwd(this.id);
+	async getCwd(): Promise<string> {
+		const cwd = await this._localPtyService.getCwd(this.id);
+		if (this.cwd !== cwd) {
+			this.cwd = cwd;
+			this.handleDidChangeProperty({ type: TerminalPropertyType.cwd, value: this.cwd });
+		}
+		return this.cwd;
 	}
 	getLatency(): Promise<number> {
 		// TODO: The idea here was to add the result plus the time it took to get the latency
@@ -83,6 +96,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			return;
 		}
 		this._localPtyService.acknowledgeDataEvent(this.id, charCount);
+	}
+	setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		return this._localPtyService.setUnicodeVersion(this.id, version);
 	}
 
 	handleData(e: string | IProcessDataEvent) {
@@ -105,6 +121,12 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	}
 	handleResolvedShellLaunchConfig(e: IShellLaunchConfig) {
 		this._onProcessResolvedShellLaunchConfig.fire(e);
+	}
+	handleDidChangeHasChildProcesses(e: boolean) {
+		this._onDidChangeHasChildProcesses.fire(e);
+	}
+	handleDidChangeProperty(e: TerminalProperty) {
+		this._onDidChangeProperty.fire(e);
 	}
 
 	async handleReplay(e: IPtyHostProcessReplayEvent) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IStartEntry, IWalkthrough } from 'vs/platform/extensions/common/extensions';
+import { IWalkthrough } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 const titleTranslated = localize('title', "Title");
@@ -31,15 +31,16 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					type: 'string',
 					description: localize('walkthroughs.description', "Description of walkthrough.")
 				},
-				primary: {
-					deprecationMessage: localize('walkthroughs.primary.deprecated', "Deprecated. The first walkthrough with a satisfied when condition will be opened on install.")
+				featuredFor: {
+					type: 'array',
+					description: localize('walkthroughs.featuredFor', "Walkthroughs that match one of these glob patterns appear as 'featured' in workspaces with the specified files. For example, a walkthrough for TypeScript projects might specify `tsconfig.json` here."),
+					items: {
+						type: 'string'
+					},
 				},
 				when: {
 					type: 'string',
 					description: localize('walkthroughs.when', "Context key expression to control the visibility of this walkthrough.")
-				},
-				tasks: {
-					deprecationMessage: localize('usesteps', "Deprecated. Use `steps` instead")
 				},
 				steps: {
 					type: 'array',
@@ -112,7 +113,22 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
 											}
 										}
-									}, {
+									},
+									{
+										required: ['svg', 'altText'],
+										additionalProperties: false,
+										properties: {
+											svg: {
+												description: localize('walkthroughs.steps.media.image.path.svg', "Path to an svg, color tokens are supported in variables to support theming to match the workbench."),
+												type: 'string',
+											},
+											altText: {
+												type: 'string',
+												description: localize('walkthroughs.steps.media.altText', "Alternate text to display when the image cannot be loaded or in screen readers.")
+											},
+										}
+									},
+									{
 										required: ['markdown'],
 										additionalProperties: false,
 										properties: {
@@ -159,14 +175,14 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											body: 'onContext:${2:key}'
 										},
 										{
-											label: 'extensionInstalled',
+											label: 'onExtensionInstalled',
 											description: localize('walkthroughs.steps.completionEvents.extensionInstalled', 'Check off step when an extension with the given id is installed. If the extension is already installed, the step will start off checked.'),
-											body: 'extensionInstalled:${3:extensionId}'
+											body: 'onExtensionInstalled:${3:extensionId}'
 										},
 										{
-											label: 'stepSelected',
+											label: 'onStepSelected',
 											description: localize('walkthroughs.steps.completionEvents.stepSelected', 'Check off step as soon as it is selected.'),
-											body: 'stepSelected'
+											body: 'onStepSelected'
 										},
 									]
 								}
@@ -191,43 +207,6 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 						}
 					}
 				}
-			}
-		}
-	}
-});
-
-export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
-	extensionPoint: 'startEntries',
-	jsonSchema: {
-		description: localize('startEntries', "Contribute commands to the \"Welcome: Start...\" pickers and \"File => New X...\" menu entries."),
-		type: 'array',
-		items: {
-			type: 'object',
-			required: ['title', 'command', 'category'],
-			additionalProperties: false,
-			defaultSnippets: [{ body: { 'title': '$1', 'command': '$3' } }],
-			properties: {
-				title: {
-					type: 'string',
-					description: localize('startEntries.title', "Title of item.")
-				},
-				command: {
-					type: 'string',
-					description: localize('startEntries.command', "Command to run.")
-				},
-				category: {
-					type: 'string',
-					description: localize('startEntries.category', "Category of the new entry."),
-					enum: ['file', 'folder', 'notebook', 'other'],
-				},
-				description: {
-					type: 'string',
-					description: localize('startEntries.description', "Description of item. We recommend leaving this blank unless the action is significantly nuanced in a way the title can not capture.")
-				},
-				when: {
-					type: 'string',
-					description: localize('startEntries.when', "Context key expression to control the visibility of this item.")
-				},
 			}
 		}
 	}

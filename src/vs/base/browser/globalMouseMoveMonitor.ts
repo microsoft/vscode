@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { IframeUtils } from 'vs/base/browser/iframe';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 
 export interface IStandardMouseMoveEventData {

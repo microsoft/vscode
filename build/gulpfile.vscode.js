@@ -39,6 +39,7 @@ const vscodeEntryPoints = _.flatten([
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
+	buildfile.workerLanguageDetection,
 	buildfile.workbenchDesktop,
 	buildfile.code
 ]);
@@ -65,8 +66,6 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'out-build/vs/workbench/contrib/webview/electron-browser/pre/*.js',
-	'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'out-build/vs/platform/files/**/*.exe',
@@ -234,7 +233,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/build/Release/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
-				'**/*.wasm'
+				'**/*.wasm',
 			], 'node_modules.asar'));
 
 		let all = es.merge(

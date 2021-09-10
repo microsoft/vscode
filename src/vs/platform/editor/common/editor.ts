@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 export interface IEditorModel {
 
@@ -34,7 +34,7 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IBaseResourceEditorInput {
+export interface IBaseUntypedEditorInput {
 
 	/**
 	 * Optional options to use when opening the input.
@@ -50,15 +50,9 @@ export interface IBaseResourceEditorInput {
 	 * Description to show for the input.
 	 */
 	readonly description?: string;
+}
 
-	/**
-	 * Hint to indicate that this input should be treated as a file
-	 * that opens in an editor capable of showing file content.
-	 *
-	 * Without this hint, the editor service will make a guess by
-	 * looking at the scheme of the resource(s).
-	 */
-	readonly forceFile?: boolean;
+export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
 
 	/**
 	 * Hint to indicate that this input should be treated as a
@@ -66,6 +60,10 @@ export interface IBaseResourceEditorInput {
 	 *
 	 * Without this hint, the editor service will make a guess by
 	 * looking at the scheme of the resource(s).
+	 *
+	 * Use `forceUntitled: true` when you pass in a `resource` that
+	 * does not use the `untitled` scheme. The `resource` will then
+	 * be used as associated path when saving the untitled file.
 	 */
 	readonly forceUntitled?: boolean;
 }
@@ -102,12 +100,6 @@ export interface IResourceEditorInput extends IBaseResourceEditorInput {
 	 * The resource URI of the resource to open.
 	 */
 	readonly resource: URI;
-}
-
-export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
-	const candidate = editor as IResourceEditorInput | undefined;
-
-	return URI.isUri(candidate?.resource);
 }
 
 export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
@@ -167,20 +159,20 @@ export enum EditorActivation {
 	PRESERVE
 }
 
-export enum EditorOverride {
+export enum EditorResolution {
 
 	/**
-	 * Displays a picker and allows the user to decide which editor to use
+	 * Displays a picker and allows the user to decide which editor to use.
 	 */
 	PICK,
 
 	/**
-	 * Disables overrides
+	 * Disables editor resolving.
 	 */
 	DISABLED,
 
 	/**
-	 * Only exclusive overrides are considered
+	 * Only exclusive editors are considered.
 	 */
 	EXCLUSIVE_ONLY
 }
@@ -279,9 +271,9 @@ export interface IEditorOptions {
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
 	 * - `string`: specific override by id
-	 * - `EditorOverride`: specific override handling
+	 * - `EditorResolution`: specific override handling
 	 */
-	override?: string | EditorOverride;
+	override?: string | EditorResolution;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -294,6 +286,12 @@ export interface IEditorOptions {
 	 * not as a modal dialog.
 	 */
 	context?: EditorOpenContext;
+
+	/**
+	 * An optional property to signal that certain view state should be
+	 * applied when opening the editor. 
+	 */
+	viewState?: object;
 }
 
 export interface ITextEditorSelection {
@@ -332,11 +330,6 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Text editor selection.
 	 */
 	selection?: ITextEditorSelection;
-
-	/**
-	 * Text editor view state.
-	 */
-	viewState?: object;
 
 	/**
 	 * Option to control the text editor selection reveal type.

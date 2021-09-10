@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFalsyOrEmpty, isNonEmptyArray } from 'vs/base/common/arrays';
-import { Schemas } from 'vs/base/common/network';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { DebounceEmitter } from 'vs/base/common/event';
-import { IMarkerService, IMarkerData, IResourceMarker, IMarker, MarkerStatistics, MarkerSeverity } from './markers';
-import { ResourceMap } from 'vs/base/common/map';
 import { Iterable } from 'vs/base/common/iterator';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers';
 
 class DoubleResourceMap<V>{
 

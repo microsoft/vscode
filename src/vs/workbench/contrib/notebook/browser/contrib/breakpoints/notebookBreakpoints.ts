@@ -4,21 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { Thread } from 'vs/workbench/contrib/debug/common/debugModel';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, NotebookCellsChangeType, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
 		@INotebookService _notebookService: INotebookService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 
@@ -51,6 +58,30 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 		this._register(_notebookService.onWillRemoveNotebookDocument(model => {
 			this.updateBreakpoints(model);
 			listeners.get(model.uri)?.dispose();
+			listeners.delete(model.uri);
+		}));
+
+		this._register(this._debugService.getModel().onDidChangeBreakpoints(e => {
+			const newCellBp = e?.added?.find(bp => 'uri' in bp && bp.uri.scheme === Schemas.vscodeNotebookCell) as IBreakpoint | undefined;
+			if (newCellBp) {
+				const parsed = CellUri.parse(newCellBp.uri);
+				if (!parsed) {
+					return;
+				}
+
+				const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+				if (!editor || !editor.hasModel() || editor.textModel.uri.toString() !== parsed.notebook.toString()) {
+					return;
+				}
+
+
+				const cell = editor.getCellByHandle(parsed.handle);
+				if (!cell) {
+					return;
+				}
+
+				editor.focusElement(cell);
+			}
 		}));
 	}
 
@@ -97,3 +128,87 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookBreakpoints, LifecyclePhase.Restored);
+
+class NotebookCellPausing extends Disposable implements IWorkbenchContribution {
+	private readonly _pausedCells = new Set<string>();
+
+	private readonly _sessionDisposables = new Map<string, IDisposable>();
+
+	constructor(
+		@IDebugService private readonly _debugService: IDebugService,
+		@INotebookService private readonly _notebookService: INotebookService
+	) {
+		super();
+
+		const scheduler = this._register(new RunOnceScheduler(() => this.onDidChangeCallStack(), 1000));
+		this._register(_debugService.getModel().onDidChangeCallStack(() => {
+			scheduler.cancel();
+			this.onDidChangeCallStack();
+		}));
+
+		this._register(_debugService.onDidNewSession(s => {
+			this._sessionDisposables.set(s.getId(), s.onDidChangeState(() => {
+				if (s.state === State.Running) {
+					// Continued, start timer to refresh
+					scheduler.schedule();
+				}
+			}));
+		}));
+
+		this._register(_debugService.onDidEndSession(s => {
+			this._sessionDisposables.get(s.getId())?.dispose();
+			this._sessionDisposables.delete(s.getId());
+		}));
+	}
+
+	private async onDidChangeCallStack(): Promise<void> {
+		const newPausedCells = new Set<string>();
+
+		for (const session of this._debugService.getModel().getSessions()) {
+			for (const thread of session.getAllThreads()) {
+				let callStack = thread.getCallStack();
+				if (!callStack.length) {
+					callStack = (thread as Thread).getStaleCallStack();
+				}
+
+				callStack.forEach(sf => {
+					const parsed = CellUri.parse(sf.source.uri);
+					if (parsed) {
+						newPausedCells.add(sf.source.uri.toString());
+						this.editIsPaused(sf.source.uri, true);
+					}
+				});
+			}
+		}
+
+		for (const uri of this._pausedCells) {
+			if (!newPausedCells.has(uri)) {
+				this.editIsPaused(URI.parse(uri), false);
+				this._pausedCells.delete(uri);
+			}
+		}
+
+		newPausedCells.forEach(cell => this._pausedCells.add(cell));
+	}
+
+	private editIsPaused(cellUri: URI, isPaused: boolean) {
+		const parsed = CellUri.parse(cellUri);
+		if (parsed) {
+			const notebookModel = this._notebookService.getNotebookTextModel(parsed.notebook);
+			const internalMetadata: NullablePartialNotebookCellInternalMetadata = {
+				isPaused
+			};
+			if (isPaused) {
+				internalMetadata.didPause = true;
+			}
+
+			notebookModel?.applyEdits([{
+				editType: CellEditType.PartialInternalMetadata,
+				handle: parsed.handle,
+				internalMetadata,
+			}], true, undefined, () => undefined, undefined);
+		}
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookCellPausing, LifecyclePhase.Restored);

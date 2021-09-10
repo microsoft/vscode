@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty, saveAllEditors, assertNoRpc } from '../utils';
+import 'mocha';
 import { TextDecoder } from 'util';
+import * as vscode from 'vscode';
+import { asPromise, assertNoRpc, closeAllEditors, createRandomFile, disposeAll, revertAllDirty, saveAllEditors } from '../utils';
 
 async function createRandomNotebookFile() {
 	return createRandomFile('', undefined, '.vsctestnb');
@@ -136,7 +136,7 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 	}
 };
 
-suite('Notebook API tests', function () {
+suite.skip('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -171,7 +171,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test('correct cell selection on undo/redo of cell creation', async function () {
+	test.skip('correct cell selection on undo/redo of cell creation', async function () {
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
@@ -623,56 +623,6 @@ suite('Notebook API tests', function () {
 		});
 	});
 
-	test('notebook workspace edit and undo redo', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor === editor, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'test');
-		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
-
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), '');
-
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		const activeCell = getFocusedCell(editor);
-		assert.notStrictEqual(getFocusedCell(editor), undefined);
-		assert.strictEqual(activeCell!.document.getText(), '');
-		assert.strictEqual(editor.document.cellCount, 4);
-		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 1);
-
-		{
-			// modify the second cell, delete it
-			const edit = new vscode.WorkspaceEdit();
-			edit.insert(getFocusedCell(editor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
-			await vscode.workspace.applyEdit(edit);
-		}
-
-		{
-			const focusedCell = getFocusedCell(editor);
-			assert.strictEqual(focusedCell !== undefined, true);
-			// delete focused cell
-			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCells(focusedCell!.notebook.uri, new vscode.NotebookRange(focusedCell!.index, focusedCell!.index + 1), []);
-			await vscode.workspace.applyEdit(edit);
-		}
-
-		assert.strictEqual(editor.document.cellCount, 3);
-		assert.strictEqual(editor.document.getCells().indexOf(getFocusedCell(editor)!), 1);
-
-
-		// undo should bring back the deleted cell, and revert to previous content and selection
-		await vscode.commands.executeCommand('undo');
-		assert.strictEqual(editor.document.cellCount, 4);
-		assert.strictEqual(editor.document.getCells().indexOf(getFocusedCell(editor)!), 1);
-		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'var abc = 0;');
-
-		// redo
-		// await vscode.commands.executeCommand('notebook.redo');
-		// assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 2);
-		// assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(getFocusedCell(vscode.window.activeNotebookEditor)!), 1);
-		// assert.strictEqual(vscode.window.activeNotebookEditor?.selection?.document.getText(), 'test');
-	});
-
 	test('multiple tabs: dirty + clean', async function () {
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
@@ -908,7 +858,6 @@ suite('Notebook API tests', function () {
 		assert.ok(cell.executionSummary);
 		assert.strictEqual(cell.executionSummary!.success, true);
 		assert.strictEqual(typeof cell.executionSummary!.executionOrder, 'number');
-
 	});
 
 	test('initialize executionSummary', async () => {
@@ -923,7 +872,7 @@ suite('Notebook API tests', function () {
 	});
 });
 
-suite('statusbar', () => {
+suite.skip('statusbar', () => {
 	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
 	const onDidCallProvide = emitter.event;
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -961,7 +910,7 @@ suite('statusbar', () => {
 	});
 });
 
-suite('Notebook API tests (metadata)', function () {
+suite.skip('Notebook API tests (metadata)', function () {
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
 

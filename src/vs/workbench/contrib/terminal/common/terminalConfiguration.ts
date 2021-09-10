@@ -6,9 +6,25 @@
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
+
+const terminalDescriptors = '\n- ' + [
+	localize('cwd', "`\${cwd}`: the terminal's current working directory - on Windows, this will not dynamically update"),
+	localize('cwdFolder', "`\${cwdFolder}`: the terminal's current folder - on Windows, this will not dynamically update"),
+	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
+	localize('process', "`\${process}`: the name of the terminal process"),
+	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
+	localize('sequence', "`\${sequence}`: the name provided to xterm.js by the process"),
+	localize('task', "`\${task}`: indicates this terminal is associated with a task"),
+].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
+
+let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
+terminalTitleDescription += terminalDescriptors;
+
+let terminalDescriptionDescription = localize('terminalDescription', "Controls the terminal description, which appears to the right of the title. Variables are substituted based on the context:");
+terminalDescriptionDescription += terminalDescriptors;
 
 const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -23,6 +39,11 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.TabsEnabled]: {
 			description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
+			type: 'boolean',
+			default: true,
+		},
+		[TerminalSettingId.TabsEnableAnimation]: {
+			description: localize('terminal.integrated.tabs.enableAnimation', 'Controls whether terminal tab statuses support animation (eg. in progress tasks).'),
 			type: 'boolean',
 			default: true,
 		},
@@ -73,7 +94,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
-			enum: [TerminalLocation.Editor, TerminalLocation.TerminalView],
+			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
 			enumDescriptions: [
 				localize('terminal.integrated.defaultLocation.editor', "Create terminals in the editor"),
 				localize('terminal.integrated.defaultLocation.view', "Create terminals in the terminal view")
@@ -242,6 +263,21 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
 		},
+		[TerminalSettingId.TerminalTitleSeparator]: {
+			'type': 'string',
+			'default': isMacintosh ? ' — ' : ' - ',
+			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
+		},
+		[TerminalSettingId.TerminalTitle]: {
+			'type': 'string',
+			'default': '${process}',
+			'markdownDescription': terminalTitleDescription
+		},
+		[TerminalSettingId.TerminalDescription]: {
+			'type': 'string',
+			'default': '${task}${separator}${local}${separator}${cwdFolder}',
+			'markdownDescription': terminalDescriptionDescription
+		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',
 			enum: ['default', 'copyPaste', 'paste', 'selectWord'],
@@ -261,9 +297,27 @@ const terminalConfiguration: IConfigurationNode = {
 			default: undefined
 		},
 		[TerminalSettingId.ConfirmOnExit]: {
-			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm on exit if there are active terminal sessions."),
-			type: 'boolean',
-			default: false
+			description: localize('terminal.integrated.confirmOnExit', "Controls whether to confirm when the window closes if there are active terminal sessions."),
+			type: 'string',
+			enum: ['never', 'always', 'hasChildProcesses'],
+			enumDescriptions: [
+				localize('terminal.integrated.confirmOnExit.never', "Never confirm."),
+				localize('terminal.integrated.confirmOnExit.always', "Always confirm if there are terminals."),
+				localize('terminal.integrated.confirmOnExit.hasChildProcesses', "Confirm if there are any terminals that have child processes."),
+			],
+			default: 'never'
+		},
+		[TerminalSettingId.ConfirmOnKill]: {
+			description: localize('terminal.integrated.confirmOnKill', "Controls whether to confirm killing terminals when they have child processes. When set to editor, terminals in the editor area will be marked as dirty when they have child processes. Note that child process detection may not work well for shells like Git Bash which don't run their processes as child processes of the shell."),
+			type: 'string',
+			enum: ['never', 'editor', 'panel', 'always'],
+			enumDescriptions: [
+				localize('terminal.integrated.confirmOnKill.never', "Never confirm."),
+				localize('terminal.integrated.confirmOnKill.editor', "Confirm if the terminal is in the editor."),
+				localize('terminal.integrated.confirmOnKill.panel', "Confirm if the terminal is in the panel."),
+				localize('terminal.integrated.confirmOnKill.always', "Confirm if the terminal is either in the editor or panel."),
+			],
+			default: 'editor'
 		},
 		[TerminalSettingId.EnableBell]: {
 			description: localize('terminal.integrated.enableBell', "Controls whether the terminal bell is enabled, this shows up as a visual bell next to the terminal's name."),
@@ -367,8 +421,8 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			enum: ['executable', 'sequence'],
 			markdownEnumDescriptions: [
-				localize('titleMode.executable', "The title is set by the _terminal_, the name of the detected foreground process will be used."),
-				localize('titleMode.sequence', "The title is set by the _process_ via an escape sequence, this is useful if your shell dynamically sets the title.")
+				localize('titleMode.executable', "The title is set by the terminal, the name of the detected foreground process will be used."),
+				localize('titleMode.sequence', "The title is set by the process via an escape sequence, this is useful if your shell dynamically sets the title.")
 			],
 			default: 'executable'
 		},
@@ -428,6 +482,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.CustomGlyphs]: {
+			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer"),
+			type: 'boolean',
+			default: true
+		}
 	}
 };
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeNode, ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
 
 interface Element {
@@ -434,46 +434,5 @@ suite('AsyncDataTree', function () {
 		]);
 
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b2']);
-	});
-
-	test('issue #127035 - tree should react to collapseByDefault toggles', async () => {
-		const container = document.createElement('div');
-		const model = new Model({
-			id: 'root',
-			children: [{
-				id: 'a'
-			}]
-		});
-
-		let collapseByDefault = () => true;
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), {
-			identityProvider: new IdentityProvider(),
-			collapseByDefault: _ => collapseByDefault()
-		});
-		tree.layout(200);
-
-		await tree.setInput(model.root);
-		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 1);
-
-		let twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
-		assert(!twistie.classList.contains('collapsible'));
-		assert(!twistie.classList.contains('collapsed'));
-
-		collapseByDefault = () => false;
-		model.get('a').children = [{ id: 'aa' }];
-		await tree.updateChildren(model.root, true);
-
-		const rows = container.querySelectorAll('.monaco-list-row');
-		assert.strictEqual(rows.length, 2);
-
-		const aTwistie = rows.item(0).querySelector('.monaco-tl-twistie') as HTMLElement;
-		assert(aTwistie.classList.contains('collapsible'));
-		assert(!aTwistie.classList.contains('collapsed'));
-
-		const aaTwistie = rows.item(1).querySelector('.monaco-tl-twistie') as HTMLElement;
-		assert(!aaTwistie.classList.contains('collapsible'));
-		assert(!aaTwistie.classList.contains('collapsed'));
-
-		tree.dispose();
 	});
 });

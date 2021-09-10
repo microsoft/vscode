@@ -12,7 +12,7 @@ import { MainThreadNotebookDocuments } from 'vs/workbench/api/browser/mainThread
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { MainThreadNotebookEditors } from 'vs/workbench/api/browser/mainThreadNotebookEditors';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -20,6 +20,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentsAndEditorsDelta, INotebookEditorAddData, INotebookModelAddedData, MainContext } from '../common/extHost.protocol';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 interface INotebookAndEditorDelta {
 	removedDocuments: URI[];
@@ -190,7 +191,7 @@ export class MainThreadNotebooksAndEditors {
 		};
 
 		// send to extension FIRST
-		this._proxy.$acceptDocumentAndEditorsDelta(dto);
+		this._proxy.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers(dto));
 
 		// handle internally
 		this._onDidRemoveEditors.fire(delta.removedEditors);
@@ -240,7 +241,7 @@ export class MainThreadNotebooksAndEditors {
 			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
-			viewColumn: pane && editorGroupToViewColumn(this._editorGroupService, pane.group)
+			viewColumn: pane && editorGroupToColumn(this._editorGroupService, pane.group)
 		};
 	}
 }

@@ -6,8 +6,18 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 
+
+export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnablementService {
+	_serviceBrand: undefined;
+
+	constructor(private isEnabled: boolean = true) { }
+
+	isWorkspaceTrustEnabled(): boolean {
+		return this.isEnabled;
+	}
+}
 
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
@@ -23,9 +33,8 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 
 
 	constructor(
-		private enabled: boolean = true,
-		private trusted: boolean = true) {
-	}
+		private trusted: boolean = true
+	) { }
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
 		throw new Error('Method not implemented.');
@@ -73,10 +82,6 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 
 	isWorkspaceTrustForced(): boolean {
 		return false;
-	}
-
-	get workspaceTrustEnabled(): boolean {
-		return this.enabled;
 	}
 
 	get workspaceTrustInitialized(): Promise<void> {

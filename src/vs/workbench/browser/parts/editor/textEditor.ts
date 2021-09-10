@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorMemento, ITextEditorPane, IEditorCloseEvent, IEditorInput, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorMemento, IEditorCloseEvent, IEditorInput, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
@@ -40,7 +40,7 @@ export interface IEditorConfiguration {
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
  * be subclassed and not instantiated.
  */
-export abstract class BaseTextEditor extends EditorPane implements ITextEditorPane {
+export abstract class BaseTextEditor extends EditorPane {
 
 	static readonly TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -68,7 +68,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	) {
 		super(id, telemetryService, themeService, storageService);
 
-		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
+		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, textResourceConfigurationService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
 			const resource = this.getActiveResource();
@@ -209,6 +209,14 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		editorControl.focus();
 	}
 
+	override hasFocus(): boolean {
+		if (this.editorControl?.hasTextFocus()) {
+			return true;
+		}
+
+		return super.hasFocus();
+	}
+
 	layout(dimension: Dimension): void {
 
 		// Pass on to Editor
@@ -220,7 +228,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		return this.editorControl;
 	}
 
-	getViewState(): IEditorViewState | undefined {
+	override getViewState(): IEditorViewState | undefined {
 		const resource = this.input?.resource;
 		if (resource) {
 			return withNullAsUndefined(this.retrieveTextEditorViewState(resource));

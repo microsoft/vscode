@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILocalization } from 'vs/platform/localizations/common/localizations';
 
 export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
 export const USER_MANIFEST_CACHE_FILE = 'user';
@@ -118,8 +118,9 @@ export interface IWalkthroughStep {
 	readonly title: string;
 	readonly description: string | undefined;
 	readonly media:
-	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never }
-	| { markdown: string, image?: never }
+	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never, svg?: never }
+	| { markdown: string, image?: never, svg?: never }
+	| { svg: string, altText: string, markdown?: never, image?: never }
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
@@ -131,6 +132,7 @@ export interface IWalkthrough {
 	readonly title: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
+	readonly featuredFor: string[] | undefined;
 	readonly when?: string;
 }
 
@@ -140,6 +142,10 @@ export interface IStartEntry {
 	readonly command: string;
 	readonly when?: string;
 	readonly category: 'file' | 'folder' | 'notebook';
+}
+
+export interface INotebookRendererContribution {
+	readonly id: string;
 }
 
 export interface IExtensionContributions {
@@ -164,6 +170,7 @@ export interface IExtensionContributions {
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
 	startEntries?: IStartEntry[];
+	readonly notebookRenderer?: INotebookRendererContribution[];
 }
 
 export interface IExtensionCapabilities {
@@ -172,7 +179,7 @@ export interface IExtensionCapabilities {
 }
 
 
-
+export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 export type LimitedWorkspaceSupportType = 'limited';

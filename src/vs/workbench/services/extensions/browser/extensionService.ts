@@ -9,11 +9,11 @@ import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } fr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost, toExtensionDescription, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractExtensionService, ExtensionRunningLocation, ExtensionRunningLocationClassifier, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, ExtensionRunningLocationClassifier, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
@@ -168,7 +168,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHosts(_isInitialStart: boolean): IExtensionHost[] {
 		const result: IExtensionHost[] = [];
 
-		const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, this._createLocalExtensionHostDataProvider());
+		const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, false, this._createLocalExtensionHostDataProvider());
 		result.push(webWorkerExtHost);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();

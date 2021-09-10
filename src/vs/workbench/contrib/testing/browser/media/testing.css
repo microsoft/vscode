@@ -164,6 +164,10 @@
 	max-width: none;
 }
 
+.testing-filter-wrapper {
+	height: 27px;
+}
+
 .testing-filter-action-item .testing-filter-wrapper {
 	flex-grow: 1;
 }
@@ -187,10 +191,20 @@
 	cursor: pointer;
 }
 
-.monaco-editor .testing-inline-message-content {
-	cursor: pointer;
+.testing-diff-title-widget {
+	line-height: 19px;
+	font-size: 12px;
+	padding-right: 6px;
+
+	overflow: hidden;
+	display: inline-block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.monaco-editor .testing-inline-message-line {
-	background: red;
+.test-message-inline-content {
+	font-family: var(--testMessageDecorationFontFamily);
+	padding: 0px 12px 0px 24px;
+	font-size: var(--testMessageDecorationFontSize);
+	cursor: pointer;
 }

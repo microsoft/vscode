@@ -6,10 +6,10 @@
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { CustomEditorInputSerializer, ComplexCustomWorkingCopyEditorHandler as ComplexCustomWorkingCopyEditorHandler } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
+import { ComplexCustomWorkingCopyEditorHandler as ComplexCustomWorkingCopyEditorHandler, CustomEditorInputSerializer } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditor } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -18,9 +18,9 @@ import { CustomEditorService } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(
-		EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
+	.registerEditorPane(
+		EditorPaneDescriptor.create(
 			WebviewEditor,
 			WebviewEditor.ID,
 			'Webview Editor',
@@ -28,8 +28,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 		new SyncDescriptor(CustomEditorInput)
 	]);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories)
-	.registerEditorInputSerializer(
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
+	.registerEditorSerializer(
 		CustomEditorInputSerializer.ID,
 		CustomEditorInputSerializer);
 

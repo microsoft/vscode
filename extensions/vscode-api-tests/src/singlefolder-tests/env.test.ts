@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { env, extensions, ExtensionKind, UIKind, Uri } from 'vscode';
+import { env, ExtensionKind, extensions, UIKind, Uri } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 suite('vscode API - env', () => {

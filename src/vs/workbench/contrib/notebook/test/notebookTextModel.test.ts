@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Mimes } from 'vs/base/common/mime';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -261,6 +262,43 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
+	test('append to output created in same batch', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.textModel;
+
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('append 1') }]
+						}]
+					},
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [{
+							mime: Mimes.markdown, data: valueBytesFromString('append 2')
+						}]
+					}
+				], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1, 'has 1 output');
+				const [first] = textModel.cells[0].outputs;
+				assert.strictEqual(first.outputId, 'append1');
+				assert.strictEqual(first.outputs.length, 2, 'has 2 items');
+			}
+		);
+	});
+
 	test('metadata', async function () {
 		await withTestNotebook(
 			[
@@ -426,7 +464,7 @@ suite('NotebookTextModel', () => {
 			const success1 = model.applyEdits(
 				[{
 					editType: CellEditType.Output, index: 0, outputs: [
-						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: new Uint8Array([1]) }] }
+						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
 					],
 					append: false
 				}], true, undefined, () => undefined, undefined, false
@@ -438,7 +476,7 @@ suite('NotebookTextModel', () => {
 			const success2 = model.applyEdits(
 				[{
 					editType: CellEditType.Output, index: 0, outputs: [
-						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', data: new Uint8Array([1]) }] }
+						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
 					],
 					append: true
 				}], true, undefined, () => undefined, undefined, false
@@ -465,7 +503,7 @@ suite('NotebookTextModel', () => {
 				const success = model.applyEdits(
 					[{
 						editType: CellEditType.Output, index: 0, outputs: [
-							{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: new Uint8Array([1]) }] }
+							{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', data: VSBuffer.wrap(new Uint8Array([1])) }] }
 						],
 						append: false
 					}], true, undefined, () => undefined, undefined, false

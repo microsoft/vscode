@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { app, BrowserWindow, KeyboardEvent, Menu, MenuItem, MenuItemConstructorOptions, WebContents } from 'electron';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { mnemonicMenuLabel } from 'vs/base/common/labels';
 import { isMacintosh, language } from 'vs/base/common/platform';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { app, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, KeyboardEvent } from 'electron';
-import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { URI } from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IMenubarData, IMenubarKeybinding, IMenubarMenu, IMenubarMenuRecentItemAction, isMenubarMenuItemAction, isMenubarMenuItemRecentAction, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { mnemonicMenuLabel } from 'vs/base/common/labels';
-import { IWindowsMainService, IWindowsCountChangedEvent, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemRecentAction, IMenubarMenuRecentItemAction } from 'vs/platform/menubar/common/menubar';
-import { URI } from 'vs/base/common/uri';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { CancellationToken } from 'vs/base/common/cancellation';
 
 const telemetryFrom = 'menu';
 
@@ -154,12 +154,7 @@ export class Menubar {
 		const privacyStatementUrl = this.productService.privacyStatementUrl;
 		if (privacyStatementUrl && licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openPrivacyStatementUrl'] = () => {
-				if (language) {
-					const queryArgChar = licenseUrl.indexOf('?') > 0 ? '&' : '?';
-					this.openUrl(`${privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
-				} else {
-					this.openUrl(privacyStatementUrl, 'openPrivacyStatement');
-				}
+				this.openUrl(privacyStatementUrl, 'openPrivacyStatement');
 			};
 		}
 	}
@@ -175,9 +170,9 @@ export class Menubar {
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
-		let enableMenuBarMnemonics = this.configurationService.getValue<boolean>('window.enableMenuBarMnemonics');
+		let enableMenuBarMnemonics = this.configurationService.getValue('window.enableMenuBarMnemonics');
 		if (typeof enableMenuBarMnemonics !== 'boolean') {
-			enableMenuBarMnemonics = true;
+			return true;
 		}
 
 		return enableMenuBarMnemonics;
@@ -188,9 +183,9 @@ export class Menubar {
 			return false;
 		}
 
-		let enableNativeTabs = this.configurationService.getValue<boolean>('window.nativeTabs');
+		let enableNativeTabs = this.configurationService.getValue('window.nativeTabs');
 		if (typeof enableNativeTabs !== 'boolean') {
-			enableNativeTabs = false;
+			return false;
 		}
 		return enableNativeTabs;
 	}

@@ -17,6 +17,7 @@ import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/com
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
+import { equals } from 'vs/base/common/objects';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -111,7 +112,8 @@ export interface IModelDecorationOptions {
 	collapseOnReplaceEdit?: boolean;
 	/**
 	 * Specifies the stack order of a decoration.
-	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 * A decoration with greater stack order is always in front of a decoration with
+	 * a lower stack order when the decorations are on the same line.
 	 */
 	zIndex?: number;
 	/**
@@ -173,8 +175,18 @@ export interface IModelDecorationOptions {
 export interface InjectedTextOptions {
 	/**
 	 * Sets the text to inject. Must be a single line.
-	*/
+	 */
 	readonly content: string;
+
+	/**
+	 * If set, the decoration will be rendered inline with the text with this CSS class name.
+	 */
+	readonly inlineClassName?: string | null;
+
+	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	readonly inlineClassNameAffectsLetterSpacing?: boolean;
 }
 
 /**
@@ -426,6 +438,7 @@ export class TextModelResolvedOptions {
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
+	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
 
 	/**
 	 * @internal
@@ -436,12 +449,14 @@ export class TextModelResolvedOptions {
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
+		bracketPairColorizationOptions: BracketPairColorizationOptions;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
 		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
+		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;
 	}
 
 	/**
@@ -454,6 +469,7 @@ export class TextModelResolvedOptions {
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+			&& equals(this.bracketPairColorizationOptions, other.bracketPairColorizationOptions)
 		);
 	}
 
@@ -482,6 +498,11 @@ export interface ITextModelCreationOptions {
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
 	largeFileOptimizations: boolean;
+	bracketPairColorizationOptions: BracketPairColorizationOptions;
+}
+
+export interface BracketPairColorizationOptions {
+	enabled: boolean;
 }
 
 export interface ITextModelUpdateOptions {
@@ -489,6 +510,7 @@ export interface ITextModelUpdateOptions {
 	indentSize?: number;
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
+	bracketColorizationOptions?: BracketPairColorizationOptions;
 }
 
 export class FindMatch {
@@ -1294,9 +1316,16 @@ export interface ITextModel {
 	/**
 	 * Among all positions that are projected to the same position in the underlying text model as
 	 * the given position, select a unique position as indicated by the affinity.
+	 *
+	 * PositionAffinity.Left:
+	 * The normalized position must be equal or left to the requested position.
+	 *
+	 * PositionAffinity.Right:
+	 * The normalized position must be equal or right to the requested position.
+	 *
 	 * @internal
 	 */
-	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+	normalizePosition(position: Position, affinity: PositionAffinity): Position;
 
 	/**
 	 * Gets the column at which indentation stops at a given line.
@@ -1308,15 +1337,21 @@ export interface ITextModel {
 /**
  * @internal
  */
-export const enum PositionNormalizationAffinity {
+export const enum PositionAffinity {
 	/**
 	 * Prefers the left most position.
 	*/
 	Left = 0,
+
 	/**
 	 * Prefers the right most position.
 	*/
 	Right = 1,
+
+	/**
+	 * No preference.
+	*/
+	None = 2,
 }
 
 /**

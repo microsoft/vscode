@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { VSBuffer } from 'vs/base/common/buffer';
+import Severity from 'vs/base/common/severity';
 import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { basename, isEqual } from 'vs/base/common/resources';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -16,19 +20,19 @@ import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Mimes } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Emitter } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 //#region Editor / Resources DND
 
@@ -113,9 +117,59 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 				// Invalid transfer
 			}
 		}
-	}
 
+		// Check for terminals transfer
+		const terminals = e.dataTransfer.getData(DataTransfers.TERMINALS);
+		if (terminals) {
+			try {
+				const terminalEditors: string[] = JSON.parse(terminals);
+				for (const terminalEditor of terminalEditors) {
+					editors.push({ resource: URI.parse(terminalEditor), isExternal: true });
+				}
+			} catch (error) {
+				// Invalid transfer
+			}
+		}
+	}
 	return editors;
+}
+
+export interface IFileDropData {
+	name: string;
+	data: VSBuffer;
+}
+
+export function extractFilesDropData(accessor: ServicesAccessor, files: FileList, onResult: (file: IFileDropData) => void): void {
+	const dialogService = accessor.get(IDialogService);
+
+	for (let i = 0; i < files.length; i++) {
+		const file = files.item(i);
+		if (file) {
+
+			// Skip for very large files because this operation is unbuffered
+			if (file.size > 100 * ByteSize.MB) {
+				dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
+				continue;
+			}
+
+			// Read file fully and open as untitled editor
+			const reader = new FileReader();
+			reader.readAsArrayBuffer(file);
+			reader.onload = async event => {
+				const name = file.name;
+				const result = withNullAsUndefined(event.target?.result);
+				if (typeof name !== 'string' || typeof result === 'undefined') {
+					return;
+				}
+
+				// Yield result
+				onResult({
+					name,
+					data: typeof result === 'string' ? VSBuffer.fromString(result) : VSBuffer.wrap(new Uint8Array(result))
+				});
+			};
+		}
+	}
 }
 
 export interface IResourcesDropHandlerOptions {
@@ -140,7 +194,8 @@ export class ResourcesDropHandler {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 	}
 
@@ -165,14 +220,19 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
+		// and only for resources that are outside of the currently opened workspace
 		if (externalLocalFiles.length) {
-			this.workspacesService.addRecentlyOpened(externalLocalFiles.map(resource => ({ fileUri: resource })));
+			this.workspacesService.addRecentlyOpened(externalLocalFiles
+				.filter(resource => !this.contextService.isInsideWorkspace(resource))
+				.map(resource => ({ fileUri: resource }))
+			);
 		}
 
 		// Open in Editor
 		const targetGroup = resolveTargetGroup();
 		await this.editorService.openEditors(editors.map(editor => ({
 			...editor,
+			resource: editor.resource,
 			options: {
 				...editor.options,
 				pinned: true,
@@ -272,13 +332,17 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
 	event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
 
-	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
+	// Download URL: enables support to drag a tab as file to desktop
+	// Requirements:
+	// - Chrome/Edge only
+	// - only a single file is supported
+	// - only file:/ resources are supported
 	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
 	if (firstFile) {
-		// TODO@sandbox this will no longer work when `vscode-file`
-		// is enabled because we block loading resources that are not
-		// inside installation dir
-		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), FileAccess.asBrowserUri(firstFile.resource).toString()].join(':'));
+		const firstFileUri = FileAccess.asFileUri(firstFile.resource); // enforce `file:` URIs
+		if (firstFileUri.scheme === Schemas.file) {
+			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
+		}
 	}
 
 	// Resource URLs: allows to drop multiple file resources to a target in VS Code
@@ -302,7 +366,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// Extract resource editor from provided object or URI
 		let editor: IDraggedResourceEditorInput | undefined = undefined;
 		if (isEditorIdentifier(resourceOrEditor)) {
-			editor = resourceOrEditor.editor.toUntyped(resourceOrEditor.groupId, UntypedEditorContext.Full /* include contents since we possibly are about to transfer to another window */);
+			editor = resourceOrEditor.editor.toUntyped({ preserveViewState: resourceOrEditor.groupId });
 		} else if (URI.isUri(resourceOrEditor)) {
 			editor = { resource: resourceOrEditor };
 		} else if (!resourceOrEditor.isDirectory) {
@@ -344,11 +408,11 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 					editor.options = {
 						...editor.options,
 						viewState: (() => {
-							for (const textEditorControl of editorService.visibleTextEditorControls) {
-								if (isCodeEditor(textEditorControl)) {
-									const model = textEditorControl.getModel();
-									if (isEqual(model?.uri, resource)) {
-										return withNullAsUndefined(textEditorControl.saveViewState());
+							for (const visibleEditorPane of editorService.visibleEditorPanes) {
+								if (isEqual(visibleEditorPane.input.resource, resource)) {
+									const viewState = visibleEditorPane.getViewState();
+									if (viewState) {
+										return viewState;
 									}
 								}
 							}

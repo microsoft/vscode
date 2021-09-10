@@ -17,7 +17,14 @@ export interface IRemoteTerminalProcessReplayEvent {
 	events: ReplayEntry[];
 }
 
-export class TerminalRecorder {
+export interface ITerminalSerializer {
+	handleData(data: string): void;
+	handleResize(cols: number, rows: number): void;
+	generateReplayEvent(): Promise<IPtyHostProcessReplayEvent>;
+	setUnicodeVersion?(version: '6' | '11'): void;
+}
+
+export class TerminalRecorder implements ITerminalSerializer {
 
 	private _entries: RecorderEntry[];
 	private _totalDataLength: number = 0;
@@ -26,7 +33,7 @@ export class TerminalRecorder {
 		this._entries = [{ cols, rows, data: [] }];
 	}
 
-	recordResize(cols: number, rows: number): void {
+	handleResize(cols: number, rows: number): void {
 		if (this._entries.length > 0) {
 			const lastEntry = this._entries[this._entries.length - 1];
 			if (lastEntry.data.length === 0) {
@@ -52,7 +59,7 @@ export class TerminalRecorder {
 		this._entries.push({ cols, rows, data: [] });
 	}
 
-	recordData(data: string): void {
+	handleData(data: string): void {
 		const lastEntry = this._entries[this._entries.length - 1];
 		lastEntry.data.push(data);
 
@@ -76,7 +83,7 @@ export class TerminalRecorder {
 		}
 	}
 
-	generateReplayEvent(): IPtyHostProcessReplayEvent {
+	generateReplayEventSync(): IPtyHostProcessReplayEvent {
 		// normalize entries to one element per data array
 		this._entries.forEach((entry) => {
 			if (entry.data.length > 0) {
@@ -86,5 +93,9 @@ export class TerminalRecorder {
 		return {
 			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' }))
 		};
+	}
+
+	async generateReplayEvent(): Promise<IPtyHostProcessReplayEvent> {
+		return this.generateReplayEventSync();
 	}
 }

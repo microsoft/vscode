@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -19,14 +20,12 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { FindInFrameOptions, IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
+import { IFrameWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Delayer } from 'vs/base/common/async';
 
 /**
  * Webview backed by an iframe but that uses Electron APIs to power the webview.
@@ -44,6 +43,8 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 
 	public readonly checkImeCompletionState = true;
 
+	protected override get platform() { return 'electron'; }
+
 	constructor(
 		id: string,
 		options: WebviewOptions,
@@ -55,7 +56,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		@IFileService fileService: IFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IRemoteAuthorityResolverService _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IMenuService menuService: IMenuService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -65,8 +66,8 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
-			contextMenuService,
-			configurationService, fileService, logService, menuService, notificationService, _remoteAuthorityResolverService, telemetryService, tunnelService, environmentService);
+			configurationService, contextMenuService, menuService, notificationService, environmentService,
+			fileService, logService, remoteAuthorityResolverService, telemetryService, tunnelService);
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 
@@ -98,12 +99,6 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		}
 	}
 
-	protected override initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
-		super.initElement(extension, options, {
-			platform: 'electron'
-		});
-	}
-
 	public override mountTo(parent: HTMLElement) {
 		if (!this.element) {
 			return;
@@ -117,10 +112,6 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 
 	protected override get webviewContentEndpoint(): string {
 		return `${Schemas.vscodeWebview}://${this.id}`;
-	}
-
-	protected override async doPostMessage(channel: string, data?: any): Promise<void> {
-		this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
 	}
 
 	protected override style(): void {

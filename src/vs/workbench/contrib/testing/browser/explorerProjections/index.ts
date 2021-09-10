@@ -10,8 +10,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItemContext } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -67,14 +66,9 @@ export interface IActionableTestTreeElement {
 	depth: number;
 
 	/**
-	 * Tests to debug when the 'debug' context action is taken on this item.
+	 * Iterable of the tests this element contains.
 	 */
-	debuggable: Iterable<ITestIdWithSrc>;
-
-	/**
-	 * Tests to run when the 'debug' context action is taken on this item.
-	 */
-	runnable: Iterable<ITestIdWithSrc>;
+	tests: Iterable<InternalTestItem>;
 
 	/**
 	 * State to show on the item. This is generally the item's computed state
@@ -113,22 +107,8 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	 */
 	public depth: number = this.parent ? this.parent.depth + 1 : 0;
 
-	/**
-	 * @inheritdoc
-	 */
-	public get runnable() {
-		return this.test.item.runnable
-			? Iterable.single(identifyTest(this.test))
-			: Iterable.empty();
-	}
-
-	/**
-	 * @inheritdoc
-	 */
-	public get debuggable() {
-		return this.test.item.debuggable
-			? Iterable.single(identifyTest(this.test))
-			: Iterable.empty();
+	public get tests() {
+		return Iterable.single(this.test);
 	}
 
 	public get description() {
@@ -173,12 +153,16 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	) { }
 
 	public toJSON() {
+		if (this.depth === 0) {
+			return { controllerId: this.test.controllerId };
+		}
+
 		const context: ITestItemContext = {
 			$mid: MarshalledId.TestItemContext,
 			tests: [this.test],
 		};
 
-		for (let p = this.parent; p; p = p.parent) {
+		for (let p = this.parent; p && p.depth > 0; p = p.parent) {
 			context.tests.unshift(p.test);
 		}
 

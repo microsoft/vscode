@@ -74,3 +74,16 @@ $$
 \left( \sum_{k=1}^n b_k^2 \right)
 $$
 ```
+
+<!-- #128411 -->
+
+- list item
+    **abc**
+    $$
+    \begin{aligned}
+        &\text{Any equation}
+        \\
+        &\text {Inconsistent KaTeX keyword highlighting}
+    \end{aligned}
+    $$
+    **xyz**

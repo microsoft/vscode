@@ -10,7 +10,7 @@ import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
-import { IResourceDiffEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
@@ -32,12 +32,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isNumber } from 'vs/base/common/types';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
@@ -50,6 +50,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -277,21 +279,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private registerLayoutListeners(): void {
 
-		// Restore editor if hidden and it changes
-		// The editor service will always trigger this
-		// on startup so we can ignore the first one
-		let firstTimeEditorActivation = true;
+		// Restore editor if hidden
 		const showEditorIfHidden = () => {
-			if (!firstTimeEditorActivation && this.state.editor.hidden) {
+			if (this.state.editor.hidden) {
 				this.toggleMaximizedPanel();
 			}
-
-			firstTimeEditorActivation = false;
 		};
 
-		// Restore editor part on any editor change
-		this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
-		this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+		// Wait to register these listeners after the editor group service is ready to avoid conflicts on startup
+		this.editorGroupService.whenRestored.then(() => {
+			// Restore editor part on any editor change
+			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
+			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+		});
 
 		// Revalidate center layout when active editor changes: diff editor quits centered mode.
 		this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.state.editor.centered)));
@@ -396,13 +396,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!this.state.zenMode.active) {
 
 			// Statusbar visibility
-			const newStatusbarHiddenValue = !this.configurationService.getValue<boolean>(Settings.STATUSBAR_VISIBLE);
+			const newStatusbarHiddenValue = !this.configurationService.getValue(Settings.STATUSBAR_VISIBLE);
 			if (newStatusbarHiddenValue !== this.state.statusBar.hidden) {
 				this.setStatusBarHidden(newStatusbarHiddenValue, skipLayout);
 			}
 
 			// Activitybar visibility
-			const newActivityBarHiddenValue = !this.configurationService.getValue<boolean>(Settings.ACTIVITYBAR_VISIBLE);
+			const newActivityBarHiddenValue = !this.configurationService.getValue(Settings.ACTIVITYBAR_VISIBLE);
 			if (newActivityBarHiddenValue !== this.state.activityBar.hidden) {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
 			}
@@ -533,7 +533,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.editor.restoreCentered = this.storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
 
 		// Editors to open
-		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(fileService);
+		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(fileService, this.contextService);
 
 		// Panel visibility
 		this.state.panel.hidden = this.storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
@@ -587,25 +587,30 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private resolveEditorsToOpen(fileService: IFileService): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
+	private resolveEditorsToOpen(fileService: IFileService, contextService: IWorkspaceContextService): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
 		const initialFilesToOpen = this.getInitialFilesToOpen();
 
-		// Only restore editors if we are not instructed to open files initially
-		// or when `window.restoreWindows` setting is explicitly set to `preserve`
-		const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
-		this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
+		// Restore editors based on a set of rules:
+		// - never when running in web on `tmp` scheme
+		// - not when we have files to open, unless:
+		// - always when `window.restoreWindows: preserve`
+		if (isWeb && getVirtualWorkspaceScheme(contextService.getWorkspace()) === Schemas.tmp) {
+			this.state.editor.restoreEditors = false;
+		} else {
+			const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
+			this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
+		}
 
 		// Files to open, diff or create
-		if (initialFilesToOpen !== undefined) {
+		if (initialFilesToOpen) {
 
 			// Files to diff is exclusive
 			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
 				if (filesToDiff.length === 2) {
-					const diffEditorInput: IResourceDiffEditorInput[] = [{
-						originalInput: { resource: filesToDiff[0].resource },
-						modifiedInput: { resource: filesToDiff[1].resource },
-						options: { pinned: true },
-						forceFile: true
+					const diffEditorInput: IUntypedEditorInput[] = [{
+						original: { resource: filesToDiff[0].resource },
+						modified: { resource: filesToDiff[1].resource },
+						options: { pinned: true }
 					}];
 
 					return diffEditorInput;
@@ -627,7 +632,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					return []; // do not open any empty untitled file if we have backups to restore
 				}
 
-				return [Object.create(null)]; // open empty untitled file
+				return [{ resource: undefined }]; // open empty untitled file
 			});
 		}
 
@@ -646,7 +651,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			return {
 				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
-					return { fileUri: URI.revive(file.uri), openOnlyIfExists: file.openOnlyIfExists, editorOverrideId: file.openWith };
+					return {
+						fileUri: URI.revive(file.uri),
+						selection: file.selection && file.selection.start && isNumber(file.selection.start.line) ? {
+							startLineNumber: file.selection.start.line,
+							startColumn: isNumber(file.selection.start.column) ? file.selection.start.column : 1,
+							endLineNumber: isNumber(file.selection.end.line) ? file.selection.end.line : undefined,
+							endColumn: isNumber(file.selection.end.line) ? (isNumber(file.selection.end.column) ? file.selection.end.column : 1) : undefined,
+						} : undefined,
+						openOnlyIfExists: file.openOnlyIfExists,
+						editorOverrideId: file.openWith
+					};
 				})
 			};
 		}
@@ -1276,15 +1291,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
 
-		const isSideBySideLayout = activeEditor
-			&& activeEditor instanceof SideBySideEditorInput
-			// DiffEditorInput inherits from SideBySideEditorInput but can still be functionally an inline editor.
-			&& (!(activeEditor instanceof DiffEditorInput) || this.configurationService.getValue('diffEditor.renderSideBySide'));
+		let isEditorSplit = false;
+		if (activeEditor instanceof DiffEditorInput) {
+			isEditorSplit = this.configurationService.getValue('diffEditor.renderSideBySide');
+		} else if (activeEditor instanceof SideBySideEditorInput) {
+			isEditorSplit = true;
+		}
 
 		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
 		if (
-			isCenteredLayoutAutoResizing
-			&& (this.editorGroupService.groups.length > 1 || isSideBySideLayout)
+			isCenteredLayoutAutoResizing &&
+			(this.editorGroupService.groups.length > 1 || isEditorSplit)
 		) {
 			smartActive = false;
 		}
@@ -1478,7 +1495,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let focusEditor = false;
 		if (hidden && this.panelService.getActivePanel()) {
 			this.panelService.hideActivePanel();
-			focusEditor = true;
+			focusEditor = isIOS ? false : true; // Do not auto focus on ios #127832
 		}
 
 		// If panel part becomes visible, show last active panel or default panel

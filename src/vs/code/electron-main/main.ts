@@ -3,62 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
 import { unlinkSync } from 'fs';
-import { Promises as FSPromises } from 'vs/base/node/pfs';
-import { localize } from 'vs/nls';
-import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { coalesce, distinct } from 'vs/base/common/arrays';
+import { Promises } from 'vs/base/common/async';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
+import { once } from 'vs/base/common/functional';
+import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
+import { basename, join, resolve } from 'vs/base/common/path';
 import { mark } from 'vs/base/common/performance';
-import product from 'vs/platform/product/common/product';
-import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
-import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
-import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { cwd } from 'vs/base/common/process';
+import { rtrim, trim } from 'vs/base/common/strings';
+import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Server as NodeIPCServer, serve as nodeIPCServe, connect as nodeIPCConnect, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
 import { Client as NodeIPCClient } from 'vs/base/parts/ipc/common/ipc.net';
-import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, ConsoleMainLogger, MultiplexLogService, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
-import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from 'vs/base/parts/ipc/node/ipc.net';
+import { CodeApplication } from 'vs/code/electron-main/app';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
-import { CodeApplication } from 'vs/code/electron-main/app';
-import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { once } from 'vs/base/common/functional';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { SignService } from 'vs/platform/sign/node/signService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { addArg, parseMainProcessArgv } from 'vs/platform/environment/node/argvHelper';
+import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
+import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { Schemas } from 'vs/base/common/network';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/platform/remote/node/tunnelService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
-import { rtrim, trim } from 'vs/base/common/strings';
-import { basename, join, resolve } from 'vs/base/common/path';
-import { coalesce, distinct } from 'vs/base/common/arrays';
-import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
+import { ILifecycleMainService, LifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { BufferLogService } from 'vs/platform/log/common/bufferLog';
+import { ConsoleMainLogger, getLogLevel, ILoggerService, ILogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
-import { cwd } from 'vs/base/common/process';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
-import { Promises } from 'vs/base/common/async';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { SignService } from 'vs/platform/sign/node/signService';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IThemeMainService, ThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import 'vs/platform/update/common/update.config.contribution';
 
 /**
  * The main VS Code entry point.
@@ -112,13 +112,19 @@ class CodeMain {
 				// instance of VS Code running and so we would quit.
 				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
+				// Write a lockfile to indicate an instance is running (https://github.com/microsoft/vscode/issues/127861#issuecomment-877417451)
+				FSPromises.writeFile(environmentMainService.mainLockfile, String(process.pid)).catch(err => {
+					logService.warn(`Error writing main lockfile: ${err.stack}`);
+				});
+
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 				bufferLogService.logger = new SpdLogLogger('main', join(environmentMainService.logsPath, 'main.log'), true, bufferLogService.getLevel());
 
 				// Lifecycle
-				once(lifecycleMainService.onWillShutdown)(() => {
+				once(lifecycleMainService.onWillShutdown)(evt => {
 					fileService.dispose();
 					configurationService.dispose();
+					evt.join(FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();

@@ -34,7 +34,7 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
-import { isPortPrivileged, ITunnelService, RemoteTunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
+import { isAllInterfaces, isLocalhost, isPortPrivileged, ITunnelService, RemoteTunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -353,9 +353,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			{
 				supportHighlights: true,
 				hoverDelegate: {
-					showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
-						return this.hoverService.showHover(options);
-					},
+					showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
 					delay: <number>this.configurationService.getValue('workbench.hover.delay')
 				}
 			});
@@ -577,10 +575,14 @@ class TunnelItem implements ITunnelItem {
 	get label(): string {
 		if (this.tunnelType === TunnelType.Add && this.name) {
 			return this.name;
-		} else if (this.name) {
-			return `${this.name} (${this.remotePort})`;
+		}
+		const portNumberLabel = (isLocalhost(this.remoteHost) || isAllInterfaces(this.remoteHost))
+			? `${this.remotePort}`
+			: `${this.remoteHost}:${this.remotePort}`;
+		if (this.name) {
+			return `${this.name} (${portNumberLabel})`;
 		} else {
-			return `${this.remotePort}`;
+			return portNumberLabel;
 		}
 	}
 
@@ -1033,7 +1035,7 @@ namespace LabelTunnelAction {
 	}
 }
 
-const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Forwarded port is invalid.");
+const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Forwarded port should be a number or a host:port.");
 const maxPortNumber: number = 65536;
 const invalidPortNumberString: string = nls.localize('remote.tunnelsView.portNumberToHigh', "Port number must be \u2265 0 and < {0}.", maxPortNumber);
 const requiresSudoString: string = nls.localize('remote.tunnelView.inlineElevationMessage', "May Require Sudo");

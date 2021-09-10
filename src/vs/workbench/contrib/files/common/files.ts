@@ -73,6 +73,11 @@ export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
  */
 export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
 
+/**
+ * Language mode for binary files opened as text.
+ */
+export const BINARY_TEXT_FILE_MODE = 'code-text-binary';
+
 export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkbenchEditorConfiguration {
 	explorer: {
 		openEditors: {
@@ -132,8 +137,8 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 	static async open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
 		await editorService.openEditor({
-			originalInput: { resource: TextFileContentProvider.resourceToTextFile(scheme, resource) },
-			modifiedInput: { resource },
+			original: { resource: TextFileContentProvider.resourceToTextFile(scheme, resource) },
+			modified: { resource },
 			label,
 			options
 		});

@@ -223,7 +223,7 @@ export class CommentNode extends Disposable {
 		} else if (action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
 		} else if (action instanceof SubmenuItemAction) {
-			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
+			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action, undefined);
 		} else {
 			let item = new ActionViewItem({}, action, options);
 			return item;

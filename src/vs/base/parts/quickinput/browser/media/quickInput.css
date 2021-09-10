@@ -7,7 +7,7 @@
 	position: absolute;
 	width: 600px;
 	z-index: 2000;
-	padding: 0 1px 6px 1px;
+	padding: 0 1px 1px 1px;
 	left: 50%;
 	margin-left: -300px;
 }
@@ -26,6 +26,8 @@
 .quick-input-title {
 	padding: 3px 0px;
 	text-align: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .quick-input-right-action-bar {
@@ -68,6 +70,7 @@
 	display: flex;
 	flex-direction: column;
 	flex-grow: 1;
+	min-width: 0;
 	position: relative;
 }
 
@@ -127,6 +130,7 @@
 .quick-input-message {
 	margin-top: -1px;
 	padding: 5px 5px 2px 5px;
+	overflow-wrap: break-word;
 }
 
 .quick-input-message > .codicon {
@@ -218,7 +222,7 @@
 }
 
 .quick-input-list .quick-input-list-rows > .quick-input-list-row .codicon[class*='codicon-'] {
-	vertical-align: sub;
+	vertical-align: text-bottom;
 }
 
 .quick-input-list .quick-input-list-rows .monaco-highlighted-label span {
@@ -260,7 +264,7 @@
 
 .quick-input-list .quick-input-list-entry-action-bar .action-label.codicon {
 	margin-right: 4px;
-	padding: 2px;
+	padding: 0px 2px 2px 2px;
 }
 
 .quick-input-list .quick-input-list-entry-action-bar {

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/65f211722c85e9fdf0aa658d5663e6ccaf2ebe25",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/0aaacde81aa9a12cfed8ca4ab619be5d9e9ed00a",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -36,6 +36,10 @@
 				{
 					"name": "keyword.other.import.dart",
 					"match": "\\b(as|show|hide)\\b"
+				},
+				{
+					"name": "keyword.control.dart",
+					"match": "\\b(if)\\b"
 				}
 			]
 		},
@@ -319,15 +323,30 @@
 		"string-interp": {
 			"patterns": [
 				{
-					"match": "\\$(([a-zA-Z0-9_]+)|\\{([^{}]+)\\})",
+					"match": "\\$([a-zA-Z0-9_]+)",
 					"captures": {
-						"2": {
-							"name": "variable.parameter.dart"
-						},
-						"3": {
+						"1": {
 							"name": "variable.parameter.dart"
 						}
 					}
+				},
+				{
+					"name": "string.interpolated.expression.dart",
+					"begin": "\\$\\{",
+					"end": "\\}",
+					"patterns": [
+						{
+							"include": "#constants-and-special-vars",
+							"name": "variable.parameter.dart"
+						},
+						{
+							"include": "#strings"
+						},
+						{
+							"name": "variable.parameter.dart",
+							"match": "[a-zA-Z0-9_]+"
+						}
+					]
 				},
 				{
 					"name": "constant.character.escape.dart",

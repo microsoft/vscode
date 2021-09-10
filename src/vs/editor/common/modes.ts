@@ -691,6 +691,13 @@ export interface InlineCompletionContext {
 	 * How the completion was triggered.
 	 */
 	readonly triggerKind: InlineCompletionTriggerKind;
+
+	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+}
+
+export interface SelectedSuggestionInfo {
+	range: IRange;
+	text: string;
 }
 
 export interface InlineCompletion {
@@ -1544,6 +1551,7 @@ export interface AuthenticationSession {
 		id: string;
 	}
 	scopes: ReadonlyArray<string>;
+	idToken?: string;
 }
 
 /**

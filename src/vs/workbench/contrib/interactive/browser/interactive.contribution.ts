@@ -13,19 +13,19 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorExtensions, EditorsOrder, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
+import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { CellEditType, CellKind, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -40,13 +40,21 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
-import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { contrastBorder, listInactiveSelectionBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+// import { Color } from 'vs/base/common/color';
+import { PANEL_BORDER } from 'vs/workbench/common/theme';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/peekView';
+import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		InteractiveEditor,
 		InteractiveEditor.ID,
 		'Interactive Window'
@@ -59,7 +67,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@INotebookService notebookService: INotebookService,
-		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
+		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
@@ -97,7 +105,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 											outputId: output.outputId,
 											outputs: output.outputs.map(ot => ({
 												mime: ot.mime,
-												data: Uint8Array.from(ot.data)
+												data: ot.data
 											}))
 										}))
 										: [],
@@ -138,7 +146,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 								outputId: output.outputId,
 								outputs: output.outputs.map(ot => ({
 									mime: ot.mime,
-									data: Array.from(ot.data)
+									data: ot.data
 								}))
 							};
 						}),
@@ -157,7 +165,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		};
 		this._register(notebookService.registerNotebookController('interactive', {
 			id: new ExtensionIdentifier('interactive.builtin'),
-			location: URI.parse('interactive://test')
+			location: undefined
 		}, controller));
 
 		const info = notebookService.getContributedNotebookType('interactive');
@@ -173,7 +181,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			}));
 		}
 
-		editorOverrideService.registerEditor(
+		editorResolverService.registerEditor(
 			`${Schemas.vscodeInteractiveInput}:/**`,
 			{
 				id: InteractiveEditor.ID,
@@ -190,7 +198,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			}
 		);
 
-		editorOverrideService.registerEditor(
+		editorResolverService.registerEditor(
 			`*.interactive`,
 			{
 				id: InteractiveEditor.ID,
@@ -212,12 +220,12 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
 
-export class InteractiveEditorSerializer implements IEditorInputSerializer {
+export class InteractiveEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
 
-	serialize(input: EditorInput): string {
+	serialize(input: IEditorInput): string {
 		assertType(input instanceof InteractiveEditorInput);
 		return JSON.stringify({
 			resource: input.primary.resource,
@@ -252,19 +260,28 @@ registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'interactive.open',
+			id: '_interactive.open',
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
 			f1: false,
 			category: 'Interactive',
 			description: {
-				description: localize('notebookActions.executeNotebook', "Run All"),
+				description: localize('interactive.open', "Open Interactive Window"),
 				args: [
 					{
-						name: 'column',
-						description: 'View Column',
+						name: 'showOptions',
+						description: 'Show Options',
 						schema: {
-							type: 'number',
-							default: -1
+							type: 'object',
+							properties: {
+								'viewColumn': {
+									type: 'number',
+									default: -1
+								},
+								'preserveFocus': {
+									type: 'boolean',
+									default: true
+								}
+							},
 						}
 					},
 					{
@@ -276,6 +293,11 @@ registerAction2(class extends Action2 {
 						name: 'controllerId',
 						description: 'Notebook controller Id',
 						isOptional: true
+					},
+					{
+						name: 'title',
+						description: 'Notebook editor title',
+						isOptional: true
 					}
 				]
 			}
@@ -283,12 +305,16 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, column?: number, resource?: URI, id?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
+	async run(accessor: ServicesAccessor, showOptions?: number | { viewColumn?: number, preserveFocus?: boolean }, resource?: URI, id?: string, title?: string): Promise<{ notebookUri: URI, inputUri: URI; notebookEditorId?: string }> {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const kernelService = accessor.get(INotebookKernelService);
-		const group = viewColumnToEditorGroup(editorGroupService, column);
+		const group = columnToEditorGroup(editorGroupService, typeof showOptions === 'number' ? showOptions : showOptions?.viewColumn);
+		const editorOptions = {
+			activation: EditorActivation.PRESERVE,
+			preserveFocus: typeof showOptions !== 'number' ? (showOptions?.preserveFocus ?? false) : false
+		};
 
 		if (resource && resource.scheme === Schemas.vscodeInteractive) {
 			const resourceUri = URI.revive(resource);
@@ -296,10 +322,13 @@ registerAction2(class extends Action2 {
 			if (editors.length) {
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
-				await editorService.openEditor(editorInput, { activation: EditorActivation.PRESERVE, preserveFocus: true }, currentGroup);
+				const editor = await editorService.openEditor(editorInput, editorOptions, currentGroup);
+				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
 				return {
 					notebookUri: editorInput.resource!,
-					inputUri: editorInput.inputResource
+					inputUri: editorInput.inputResource,
+					notebookEditorId: editorControl?.notebookEditor?.getId()
 				};
 			}
 		}
@@ -329,11 +358,12 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
+		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri, title);
 		historyService.clearHistory(notebookUri);
-		await editorService.openEditor(editorInput, undefined, group);
+		const editorPane = await editorService.openEditor(editorInput, editorOptions, group);
+		const editorControl = editorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
 		// Extensions must retain references to these URIs to manipulate the interactive editor
-		return { notebookUri, inputUri };
+		return { notebookUri, inputUri, notebookEditorId: editorControl?.notebookEditor?.getId() };
 	}
 });
 
@@ -352,6 +382,12 @@ registerAction2(class extends Action2 {
 				},
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},
+			menu: [
+				{
+					id: MenuId.InteractiveInputExecute
+				}
+			],
+			icon: icons.executeIcon,
 			f1: false
 		});
 	}
@@ -371,6 +407,11 @@ registerAction2(class extends Action2 {
 			if (notebookDocument && textModel) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
+
+				if (isFalsyOrWhitespace(value)) {
+					return;
+				}
+
 				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
 
@@ -392,8 +433,35 @@ registerAction2(class extends Action2 {
 					)
 				]);
 
-				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.viewModel!.getCells({ start: index, end: index + 1 }));
+				// reveal the cell into view first
 				editorControl.notebookEditor.revealCellRangeInView({ start: index, end: index + 1 });
+				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
+			}
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.input.clear',
+			title: { value: localize('interactive.input.clear', "Clear the interactive window input editor contents"), original: 'Clear the interactive window input editor contents' },
+			category: 'Interactive',
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			const notebookDocument = editorControl.notebookEditor.textModel;
+			const textModel = editorControl.codeEditor.getModel();
+			const range = editorControl.codeEditor.getModel()?.getFullModelRange();
+
+			if (notebookDocument && textModel && range) {
+				editorControl.codeEditor.executeEdits('', [EditOperation.replace(range, null)]);
 			}
 		}
 	}
@@ -477,3 +545,29 @@ registerAction2(class extends Action2 {
 	}
 });
 
+
+registerThemingParticipant((theme) => {
+	registerColor('interactive.activeCodeBorder', {
+		dark: theme.getColor(peekViewBorder) ?? '#007acc',
+		light: theme.getColor(peekViewBorder) ?? '#007acc',
+		hc: contrastBorder
+	}, localize('interactive.activeCodeBorder', 'The border color for the current interactive code cell when the editor has focus.'));
+
+	// registerColor('interactive.activeCodeBackground', {
+	// 	dark: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#001F33')).transparent(0.25),
+	// 	light: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#F2F8FC')).transparent(0.25),
+	// 	hc: Color.black
+	// }, localize('interactive.activeCodeBackground', 'The background color for the current interactive code cell when the editor has focus.'));
+
+	registerColor('interactive.inactiveCodeBorder', {
+		dark: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
+		light: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
+		hc: PANEL_BORDER
+	}, localize('interactive.inactiveCodeBorder', 'The border color for the current interactive code cell when the editor does not have focus.'));
+
+	// registerColor('interactive.inactiveCodeBackground', {
+	// 	dark: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#252526')).transparent(0.25),
+	// 	light: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#F3F3F3')).transparent(0.25),
+	// 	hc: Color.black
+	// }, localize('interactive.inactiveCodeBackground', 'The backgorund color for the current interactive code cell when the editor does not have focus.'));
+});

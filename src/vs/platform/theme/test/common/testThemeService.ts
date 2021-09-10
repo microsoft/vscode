@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, IColorTheme, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IColorTheme, IFileIconTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 export class TestColorTheme implements IColorTheme {
 

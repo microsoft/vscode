@@ -3,38 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
-import { getMarks, mark } from 'vs/base/common/performance';
+import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl, WebFrameMain } from 'electron';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, WebFrameMain } from 'electron';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { join } from 'vs/base/common/path';
+import { getMarks, mark } from 'vs/base/common/performance';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
+import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { getMenuBarVisibility, getTitleBarStyle, INativeWindowConfiguration, IWindowSettings, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, LoadReason, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -92,22 +93,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	//#endregion
 
-	private hiddenTitleBarStyle: boolean | undefined;
-	private showTimeoutHandle: NodeJS.Timeout | undefined;
-	private windowState: IWindowState;
-	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
-	private representedFilename: string | undefined;
-	private documentEdited: boolean | undefined;
-
-	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
-
-	private marketplaceHeadersPromise: Promise<object>;
-
-	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
-
-	private currentHttpProxy: string | undefined = undefined;
-	private currentNoProxy: string | undefined = undefined;
+	//#region Properties
 
 	private _id: number;
 	get id(): number { return this._id; }
@@ -124,13 +111,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get remoteAuthority(): string | undefined { return this.currentConfig?.remoteAuthority; }
 
-	private pendingLoadConfig: INativeWindowConfiguration | undefined;
-
 	private currentConfig: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this.currentConfig; }
 
-	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
-
+	private hiddenTitleBarStyle: boolean | undefined;
 	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
 	get isExtensionDevelopmentHost(): boolean { return !!(this.currentConfig?.extensionDevelopmentPath); }
@@ -138,6 +122,27 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	get isExtensionTestHost(): boolean { return !!(this.currentConfig?.extensionTestsPath); }
 
 	get isExtensionDevelopmentTestFromCli(): boolean { return this.isExtensionDevelopmentHost && this.isExtensionTestHost && !this.currentConfig?.debugId; }
+
+	//#endregion
+
+
+	private readonly windowState: IWindowState;
+	private currentMenuBarVisibility: MenuBarVisibility | undefined;
+
+	private representedFilename: string | undefined;
+	private documentEdited: boolean | undefined;
+
+	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
+
+	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
+
+	private marketplaceHeadersPromise: Promise<object>;
+	private currentHttpProxy: string | undefined = undefined;
+	private currentNoProxy: string | undefined = undefined;
+
+	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+	private pendingLoadConfig: INativeWindowConfiguration | undefined;
+	private wasLoaded = false;
 
 	constructor(
 		config: IWindowCreationOptions,
@@ -181,14 +186,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-					additionalArguments: this.environmentMainService.sandbox ?
-						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`, '--context-isolation' /* TODO@bpasero: Use process.contextIsolateed when 13-x-y is adopted (https://github.com/electron/electron/pull/28030) */] :
-						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-					v8CacheOptions: browserCodeLoadingCacheStrategy,
+					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
+					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,
 					spellcheck: false,
 					nativeWindowOpen: true,
-					webviewTag: true,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
 					...this.environmentMainService.sandbox ?
 
@@ -204,12 +206,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 				}
 			};
-
-			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
-			} else {
-				this.logService.info(`window: vscode-file:// protocol is explicitly disabled`);
-			}
 
 			// Apply icon to window
 			// Linux: always
@@ -306,7 +302,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.environmentMainService, this.fileService, {
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.productService, this.environmentMainService, this.configurationService, this.fileService, {
 			get: key => storageMainService.globalStorage.get(key),
 			store: (key, value) => storageMainService.globalStorage.set(key, value)
 		});
@@ -762,20 +758,25 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			'vs/code/electron-browser/workbench/workbench.html', require
 		).toString(true));
 
+		// Remember that we did load
+		const wasLoaded = this.wasLoaded;
+		this.wasLoaded = true;
+
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
 		if (!this.environmentMainService.isBuilt && !this.environmentMainService.extensionTestsLocationURI) {
-			this.showTimeoutHandle = setTimeout(() => {
+			this._register(new RunOnceScheduler(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
 					this.focus({ force: true });
 					this._win.webContents.openDevTools();
 				}
-			}, 10000);
+
+			}, 10000)).schedule();
 		}
 
 		// Event
-		this._onWillLoad.fire({ workspace: configuration.workspace, isReload: options.isReload ?? false });
+		this._onWillLoad.fire({ workspace: configuration.workspace, reason: options.isReload ? LoadReason.RELOAD : wasLoaded ? LoadReason.LOAD : LoadReason.INITIAL });
 	}
 
 	private updateConfiguration(configuration: INativeWindowConfiguration, options: ILoadOptions): void {
@@ -785,9 +786,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// preserve that user environment in subsequent loads,
 		// unless the new configuration context was also a CLI
 		// (for https://github.com/microsoft/vscode/issues/108571)
+		// Also, preserve the environment if we're loading from an
+		// extension development host that had its environment set
+		// (for https://github.com/microsoft/vscode/issues/123508)
 		const currentUserEnv = (this.currentConfig ?? this.pendingLoadConfig)?.userEnv;
-		if (currentUserEnv && isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(configuration.userEnv)) {
-			configuration.userEnv = { ...currentUserEnv, ...configuration.userEnv }; // still allow to override certain environment as passed in
+		if (currentUserEnv) {
+			const shouldPreserveLaunchCliEnvironment = isLaunchedFromCli(currentUserEnv) && !isLaunchedFromCli(configuration.userEnv);
+			const shouldPreserveDebugEnvironmnet = this.isExtensionDevelopmentHost;
+			if (shouldPreserveLaunchCliEnvironment || shouldPreserveDebugEnvironmnet) {
+				configuration.userEnv = { ...currentUserEnv, ...configuration.userEnv }; // still allow to override certain environment as passed in
+			}
 		}
 
 		// If named pipe was instantiated for the crashpad_handler process, reuse the same
@@ -1366,10 +1374,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	override dispose(): void {
 		super.dispose();
-
-		if (this.showTimeoutHandle) {
-			clearTimeout(this.showTimeoutHandle);
-		}
 
 		this._win = null!; // Important to dereference the window object to allow for GC
 	}

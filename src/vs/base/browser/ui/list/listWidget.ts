@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./list';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { isNumber } from 'vs/base/common/types';
-import { range, binarySearch, firstOrDefault } from 'vs/base/common/arrays';
-import { memoize } from 'vs/base/common/decorators';
-import * as platform from 'vs/base/common/platform';
-import { Gesture } from 'vs/base/browser/touch';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
+import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { createStyleSheet } from 'vs/base/browser/dom';
 import { DomEmitter, stopEvent } from 'vs/base/browser/event';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListError, IKeyboardNavigationDelegate } from './list';
-import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider, IListViewOptionsUpdate } from './listView';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Gesture } from 'vs/base/browser/touch';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
+import { ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
+import { binarySearch, firstOrDefault, range } from 'vs/base/common/arrays';
+import { timeout } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
+import { memoize } from 'vs/base/common/decorators';
+import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
+import { matchesPrefix } from 'vs/base/common/filters';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { mixin } from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
-import { clamp } from 'vs/base/common/numbers';
-import { matchesPrefix } from 'vs/base/common/filters';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IThemable } from 'vs/base/common/styler';
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { timeout } from 'vs/base/common/async';
+import { isNumber } from 'vs/base/common/types';
+import 'vs/css!./list';
+import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
+import { IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -281,7 +282,7 @@ class KeyboardController<T> implements IDisposable {
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
 
-		if (options.multipleSelectionSupport) {
+		if (options.multipleSelectionSupport !== false) {
 			this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.multipleSelectionDisposables);
 		}
 	}
@@ -450,7 +451,7 @@ class TypeLabelController<T> implements IDisposable {
 	private onClear(): void {
 		const focus = this.list.getFocus();
 		if (focus.length > 0 && focus[0] === this.previouslyFocused) {
-			// List: re-anounce element on typing end since typed keys will interupt aria label of focused element
+			// List: re-announce element on typing end since typed keys will interrupt aria label of focused element
 			// Do not announce if there was a focus change at the end to prevent duplication https://github.com/microsoft/vscode/issues/95961
 			const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(focus[0]));
 			if (ariaLabel) {
@@ -917,6 +918,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
+	readonly scrollableElementChangeOptions?: ScrollableElementChangeOptions;
 	readonly alwaysConsumeMouseWheel?: boolean;
 }
 
@@ -1346,7 +1348,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 			this.ariaLabel = this.accessibilityProvider.getWidgetAriaLabel();
 		}
 
-		if (this._options.multipleSelectionSupport) {
+		if (this._options.multipleSelectionSupport !== false) {
 			this.view.domNode.setAttribute('aria-multiselectable', 'true');
 		}
 	}

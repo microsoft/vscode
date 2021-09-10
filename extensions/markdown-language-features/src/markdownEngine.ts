@@ -91,12 +91,12 @@ export class MarkdownEngine {
 				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
 					try {
 						md = (await plugin)(md);
-					} catch {
-						// noop
+					} catch (e) {
+						console.error('Could not load markdown it plugin', e);
 					}
 				}
 
-				const frontMatterPlugin = require('markdown-it-front-matter');
+				const frontMatterPlugin = await import('markdown-it-front-matter');
 				// Extract rules from front matter plugin and apply at a lower precedence
 				let fontMatterRule: any;
 				frontMatterPlugin({
@@ -191,7 +191,7 @@ export class MarkdownEngine {
 	}
 
 	private getConfig(resource?: vscode.Uri): MarkdownItConfig {
-		const config = vscode.workspace.getConfiguration('markdown', resource);
+		const config = vscode.workspace.getConfiguration('markdown', resource ?? null);
 		return {
 			breaks: config.get<boolean>('preview.breaks', false),
 			linkify: config.get<boolean>('preview.linkify', true),

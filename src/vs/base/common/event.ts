@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
@@ -478,9 +478,6 @@ class LeakageMonitor {
 	}
  */
 export class Emitter<T> {
-
-	private static readonly _noop = function () { };
-
 	private readonly _options?: EmitterOptions;
 	private readonly _leakageMon?: LeakageMonitor;
 	private readonly _perfMon?: EventProfiling;
@@ -525,24 +522,21 @@ export class Emitter<T> {
 				// check and record this emitter for potential leakage
 				const removeMonitor = this._leakageMon?.check(this._listeners.size);
 
-				let result: IDisposable;
-				result = {
-					dispose: () => {
-						if (removeMonitor) {
-							removeMonitor();
-						}
-						result.dispose = Emitter._noop;
-						if (!this._disposed) {
-							remove();
-							if (this._options && this._options.onLastListenerRemove) {
-								const hasListeners = (this._listeners && !this._listeners.isEmpty());
-								if (!hasListeners) {
-									this._options.onLastListenerRemove(this);
-								}
+				const result = toDisposable(() => {
+					if (removeMonitor) {
+						removeMonitor();
+					}
+					if (!this._disposed) {
+						remove();
+						if (this._options && this._options.onLastListenerRemove) {
+							const hasListeners = (this._listeners && !this._listeners.isEmpty());
+							if (!hasListeners) {
+								this._options.onLastListenerRemove(this);
 							}
 						}
 					}
-				};
+				});
+
 				if (disposables instanceof DisposableStore) {
 					disposables.add(result);
 				} else if (Array.isArray(disposables)) {
@@ -674,7 +668,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 export class PauseableEmitter<T> extends Emitter<T> {
 
 	private _isPaused = 0;
-	private _eventQueue = new LinkedList<T>();
+	protected _eventQueue = new LinkedList<T>();
 	private _mergeFn?: (input: T[]) => T;
 
 	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {

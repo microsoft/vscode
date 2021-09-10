@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event, Emitter, PauseableEmitter } from 'vs/base/common/event';
+import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
 const TARGET_KEY = '__$__targetStorageMarker';
@@ -156,7 +156,7 @@ export interface IStorageService {
 	 * @returns a `Promise` that can be awaited on when all updates
 	 * to the underlying storage have been flushed.
 	 */
-	flush(): Promise<void>;
+	flush(reason?: WillSaveStateReason): Promise<void>;
 }
 
 export const enum StorageScope {
@@ -454,10 +454,10 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 
-	async flush(): Promise<void> {
+	async flush(reason: WillSaveStateReason = WillSaveStateReason.NONE): Promise<void> {
 
 		// Signal event to collect changes
-		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+		this._onWillSaveState.fire({ reason });
 
 		// Await flush
 		await Promises.settled([

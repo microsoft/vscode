@@ -8,29 +8,61 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { ILocationDto } from 'vs/workbench/api/common/extHost.protocol';
 
-export interface ITestIdWithSrc {
-	testId: string;
-	controllerId: string;
+export const enum TestResultState {
+	Unset = 0,
+	Queued = 1,
+	Running = 2,
+	Passed = 3,
+	Failed = 4,
+	Skipped = 5,
+	Errored = 6
 }
 
-export const identifyTest = (test: { controllerId: string, item: { extId: string } }): ITestIdWithSrc =>
-	({ testId: test.item.extId, controllerId: test.controllerId });
+export const enum TestRunProfileBitset {
+	Run = 1 << 1,
+	Debug = 1 << 2,
+	Coverage = 1 << 3,
+	HasNonDefaultProfile = 1 << 4,
+	HasConfigurable = 1 << 5,
+}
 
 /**
- * Defines the path to a test, as a list of test IDs. The last element of the
- * array is the test ID, and the predecessors are its parents, in order.
+ * List of all test run profile bitset values.
  */
-export type TestIdPath = string[];
+export const testRunProfileBitsetList = [
+	TestRunProfileBitset.Run,
+	TestRunProfileBitset.Debug,
+	TestRunProfileBitset.Coverage,
+	TestRunProfileBitset.HasNonDefaultProfile,
+];
 
 /**
- * Request to the main thread to run a set of tests.
+ * DTO for a controller's run profiles.
  */
-export interface RunTestsRequest {
-	tests: ITestIdWithSrc[];
+export interface ITestRunProfile {
+	controllerId: string;
+	profileId: number;
+	label: string;
+	group: TestRunProfileBitset;
+	isDefault: boolean;
+	tag: string | null;
+	hasConfigurationHandler: boolean;
+}
+
+/**
+ * A fully-resolved request to run tests, passsed between the main thread
+ * and extension host.
+ */
+export interface ResolvedTestRunRequest {
+	targets: {
+		testIds: string[];
+		controllerId: string;
+		profileGroup: TestRunProfileBitset;
+		profileId: number;
+	}[]
 	exclude?: string[];
-	debug: boolean;
 	isAutoRun?: boolean;
 }
 
@@ -39,9 +71,10 @@ export interface RunTestsRequest {
  */
 export interface ExtensionRunTestsRequest {
 	id: string;
-	tests: string[];
+	include: string[];
 	exclude: string[];
-	debug: boolean;
+	controllerId: string;
+	profile?: { group: TestRunProfileBitset, id: number };
 	persist: boolean;
 }
 
@@ -51,9 +84,9 @@ export interface ExtensionRunTestsRequest {
 export interface RunTestForControllerRequest {
 	runId: string;
 	controllerId: string;
+	profileId: number;
 	excludeExtIds: string[];
 	testIds: string[];
-	debug: boolean;
 }
 
 /**
@@ -64,13 +97,33 @@ export interface IRichLocation {
 	uri: URI;
 }
 
-export interface ITestMessage {
+export const enum TestMessageType {
+	Error,
+	Info
+}
+
+export interface ITestErrorMessage {
 	message: string | IMarkdownString;
-	severity: TestMessageSeverity;
-	expectedOutput: string | undefined;
-	actualOutput: string | undefined;
+	type: TestMessageType.Error;
+	expected: string | undefined;
+	actual: string | undefined;
 	location: IRichLocation | undefined;
 }
+
+export type SerializedTestErrorMessage = Omit<ITestErrorMessage, 'location'> & { location?: ILocationDto };
+
+export interface ITestOutputMessage {
+	message: string;
+	type: TestMessageType.Info;
+	offset: number;
+	location: IRichLocation | undefined;
+}
+
+export type SerializedTestOutputMessage = Omit<ITestOutputMessage, 'location'> & { location?: ILocationDto };
+
+export type SerializedTestMessage = SerializedTestErrorMessage | SerializedTestOutputMessage;
+
+export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
 
 export interface ITestTaskState {
 	state: TestResultState;
@@ -84,6 +137,15 @@ export interface ITestRunTask {
 	running: boolean;
 }
 
+export interface ITestTag {
+	id: string;
+}
+
+export interface ITestTagDisplayInfo {
+	id: string;
+	ctrlLabel: string;
+}
+
 /**
  * The TestItem from .d.ts, as a plain object without children.
  */
@@ -91,14 +153,13 @@ export interface ITestItem {
 	/** ID of the test given by the test controller */
 	extId: string;
 	label: string;
+	tags: string[];
 	busy?: boolean;
 	children?: never;
 	uri?: URI;
 	range: IRange | null;
 	description: string | null;
 	error: string | IMarkdownString | null;
-	runnable: boolean;
-	debuggable: boolean;
 }
 
 export const enum TestItemExpandState {
@@ -112,9 +173,13 @@ export const enum TestItemExpandState {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
+	/** Controller ID from whence this test came */
 	controllerId: string;
+	/** Expandability state */
 	expand: TestItemExpandState;
+	/** Parent ID, if any */
 	parent: string | null;
+	/** Raw test item properties */
 	item: ITestItem;
 }
 
@@ -139,11 +204,7 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 /**
  * Test result item used in the main thread.
  */
-export interface TestResultItem {
-	/** Parent ID, if any */
-	parent: string | null;
-	/** Raw test item properties */
-	item: ITestItem;
+export interface TestResultItem extends InternalTestItem {
 	/** State of this test in various tasks */
 	tasks: ITestTaskState[];
 	/** State of this test as a computation of its tasks */
@@ -154,10 +215,6 @@ export interface TestResultItem {
 	retired: boolean;
 	/** Max duration of the item's tasks (if run directly) */
 	ownDuration?: number;
-	/** True if the test was directly requested by the run (is not a child or parent) */
-	direct?: boolean;
-	/** Controller ID from whence this test came */
-	controllerId: string;
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
@@ -171,14 +228,14 @@ export interface ISerializedTestResults {
 	id: string;
 	/** Time the results were compelted */
 	completedAt: number;
-	/** Raw output, given for tests published by extensiosn */
-	output?: string;
 	/** Subset of test result items */
 	items: SerializedTestResultItem[];
 	/** Tasks involved in the run. */
-	tasks: ITestRunTask[];
+	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage[] }[];
 	/** Human-readable name of the test run. */
 	name: string;
+	/** Test trigger informaton */
+	request: ResolvedTestRunRequest;
 }
 
 export interface ITestCoverage {
@@ -234,6 +291,10 @@ export const enum TestDiffOpType {
 	IncrementPendingExtHosts,
 	/** Retires a test/result */
 	Retire,
+	/** Add a new test tag */
+	AddTag,
+	/** Remove a test tag */
+	RemoveTag,
 }
 
 export type TestsDiffOp =
@@ -241,7 +302,9 @@ export type TestsDiffOp =
 	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
 	| [op: TestDiffOpType.Remove, itemId: string]
 	| [op: TestDiffOpType.Retire, itemId: string]
-	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number];
+	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number]
+	| [op: TestDiffOpType.AddTag, tag: ITestTagDisplayInfo]
+	| [op: TestDiffOpType.RemoveTag, id: string];
 
 /**
  * Context for actions taken in the test explorer view.
@@ -299,6 +362,8 @@ export class IncrementalChangeCollector<T> {
  * Maintains tests in this extension host sent from the main thread.
  */
 export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
+	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
+
 	/**
 	 * Map of item IDs to test item objects.
 	 */
@@ -318,6 +383,11 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * Number of pending roots.
 	 */
 	protected pendingRootCount = 0;
+
+	/**
+	 * Known test tags.
+	 */
+	public readonly tags: ReadonlyMap<string, ITestTagDisplayInfo> = this._tags;
 
 	/**
 	 * Applies the diff to the collection.
@@ -406,6 +476,14 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 
 				case TestDiffOpType.IncrementPendingExtHosts:
 					this.updatePendingRoots(op[1]);
+					break;
+
+				case TestDiffOpType.AddTag:
+					this._tags.set(op[1].id, op[1]);
+					break;
+
+				case TestDiffOpType.RemoveTag:
+					this._tags.delete(op[1]);
 					break;
 			}
 		}

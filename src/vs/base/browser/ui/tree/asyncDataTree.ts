@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
-import { ObjectTree, IObjectTreeOptions, CompressibleObjectTree, ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, IObjectTreeSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTree';
-import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
-import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError, WeakMapper, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { timeout, CancelablePromise, createCancelablePromise, Promises } from 'vs/base/common/async';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { Iterable } from 'vs/base/common/iterator';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { IIdentityProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { IThemable } from 'vs/base/common/styler';
-import { isFilterResult, getVisibleState } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { ComposedTreeDelegate, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
+import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { IAsyncDataSource, ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElement, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { treeItemLoadingIcon } from 'vs/base/browser/ui/tree/treeIcons';
+import { CancelablePromise, createCancelablePromise, Promises, timeout } from 'vs/base/common/async';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { ScrollEvent } from 'vs/base/common/scrollable';
+import { IThemable } from 'vs/base/common/styler';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -881,10 +881,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 						asyncDataTreeNode.children.forEach(node => dfs(node, node => this.nodes.delete(node.element as T)));
 						asyncDataTreeNode.children.splice(0, asyncDataTreeNode.children.length);
 						asyncDataTreeNode.stale = true;
-						if (this.collapseByDefault && !this.collapseByDefault(element)) {
-							asyncDataTreeNode.collapsedByDefault = false;
-							childrenToRefresh.push(asyncDataTreeNode);
-						}
 					} else {
 						childrenToRefresh.push(asyncDataTreeNode);
 					}

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
 import { memoize } from 'vs/base/common/decorators';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { join } from 'vs/base/common/path';
+import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentService, IEnvironmentMainService>(IEnvironmentService);
 
@@ -25,11 +25,13 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	backupHome: string;
 	backupWorkspacesPath: string;
 
-	// --- V8 code cache path
-	codeCachePath?: string;
+	// --- V8 code caching
+	codeCachePath: string | undefined;
+	useCodeCache: boolean;
 
 	// --- IPC
 	mainIPCHandle: string;
+	mainLockfile: string;
 
 	// --- config
 	sandbox: boolean;
@@ -53,6 +55,9 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', this.productService.version); }
 
 	@memoize
+	get mainLockfile(): string { return join(this.userDataPath, 'code.lock'); }
+
+	@memoize
 	get sandbox(): boolean { return !!this.args['__sandbox']; }
 
 	@memoize
@@ -66,4 +71,7 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
+
+	@memoize
+	get useCodeCache(): boolean { return !!this.codeCachePath; }
 }

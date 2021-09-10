@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorInputFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,7 @@ export interface IEditorOpenOptions {
 	sticky?: boolean;
 	active?: boolean;
 	readonly index?: number;
+	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 }
 
 export interface IEditorOpenResult {
@@ -48,16 +49,34 @@ export interface ISerializedEditorInput {
 
 export interface ISerializedEditorGroupModel {
 	readonly id: number;
+	readonly locked?: boolean;
 	readonly editors: ISerializedEditorInput[];
 	readonly mru: number[];
 	readonly preview?: number;
 	sticky?: number;
 }
 
-export function isSerializedEditorGroupModel(obj?: unknown): obj is ISerializedEditorGroupModel {
-	const group = obj as ISerializedEditorGroupModel;
+export function isSerializedEditorGroupModel(group?: unknown): group is ISerializedEditorGroupModel {
+	const candidate = group as ISerializedEditorGroupModel | undefined;
 
-	return !!(obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru));
+	return !!(candidate && typeof candidate === 'object' && Array.isArray(candidate.editors) && Array.isArray(candidate.mru));
+}
+
+export interface IMatchOptions {
+
+	/**
+	 * Whether to consider a side by side editor as matching.
+	 * By default, side by side editors will not be considered
+	 * as matching, even if the editor is opened in one of the sides.
+	 */
+	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+
+	/**
+	 * Only consider an editor to match when the
+	 * `candidate === editor` but not when
+	 * `candidate.matches(editor)`.
+	 */
+	strictEquals?: boolean;
 }
 
 export class EditorGroupModel extends Disposable {
@@ -65,6 +84,9 @@ export class EditorGroupModel extends Disposable {
 	private static IDS = 0;
 
 	//#region events
+
+	private readonly _onDidChangeLocked = this._register(new Emitter<void>());
+	readonly onDidChangeLocked = this._onDidChangeLocked.event;
 
 	private readonly _onDidActivateEditor = this._register(new Emitter<EditorInput>());
 	readonly onDidActivateEditor = this._onDidActivateEditor.event;
@@ -104,9 +126,11 @@ export class EditorGroupModel extends Disposable {
 	private editors: EditorInput[] = [];
 	private mru: EditorInput[] = [];
 
+	private locked = false;
+
 	private preview: EditorInput | null = null; // editor in preview state
 	private active: EditorInput | null = null;  // editor in active state
-	private sticky: number = -1; // index of first editor in sticky state
+	private sticky = -1; 						// index of first editor in sticky state
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;
@@ -183,7 +207,7 @@ export class EditorGroupModel extends Disposable {
 		const makePinned = options?.pinned || options?.sticky;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
-		const existingEditorAndIndex = this.findEditor(candidate);
+		const existingEditorAndIndex = this.findEditor(candidate, options);
 
 		// New editor
 		if (!existingEditorAndIndex) {
@@ -362,13 +386,13 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	closeEditor(candidate: EditorInput, openNext = true): EditorInput | undefined {
+	closeEditor(candidate: EditorInput, openNext = true): EditorCloseEvent | undefined {
 		const event = this.doCloseEditor(candidate, openNext, false);
 
 		if (event) {
 			this._onDidCloseEditor.fire(event);
 
-			return event.editor;
+			return event;
 		}
 
 		return undefined;
@@ -681,22 +705,32 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	indexOf(candidate: IEditorInput | null, editors = this.editors): number {
-		if (!candidate) {
-			return -1;
-		}
+	indexOf(candidate: IEditorInput | null, editors = this.editors, options?: IMatchOptions): number {
+		let index = -1;
 
-		for (let i = 0; i < editors.length; i++) {
-			if (this.matches(editors[i], candidate)) {
-				return i;
+		if (candidate) {
+			for (let i = 0; i < editors.length; i++) {
+				const editor = editors[i];
+
+				if (this.matches(editor, candidate, options)) {
+					// If we are to support side by side matching, it is possible that
+					// a better direct match is found later. As such, we continue finding
+					// a matching editor and prefer that match over the side by side one.
+					if (options?.supportSideBySide && editor instanceof SideBySideEditorInput && !(candidate instanceof SideBySideEditorInput)) {
+						index = i;
+					} else {
+						index = i;
+						break;
+					}
+				}
 			}
 		}
 
-		return -1;
+		return index;
 	}
 
-	private findEditor(candidate: EditorInput | null): [EditorInput, number /* index */] | undefined {
-		const index = this.indexOf(candidate, this.editors);
+	private findEditor(candidate: EditorInput | null, options?: IMatchOptions): [EditorInput, number /* index */] | undefined {
+		const index = this.indexOf(candidate, this.editors, options);
 		if (index === -1) {
 			return undefined;
 		}
@@ -704,32 +738,53 @@ export class EditorGroupModel extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	contains(candidate: EditorInput | IUntypedEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchOptions): boolean {
 		for (const editor of this.editors) {
-			if (this.matches(editor, candidate, options?.strictEquals)) {
+			if (this.matches(editor, candidate, options)) {
 				return true;
-			}
-
-			if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
-				if (this.matches(editor.primary, candidate, options?.strictEquals) || this.matches(editor.secondary, candidate, options?.strictEquals)) {
-					return true;
-				}
 			}
 		}
 
 		return false;
 	}
 
-	private matches(editor: IEditorInput | null, candidate: IEditorInput | IUntypedEditorInput | null, strictEquals?: boolean): boolean {
+	private matches(editor: IEditorInput | null, candidate: IEditorInput | IUntypedEditorInput | null, options?: IMatchOptions): boolean {
 		if (!editor || !candidate) {
 			return false;
 		}
 
-		if (strictEquals) {
+		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput && !(candidate instanceof SideBySideEditorInput)) {
+			switch (options.supportSideBySide) {
+				case SideBySideEditor.ANY:
+					if (this.matches(editor.primary, candidate, options) || this.matches(editor.secondary, candidate, options)) {
+						return true;
+					}
+					break;
+				case SideBySideEditor.BOTH:
+					if (this.matches(editor.primary, candidate, options) && this.matches(editor.secondary, candidate, options)) {
+						return true;
+					}
+					break;
+			}
+		}
+
+		if (options?.strictEquals) {
 			return editor === candidate;
 		}
 
 		return editor.matches(candidate);
+	}
+
+	get isLocked(): boolean {
+		return this.locked;
+	}
+
+	lock(locked: boolean): void {
+		if (this.isLocked !== locked) {
+			this.locked = locked;
+
+			this._onDidChangeLocked.fire();
+		}
 	}
 
 	clone(): EditorGroupModel {
@@ -751,7 +806,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	serialize(): ISerializedEditorGroupModel {
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
+		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		// Serialize all editor inputs so that we can store them.
 		// Editors that cannot be serialized need to be ignored
@@ -765,7 +820,7 @@ export class EditorGroupModel extends Disposable {
 			const editor = this.editors[i];
 			let canSerializeEditor = false;
 
-			const editorSerializer = registry.getEditorInputSerializer(editor);
+			const editorSerializer = registry.getEditorSerializer(editor);
 			if (editorSerializer) {
 				const value = editorSerializer.serialize(editor);
 
@@ -797,6 +852,7 @@ export class EditorGroupModel extends Disposable {
 
 		return {
 			id: this.id,
+			locked: this.locked ? true : undefined,
 			editors: serializedEditors,
 			mru: serializableMru,
 			preview: serializablePreviewIndex,
@@ -805,7 +861,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	private deserialize(data: ISerializedEditorGroupModel): number {
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
+		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		if (typeof data.id === 'number') {
 			this._id = data.id;
@@ -815,10 +871,14 @@ export class EditorGroupModel extends Disposable {
 			this._id = EditorGroupModel.IDS++; // backwards compatibility
 		}
 
+		if (data.locked) {
+			this.locked = true;
+		}
+
 		this.editors = coalesce(data.editors.map((e, index) => {
 			let editor: EditorInput | undefined = undefined;
 
-			const editorSerializer = registry.getEditorInputSerializer(e.id);
+			const editorSerializer = registry.getEditorSerializer(e.id);
 			if (editorSerializer) {
 				const deserializedEditor = editorSerializer.deserialize(this.instantiationService, e.value);
 				if (deserializedEditor instanceof EditorInput) {

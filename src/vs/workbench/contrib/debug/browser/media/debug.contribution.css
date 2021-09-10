@@ -42,8 +42,8 @@
 /* Do not push text with inline decoration when decoration on start of line */
 .monaco-editor .debug-top-stack-frame-column.start-of-line::before {
 	position: absolute;
-	top: 2px;
-	transform: translateX(-17px);
+	top: 50%;
+	transform: translate(-17px, -50%);
 }
 
 .monaco-editor .debug-top-stack-frame-column {
@@ -63,16 +63,6 @@
 
 .monaco-editor .inline-breakpoint-widget {
 	cursor: pointer;
-}
-
-/* Error editor */
-.debug-error-editor:focus {
-	outline: none !important;
-}
-
-.debug-error-editor {
-	padding: 5px 0 0 10px;
-	box-sizing: border-box;
 }
 
 .monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {

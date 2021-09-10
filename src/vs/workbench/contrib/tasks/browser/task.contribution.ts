@@ -16,7 +16,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
 
@@ -38,6 +38,7 @@ import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tas
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
+import { isString } from 'vs/base/common/types';
 
 const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.or(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
 
@@ -150,7 +151,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			return false;
 		}
 
-		if (event.group !== TaskGroup.Build) {
+		if ((isString(event.group) ? event.group : event.group?._id) !== TaskGroup.Build._id) {
 			return true;
 		}
 

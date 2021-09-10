@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/quickInput';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickDidAcceptEvent, NO_KEY_MODS, ItemActivation, QuickInputHideReason, IQuickInputHideEvent, IQuickPickWillAcceptEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { QuickInputList, QuickInputListFocus } from './quickInputList';
-import { QuickInputBox } from './quickInputBox';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { localize } from 'vs/nls';
-import { CountBadge, ICountBadgetyles } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ProgressBar, IProgressBarStyles } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
+import { CountBadge, ICountBadgetyles } from 'vs/base/browser/ui/countBadge/countBadge';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
-import { registerCodicon, Codicon } from 'vs/base/common/codicons';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { isString } from 'vs/base/common/types';
-import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
+import Severity from 'vs/base/common/severity';
+import { isString } from 'vs/base/common/types';
+import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickWillAcceptEvent, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickPickInput } from 'vs/base/parts/quickinput/common/quickInput';
+import 'vs/css!./media/quickInput';
+import { localize } from 'vs/nls';
+import { QuickInputBox } from './quickInputBox';
+import { QuickInputList, QuickInputListFocus } from './quickInputList';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -285,7 +285,19 @@ class QuickInput extends Disposable implements IQuickInput {
 			}),
 		);
 		this.ui.show(this);
+
+		// update properties in the controller that get reset in the ui.show() call
 		this.visible = true;
+		// This ensures the message/prompt gets rendered
+		this._lastValidationMessage = undefined;
+		// This ensures the input box has the right severity applied
+		this._lastSeverity = undefined;
+		if (this.buttons.length) {
+			// if there are buttons, the ui.show() clears them out of the UI so we should
+			// rerender them.
+			this.buttonsUpdated = true;
+		}
+
 		this.update();
 	}
 
@@ -312,7 +324,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
 		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
-			this.ui.title.innerText = '\u00a0;';
+			this.ui.title.innerText = '\u00a0';
 		}
 		const description = this.getDescription();
 		if (this.ui.description1.textContent !== description) {
@@ -443,6 +455,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnLabel = true;
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
+	private _keepScrollPosition = false;
 	private _itemActivation = this.ui.isScreenReaderOptimized() ? ItemActivation.NONE /* https://github.com/microsoft/vscode/issues/57501 */ : ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
@@ -515,6 +528,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this._items;
 	}
 
+	private get scrollTop() {
+		return this.ui.list.scrollTop;
+	}
+
+	private set scrollTop(scrollTop: number) {
+		this.ui.list.scrollTop = scrollTop;
+	}
+
 	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
@@ -581,6 +602,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set autoFocusOnList(autoFocusOnList: boolean) {
 		this._autoFocusOnList = autoFocusOnList;
 		this.update();
+	}
+
+	get keepScrollPosition() {
+		return this._keepScrollPosition;
+	}
+
+	set keepScrollPosition(keepScrollPosition: boolean) {
+		this._keepScrollPosition = keepScrollPosition;
 	}
 
 	get itemActivation() {
@@ -846,7 +875,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		let veto = false;
 		this.onWillAcceptEmitter.fire({ veto: () => veto = true });
 
-		// Continue with `onDidAccpet` if no veto
+		// Continue with `onDidAccept` if no veto
 		if (!veto) {
 			this.onDidAcceptEmitter.fire({ inBackground });
 		}
@@ -910,6 +939,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
+		// store the scrollTop before it is reset
+		const scrollTopBefore = this.keepScrollPosition ? this.scrollTop : 0;
 		const hideInput = !!this._hideInput && this._items.length > 0;
 		this.ui.container.classList.toggle('hidden-input', hideInput && !this.description);
 		const visibilities: Visibilities = {
@@ -1009,6 +1040,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			if (this.canSelectMany) {
 				this.ui.list.focus(QuickInputListFocus.First);
 			}
+		}
+
+		// Set the scroll position to what it was before updating the items
+		if (this.keepScrollPosition) {
+			this.scrollTop = scrollTopBefore;
 		}
 	}
 }
@@ -1398,11 +1434,14 @@ export class QuickInputController extends Disposable {
 						if (index !== -1) {
 							const items = input.items.slice();
 							const removed = items.splice(index, 1);
-							const activeItems = input.activeItems.filter((ai) => ai !== removed[0]);
+							const activeItems = input.activeItems.filter(activeItem => activeItem !== removed[0]);
+							const keepScrollPositionBefore = input.keepScrollPosition;
+							input.keepScrollPosition = true;
 							input.items = items;
 							if (activeItems) {
 								input.activeItems = activeItems;
 							}
+							input.keepScrollPosition = keepScrollPositionBefore;
 						}
 					}
 				})),

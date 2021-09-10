@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from './descriptors';
-import { ServiceIdentifier, BrandedService } from './instantiation';
+import { BrandedService, ServiceIdentifier } from './instantiation';
 
 const _registry: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
 

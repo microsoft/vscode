@@ -620,6 +620,9 @@ export interface IThemeDecorationRenderOptions {
 
 	before?: IContentDecorationRenderOptions;
 	after?: IContentDecorationRenderOptions;
+
+	beforeInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
+	afterInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
 }
 
 /**
@@ -640,6 +643,7 @@ export interface IContentDecorationRenderOptions {
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
 	opacity?: string;
+	verticalAlign?: string;
 
 	margin?: string;
 	padding?: string;

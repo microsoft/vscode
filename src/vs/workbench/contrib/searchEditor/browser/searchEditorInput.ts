@@ -16,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -31,6 +31,7 @@ import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/se
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export type SearchConfiguration = {
 	query: string,
@@ -147,17 +148,26 @@ export class SearchEditorInput extends EditorInput {
 		return serializeSearchConfiguration(configurationModel.config) + '\n' + resultsModel.getValue();
 	}
 
+	private configChangeListenerDisposable: IDisposable | undefined;
+	private registerConfigChangeListeners(model: SearchConfigurationModel) {
+		this.configChangeListenerDisposable?.dispose();
+
+		if (!this.isDisposed()) {
+			this.configChangeListenerDisposable = model.onConfigDidUpdate(() => {
+				this._onDidChangeLabel.fire();
+				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = model.config;
+			});
+
+			this._register(this.configChangeListenerDisposable);
+		}
+	}
+
 	async getModels() {
 		return this.model.resolve().then(data => {
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
 			this._onDidChangeLabel.fire();
-			if (!this.isDisposed()) {
-				this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => {
-					this._onDidChangeLabel.fire();
-					this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = this._cachedConfigurationModel?.config;
-				}));
-			}
+			this.registerConfigChangeListeners(data.configurationModel);
 			return data;
 		});
 	}
@@ -204,7 +214,7 @@ export class SearchEditorInput extends EditorInput {
 		return this.dirty;
 	}
 
-	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
 		if (extname(target) === SEARCH_EDITOR_EXT) {
 			return {
 				editor: this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'existingFile', fileUri: target })
@@ -277,7 +287,7 @@ export class SearchEditorInput extends EditorInput {
 		return joinPath(await this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme), searchFileName);
 	}
 
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceEditorInput | undefined {
+	override toUntyped(): IResourceEditorInput | undefined {
 		if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 			return undefined;
 		}

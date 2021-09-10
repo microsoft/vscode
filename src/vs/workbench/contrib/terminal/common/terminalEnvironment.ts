@@ -9,7 +9,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
 
 /**
@@ -326,7 +326,7 @@ export function getDefaultShellArgs(
 	}
 
 	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
-	let args = fetchSetting(<TerminalShellArgsSetting>`terminal.integrated.shellArgs.${platformKey}`);
+	let args = fetchSetting(<TerminalShellArgsSetting>`${TerminalSettingPrefix.ShellArgs}.${platformKey}`);
 	if (!args) {
 		return [];
 	}
@@ -339,7 +339,7 @@ export function getDefaultShellArgs(
 			try {
 				resolvedArgs.push(variableResolver(arg));
 			} catch (e) {
-				logService.error(`Could not resolve terminal.integrated.shellArgs.${platformKey}`, e);
+				logService.error(`Could not resolve ${TerminalSettingPrefix.ShellArgs}.${platformKey}`, e);
 				resolvedArgs.push(arg);
 			}
 		}

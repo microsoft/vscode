@@ -21,13 +21,15 @@ import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/com
 import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
+import { boolean } from 'vs/editor/common/config/editorOptions';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
+	skipWorkspaceStorageLock?: boolean;
 	useHostProxy?: string;
 }
 
@@ -46,6 +48,9 @@ const args = minimist(process.argv.slice(2), {
 	string: [
 		'uriTransformerPath',
 		'useHostProxy'
+	],
+	boolean: [
+		'skipWorkspaceStorageLock'
 	]
 }) as ParsedExtHostArgs;
 
@@ -110,8 +115,8 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
 			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
-			const disconnectRunner1 = new RunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
-			const disconnectRunner2 = new RunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
+			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
+			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
@@ -323,6 +328,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)
 	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
+	initData.environment.skipWorkspaceStorageLock = boolean(args.skipWorkspaceStorageLock, false);
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {

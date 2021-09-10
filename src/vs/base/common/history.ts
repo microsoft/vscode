@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INavigator, ArrayNavigator } from 'vs/base/common/navigator';
+import { ArrayNavigator, INavigator } from 'vs/base/common/navigator';
 
 export class HistoryNavigator<T> implements INavigator<T> {
 

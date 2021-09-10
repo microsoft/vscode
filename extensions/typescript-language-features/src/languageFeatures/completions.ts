@@ -119,7 +119,11 @@ class MyCompletionItem extends vscode.CompletionItem {
 				if (!this.filterText) {
 					this.filterText = this.textLabel;
 				}
-				this.label += '?';
+				if (typeof this.label === 'string') {
+					this.label += '?';
+				} else {
+					this.label.label += '?';
+				}
 			}
 			if (kindModifiers.has(PConst.KindModifiers.deprecated)) {
 				this.tags = [vscode.CompletionItemTag.Deprecated];
@@ -490,54 +494,23 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 
 	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
+		if (entry.kind === PConst.Kind.warning) { // Ambient JS word based suggestion
+			return undefined;
+		}
+
 		if (context.isNewIdentifierLocation || !context.isInValidCommitCharacterContext) {
 			return undefined;
 		}
 
-		const commitCharacters: string[] = [];
-		switch (entry.kind) {
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-			case PConst.Kind.constructSignature:
-			case PConst.Kind.callSignature:
-			case PConst.Kind.indexSignature:
-			case PConst.Kind.enum:
-			case PConst.Kind.interface:
-				commitCharacters.push('.', ';');
-				break;
-
-			case PConst.Kind.module:
-			case PConst.Kind.alias:
-			case PConst.Kind.const:
-			case PConst.Kind.let:
-			case PConst.Kind.variable:
-			case PConst.Kind.localVariable:
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.class:
-			case PConst.Kind.function:
-			case PConst.Kind.method:
-			case PConst.Kind.keyword:
-			case PConst.Kind.parameter:
-				commitCharacters.push('.', ',', ';');
-				if (context.enableCallCompletions) {
-					commitCharacters.push('(');
-				}
-				break;
+		const commitCharacters: string[] = ['.', ',', ';'];
+		if (context.enableCallCompletions) {
+			commitCharacters.push('(');
 		}
-		return commitCharacters.length === 0 ? undefined : commitCharacters;
+
+		return commitCharacters;
 	}
 }
 
-class CompositeCommand implements Command {
-	public static readonly ID = '_typescript.composite';
-	public readonly id = CompositeCommand.ID;
-
-	public execute(...commands: vscode.Command[]) {
-		for (const command of commands) {
-			vscode.commands.executeCommand(command.command, ...(command.arguments || []));
-		}
-	}
-}
 
 class CompletionAcceptedCommand implements Command {
 	public static readonly ID = '_typescript.onCompletionAccepted';
@@ -678,7 +651,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		onCompletionAccepted: (item: vscode.CompletionItem) => void
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
-		commandManager.register(new CompositeCommand());
 		commandManager.register(new CompletionAcceptedCommand(onCompletionAccepted, this.telemetryReporter));
 		commandManager.register(new ApplyCompletionCommand(this.client));
 	}
@@ -721,6 +693,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
 			triggerCharacter: this.getTsTriggerCharacter(context),
+			triggerKind: typeConverters.CompletionTriggerKind.toProtocolCompletionTriggerKind(context.triggerKind),
 		};
 
 		let isNewIdentifierLocation = true;

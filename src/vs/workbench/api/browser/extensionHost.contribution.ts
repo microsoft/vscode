@@ -74,8 +74,6 @@ import './mainThreadAuthentication';
 import './mainThreadTimeline';
 import './mainThreadTesting';
 import './mainThreadSecretState';
-import 'vs/workbench/api/common/apiCommands';
-import 'vs/workbench/api/browser/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

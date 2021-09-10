@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceCollection } from './serviceCollection';
 import * as descriptors from './descriptors';
+import { ServiceCollection } from './serviceCollection';
 
 // ------ internal util
 
@@ -161,6 +161,7 @@ export function refineServiceDecorator<T1, T extends T1>(serviceIdentifier: Serv
 
 /**
  * Mark a service dependency as optional.
+ * @deprecated Avoid, see https://github.com/microsoft/vscode/issues/119440
  */
 export function optional<T>(serviceIdentifier: ServiceIdentifier<T>) {
 

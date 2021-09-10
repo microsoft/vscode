@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
-import * as paths from 'vs/base/common/path';
 import { MarshalledId } from 'vs/base/common/marshalling';
+import * as paths from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -415,7 +415,7 @@ interface UriState extends UriComponents {
 
 const _pathSepMarker = isWindows ? 1 : undefined;
 
-// This class exists so that URI is compatibile with vscode.Uri (API).
+// This class exists so that URI is compatible with vscode.Uri (API).
 class Uri extends URI {
 
 	_formatted: string | null = null;
