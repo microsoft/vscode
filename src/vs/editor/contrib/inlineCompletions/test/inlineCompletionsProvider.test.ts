@@ -60,9 +60,12 @@ suite('Inline Completions', () => {
 			assert.deepStrictEqual(getOutput('[ foo]', 'foobar'), ' foo[bar]');
 			assert.deepStrictEqual(getOutput('[\tfoo]', 'foobar'), '\tfoo[bar]');
 			assert.deepStrictEqual(getOutput('[\t foo]', '\tfoobar'), '	 foo[bar]');
+			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subword: '\t[\t]foo[bar]' });
 			assert.deepStrictEqual(getOutput('[\t]', '\t\tfoobar'), '\t[\tfoobar]');
 			assert.deepStrictEqual(getOutput('\t[]', '\t'), '\t[\t]');
 			assert.deepStrictEqual(getOutput('\t[\t]', ''), '\t\t');
+
+			assert.deepStrictEqual(getOutput('[ ]', 'return 1'), ' [return 1]');
 		});
 
 		test('Whitespace (outside of indentation)', () => {
