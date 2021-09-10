@@ -209,7 +209,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}.${this._getOsKey(os)}`);
+		const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
 			return this._terminalService.availableProfiles.find(e => e.profileName === defaultProfileName);
 		}
@@ -217,9 +217,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private async _getUnresolvedShellSettingDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile | undefined> {
-		let executable = this._configurationService.getValue<string>(`${TerminalSettingPrefix.Shell}.${this._getOsKey(options.os)}`);
+		let executable = this._configurationService.getValue<string>(`${TerminalSettingPrefix.Shell}${this._getOsKey(options.os)}`);
 		if (!this._isValidShell(executable)) {
-			const shellArgs = this._configurationService.inspect(`${TerminalSettingPrefix.ShellArgs}.${this._getOsKey(options.os)}`);
+			const shellArgs = this._configurationService.inspect(`${TerminalSettingPrefix.ShellArgs}${this._getOsKey(options.os)}`);
 			//  && !this.getSafeConfigValue('shellArgs', options.os, false)) {
 			if (!shellArgs.userValue && !shellArgs.workspaceValue) {
 				return undefined;
@@ -231,7 +231,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		let args: string | string[] | undefined;
-		const shellArgsSetting = this._configurationService.getValue(`${TerminalSettingPrefix.ShellArgs}.${this._getOsKey(options.os)}`);
+		const shellArgsSetting = this._configurationService.getValue(`${TerminalSettingPrefix.ShellArgs}${this._getOsKey(options.os)}`);
 		if (this._isValidShellArgs(shellArgsSetting, options.os)) {
 			args = shellArgsSetting;
 		}
