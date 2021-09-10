@@ -86,6 +86,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				if (targetPlatform === TargetPlatform.LINUX_X64 && await this.isAlpineLinux()) {
 					targetPlatform = TargetPlatform.ALPINE;
 				}
+				this.logService.debug('ExtensionManagementService#TargetPlatform:', targetPlatform);
 				return targetPlatform;
 			})();
 		}

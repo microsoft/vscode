@@ -71,6 +71,8 @@ export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 		case TargetPlatform.LINUX_ARM64: return TargetPlatform.LINUX_ARM64;
 		case TargetPlatform.LINUX_ARMHF: return TargetPlatform.LINUX_ARMHF;
 
+		case TargetPlatform.ALPINE: return TargetPlatform.ALPINE;
+
 		case TargetPlatform.DARWIN_X64: return TargetPlatform.DARWIN_X64;
 		case TargetPlatform.DARWIN_ARM64: return TargetPlatform.DARWIN_ARM64;
 
