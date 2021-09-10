@@ -5,9 +5,11 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, platform } from 'vs/base/common/platform';
+import { arch } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
@@ -19,8 +21,8 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, INSTALL_ERROR_VALIDATING, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
-	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
-	InstallVSIXOptions
+	ExtensionManagementError, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
+	InstallVSIXOptions, TargetPlatform
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
@@ -59,7 +61,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IDownloadService private downloadService: IDownloadService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(galleryService, telemetryService, logService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
@@ -74,6 +76,37 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			}
 			removed.forEach(extension => this._onDidUninstallExtension.fire({ identifier: extension }));
 		}));
+	}
+
+	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
+	getTargetPlatform(): Promise<TargetPlatform> {
+		if (!this._targetPlatformPromise) {
+			this._targetPlatformPromise = (async () => {
+				let targetPlatform = getTargetPlatform(platform, arch);
+				if (targetPlatform === TargetPlatform.LINUX_X64 && await this.isAlpineLinux()) {
+					targetPlatform = TargetPlatform.ALPINE;
+				}
+				return targetPlatform;
+			})();
+		}
+		return this._targetPlatformPromise;
+	}
+
+	private async isAlpineLinux(): Promise<boolean> {
+		let content: string | undefined;
+		try {
+			const fileContent = await this.fileService.readFile(URI.file('/etc/os-release'));
+			content = fileContent.value.toString();
+		} catch (error) {
+			try {
+				const fileContent = await this.fileService.readFile(URI.file('/usr/lib/os-release'));
+				content = fileContent.value.toString();
+			} catch (error) {
+				/* Ignore */
+				this.logService.debug(`Error while getting the os-release file.`, getErrorMessage(error));
+			}
+		}
+		return !!content && (content.match(/^ID=([^\u001b\r\n]*)/m) || [])[1] === 'alpine';
 	}
 
 	async zip(extension: ILocalExtension): Promise<URI> {
@@ -97,10 +130,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
 		return this.extensionsScanner.scanExtensions(type);
-	}
-
-	async canInstall(extension: IGalleryExtension): Promise<boolean> {
-		return true;
 	}
 
 	async install(vsix: URI, options: InstallVSIXOptions = {}): Promise<ILocalExtension> {

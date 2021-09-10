@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 
@@ -14,7 +14,6 @@ export interface IExtensionManagementServer {
 	readonly id: string;
 	readonly label: string;
 	readonly extensionManagementService: IExtensionManagementService;
-	readonly targetPlatform: TargetPlatform;
 }
 
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
