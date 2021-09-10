@@ -22,7 +22,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent, TerminalProperty } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -96,8 +96,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessTitle = this._register(new Emitter<string>());
 	readonly onProcessTitle = this._onProcessTitle.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<TerminalProperty>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
@@ -325,8 +323,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}),
 			newProcess.onProcessTitleChanged(title => this._onProcessTitle.fire(title)),
 			newProcess.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type)),
-			newProcess.onProcessExit(exitCode => this._onExit(exitCode)),
-			newProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire(property))
+			newProcess.onProcessExit(exitCode => this._onExit(exitCode))
 		];
 		if (newProcess.onProcessOverrideDimensions) {
 			this._processListeners.push(newProcess.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));

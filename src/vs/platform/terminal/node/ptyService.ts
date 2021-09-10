@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, TerminalProperty, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -60,8 +60,6 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 	private readonly _onProcessDidChangeHasChildProcesses = this._register(new Emitter<{ id: number, event: boolean }>());
 	readonly onProcessDidChangeHasChildProcesses = this._onProcessDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number, event: TerminalProperty }>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	constructor(
 		private _lastPtyId: number,
@@ -140,7 +138,6 @@ export class PtyService extends Disposable implements IPtyService {
 		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
-		persistentProcess.onDidChangeProperty(event => this._onDidChangeProperty.fire({ id, event }));
 		persistentProcess.onProcessShellTypeChanged(event => this._onProcessShellTypeChanged.fire({ id, event }));
 		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
 		this._ptys.set(id, persistentProcess);
@@ -342,8 +339,6 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<void>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<TerminalProperty>());
-	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	private _inReplay = false;
 
@@ -414,7 +409,6 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(this._terminalProcess.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
-		this._register(this._terminalProcess.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
 
 		// Data buffering to reduce the amount of messages going to the renderer
 		this._bufferer = new TerminalDataBufferer((_, data) => this._onProcessData.fire(data));
