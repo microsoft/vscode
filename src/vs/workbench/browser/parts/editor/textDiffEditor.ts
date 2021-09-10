@@ -97,14 +97,6 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		}
 	}
 
-	protected override onWillCloseEditorInGroup(editor: IEditorInput): void {
-
-		// React to editors closing to preserve or clear view state. This needs to happen
-		// in the onWillCloseEditor because at that time the editor has not yet
-		// been disposed and we can safely persist the view state still as needed.
-		this.doSaveOrClearTextDiffEditorViewState(editor);
-	}
-
 	override getTitle(): string {
 		if (this.input) {
 			return this.input.getName();
@@ -124,9 +116,6 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
-
-		// Update/clear view settings if input changes
-		this.doSaveOrClearTextDiffEditorViewState(this.input);
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -280,6 +269,7 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 	}
 
 	override clearInput(): void {
+		super.clearInput();
 
 		// Clear input listener
 		this.inputListener.clear();
@@ -287,15 +277,9 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
 
-		// Update/clear editor view state in settings
-		this.doSaveOrClearTextDiffEditorViewState(this.input);
-
 		// Clear Model
 		const diffEditor = this.getControl();
 		diffEditor?.setModel(null);
-
-		// Pass to super
-		super.clearInput();
 	}
 
 	getDiffNavigator(): DiffNavigator | undefined {
@@ -306,36 +290,19 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		return super.getControl() as IDiffEditor | undefined;
 	}
 
-	protected override saveState(): void {
-
-		// Update/clear editor view State
-		this.doSaveOrClearTextDiffEditorViewState(this.input);
-
-		super.saveState();
+	protected override tracksEditorViewState(input: IEditorInput): boolean {
+		return input instanceof DiffEditorInput;
 	}
 
-	private doSaveOrClearTextDiffEditorViewState(input: IEditorInput | undefined): void {
-		if (!(input instanceof DiffEditorInput)) {
-			return; // only supported for diff editor inputs
+	protected override toEditorViewStateResource(input: IEditorInput): URI | undefined {
+		if (input instanceof DiffEditorInput) {
+			return this.toDiffEditorViewStateResource(input);
 		}
 
-		const resource = this.toDiffEditorViewStateResource(input);
-		if (!resource) {
-			return; // unable to retrieve input resource
-		}
-
-		// Clear view state if input is disposed or we are configured to not storing any state
-		if (input.isDisposed() || (!this.shouldRestoreEditorViewState(input) && (!this.group || !this.group.contains(input)))) {
-			super.clearEditorViewState(resource, this.group);
-		}
-
-		// Otherwise save it
-		else {
-			super.saveEditorViewState(resource, input);
-		}
+		return undefined;
 	}
 
-	protected override retrieveEditorViewState(resource: URI): IDiffEditorViewState | undefined {
+	protected override computeEditorViewState(resource: URI): IDiffEditorViewState | undefined {
 		const control = assertIsDefined(this.getControl());
 		const model = control.getModel();
 		if (!model || !model.modified || !model.original) {

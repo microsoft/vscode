@@ -6,9 +6,8 @@
 import { localize } from 'vs/nls';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -57,9 +56,6 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 	}
 
 	override async setInput(input: AbstractTextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-
-		// Remember view settings if input changes
-		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -122,45 +118,18 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 	}
 
 	override clearInput(): void {
-
-		// Keep editor view state in settings to restore when coming back
-		this.saveTextResourceEditorViewState(this.input);
+		super.clearInput();
 
 		// Clear Model
 		const textEditor = this.getControl();
 		if (textEditor) {
 			textEditor.setModel(null);
 		}
-
-		super.clearInput();
 	}
 
-	protected override saveState(): void {
-
-		// Save View State (only for untitled)
-		if (this.input instanceof UntitledTextEditorInput) {
-			this.saveTextResourceEditorViewState(this.input);
-		}
-
-		super.saveState();
-	}
-
-	private saveTextResourceEditorViewState(input: EditorInput | undefined): void {
-		if (!(input instanceof UntitledTextEditorInput) && !(input instanceof TextResourceEditorInput)) {
-			return; // only enabled for untitled and resource inputs
-		}
-
-		const resource = input.resource;
-
-		// Clear view state if input is disposed
-		if (input.isDisposed()) {
-			super.clearEditorViewState(resource);
-		}
-
-		// Otherwise save it
-		else {
-			super.saveEditorViewState(resource, input);
-		}
+	protected override tracksEditorViewState(input: IEditorInput): boolean {
+		// editor view state persistence is only enabled for untitled and resource inputs
+		return input instanceof UntitledTextEditorInput || input instanceof TextResourceEditorInput;
 	}
 }
 
@@ -177,7 +146,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
 	) {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}

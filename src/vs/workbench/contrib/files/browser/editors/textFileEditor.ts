@@ -105,14 +105,6 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		}
 	}
 
-	protected override onWillCloseEditorInGroup(editor: IEditorInput): void {
-
-		// React to editors closing to preserve or clear view state. This needs to happen
-		// in the onWillCloseEditor because at that time the editor has not yet
-		// been disposed and we can safely persist the view state still as needed.
-		this.doSaveOrClearTextEditorViewState(editor);
-	}
-
 	override getTitle(): string {
 		return this.input ? this.input.getName() : localize('textFileEditor', "Text File Editor");
 	}
@@ -125,9 +117,6 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 		// Update our listener for input capabilities
 		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
-
-		// Update/clear view settings if input changes
-		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Set input and resolve
 		await super.setInput(input, options, context, token);
@@ -250,45 +239,23 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 	}
 
 	override clearInput(): void {
+		super.clearInput();
 
 		// Clear input listener
 		this.inputListener.clear();
-
-		// Update/clear editor view state in settings
-		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Clear Model
 		const textEditor = this.getControl();
 		if (textEditor) {
 			textEditor.setModel(null);
 		}
-
-		// Pass to super
-		super.clearInput();
 	}
 
-	protected override saveState(): void {
-
-		// Update/clear editor view State
-		this.doSaveOrClearTextEditorViewState(this.input);
-
-		super.saveState();
+	protected override tracksEditorViewState(input: IEditorInput): boolean {
+		return input instanceof FileEditorInput;
 	}
 
-	private doSaveOrClearTextEditorViewState(input: IEditorInput | undefined): void {
-		if (!(input instanceof FileEditorInput)) {
-			return; // ensure we have an input to handle view state for
-		}
-
-		// If the user configured to not restore view state, we clear the view
-		// state unless the editor is still opened in the group.
-		if (!this.shouldRestoreEditorViewState(input) && (!this.group || !this.group.contains(input))) {
-			this.clearEditorViewState(input.resource, this.group);
-		}
-
-		// Otherwise we save the view state to restore it later
-		else if (!input.isDisposed()) {
-			this.saveEditorViewState(input.resource);
-		}
+	protected override tracksDisposedEditorViewState(): boolean {
+		return true; // track view state even for disposed editors
 	}
 }

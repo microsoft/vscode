@@ -38,14 +38,14 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID, SearchEditorInputTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -250,8 +250,6 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 				}
 			}
 		});
-
-		this._register(this.onDidBlur(() => this.saveViewState()));
 
 		this._register(this.searchResultEditor.onDidChangeModelContent(() => this.getInput()?.setDirty(true)));
 	}
@@ -633,8 +631,6 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 	}
 
 	override async setInput(newInput: SearchEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		this.saveViewState();
-
 		await super.setInput(newInput, options, context, token);
 		if (token.isCancellationRequested) {
 			return;
@@ -691,23 +687,25 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		this.reLayout();
 	}
 
-	override saveState() {
-		this.saveViewState();
-		super.saveState();
+	protected override toEditorViewStateResource(input: IEditorInput): URI | undefined {
+		if (input.typeId === SearchEditorInputTypeId) {
+			return (input as SearchEditorInput).modelUri;
+		}
+
+		return undefined;
 	}
 
-	private saveViewState() {
-		const resource = this.getInput()?.modelUri;
-		if (resource) { this.saveEditorViewState(resource); }
-	}
-
-	protected override retrieveEditorViewState(resource: URI): SearchEditorViewState | undefined {
+	protected override computeEditorViewState(resource: URI): SearchEditorViewState | undefined {
 		const control = this.getControl();
 		const editorViewState = control.saveViewState();
 		if (!editorViewState) { return undefined; }
 		if (resource.toString() !== this.getInput()?.modelUri.toString()) { return undefined; }
 
 		return { ...editorViewState, focused: this.searchResultEditor.hasWidgetFocus() ? 'editor' : 'input' };
+	}
+
+	protected tracksEditorViewState(input: IEditorInput): boolean {
+		return input.typeId === SearchEditorInputTypeId;
 	}
 
 	private loadViewState() {
@@ -718,11 +716,6 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 	private restoreViewState() {
 		const viewState = this.loadViewState();
 		if (viewState) { this.searchResultEditor.restoreViewState(viewState); }
-	}
-
-	override clearInput() {
-		this.saveViewState();
-		super.clearInput();
 	}
 
 	getAriaLabel() {

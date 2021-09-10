@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities, IEditorInput } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
@@ -207,7 +207,11 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends BaseEdi
 		return this.editorControl;
 	}
 
-	protected override retrieveEditorViewState(resource: URI): T | undefined {
+	protected override toEditorViewStateResource(input: IEditorInput): URI | undefined {
+		return input.resource;
+	}
+
+	protected override computeEditorViewState(resource: URI): T | undefined {
 		const control = this.getControl();
 		if (!isCodeEditor(control)) {
 			return undefined;
