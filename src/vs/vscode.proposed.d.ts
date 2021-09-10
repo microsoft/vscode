@@ -229,6 +229,21 @@ declare module 'vscode' {
 		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
 	}
 
+	export namespace env {
+
+		/**
+		 * The authority part of the current opened `vscode-remote://` URI.
+		 * Defined by extensions, e.g. `ssh-remote+${host}` for remotes using a secure shell.
+		 *
+		 * *Note* that the value is `undefined` when there is no remote extension host but that the
+		 * value is defined in all extension hosts (local and remote) in case a remote extension host
+		 * exists. Use {@link Extension.extensionKind} to know if
+		 * a specific extension runs remote or not.
+		 */
+		export const remoteAuthority: string | undefined;
+
+	}
+
 	//#endregion
 
 	//#region editor insets: https://github.com/microsoft/vscode/issues/85682
