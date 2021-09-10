@@ -415,13 +415,13 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			}
 		}));
 
-		// render toolbar first
-		this.setupCellToolbarActions(templateData, elementDisposables);
-
 		// during scrolling, `disposeElement` is called right after `renderElement`
 		// if toolbar update is synchronous, it will invalidate layout
 		// since toolbars are only useable after UI is stable, we can postpone this to next frame
 		elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			// render toolbar first
+			this.setupCellToolbarActions(templateData, elementDisposables);
+
 			const toolbarContext = <INotebookCellToolbarActionContext>{
 				ui: true,
 				cell: element,
@@ -1045,10 +1045,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		this.updateForOutputs(element, templateData);
 		elementDisposables.add(element.onDidChangeOutputs(_e => this.updateForOutputs(element, templateData)));
-
-		this.setupCellToolbarActions(templateData, elementDisposables);
-
 		elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			this.setupCellToolbarActions(templateData, elementDisposables);
+
 			const toolbarContext = <INotebookCellActionContext>{
 				ui: true,
 				cell: element,
