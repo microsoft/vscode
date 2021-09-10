@@ -50,13 +50,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			cwd: '',
 			initialCwd: ''
 		};
-		this._localPtyService.onDidChangeProperty((e) => {
-			if (e.property.type === TerminalPropertyType.Cwd) {
-				this._properties.cwd = e.property.value;
-			} else if (e.property.type === TerminalPropertyType.InitialCwd) {
-				this._properties.initialCwd = e.property.value;
-			}
-		});
 	}
 
 	start(): Promise<ITerminalLaunchError | undefined> {
@@ -131,6 +124,11 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._onDidChangeHasChildProcesses.fire(e);
 	}
 	handleDidChangeProperty(e: ITerminalProperty<any>) {
+		if (e.type === TerminalPropertyType.Cwd) {
+			this._properties.cwd = e.value;
+		} else if (e.type === TerminalPropertyType.InitialCwd) {
+			this._properties.initialCwd = e.value;
+		}
 		this._onDidChangeProperty.fire(e);
 	}
 
