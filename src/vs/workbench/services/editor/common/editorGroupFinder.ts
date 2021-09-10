@@ -202,5 +202,9 @@ function matchesEditor(typedEditor: IEditorInput, editor: IEditorInput | IUntype
 	// editors that have no `override` defined.
 	//
 	// TODO@lramos15 https://github.com/microsoft/vscode/issues/131619
-	return isEqual(typedEditor.resource, EditorResourceAccessor.getCanonicalUri(editor));
+	if (typedEditor.resource) {
+		return isEqual(typedEditor.resource, EditorResourceAccessor.getCanonicalUri(editor));
+	}
+
+	return false;
 }
