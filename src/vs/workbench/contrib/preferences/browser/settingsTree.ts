@@ -590,6 +590,7 @@ function addChildrenToTabOrder(node: Element): void {
 
 export interface HeightChangeParams {
 	element: SettingsTreeElement;
+	height: number;
 }
 
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
@@ -775,7 +776,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.descriptionElement.innerText = '';
 		if (element.setting.descriptionIsMarkdown) {
 			const disposables = new DisposableStore();
-			template.toDispose.add(disposables);
+			template.elementDisposables.add(disposables);
 			const renderedDescription = this.renderSettingMarkdown(element, template.containerElement, element.description, disposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
@@ -870,7 +871,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				disposables: disposeables
 			},
 			asyncRenderCallback: () => {
-				// this._onDidChangeSettingHeight.fire({ element });
+				const height = container.clientHeight;
+				if (height) {
+					this._onDidChangeSettingHeight.fire({ element, height });
+				}
 			},
 		});
 		disposeables.add(renderedMarkdown);
@@ -1489,10 +1493,16 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 		};
 		super.renderValue(dataElement, template, onChangeOverride);
 		template.elementDisposables.add(
-			template.inputBox.onDidHeightChange(() => {
-				this._onDidChangeSettingHeight.fire({
-					element: dataElement,
-				});
+			template.inputBox.onDidHeightChange(e => {
+				const height = template.containerElement.clientHeight;
+				// Don't fire event if height is reported as 0,
+				// which sometimes happens when clicking onto a new setting.
+				if (height) {
+					this._onDidChangeSettingHeight.fire({
+						element: dataElement,
+						height: template.containerElement.clientHeight
+					});
+				}
 			})
 		);
 		template.inputBox.layout();

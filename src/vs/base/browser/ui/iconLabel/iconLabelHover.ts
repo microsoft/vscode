@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateTarget, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -46,7 +46,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 
 	let hoverPreparation: IDisposable | undefined;
 
-	let hoverWidget: IDisposable | undefined;
+	let hoverWidget: IHoverWidget | undefined;
 
 	const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
 		if (disposeWidget) {
@@ -85,7 +85,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		}
 
 		const showHover = async () => {
-			if (hoverPreparation) {
+			if (hoverPreparation && (hoverWidget?.isDisposed !== false)) {
 
 				const hoverOptions = {
 					content: localize('iconLabel.loading', "Loading..."),

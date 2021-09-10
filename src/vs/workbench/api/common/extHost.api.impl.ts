@@ -332,6 +332,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
 			},
+			get remoteAuthority() {
+				return initData.remote.authority;
+			},
 			get uiKind() {
 				return initData.uiKind;
 			}
