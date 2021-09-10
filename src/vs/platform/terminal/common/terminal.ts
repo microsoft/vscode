@@ -178,13 +178,18 @@ export enum TerminalIpcChannels {
 export const IPtyService = createDecorator<IPtyService>('ptyService');
 
 export const enum TerminalPropertyType {
-	cwd,
-	initialCwd
+	Cwd,
+	InitialCwd
 }
 
-export interface TerminalProperty {
-	type: TerminalPropertyType,
-	value: any
+export interface ITerminalProperty<T extends TerminalPropertyType> {
+	type: T,
+	value: ITerminalPropertyMap[T]
+}
+
+export interface ITerminalPropertyMap {
+	[TerminalPropertyType.Cwd]: string,
+	[TerminalPropertyType.InitialCwd]: string,
 }
 
 export interface IPtyService {
@@ -207,7 +212,7 @@ export interface IPtyService {
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
-	readonly onDidChangeProperty: Event<{ id: number, event: TerminalProperty }>
+	readonly onDidChangeProperty: Event<{ id: number, event: ITerminalProperty<any> }>
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -483,7 +488,7 @@ export interface ITerminalChildProcess {
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
 	onDidChangeHasChildProcesses?: Event<boolean>;
-	onDidChangeProperty: Event<TerminalProperty>;
+	onDidChangeProperty: Event<ITerminalProperty<any>>;
 
 	/**
 	 * Starts the process.
