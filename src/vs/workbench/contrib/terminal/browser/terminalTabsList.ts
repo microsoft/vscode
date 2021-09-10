@@ -348,7 +348,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
-			description: hasText ? instance.description : undefined
+			description: hasText ? instance.shellLaunchConfig.description : undefined
 		}, {
 			fileDecorations: {
 				colors: true,

@@ -248,7 +248,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (resource) {
 			this._editorService.openEditor({
 				resource: URI.revive(resource),
-				description: instance.description,
+				description: instance.shellLaunchConfig.description,
 				options:
 				{
 					pinned: true,

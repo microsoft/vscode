@@ -506,10 +506,10 @@ function getSingleTabTooltip(instance: ITerminalInstance | undefined): string {
 	if (!instance) {
 		return '';
 	}
-	if (!instance.description) {
+	if (!instance.shellLaunchConfig.description) {
 		return instance.title;
 	}
-	return `${instance.title} ${instance.description}`;
+	return `${instance.title} ${instance.shellLaunchConfig.description}`;
 }
 
 class TerminalThemeIconStyle extends Themable {
