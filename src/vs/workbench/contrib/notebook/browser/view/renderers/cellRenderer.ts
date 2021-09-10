@@ -143,11 +143,15 @@ abstract class AbstractCellRenderer {
 
 		const container = templateData.bottomCellContainer;
 		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-		container.style.top = `${bottomToolbarOffset}px`;
+		templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			container.style.top = `${bottomToolbarOffset}px`;
+		}));
 
 		templateData.elementDisposables.add(element.onDidChangeLayout(() => {
 			const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-			container.style.top = `${bottomToolbarOffset}px`;
+			templateData.elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+				container.style.top = `${bottomToolbarOffset}px`;
+			}));
 		}));
 	}
 
