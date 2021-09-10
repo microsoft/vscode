@@ -116,7 +116,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#menuService = menuService;
 		this.#contextMenuService = contextMenuService;
 
-		this.#notebookOptions = new NotebookOptions(configurationService);
+		this.#notebookOptions = new NotebookOptions(configurationService, { cellToolbarInteraction: 'hover' });
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
