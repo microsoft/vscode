@@ -18,7 +18,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditor, ICodeEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -33,7 +33,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
  * the TextEditor widget to show the contents.
  */
-export class AbstractTextResourceEditor extends BaseTextEditor {
+export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 	constructor(
 		id: string,
@@ -87,7 +87,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		}
 
 		// Otherwise restore View State unless disabled via settings
-		if (!optionsGotApplied && this.shouldRestoreTextEditorViewState(input, context)) {
+		if (!optionsGotApplied && this.shouldRestoreEditorViewState(input, context)) {
 			this.restoreTextResourceEditorViewState(input, textEditor);
 		}
 
@@ -101,7 +101,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, control: IEditor) {
 		if (editor instanceof UntitledTextEditorInput || editor instanceof TextResourceEditorInput) {
-			const viewState = this.loadTextEditorViewState(editor.resource);
+			const viewState = this.loadEditorViewState(editor.resource);
 			if (viewState) {
 				control.restoreViewState(viewState);
 			}
@@ -154,12 +154,12 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 		// Clear view state if input is disposed
 		if (input.isDisposed()) {
-			super.clearTextEditorViewState(resource);
+			super.clearEditorViewState(resource);
 		}
 
 		// Otherwise save it
 		else {
-			super.saveTextEditorViewState(resource, input);
+			super.saveEditorViewState(resource, input);
 		}
 	}
 }

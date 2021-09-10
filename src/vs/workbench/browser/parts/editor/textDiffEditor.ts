@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
-import { isObject, isArray, assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUndefined } from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -37,7 +37,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 /**
  * The text editor that leverages the diff text editor for the editing experience.
  */
-export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPane {
+export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> implements ITextDiffEditorPane {
 
 	static readonly ID = TEXT_DIFF_EDITOR_ID;
 
@@ -158,7 +158,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 			// Otherwise restore View State unless disabled via settings
 			let hasPreviousViewState = false;
-			if (!optionsGotApplied && this.shouldRestoreTextEditorViewState(input, context)) {
+			if (!optionsGotApplied && this.shouldRestoreEditorViewState(input, context)) {
 				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, diffEditor);
 			}
 
@@ -192,7 +192,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	private restoreTextDiffEditorViewState(editor: DiffEditorInput, control: IDiffEditor): boolean {
 		const resource = this.toDiffEditorViewStateResource(editor);
 		if (resource) {
-			const viewState = this.loadTextEditorViewState(resource);
+			const viewState = this.loadEditorViewState(resource);
 			if (viewState) {
 				control.restoreViewState(viewState);
 
@@ -306,10 +306,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return super.getControl() as IDiffEditor | undefined;
 	}
 
-	protected override loadTextEditorViewState(resource: URI): IDiffEditorViewState {
-		return super.loadTextEditorViewState(resource) as IDiffEditorViewState;  // overridden for text diff editor support
-	}
-
 	protected override saveState(): void {
 
 		// Update/clear editor view State
@@ -329,37 +325,33 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		}
 
 		// Clear view state if input is disposed or we are configured to not storing any state
-		if (input.isDisposed() || (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input)))) {
-			super.clearTextEditorViewState(resource, this.group);
+		if (input.isDisposed() || (!this.shouldRestoreEditorViewState(input) && (!this.group || !this.group.contains(input)))) {
+			super.clearEditorViewState(resource, this.group);
 		}
 
 		// Otherwise save it
 		else {
-			super.saveTextEditorViewState(resource, input);
+			super.saveEditorViewState(resource, input);
 		}
 	}
 
-	protected override retrieveTextEditorViewState(resource: URI): IDiffEditorViewState | null {
-		return this.retrieveTextDiffEditorViewState(resource); // overridden for text diff editor support
-	}
-
-	private retrieveTextDiffEditorViewState(resource: URI): IDiffEditorViewState | null {
+	protected override retrieveEditorViewState(resource: URI): IDiffEditorViewState | undefined {
 		const control = assertIsDefined(this.getControl());
 		const model = control.getModel();
 		if (!model || !model.modified || !model.original) {
-			return null; // view state always needs a model
+			return undefined; // view state always needs a model
 		}
 
 		const modelUri = this.toDiffEditorViewStateResource(model);
 		if (!modelUri) {
-			return null; // model URI is needed to make sure we save the view state correctly
+			return undefined; // model URI is needed to make sure we save the view state correctly
 		}
 
 		if (!isEqual(modelUri, resource)) {
-			return null; // prevent saving view state for a model that is not the expected one
+			return undefined; // prevent saving view state for a model that is not the expected one
 		}
 
-		return control.saveViewState();
+		return withNullAsUndefined(control.saveViewState());
 	}
 
 	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI | undefined {

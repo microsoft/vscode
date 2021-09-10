@@ -66,7 +66,7 @@ const FILE_LINE_REGEX = /^(\S.*):$/;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
-export class SearchEditor extends BaseTextEditor {
+export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 	static readonly ID: string = SearchEditorID;
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
@@ -698,21 +698,21 @@ export class SearchEditor extends BaseTextEditor {
 
 	private saveViewState() {
 		const resource = this.getInput()?.modelUri;
-		if (resource) { this.saveTextEditorViewState(resource); }
+		if (resource) { this.saveEditorViewState(resource); }
 	}
 
-	protected override retrieveTextEditorViewState(resource: URI): SearchEditorViewState | null {
+	protected override retrieveEditorViewState(resource: URI): SearchEditorViewState | undefined {
 		const control = this.getControl();
 		const editorViewState = control.saveViewState();
-		if (!editorViewState) { return null; }
-		if (resource.toString() !== this.getInput()?.modelUri.toString()) { return null; }
+		if (!editorViewState) { return undefined; }
+		if (resource.toString() !== this.getInput()?.modelUri.toString()) { return undefined; }
 
 		return { ...editorViewState, focused: this.searchResultEditor.hasWidgetFocus() ? 'editor' : 'input' };
 	}
 
 	private loadViewState() {
 		const resource = assertIsDefined(this.getInput()?.modelUri);
-		return this.loadTextEditorViewState(resource) as SearchEditorViewState;
+		return this.loadEditorViewState(resource);
 	}
 
 	private restoreViewState() {

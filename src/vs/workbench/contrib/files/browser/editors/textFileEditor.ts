@@ -24,7 +24,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -37,7 +37,7 @@ import { MutableDisposable } from 'vs/base/common/lifecycle';
 /**
  * An implementation of editor for file system resources.
  */
-export class TextFileEditor extends BaseTextEditor {
+export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 	static readonly ID = TEXT_FILE_EDITOR_ID;
 
@@ -75,14 +75,14 @@ export class TextFileEditor extends BaseTextEditor {
 		const deleted = e.rawDeleted;
 		if (deleted) {
 			for (const [resource] of deleted) {
-				this.clearTextEditorViewState(resource);
+				this.clearEditorViewState(resource);
 			}
 		}
 	}
 
 	private onDidRunOperation(e: FileOperationEvent): void {
 		if (e.operation === FileOperation.MOVE && e.target) {
-			this.moveTextEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
+			this.moveEditorViewState(e.resource, e.target.resource, this.uriIdentityService.extUri);
 		}
 	}
 
@@ -153,8 +153,8 @@ export class TextFileEditor extends BaseTextEditor {
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Always restore View State if any associated and not disabled via settings
-			if (this.shouldRestoreTextEditorViewState(input, context)) {
-				const editorViewState = this.loadTextEditorViewState(input.resource);
+			if (this.shouldRestoreEditorViewState(input, context)) {
+				const editorViewState = this.loadEditorViewState(input.resource);
 				if (editorViewState) {
 					textEditor.restoreViewState(editorViewState);
 				}
@@ -282,13 +282,13 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
-		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input))) {
-			this.clearTextEditorViewState(input.resource, this.group);
+		if (!this.shouldRestoreEditorViewState(input) && (!this.group || !this.group.contains(input))) {
+			this.clearEditorViewState(input.resource, this.group);
 		}
 
 		// Otherwise we save the view state to restore it later
 		else if (!input.isDisposed()) {
-			this.saveTextEditorViewState(input.resource);
+			this.saveEditorViewState(input.resource);
 		}
 	}
 }
