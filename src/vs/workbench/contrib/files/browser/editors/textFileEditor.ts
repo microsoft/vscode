@@ -143,7 +143,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 			// Always restore View State if any associated and not disabled via settings
 			if (this.shouldRestoreEditorViewState(input, context)) {
-				const editorViewState = this.loadEditorViewState(input.resource);
+				const editorViewState = this.loadEditorViewState(input);
 				if (editorViewState) {
 					textEditor.restoreViewState(editorViewState);
 				}

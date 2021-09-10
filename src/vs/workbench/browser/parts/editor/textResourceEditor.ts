@@ -97,7 +97,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 
 	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, control: IEditor) {
 		if (editor instanceof UntitledTextEditorInput || editor instanceof TextResourceEditorInput) {
-			const viewState = this.loadEditorViewState(editor.resource);
+			const viewState = this.loadEditorViewState(editor);
 			if (viewState) {
 				control.restoreViewState(viewState);
 			}

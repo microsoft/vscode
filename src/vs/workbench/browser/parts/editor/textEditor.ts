@@ -41,7 +41,7 @@ export interface IEditorConfiguration {
  */
 export abstract class BaseTextEditor<T extends IEditorViewState> extends BaseEditorWithViewState<T> {
 
-	private static readonly TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
+	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
 	private editorControl: IEditor | undefined;
 	private editorContainer: HTMLElement | undefined;
@@ -62,7 +62,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends BaseEdi
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		super(id, BaseTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
 		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
 			const resource = this.getActiveResource();

@@ -259,7 +259,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 	}
 
 	override focus() {
-		const viewState = this.loadViewState();
+		const viewState = this.loadEditorViewState(this.getInput());
 		if (viewState && viewState.focused === 'editor') {
 			this.searchResultEditor.focus();
 		} else {
@@ -708,13 +708,8 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		return input.typeId === SearchEditorInputTypeId;
 	}
 
-	private loadViewState() {
-		const resource = assertIsDefined(this.getInput()?.modelUri);
-		return this.loadEditorViewState(resource);
-	}
-
 	private restoreViewState() {
-		const viewState = this.loadViewState();
+		const viewState = this.loadEditorViewState(this.getInput());
 		if (viewState) { this.searchResultEditor.restoreViewState(viewState); }
 	}
 

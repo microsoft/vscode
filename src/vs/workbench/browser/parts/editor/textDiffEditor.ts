@@ -9,7 +9,7 @@ import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUnde
 import { IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities, isEditorInput } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
@@ -179,14 +179,11 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 	}
 
 	private restoreTextDiffEditorViewState(editor: DiffEditorInput, control: IDiffEditor): boolean {
-		const resource = this.toDiffEditorViewStateResource(editor);
-		if (resource) {
-			const viewState = this.loadEditorViewState(resource);
-			if (viewState) {
-				control.restoreViewState(viewState);
+		const viewState = this.loadEditorViewState(editor);
+		if (viewState) {
+			control.restoreViewState(viewState);
 
-				return true;
-			}
+			return true;
 		}
 
 		return false;
@@ -294,14 +291,6 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		return input instanceof DiffEditorInput;
 	}
 
-	protected override toEditorViewStateResource(input: IEditorInput): URI | undefined {
-		if (input instanceof DiffEditorInput) {
-			return this.toDiffEditorViewStateResource(input);
-		}
-
-		return undefined;
-	}
-
 	protected override computeEditorViewState(resource: URI): IDiffEditorViewState | undefined {
 		const control = this.getControl();
 		if (!isDiffEditor(control)) {
@@ -313,7 +302,7 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 			return undefined; // view state always needs a model
 		}
 
-		const modelUri = this.toDiffEditorViewStateResource(model);
+		const modelUri = this.toEditorViewStateResource(model);
 		if (!modelUri) {
 			return undefined; // model URI is needed to make sure we save the view state correctly
 		}
@@ -325,14 +314,14 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		return withNullAsUndefined(control.saveViewState());
 	}
 
-	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI | undefined {
+	protected override toEditorViewStateResource(modelOrInput: IDiffEditorModel | IEditorInput): URI | undefined {
 		let original: URI | undefined;
 		let modified: URI | undefined;
 
 		if (modelOrInput instanceof DiffEditorInput) {
 			original = modelOrInput.original.resource;
 			modified = modelOrInput.modified.resource;
-		} else {
+		} else if (!isEditorInput(modelOrInput)) {
 			original = modelOrInput.original.uri;
 			modified = modelOrInput.modified.uri;
 		}
