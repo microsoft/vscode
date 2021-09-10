@@ -46,7 +46,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<ITerminalProperty>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<ITerminalProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 

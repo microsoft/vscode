@@ -44,6 +44,13 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
+		this._localPtyService.onDidChangeProperty((property) => {
+			if (property.id === TerminalPropertyType.Cwd) {
+				this.cwd = property.value.toString();
+			} else if (property.id === TerminalPropertyType.InitialCwd) {
+				this.initialCwd = property.value.toString();
+			}
+		});
 	}
 
 	start(): Promise<ITerminalLaunchError | undefined> {
@@ -74,18 +81,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._localPtyService.resize(this.id, cols, rows);
 	}
 	async getInitialCwd(): Promise<string> {
-		if (!this.initialCwd) {
-			this.initialCwd = await this._localPtyService.getInitialCwd(this.id);
-		}
-		return this.initialCwd;
+		return this.initialCwd || '';
 	}
 	async getCwd(): Promise<string> {
-		const cwd = await this._localPtyService.getCwd(this.id);
-		if (this.cwd !== cwd) {
-			this.cwd = cwd;
-			this.handleDidChangeProperty({ type: TerminalPropertyType.Cwd, value: this.cwd });
-		}
-		return this.cwd;
+		return this.cwd || this.initialCwd || '';
 	}
 	getLatency(): Promise<number> {
 		// TODO: The idea here was to add the result plus the time it took to get the latency

@@ -77,6 +77,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly id = 0;
 	readonly shouldPersist = false;
 
+	currentCwd: string | undefined = undefined;
+
 	private static _lastKillOrStart = 0;
 
 	private _exitCode: number | undefined;
@@ -143,6 +145,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			name = 'xterm-256color';
 		}
 		this._initialCwd = cwd;
+		this.currentCwd = cwd;
 		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
@@ -495,7 +498,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					this._logService.trace('IPty#pid');
 					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 						if (!error && stdout !== '') {
-							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+							const newCwd = stdout.substring(stdout.indexOf('/'), stdout.length - 1);
+							if (this.currentCwd !== newCwd) {
+								this.currentCwd = newCwd;
+								this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this.currentCwd });
+								resolve(newCwd);
+							}
 						} else {
 							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
 							resolve(this._initialCwd);
@@ -511,7 +519,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			this._logService.trace('IPty#pid');
 			try {
-				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
+				const newCwd = await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
+				if (newCwd !== this.currentCwd) {
+					this.currentCwd = newCwd;
+					this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this.currentCwd });
+				}
+				return this.currentCwd;
 			} catch (error) {
 				return this._initialCwd;
 			}

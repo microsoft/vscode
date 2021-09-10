@@ -50,6 +50,13 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	) {
 		super();
 		this._startBarrier = new Barrier();
+		this._remoteTerminalChannel.onDidChangeProperty((property) => {
+			if (property.id === TerminalPropertyType.Cwd) {
+				this.cwd = property.event.toString();
+			} else if (property.id === TerminalPropertyType.InitialCwd) {
+				this.initialCwd = property.event.toString();
+			}
+		});
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
@@ -120,21 +127,11 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 
 	async getInitialCwd(): Promise<string> {
-		if (!this.initialCwd) {
-			await this._startBarrier.wait();
-			this.initialCwd = await this._remoteTerminalChannel.getInitialCwd(this._id);
-		}
-		return this.initialCwd;
+		return this.initialCwd || '';
 	}
 
 	async getCwd(): Promise<string> {
-		await this._startBarrier.wait();
-		const cwd = await this._remoteTerminalChannel.getCwd(this._id);
-		if (this.cwd !== cwd) {
-			this.cwd = cwd;
-			this.handleDidChangeProperty({ type: TerminalPropertyType.Cwd, value: this.cwd });
-		}
-		return this.cwd;
+		return this.cwd || this.initialCwd || '';
 	}
 
 	handleData(e: string | IProcessDataEvent) {
