@@ -581,3 +581,40 @@ export async function provideInlineCompletions(
 		},
 	};
 }
+
+function lengthOfLongestCommonPrefix(str1: string, str2: string): number {
+	let i = 0;
+	while (i < str1.length && i < str2.length && str1[i] === str2[i]) {
+		i++;
+	}
+	return i;
+}
+
+function lengthOfLongestCommonSuffix(str1: string, str2: string): number {
+	let i = 0;
+	while (i < str1.length && i < str2.length && str1[str1.length - i - 1] === str2[str2.length - i - 1]) {
+		i++;
+	}
+	return i;
+}
+
+export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion): NormalizedInlineCompletion;
+export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined;
+export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {
+	if (!inlineCompletion) {
+		return inlineCompletion;
+	}
+	const valueToReplace = model.getValueInRange(inlineCompletion.range);
+	const commonPrefixLength = lengthOfLongestCommonPrefix(valueToReplace, inlineCompletion.text);
+	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLength;
+	const start = model.getPositionAt(startOffset);
+
+	const remainingValueToReplace = valueToReplace.substr(commonPrefixLength);
+	const commonSuffixLength = lengthOfLongestCommonSuffix(remainingValueToReplace, inlineCompletion.text);
+	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLength));
+
+	return {
+		range: Range.fromPositions(start, end),
+		text: inlineCompletion.text.substr(commonPrefixLength, inlineCompletion.text.length - commonPrefixLength - commonSuffixLength),
+	};
+}

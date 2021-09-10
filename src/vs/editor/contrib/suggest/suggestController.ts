@@ -36,7 +36,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
-import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest';
+import { CompletionItem, Context as SuggestContext, ISuggestItemPreselector, suggestWidgetStatusbarMenu } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
 import { CommitCharacterController } from './suggestCommitCharacters';
 import { State, SuggestModel } from './suggestModel';
@@ -112,6 +112,7 @@ export class SuggestController implements IEditorContribution {
 	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
+	private readonly _selectors = new Set<ISuggestItemPreselector>();
 
 	constructor(
 		editor: ICodeEditor,
@@ -223,7 +224,18 @@ export class SuggestController implements IEditorContribution {
 		}));
 		this._toDispose.add(this.model.onDidSuggest(e => {
 			if (!e.shy) {
-				let index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				let index = -1;
+				// Highest priority first
+				const selectors = [...this._selectors].sort((s1, s2) => s2.priority - s1.priority);
+				for (const s of selectors) {
+					index = s.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+					if (index !== -1) {
+						break;
+					}
+				}
+				if (index === -1) {
+					index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				}
 				this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
@@ -598,6 +610,16 @@ export class SuggestController implements IEditorContribution {
 			return;
 		}
 		this.widget.value.stopForceRenderingAbove();
+	}
+
+	registerSelector(selector: ISuggestItemPreselector): IDisposable {
+		if (this._selectors.has(selector)) {
+			throw new Error('Selector is already registered');
+		}
+		this._selectors.add(selector);
+		return toDisposable(() => {
+			this._selectors.delete(selector);
+		});
 	}
 }
 
