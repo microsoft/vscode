@@ -1155,7 +1155,8 @@ export class TerminalService implements ITerminalService {
 
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
-		if (!this._availableProfiles) {
+		const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
+		if (!isPtyTerminal && !this._availableProfiles) {
 			await this._refreshAvailableProfilesNow();
 		}
 		const config = options?.config || this._availableProfiles?.find(p => p.profileName === this._defaultProfileName);
