@@ -76,6 +76,7 @@ export class CellOutputElement extends Disposable {
 	}
 
 	private readonly contextKeyService: IContextKeyService;
+	private outputToolbar: ToolBar | undefined = undefined;
 
 	constructor(
 		private notebookEditor: INotebookEditorDelegate,
@@ -279,7 +280,8 @@ export class CellOutputElement extends Disposable {
 	private _bindResizeListener(dimension: DOM.IDimension) {
 		const elementSizeObserver = getResizesObserver(this.innerContainer, dimension, () => {
 			if (this.outputContainer && document.body.contains(this.outputContainer)) {
-				const height = this.innerContainer.offsetHeight;
+				const newDimension = elementSizeObserver.getHeight();
+				const height = newDimension === 0 ? 0 : Math.ceil(newDimension) + 8;// this.innerContainer.offsetHeight;
 
 				if (dimension.height === height) {
 					return;
@@ -330,11 +332,11 @@ export class CellOutputElement extends Disposable {
 
 		outputItemDiv.appendChild(mimeTypePicker);
 
-		const toolbar = this._renderDisposableStore.add(new ToolBar(mimeTypePicker, this.contextMenuService, {
+		this.outputToolbar = this._renderDisposableStore.add(new ToolBar(mimeTypePicker, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			renderDropdownAsChildElement: false
 		}));
-		toolbar.context = <INotebookCellActionContext>{
+		this.outputToolbar.context = <INotebookCellActionContext>{
 			ui: true,
 			cell: this.output.cellViewModel as ICellViewModel,
 			notebookEditor: this.notebookEditor,
@@ -352,12 +354,16 @@ export class CellOutputElement extends Disposable {
 				const result = { primary, secondary };
 
 				this._actionsDisposable.value = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
-				toolbar.setActions([], [pickAction, ...secondary]);
+				this._renderDisposableStore.add(DOM.scheduleAtNextAnimationFrame(() => {
+					this.outputToolbar?.setActions([], [pickAction, ...secondary]);
+				}));
 			};
 			updateMenuToolbar();
 			this._renderDisposableStore.add(menu.onDidChange(updateMenuToolbar));
 		} else {
-			toolbar.setActions([pickAction]);
+			this._renderDisposableStore.add(DOM.scheduleAtNextAnimationFrame(() => {
+				this.outputToolbar?.setActions([pickAction]);
+			}));
 		}
 	}
 
@@ -490,6 +496,8 @@ export class CellOutputElement extends Disposable {
 		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
 			this.renderResult.disposable?.dispose();
 		}
+
+		this.outputToolbar?.getElement().remove();
 
 		super.dispose();
 	}

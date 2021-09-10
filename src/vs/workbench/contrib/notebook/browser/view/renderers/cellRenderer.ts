@@ -928,16 +928,18 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.container.classList.toggle('cell-output-focus', element.outputIsFocused);
 	}
 
-	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate, disposables: DisposableStore): void {
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
 		const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
 
-		templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
-		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
-		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px`;
-		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
-		templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
-		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap}px`;
+		disposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
+			templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
+			templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px`;
+			templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
+			templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
+			templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap}px`;
+		}));
 
 		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 	}
@@ -1004,9 +1006,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
-		this.updateForLayout(element, templateData);
+		this.updateForLayout(element, templateData, elementDisposables);
 		elementDisposables.add(element.onDidChangeLayout(() => {
-			this.updateForLayout(element, templateData);
+			this.updateForLayout(element, templateData, elementDisposables);
 		}));
 
 		this.updateForInternalMetadata(element, templateData);
@@ -1016,7 +1018,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged || e.internalMetadataChanged) {
 				this.updateForInternalMetadata(element, templateData);
-				this.updateForLayout(element, templateData);
+				this.updateForLayout(element, templateData, elementDisposables);
 			}
 
 			if (e.outputIsHoveredChanged) {

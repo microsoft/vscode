@@ -16,6 +16,7 @@
 	display: none;
 	margin-top: 2px;
 	margin-bottom: 2px;
+	contain: layout style;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item {
@@ -113,6 +114,7 @@
 .monaco-workbench .notebookOverlay .cell-list-container .webview-cover {
 	position: absolute;
 	top: 0;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
@@ -215,10 +217,13 @@
 	cursor: auto;
 	box-sizing: border-box;
 	z-index: var(--z-index-notebook-output);
+	contain: layout style;
 }
 
 .monaco-workbench .notebookOverlay .output .cell-output-toolbar {
 	z-index: var(--z-index-notebook-cell-output-toolbar);
+	transform: translate3d(0px, 0px, 0px);
+	contain: layout style;
 }
 
 .monaco-workbench .notebookOverlay .output p {
@@ -249,11 +254,16 @@
 	font-family: var(--monaco-monospace-font);
 	white-space: pre-wrap;
 	word-wrap: break-word;
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .monaco-workbench .notebookOverlay .output > div.foreground .output-stream pre,
 .monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext pre {
 	font-family: var(--monaco-monospace-font);
+}
+
+.monaco-workbench .notebookOverlay .output > div.foreground.error {
+	transform: translate3d(0px, 0px, 0px);
 }
 
 .monaco-workbench .notebookOverlay .output > div.foreground.error .output-stream {
@@ -271,6 +281,7 @@
 	height: 16px;
 	cursor: pointer;
 	padding: 6px 0px;
+	contain: layout style;
 }
 
 .monaco-workbench .notebookOverlay .output .cell-output-toolbar .actions-container {
@@ -464,6 +475,8 @@
 	top: -14px;
 	/* this lines up the bottom toolbar border with the current line when on line 01 */
 	z-index: var(--z-index-notebook-cell-toolbar);
+	transform: translate3d(0px, 0px, 0px);
+	contain: layout style;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item.menu-entry {
