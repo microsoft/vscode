@@ -31,7 +31,7 @@ steps:
       azureSubscriptionEndpoint: "vscode-builds-subscription"
       azureContainerRegistry: vscodehub.azurecr.io
       command: "Run an image"
-      imageName: "vscode-linux-build-agent:alpine"
+      imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
       containerCommand: uname
 
   - script: |
