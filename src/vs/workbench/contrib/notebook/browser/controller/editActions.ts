@@ -346,7 +346,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const language = additionalArgs.length && typeof additionalArgs[0] === 'string' ? additionalArgs[0] : undefined;
 		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
 
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.getLength()) {
+		if (!activeEditorContext || !activeEditorContext.notebookEditor.hasModel() || context.start >= activeEditorContext.notebookEditor.getLength()) {
 			return;
 		}
 

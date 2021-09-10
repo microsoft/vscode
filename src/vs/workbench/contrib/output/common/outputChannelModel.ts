@@ -17,7 +17,7 @@ import { isNumber } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDidAppendedContent: Event<void>;
@@ -151,7 +151,8 @@ class OutputFileListener extends Disposable {
 
 	constructor(
 		private readonly file: URI,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
+		private readonly logService: ILogService
 	) {
 		super();
 		this.syncDelayer = new ThrottledDelayer<void>(500);
@@ -161,6 +162,7 @@ class OutputFileListener extends Disposable {
 		if (!this.watching) {
 			this.etag = eTag;
 			this.poll();
+			this.logService.trace('Started polling', this.file.toString());
 			this.watching = true;
 		}
 	}
@@ -170,20 +172,19 @@ class OutputFileListener extends Disposable {
 		this.syncDelayer.trigger(loop);
 	}
 
-	private doWatch(): Promise<void> {
-		return this.fileService.resolve(this.file, { resolveMetadata: true })
-			.then(stat => {
-				if (stat.etag !== this.etag) {
-					this.etag = stat.etag;
-					this._onDidContentChange.fire(stat.size);
-				}
-			});
+	private async doWatch(): Promise<void> {
+		const stat = await this.fileService.resolve(this.file, { resolveMetadata: true });
+		if (stat.etag !== this.etag) {
+			this.etag = stat.etag;
+			this._onDidContentChange.fire(stat.size);
+		}
 	}
 
 	unwatch(): void {
 		if (this.watching) {
 			this.syncDelayer.cancel();
 			this.watching = false;
+			this.logService.trace('Stopped polling', this.file.toString());
 		}
 	}
 
@@ -210,11 +211,12 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		file: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@ILogService logService: ILogService
 	) {
 		super(modelUri, mimeType, file, fileService, modelService, modeService);
 
-		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService));
+		this.fileHandler = this._register(new OutputFileListener(this.file, this.fileService, logService));
 		this._register(this.fileHandler.onDidContentChange(size => this.update(size)));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}

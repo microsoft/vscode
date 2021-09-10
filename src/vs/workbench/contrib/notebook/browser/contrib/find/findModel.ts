@@ -160,9 +160,7 @@ export class FindModel extends Disposable {
 
 		if (oldCurrMatchCellIndex < 0) {
 			// the cell containing the active match is deleted
-			const focusedCell = this._notebookEditor.viewModel!.viewCells[this._notebookEditor.viewModel!.getFocus().start];
-
-			if (!focusedCell) {
+			if (this._notebookEditor.getLength() === 0) {
 				this.set(findMatches, false);
 				return;
 			}
@@ -173,7 +171,7 @@ export class FindModel extends Disposable {
 		}
 
 		// the cell still exist
-		const cell = this._notebookEditor.viewModel!.viewCells[oldCurrMatchCellIndex];
+		const cell = this._notebookEditor.cellAt(oldCurrMatchCellIndex);
 		if (cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Preview) {
 			// find the nearest match above this cell
 			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.index), index => index >= oldCurrMatchCellIndex);
@@ -257,7 +255,13 @@ export class FindModel extends Disposable {
 			return null;
 		}
 
-		const findMatches = this._notebookEditor.viewModel!.find(val, options).filter(match => match.matches.length > 0);
+		if (!this._notebookEditor.hasModel()) {
+			return null;
+		}
+
+		const vm = this._notebookEditor._getViewModel();
+
+		const findMatches = vm.find(val, options).filter(match => match.matches.length > 0);
 		return findMatches;
 	}
 

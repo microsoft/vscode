@@ -332,6 +332,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
 			},
+			get remoteAuthority() {
+				return initData.remote.authority;
+			},
 			get uiKind() {
 				return initData.uiKind;
 			}
@@ -731,13 +734,21 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostUriOpeners.registerExternalUriOpener(extension.identifier, id, opener, metadata);
 			},
-			get openEditors() {
+			get tabs() {
 				checkProposedApiEnabled(extension);
 				return extHostEditorTabs.tabs;
 			},
-			get onDidChangeOpenEditors() {
+			get activeTab() {
+				checkProposedApiEnabled(extension);
+				return extHostEditorTabs.activeTab;
+			},
+			get onDidChangeTabs() {
 				checkProposedApiEnabled(extension);
 				return extHostEditorTabs.onDidChangeTabs;
+			},
+			get onDidChangeActiveTab() {
+				checkProposedApiEnabled(extension);
+				return extHostEditorTabs.onDidChangeActiveTab;
 			},
 			getInlineCompletionItemController<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): vscode.InlineCompletionController<T> {
 				checkProposedApiEnabled(extension);
@@ -1289,6 +1300,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			BranchCoverage: extHostTypes.BranchCoverage,
 			FunctionCoverage: extHostTypes.FunctionCoverage,
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState,
+			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 		};
 	};
 }

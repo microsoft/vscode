@@ -21,6 +21,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ISelection } from 'vs/editor/common/core/selection';
+import { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 
 interface CommandHandler {
 	callback: Function;
@@ -371,6 +372,7 @@ export class ApiCommandArgument<V, O = V> {
 
 	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.from);
 	static readonly TypeHierarchyItem = new ApiCommandArgument('item', 'A type hierarchy item', v => v instanceof extHostTypes.TypeHierarchyItem, extHostTypeConverter.TypeHierarchyItem.from);
+	static readonly TestItem = new ApiCommandArgument('testItem', 'A VS Code TestItem', v => v instanceof TestItemImpl, extHostTypeConverter.TestItem.from);
 
 	constructor(
 		readonly name: string,

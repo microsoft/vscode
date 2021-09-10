@@ -23,7 +23,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -255,6 +255,13 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this._refreshAvailableProfiles();
+			} else if (
+				e.affectsConfiguration(TerminalSettingId.TerminalTitle) ||
+				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator) ||
+				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
+				for (const instance of this.instances) {
+					instance.setTitle(instance.title, TitleEventSource.Config);
+				}
 			}
 		});
 
@@ -494,7 +501,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	@throttle(2000)
-	private async _refreshAvailableProfiles(): Promise<void> {
+	private _refreshAvailableProfiles(): void {
+		this._refreshAvailableProfilesNow();
+	}
+
+	private async _refreshAvailableProfilesNow(): Promise<void> {
 		const result = await this._detectProfiles();
 		const profilesChanged = !equals(result, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
@@ -506,6 +517,7 @@ export class TerminalService implements ITerminalService {
 			await this._refreshPlatformConfig(result);
 		}
 	}
+
 
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
@@ -1156,6 +1168,17 @@ export class TerminalService implements ITerminalService {
 
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
+		// Await the initialization of available profiles as long as this is not a pty terminal or a
+		// local terminal in a remote workspace as profile won't be used in those cases and these
+		// terminals need to be launched before remote connections are established.
+		if (!this._availableProfiles) {
+			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
+			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
+			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
+				await this._refreshAvailableProfilesNow();
+			}
+		}
+
 		const config = options?.config || this._availableProfiles?.find(p => p.profileName === this._defaultProfileName);
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
 
@@ -1209,9 +1232,8 @@ export class TerminalService implements ITerminalService {
 		const parent = this._getSplitParent(options?.location);
 		if (parent) {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
-		} else {
-			return this._createTerminal(shellLaunchConfig, location, options);
 		}
+		return this._createTerminal(shellLaunchConfig, location, options);
 	}
 
 	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {

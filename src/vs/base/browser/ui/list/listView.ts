@@ -840,6 +840,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		item.row!.domNode.setAttribute('data-index', `${index}`);
 		item.row!.domNode.setAttribute('data-last-element', index === this.length - 1 ? 'true' : 'false');
+		item.row!.domNode.setAttribute('data-parity', index % 2 === 0 ? 'even' : 'odd');
 		item.row!.domNode.setAttribute('aria-setsize', String(this.accessibilityProvider.getSetSize(item.element, index, this.length)));
 		item.row!.domNode.setAttribute('aria-posinset', String(this.accessibilityProvider.getPosInSet(item.element, index)));
 		item.row!.domNode.setAttribute('id', this.getElementDomId(index));

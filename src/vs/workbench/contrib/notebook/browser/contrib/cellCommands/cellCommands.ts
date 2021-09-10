@@ -11,13 +11,14 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { cellExecutionArgs, CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookCellAction, NotebookMultiCellAction, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, EXPAND_CELL_OUTPUT_COMMAND_ID, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { changeCellToKind, copyCellRange, joinCellsWithSurrounds, moveCellRange } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { changeCellToKind, computeCellLinesContents, copyCellRange, joinCellsWithSurrounds, moveCellRange } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
 //#region Move/Copy cells
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
@@ -157,9 +158,51 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
-		if (newCells) {
-			context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], 'editor');
+		if (context.notebookEditor.isReadOnly) {
+			return;
+		}
+
+		const cell = context.cell;
+		const index = context.notebookEditor.getCellIndex(cell);
+		const splitPoints = cell.focusMode === CellFocusMode.Container ? [{ lineNumber: 1, column: 1 }] : cell.getSelectionsStartPosition();
+		if (splitPoints && splitPoints.length > 0) {
+			await cell.resolveTextModel();
+
+			if (!cell.hasModel()) {
+				return;
+			}
+
+			const bulkEditService = accessor.get(IBulkEditService);
+
+			const newLinesContents = computeCellLinesContents(cell, splitPoints);
+			if (newLinesContents) {
+				const language = cell.language;
+				const kind = cell.cellKind;
+				const mime = cell.mime;
+
+				const textModel = await cell.resolveTextModel();
+				await bulkEditService.apply(
+					[
+						new ResourceTextEdit(cell.uri, { range: textModel.getFullModelRange(), text: newLinesContents[0] }),
+						new ResourceNotebookCellEdit(context.notebookEditor.textModel.uri,
+							{
+								editType: CellEditType.Replace,
+								index: index + 1,
+								count: 0,
+								cells: newLinesContents.slice(1).map(line => ({
+									cellKind: kind,
+									language,
+									mime,
+									source: line,
+									outputs: [],
+									metadata: {}
+								}))
+							}
+						)
+					],
+					{ quotableLabel: 'Split Notebook Cell' }
+				);
+			}
 		}
 	}
 });

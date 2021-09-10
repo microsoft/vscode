@@ -284,7 +284,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<TsCodeAction[] | undefined> {
-		if (!this.shouldTrigger(context)) {
+		if (!this.shouldTrigger(context, rangeOrSelection)) {
 			return undefined;
 		}
 		if (!this.client.toOpenedFilePath(document)) {
@@ -386,12 +386,14 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		return codeAction;
 	}
 
-	private shouldTrigger(context: vscode.CodeActionContext) {
+	private shouldTrigger(context: vscode.CodeActionContext, rangeOrSelection: vscode.Range | vscode.Selection) {
 		if (context.only && !vscode.CodeActionKind.Refactor.contains(context.only)) {
 			return false;
 		}
-
-		return context.triggerKind === vscode.CodeActionTriggerKind.Invoke;
+		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
+			return true;
+		}
+		return rangeOrSelection instanceof vscode.Selection;
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {

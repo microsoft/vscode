@@ -286,6 +286,12 @@ export interface IEditorOptions {
 	 * not as a modal dialog.
 	 */
 	context?: EditorOpenContext;
+
+	/**
+	 * An optional property to signal that certain view state should be
+	 * applied when opening the editor. 
+	 */
+	viewState?: object;
 }
 
 export interface ITextEditorSelection {
@@ -324,11 +330,6 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Text editor selection.
 	 */
 	selection?: ITextEditorSelection;
-
-	/**
-	 * Text editor view state.
-	 */
-	viewState?: object;
 
 	/**
 	 * Option to control the text editor selection reveal type.

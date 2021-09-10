@@ -13,7 +13,7 @@ import { IConfigurationService, IConfigurationValue } from 'vs/platform/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ICellModelDecorations, ICellModelDeltaDecorations } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ICellModelDecorations, ICellModelDeltaDecorations, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
@@ -27,13 +27,12 @@ suite('Notebook Find', () => {
 		}
 	}();
 
-	const setupEditorForTest = (editor: IActiveNotebookEditor) => {
+	const setupEditorForTest = (editor: IActiveNotebookEditor, viewModel: NotebookViewModel) => {
 		editor.changeModelDecorations = (callback) => {
 			return callback({
 				deltaDecorations: (oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]) => {
 					const ret: ICellModelDecorations[] = [];
 					newDecorations.forEach(dec => {
-						const viewModel = editor._getViewModel();
 						const cell = viewModel.viewCells.find(cell => cell.handle === dec.ownerId);
 						const decorations = cell?.deltaModelDecorations([], dec.decorations) ?? [];
 
@@ -93,7 +92,7 @@ suite('Notebook Find', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, viewModel, accessor) => {
-				setupEditorForTest(editor);
+				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
@@ -136,7 +135,7 @@ suite('Notebook Find', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, viewModel, accessor) => {
-				setupEditorForTest(editor);
+				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
@@ -172,7 +171,7 @@ suite('Notebook Find', () => {
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, viewModel, accessor) => {
-				setupEditorForTest(editor);
+				setupEditorForTest(editor, viewModel);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));

@@ -168,8 +168,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 		readonly workspace: { readonly isTrusted: boolean };
 	}
 
-	interface ScriptModule {
-		activate(ctx?: RendererContext): Promise<RendererApi | undefined | any> | RendererApi | undefined | any;
+	interface RendererModule {
+		activate(ctx: RendererContext): Promise<RendererApi | undefined | any> | RendererApi | undefined | any;
+	}
+
+	interface KernelPreloadContext {
+		readonly onDidReceiveKernelMessage: Event<unknown>;
+		postKernelMessage(data: unknown): void;
+	}
+
+	interface KernelPreloadModule {
+		activate(ctx: KernelPreloadContext): Promise<void> | void;
+	}
+
+	function createKernelContext(): KernelPreloadContext {
+		return {
+			onDidReceiveKernelMessage: onDidReceiveKernelMessage.event,
+			postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
+		};
 	}
 
 	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
@@ -177,18 +193,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return new Function(...args.map(([k]) => k), functionSrc)(...args.map(([, v]) => v));
 	};
 
-	const runPreload = async (url: string, originalUri: string): Promise<ScriptModule> => {
+	const runKernelPreload = async (url: string, originalUri: string): Promise<void> => {
 		const text = await loadScriptSource(url, originalUri);
-		return {
-			activate: () => {
-				try {
-					return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
-				} catch (e) {
-					console.error(e);
-					throw e;
-				}
+		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+		try {
+			if (isModule) {
+				const module: KernelPreloadModule = await __import(url);
+				return module.activate(createKernelContext());
+			} else {
+				return invokeSourceWithGlobals(text, { ...kernelPreloadGlobals, scriptUrl: url });
 			}
-		};
+		} catch (e) {
+			console.error(e);
+			throw e;
+		}
 	};
 
 	const dimensionUpdater = new class {
@@ -759,7 +777,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		/** Inner function cached in the _loadPromise(). */
 		private async _load(): Promise<RendererApi | undefined> {
-			const module = await __import(this.data.entrypoint);
+			const module: RendererModule = await __import(this.data.entrypoint);
 			if (!module) {
 				return;
 			}
@@ -795,9 +813,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 */
 		public load(uri: string, originalUri: string) {
 			const promise = Promise.all([
-				runPreload(uri, originalUri),
+				runKernelPreload(uri, originalUri),
 				this.waitForAllCurrent(),
-			]).then(([module]) => module.activate());
+			]);
 
 			this.preloads.set(uri, promise);
 			return promise;

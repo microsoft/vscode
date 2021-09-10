@@ -58,7 +58,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	}
 
 	protected _update(): void {
-		const notebook = this._editor.viewModel?.notebookDocument;
+		const notebook = this._editor.textModel;
 
 		if (!notebook) {
 			this._resetAction();

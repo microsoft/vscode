@@ -37,9 +37,8 @@
 	padding-left: 16px;
 }
 
-.monaco-workbench .hover-language-status-element .right .monaco-button.monaco-text-button {
-	font-size: 10px;
-	padding: 0px 4px
+.monaco-workbench .hover-language-status-element .right .monaco-link {
+	margin: auto 0;
 }
 
 .monaco-workbench .hover-language-status-element .right .monaco-action-bar:not(:first-child) {

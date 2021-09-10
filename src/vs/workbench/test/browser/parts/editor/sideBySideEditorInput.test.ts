@@ -47,6 +47,34 @@ suite('SideBySideEditorInput', () => {
 		}
 	}
 
+	test('basics', () => {
+		let counter = 0;
+		const input = new MyEditorInput(URI.file('/fake'));
+		input.onWillDispose(() => {
+			assert(true);
+			counter++;
+		});
+
+		const otherInput = new MyEditorInput(URI.file('/fake2'));
+		otherInput.onWillDispose(() => {
+			assert(true);
+			counter++;
+		});
+
+		const sideBySideInput = new SideBySideEditorInput('name', 'description', input, otherInput);
+
+		assert.ok(isSideBySideEditorInput(sideBySideInput));
+		assert.ok(!isSideBySideEditorInput(input));
+
+		assert.strictEqual(sideBySideInput.secondary, input);
+		assert.strictEqual(sideBySideInput.primary, otherInput);
+		assert(sideBySideInput.matches(sideBySideInput));
+		assert(!sideBySideInput.matches(otherInput));
+
+		sideBySideInput.dispose();
+		assert.strictEqual(counter, 0);
+	});
+
 	test('events dispatching', () => {
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
@@ -112,5 +140,4 @@ suite('SideBySideEditorInput', () => {
 
 		assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
 	});
-
 });

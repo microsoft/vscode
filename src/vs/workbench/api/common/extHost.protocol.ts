@@ -640,9 +640,10 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 }
 
 export interface IEditorTabDto {
-	group: number;
-	name: string;
-	resource: UriComponents;
+	viewColumn: EditorGroupColumn;
+	label: string;
+	resource?: UriComponents;
+	editorId?: string;
 	isActive: boolean;
 }
 
@@ -681,6 +682,7 @@ export interface IWebviewPortMapping {
 
 export interface IWebviewOptions {
 	readonly enableScripts?: boolean;
+	readonly enableForms?: boolean;
 	readonly enableCommandUris?: boolean;
 	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
 	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
@@ -1114,6 +1116,7 @@ export interface IStartDebuggingOptions {
 	debugUI?: {
 		simple?: boolean;
 	};
+	suppressSaveBeforeStart?: boolean;
 }
 
 export interface MainThreadDebugServiceShape extends IDisposable {

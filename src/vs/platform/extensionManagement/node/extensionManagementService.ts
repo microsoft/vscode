@@ -32,7 +32,7 @@ import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensio
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -57,7 +57,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@optional(IDownloadService) private downloadService: IDownloadService,
+		@IDownloadService private downloadService: IDownloadService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
 	) {
@@ -137,10 +137,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		if (vsix.scheme === Schemas.file) {
 			return vsix;
 		}
-		if (!this.downloadService) {
-			throw new Error('Download service is not available');
-		}
-
 		const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 		await this.downloadService.download(vsix, downloadedLocation);
 		return downloadedLocation;
@@ -231,11 +227,8 @@ abstract class AbstractInstallExtensionTask extends AbstractExtensionTask<ILocal
 	}
 
 	private async extract({ zipPath, identifierWithVersion, metadata }: InstallableExtension, token: CancellationToken): Promise<ILocalExtension> {
-		let local = await this.extensionsScanner.extractUserExtension(identifierWithVersion, zipPath, token);
+		let local = await this.extensionsScanner.extractUserExtension(identifierWithVersion, zipPath, metadata, token);
 		this.logService.info('Extracting completed.', identifierWithVersion.id);
-		if (metadata) {
-			local = await this.extensionsScanner.saveMetadataForLocalExtension(local, metadata);
-		}
 		return local;
 	}
 
@@ -315,10 +308,10 @@ class InstallVSIXTask extends AbstractInstallExtensionTask {
 		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
 		const metadata = await this.getMetadata(this.identifier.id, token);
+		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
+		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
 
 		if (existing) {
-			metadata.isMachineScoped = this.options.isMachineScoped || existing.isMachineScoped;
-			metadata.isBuiltin = this.options.isBuiltin || existing.isBuiltin;
 			this._operation = InstallOperation.Update;
 			if (identifierWithVersion.equals(new ExtensionIdentifierWithVersion(existing.identifier, existing.manifest.version))) {
 				try {

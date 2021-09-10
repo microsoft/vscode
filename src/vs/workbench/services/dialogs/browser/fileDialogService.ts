@@ -13,8 +13,10 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { localize } from 'vs/nls';
 import { getMediaOrTextMime } from 'vs/base/common/mime';
 import { basename } from 'vs/base/common/resources';
-import { WebFileSystemAccess } from 'vs/base/browser/dom';
+import { triggerDownload, triggerUpload, WebFileSystemAccess } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { extractFilesDropData } from 'vs/workbench/browser/dnd';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -54,7 +56,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (!WebFileSystemAccess.supported(window)) {
-			return this.showUnsupportedBrowserWarning();
+			return this.showUnsupportedBrowserWarning('open');
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
@@ -107,7 +109,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (!WebFileSystemAccess.supported(window)) {
-			return this.showUnsupportedBrowserWarning();
+			return this.showUnsupportedBrowserWarning('save');
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
@@ -142,7 +144,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (!WebFileSystemAccess.supported(window)) {
-			return this.showUnsupportedBrowserWarning();
+			return this.showUnsupportedBrowserWarning('save');
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
@@ -163,7 +165,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		if (!WebFileSystemAccess.supported(window)) {
-			return this.showUnsupportedBrowserWarning();
+			return this.showUnsupportedBrowserWarning('open');
 		}
 
 		let uri: URI | undefined;
@@ -184,22 +186,59 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return uri ? [uri] : undefined;
 	}
 
-	private async showUnsupportedBrowserWarning(): Promise<undefined> {
+	private async showUnsupportedBrowserWarning(context: 'save' | 'open'): Promise<undefined> {
+
+		// When saving, try to just download the contents
+		// of the active text editor if any as a workaround
+		if (context === 'save') {
+			const activeTextModel = this.codeEditorService.getActiveCodeEditor()?.getModel();
+			if (activeTextModel) {
+				triggerDownload(VSBuffer.fromString(activeTextModel.getValue()).buffer, basename(activeTextModel.uri));
+				return;
+			}
+		}
+
+		// Otherwise inform the user about options
+
+		const buttons = context === 'open' ?
+			[localize('openRemote', "Open Remote..."), localize('upload', "Upload..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")] :
+			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")];
+
+		const cancelId = context === 'open' ? 3 : 2;
+
 		const res = await this.dialogService.show(
 			Severity.Warning,
 			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
-			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")],
+			buttons,
 			{
 				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
-				cancelId: 2
+				cancelId
 			}
 		);
 
 		switch (res.choice) {
+
+			// Open Remote...
 			case 0:
 				this.commandService.executeCommand('workbench.action.remote.showMenu');
 				break;
+
+			// Upload... (context === 'open')
 			case 1:
+				if (context === 'open') {
+					const files = await triggerUpload();
+					if (files) {
+						this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
+							this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() });
+						}));
+					}
+					break;
+				} else {
+					// Fallthrough for "Learn More"
+				}
+
+			// Learn More
+			case 2:
 				this.openerService.open('https://aka.ms/VSCodeWebLocalFileSystemAccess');
 				break;
 		}

@@ -51,7 +51,7 @@ class ExtensionResourceLoaderService implements IExtensionResourceLoaderService 
 				'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
 				'X-Client-Version': this._productService.version
 			};
-			if (getTelemetryLevel(this._productService, this._environmentService) === TelemetryLevel.USER && this._configurationService.getValue('telemetry.enableTelemetry') === true) {
+			if (getTelemetryLevel(this._productService, this._environmentService) >= TelemetryLevel.USER && this._configurationService.getValue('telemetry.enableTelemetry') === true) {
 				requestInit.headers['X-Machine-Id'] = machineId;
 			}
 			if (this._productService.commit) {

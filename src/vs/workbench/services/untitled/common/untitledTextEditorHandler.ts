@@ -6,9 +6,8 @@
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,11 +33,11 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 		@IPathService private readonly pathService: IPathService
 	) { }
 
-	canSerialize(editorInput: EditorInput): boolean {
+	canSerialize(editorInput: IEditorInput): boolean {
 		return this.filesConfigurationService.isHotExitEnabled && !editorInput.isDisposed();
 	}
 
-	serialize(editorInput: EditorInput): string | undefined {
+	serialize(editorInput: IEditorInput): string | undefined {
 		if (!this.filesConfigurationService.isHotExitEnabled || editorInput.isDisposed()) {
 			return undefined;
 		}
@@ -78,7 +77,7 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 			const mode = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
-			return accessor.get(IEditorService).createEditorInput({ resource, mode, encoding, forceUntitled: true }) as UntitledTextEditorInput;
+			return accessor.get(ITextEditorService).createTextEditor({ resource, mode, encoding, forceUntitled: true }) as UntitledTextEditorInput;
 		});
 	}
 }
@@ -91,7 +90,7 @@ export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable imple
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IPathService private readonly pathService: IPathService,
-		@IEditorService private readonly editorService: IEditorService
+		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
 
@@ -114,7 +113,7 @@ export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable imple
 					editorInputResource = workingCopy.resource;
 				}
 
-				return this.editorService.createEditorInput({ resource: editorInputResource, forceUntitled: true });
+				return this.textEditorService.createTextEditor({ resource: editorInputResource, forceUntitled: true });
 			}
 		}));
 	}

@@ -406,6 +406,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private getWebviewOptions(): vscode.WebviewOptions {
 		return {
 			enableScripts: true,
+			enableForms: false,
 			localResourceRoots: this.getLocalResourceRoots()
 		};
 	}

@@ -14,6 +14,7 @@ import { isEqual, toLocalResource } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -39,9 +40,10 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
-		super(model.resource, undefined, editorService, textFileService, labelService, fileService);
+		super(model.resource, undefined, editorService, textFileService, labelService, fileService, editorResolverService);
 
 		this.registerModelListeners(model);
 	}

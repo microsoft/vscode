@@ -63,12 +63,12 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		const newCell = editor.cellAt(idx + 1);
-
-		if (!newCell) {
+		if (idx >= editor.getLength()) {
+			// last one
 			return;
 		}
 
+		const newCell = editor.cellAt(idx + 1);
 		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
 		editor.focusNotebookCell(newCell, newFocusMode);
 		editor.cursorNavigationMode = true;
@@ -105,17 +105,12 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		if (idx < 1) {
+		if (idx < 1 || editor.getLength() === 0) {
 			// we don't do loop
 			return;
 		}
 
 		const newCell = editor.cellAt(idx - 1);
-
-		if (!newCell) {
-			return;
-		}
-
 		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
 		editor.focusNotebookCell(newCell, newFocusMode);
 		editor.cursorNavigationMode = true;
@@ -139,14 +134,12 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editor = context.notebookEditor;
-		if (!editor.getLength()) {
+		if (editor.getLength() === 0) {
 			return;
 		}
 
 		const firstCell = editor.cellAt(0);
-		if (firstCell) {
-			editor.focusNotebookCell(firstCell, 'container');
-		}
+		editor.focusNotebookCell(firstCell, 'container');
 	}
 });
 
@@ -166,11 +159,11 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editor = context.notebookEditor;
-		if (!editor.viewModel || !editor.getLength()) {
+		if (!editor.hasModel() || editor.getLength() === 0) {
 			return;
 		}
 
-		const firstCell = editor.viewModel.cellAt(editor.getLength() - 1);
+		const firstCell = editor.cellAt(editor.getLength() - 1);
 		if (firstCell) {
 			editor.focusNotebookCell(firstCell, 'container');
 		}

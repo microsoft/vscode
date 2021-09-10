@@ -165,12 +165,12 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	model?: ITextModel | null;
 	/**
 	 * The initial value of the auto created model in the editor.
-	 * To not create automatically a model, use `model: null`.
+	 * To not automatically create a model, use `model: null`.
 	 */
 	value?: string;
 	/**
 	 * The initial language of the auto created model in the editor.
-	 * To not create automatically a model, use `model: null`.
+	 * To not automatically create a model, use `model: null`.
 	 */
 	language?: string;
 	/**

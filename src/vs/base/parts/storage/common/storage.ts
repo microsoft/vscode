@@ -31,6 +31,12 @@ export interface IStorageItemsChangeEvent {
 	readonly deleted?: Set<string>;
 }
 
+export function isStorageItemsChangeEvent(thing: unknown): thing is IStorageItemsChangeEvent {
+	const candidate = thing as IStorageItemsChangeEvent | undefined;
+
+	return candidate?.changed instanceof Map || candidate?.deleted instanceof Set;
+}
+
 export interface IStorageDatabase {
 
 	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent>;

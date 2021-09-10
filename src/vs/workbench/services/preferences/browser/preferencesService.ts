@@ -32,7 +32,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -43,6 +42,7 @@ import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEdit
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const emptyEditableSettingsContent = '{\n}';
@@ -78,6 +78,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -210,6 +211,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			target: ConfigurationTarget.USER_LOCAL,
 		};
+		if (options.query) {
+			options.jsonEditor = false;
+		}
+
 		return this.open(this.userSettingsResource, options);
 	}
 
@@ -355,7 +360,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	public createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): IEditorInput {
-		const editableSettingsEditorInput = this.editorService.createEditorInput({ resource });
+		const editableSettingsEditorInput = this.textEditorService.createTextEditor({ resource });
 		const defaultPreferencesEditorInput = this.instantiationService.createInstance(TextResourceEditorInput, this.getDefaultSettingsResource(configurationTarget), undefined, undefined, undefined, undefined);
 		return new SideBySideEditorInput(editableSettingsEditorInput.getName(), undefined, defaultPreferencesEditorInput, editableSettingsEditorInput);
 	}
@@ -398,9 +403,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultUserSettingsUriCounter++}/settings.json` });
 	}
 
-	private async getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<EditorInput> {
+	private async getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<IEditorInput> {
 		await this.createSettingsIfNotExists(target, resource);
-		return <EditorInput>this.editorService.createEditorInput({ resource });
+		return this.textEditorService.createTextEditor({ resource });
 	}
 
 	private async createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, settingsUri: URI): Promise<SettingsEditorModel> {

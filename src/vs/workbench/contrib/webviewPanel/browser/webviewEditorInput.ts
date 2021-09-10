@@ -18,6 +18,10 @@ export class WebviewInput extends EditorInput {
 		return WebviewInput.typeId;
 	}
 
+	public override get editorId(): string {
+		return this.viewType;
+	}
+
 	public override get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
 	}

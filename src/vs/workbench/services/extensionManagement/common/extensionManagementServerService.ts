@@ -19,6 +19,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getTargetPlatformFromOS, IExtensionGalleryService, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -36,22 +38,22 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@ILogService logService: ILogService,
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const extensionManagementService = new WebRemoteExtensionManagementService(remoteAgentConnection.getChannel<IChannel>('extensions'), galleryService, configurationService, productService, extensionManifestPropertiesService);
-			const remoteEnvironemntPromise = remoteAgentService.getEnvironment();
+			let remoteTargetPlatform = TargetPlatform.UNKNOWN;
+			remoteAgentService.getEnvironment().then(remoteEnvironment => {
+				if (remoteEnvironment) {
+					remoteTargetPlatform = getTargetPlatformFromOS(remoteEnvironment.os, remoteEnvironment.arch);
+				}
+			}, error => logService.error('Error while resolving remote target platform', getErrorMessage(error)));
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,
 				get label() { return labelService.getHostLabel(Schemas.vscodeRemote, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); },
-				async getTargetPlatform() {
-					const remoteEnvironment = await remoteEnvironemntPromise;
-					if (remoteEnvironment) {
-						return getTargetPlatformFromOS(remoteEnvironment.os, remoteEnvironment.arch);
-					}
-					throw new Error('Cannot get remote environment');
-				}
+				get targetPlatform() { return remoteTargetPlatform; }
 			};
 		}
 		if (isWeb) {
@@ -60,7 +62,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 				id: 'web',
 				extensionManagementService,
 				label: localize('browser', "Browser"),
-				getTargetPlatform() { return Promise.resolve(TargetPlatform.WEB); }
+				targetPlatform: TargetPlatform.WEB,
 			};
 		}
 	}

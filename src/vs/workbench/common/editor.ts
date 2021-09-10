@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -49,6 +49,7 @@ export const ActiveEditorContext = new RawContextKey<string | null>('activeEdito
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '', localize('activeEditorAvailableEditorIds', "The available editor identifiers that are usable for the active editor"));
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false, localize('textCompareEditorActive', "Whether a text compare editor is active"));
+export const SideBySideEditorActiveContext = new RawContextKey<boolean>('sideBySideEditorActive', false, localize('sideBySideEditorActive', "Whether a side by side editor is active"));
 
 // Editor Group Context Keys
 export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0, localize('groupEditorsCount', "The number of opened editor groups"));
@@ -65,6 +66,11 @@ export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', fa
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false, localize('isCenteredLayout', "Whether centered layout is enabled"));
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
 export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
+
+/**
+ * Side by side editor id.
+ */
+export const SIDE_BY_SIDE_EDITOR_ID = 'workbench.editor.sidebysideEditor';
 
 /**
  * Text diff editor id.
@@ -105,6 +111,16 @@ export interface IEditorDescriptor<T extends IEditorPane> {
  * The editor pane is the container for workbench editors.
  */
 export interface IEditorPane extends IComposite {
+
+	/**
+	 * An event to notify when the `IEditorControl´ in this
+	 * editor pane changes.
+	 *
+	 * This can be used for editor panes that are a compound
+	 * of multiple editor controls to signal that the active
+	 * editor control has changed when the user clicks around.
+	 */
+	readonly onDidChangeControl: Event<void>;
 
 	/**
 	 * The assigned input of this editor.
@@ -156,8 +172,20 @@ export interface IEditorPane extends IComposite {
 	 * Returns the underlying control of this editor. Callers need to cast
 	 * the control to a specific instance as needed, e.g. by using the
 	 * `isCodeEditor` helper method to access the text code editor.
+	 *
+	 * Use the `onDidChangeControl` event to track whenever the control
+	 * changes.
 	 */
 	getControl(): IEditorControl | undefined;
+
+	/**
+	 * Returns the current view state of the editor if any.
+	 *
+	 * This method is optional to override for the editor pane
+	 * and should only be overridden when the pane can deal with
+	 * `IEditorOptions.viewState` to be applied when opening.
+	 */
+	getViewState(): object | undefined;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -171,28 +199,6 @@ export interface IEditorPane extends IComposite {
 export interface IVisibleEditorPane extends IEditorPane {
 	readonly input: IEditorInput;
 	readonly group: IEditorGroup;
-}
-
-/**
- * The text editor pane is the container for workbench text editors.
- */
-export interface ITextEditorPane extends IEditorPane {
-
-	/**
-	 * Returns the underlying text editor widget of this editor.
-	 */
-	getControl(): IEditor | undefined;
-
-	/**
-	 * Returns the current view state of the text editor if any.
-	 */
-	getViewState(): IEditorViewState | undefined;
-}
-
-export function isTextEditorPane(pane: IEditorPane | undefined): pane is ITextEditorPane {
-	const candidate = pane as ITextEditorPane | undefined;
-
-	return typeof candidate?.getViewState === 'function';
 }
 
 /**
@@ -301,19 +307,35 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	readonly resource: URI | undefined;
 }
 
+/**
+ * A resource side by side editor input shows 2 editors side by side but
+ * without highlighting any differences.
+ *
+ * Note: both sides will be resolved as editor individually. As such, it is
+ * possible to show 2 different editors side by side.
+ *
+ * @see {@link IResourceDiffEditorInput} for a variant that compares 2 editors.
+ */
 export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput {
-
-	/**
-	 * The left hand side editor to open inside a side-by-side editor.
-	 */
-	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 
 	/**
 	 * The right hand side editor to open inside a side-by-side editor.
 	 */
+	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The left hand side editor to open inside a side-by-side editor.
+	 */
 	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+/**
+ * A resource diff editor input compares 2 editors side by side
+ * highlighting the differences.
+ *
+ * Note: both sides must be resolvable to the same editor, or
+ * a text based presentation will be used as fallback.
+ */
 export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 
 	/**
@@ -567,6 +589,13 @@ export interface IEditorInput extends IDisposable {
 	 * Returns the aria label to be read out by a screen reader.
 	 */
 	getAriaLabel(): string;
+
+	/**
+	 * Returns a descriptor suitable for telemetry events.
+	 *
+	 * Subclasses should extend if they can contribute.
+	 */
+	getTelemetryDescriptor(): { [key: string]: unknown }
 
 	/**
 	 * Returns a type of `IEditorModel` that represents the resolved input.
@@ -916,6 +945,7 @@ interface IEditorPartConfiguration {
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
+	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
 	limit?: {
@@ -941,7 +971,8 @@ export interface IEditorPartOptionsChangeEvent {
 export enum SideBySideEditor {
 	PRIMARY = 1,
 	SECONDARY = 2,
-	BOTH = 3
+	BOTH = 3,
+	ANY = 4
 }
 
 export interface IEditorResourceAccessorOptions {
@@ -979,7 +1010,7 @@ class EditorResourceAccessorImpl {
 	 * such, the original URI and the canonical URI can be different.
 	 */
 	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
-	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
 	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
@@ -995,6 +1026,8 @@ class EditorResourceAccessorImpl {
 						primary: this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }),
 						secondary: this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme })
 					};
+				} else if (options?.supportSideBySide === SideBySideEditor.ANY) {
+					return this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }) ?? this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme });
 				}
 
 				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
@@ -1040,7 +1073,7 @@ class EditorResourceAccessorImpl {
 	 * such, the original URI and the canonical URI can be different.
 	 */
 	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
-	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
 	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
 	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
@@ -1056,6 +1089,8 @@ class EditorResourceAccessorImpl {
 						primary: this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }),
 						secondary: this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme })
 					};
+				} else if (options?.supportSideBySide === SideBySideEditor.ANY) {
+					return this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }) ?? this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme });
 				}
 
 				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;

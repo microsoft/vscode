@@ -71,11 +71,6 @@ export abstract class EditorInput extends AbstractEditorInput implements IEditor
 		return this.getTitle(Verbosity.SHORT);
 	}
 
-	/**
-	* Returns a descriptor suitable for telemetry events.
-	*
-	* Subclasses should extend if they can contribute.
-	*/
 	getTelemetryDescriptor(): { [key: string]: unknown } {
 		/* __GDPR__FRAGMENT__
 			"EditorTelemetryDescriptor" : {

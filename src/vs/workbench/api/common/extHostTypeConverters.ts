@@ -280,7 +280,7 @@ export namespace MarkdownString {
 			const { language, value } = markup;
 			res = { value: '```' + language + '\n' + value + '\n```\n' };
 		} else if (types.MarkdownString.isMarkdownString(markup)) {
-			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons };
+			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons, supportHtml: markup.supportHtml };
 		} else if (typeof markup === 'string') {
 			res = { value: markup };
 		} else {
@@ -345,6 +345,7 @@ export namespace MarkdownString {
 	export function to(value: htmlContent.IMarkdownString): vscode.MarkdownString {
 		const result = new types.MarkdownString(value.value, value.supportThemeIcons);
 		result.isTrusted = value.isTrusted;
+		result.supportHtml = value.supportHtml;
 		return result;
 	}
 
@@ -1696,7 +1697,7 @@ export namespace TestItem {
 			uri: URI.revive(item.uri),
 			tags: (item.tags || []).map(t => {
 				const { tagId } = TestTag.denamespace(t);
-				return new types.TestTag(tagId, tagId);
+				return new types.TestTag(tagId);
 			}),
 			range: Range.to(item.range || undefined),
 			invalidateResults: () => undefined,
@@ -1728,11 +1729,11 @@ export namespace TestItem {
 
 export namespace TestTag {
 	export function from(tag: vscode.TestTag): ITestTag {
-		return { id: tag.id, label: tag.label };
+		return { id: tag.id };
 	}
 
 	export function to(tag: ITestTag): vscode.TestTag {
-		return new types.TestTag(tag.id, tag.label);
+		return new types.TestTag(tag.id);
 	}
 }
 

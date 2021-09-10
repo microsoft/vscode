@@ -16,7 +16,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICommonNotebookEditorDelegate, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOutputItemDto, TextOutputLineLimit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -32,7 +32,7 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 	}
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
+		public notebookEditor: ICommonNotebookEditorDelegate,
 	) {
 		super();
 	}
@@ -60,7 +60,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 	}
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
+		public notebookEditor: ICommonNotebookEditorDelegate,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -102,7 +102,7 @@ class StderrRendererContrib extends StreamRendererContrib {
 class JSErrorRendererContrib implements IOutputRendererContribution {
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
+		public notebookEditor: ICommonNotebookEditorDelegate,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -162,7 +162,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 	}
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
+		public notebookEditor: ICommonNotebookEditorDelegate,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -195,7 +195,7 @@ class HTMLRendererContrib extends Disposable implements IOutputRendererContribut
 	}
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
+		public notebookEditor: ICommonNotebookEditorDelegate,
 	) {
 		super();
 	}
@@ -220,7 +220,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 	}
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
+		public notebookEditor: ICommonNotebookEditorDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -248,7 +248,7 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 	}
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
+		public notebookEditor: ICommonNotebookEditorDelegate,
 	) {
 		super();
 	}

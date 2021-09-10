@@ -134,6 +134,17 @@ export const enum GroupsOrder {
 	GRID_APPEARANCE
 }
 
+export interface IEditorSideGroup {
+
+	/**
+	 * Open an editor in this group.
+	 *
+	 * @returns a promise that resolves around an IEditor instance unless
+	 * the call failed, or the editor was not opened as active editor.
+	 */
+	openEditor(editor: IEditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
+}
+
 export interface IEditorGroupsService {
 
 	readonly _serviceBrand: undefined;
@@ -188,6 +199,12 @@ export interface IEditorGroupsService {
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: IEditorGroup;
+
+	/**
+	 * A side group allows a subset of methods on a group that is either
+	 * created to the side or picked if already there.
+	 */
+	readonly sideGroup: IEditorSideGroup;
 
 	/**
 	 * All groups that are currently visible in the editor area in the

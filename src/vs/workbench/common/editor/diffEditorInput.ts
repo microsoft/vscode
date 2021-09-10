@@ -40,8 +40,8 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 	constructor(
 		name: string | undefined,
 		description: string | undefined,
-		readonly original: EditorInput,
-		readonly modified: EditorInput,
+		readonly original: IEditorInput,
+		readonly modified: IEditorInput,
 		private readonly forceOpenAsBinary: boolean | undefined,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService

@@ -22,7 +22,6 @@ import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contri
 import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -378,13 +377,12 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 
 	private _show(editor: INotebookEditor) {
-		const vm = editor.viewModel;
-		if (!vm) {
+		if (!editor.hasModel()) {
 			this._accessor.clear();
 			return;
 		}
 
-		const newText = this._getSelectionsText(editor, vm);
+		const newText = this._getSelectionsText(editor);
 		if (!newText) {
 			this._accessor.clear();
 			return;
@@ -403,7 +401,7 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 		}
 	}
 
-	private _getSelectionsText(editor: INotebookEditor, vm: NotebookViewModel): string | undefined {
+	private _getSelectionsText(editor: INotebookEditor): string | undefined {
 		if (!editor.hasModel()) {
 			return undefined;
 		}
@@ -415,7 +413,7 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 
 		const idxFocused = editor.getCellIndex(activeCell) + 1;
 		const numSelected = editor.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
-		const totalCells = vm.getCells().length;
+		const totalCells = editor.getLength();
 		return numSelected > 1 ?
 			nls.localize('notebook.multiActiveCellIndicator', "Cell {0} ({1} selected)", idxFocused, numSelected) :
 			nls.localize('notebook.singleActiveCellIndicator', "Cell {0} of {1}", idxFocused, totalCells);

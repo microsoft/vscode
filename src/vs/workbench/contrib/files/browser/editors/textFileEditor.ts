@@ -223,7 +223,7 @@ export class TextFileEditor extends BaseTextEditor {
 		input.setForceOpenAsBinary();
 
 		// Open in group
-		this.group?.openEditor(input, {
+		(this.group ?? this.editorGroupService.activeGroup).openEditor(input, {
 			...options,
 			// Make sure to not steal away the currently active group
 			// because we are triggering another openEditor() call

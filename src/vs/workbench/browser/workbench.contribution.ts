@@ -222,6 +222,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('sharedViewState', "Preserves the most recent editor view state (e.g. scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
 				'default': false
 			},
+			'workbench.editor.splitInGroupLayout': {
+				'type': 'string',
+				'enum': ['vertical', 'horizontal'],
+				'default': 'horizontal',
+				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal.")
+			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
 				'default': true,

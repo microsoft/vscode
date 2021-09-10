@@ -100,7 +100,7 @@ export class ExtensionsScanner extends Disposable {
 		return this.scanExtensionsInDir(this.extensionsPath, ExtensionType.User);
 	}
 
-	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, token: CancellationToken): Promise<ILocalExtension> {
+	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IMetadata | undefined, token: CancellationToken): Promise<ILocalExtension> {
 		const folderName = identifierWithVersion.key();
 		const tempPath = path.join(this.extensionsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsPath, folderName);
@@ -119,7 +119,7 @@ export class ExtensionsScanner extends Disposable {
 		if (!local) {
 			throw new Error(localize('cannot read', "Cannot read the extension from {0}", tempPath));
 		}
-		await this.storeMetadata(local, { installedTimestamp: Date.now() });
+		await this.storeMetadata(local, { ...metadata, installedTimestamp: Date.now() });
 
 		try {
 			await this.rename(identifierWithVersion, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);

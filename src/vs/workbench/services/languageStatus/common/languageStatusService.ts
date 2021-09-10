@@ -6,6 +6,8 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import Severity from 'vs/base/common/severity';
+import { compare } from 'vs/base/common/strings';
 import { ITextModel } from 'vs/editor/common/model';
 import { Command } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
@@ -18,7 +20,7 @@ export interface ILanguageStatus {
 	readonly id: string;
 	readonly name: string;
 	readonly selector: LanguageSelector;
-	readonly needsAttention: boolean | undefined;
+	readonly severity: Severity;
 	readonly label: string;
 	readonly detail: string;
 	readonly source: string;
@@ -58,12 +60,10 @@ class LanguageStatusServiceImpl implements ILanguageStatusService {
 
 	getLanguageStatus(model: ITextModel): ILanguageStatus[] {
 		return this._provider.ordered(model).sort((a, b) => {
-			if (a.needsAttention === b.needsAttention) {
-				return 0;
-			} else if (a.needsAttention) {
-				return -1;
+			if (a.severity !== b.severity) {
+				return b.severity - a.severity;
 			} else {
-				return 1;
+				return compare(a.id, b.id);
 			}
 		});
 	}

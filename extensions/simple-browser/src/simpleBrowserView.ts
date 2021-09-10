@@ -36,6 +36,7 @@ export class SimpleBrowserView extends Disposable {
 			preserveFocus: showOptions?.preserveFocus
 		}, {
 			enableScripts: true,
+			enableForms: true,
 			retainContextWhenHidden: true,
 			localResourceRoots: [
 				vscode.Uri.joinPath(extensionUri, 'media')

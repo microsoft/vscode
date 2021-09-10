@@ -46,7 +46,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, TerminalPropertyType } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
@@ -54,7 +54,7 @@ import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { isIOS, isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { CodeDataTransfers, containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
@@ -68,6 +68,8 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { isSafari } from 'vs/base/browser/browser';
+import { template } from 'vs/base/common/labels';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -135,6 +137,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
+	private _cwd: string | undefined = undefined;
+	private _initialCwd: string | undefined = undefined;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
 	private _xtermReadyPromise: Promise<XTermTerminal>;
 	private _titleReadyPromise: Promise<string>;
@@ -162,6 +166,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
+	private _description: string | undefined = undefined;
+	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
+	private _processName: string | undefined = undefined;
+	private _sequence: string | undefined = undefined;
+
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
@@ -1144,10 +1153,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	protected _createProcessManager(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
-		this._processManager.onProcessReady(() => {
+		this._processManager.onProcessReady(async () => {
 			this._onProcessIdReady.fire(this);
+			this._initialCwd = await this.getInitialCwd();
+
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
+			this._processManager.onDidChangeProperty(e => {
+				if (e.type === TerminalPropertyType.cwd || e.type === TerminalPropertyType.initialCwd) {
+					this._cwd = e.value;
+					this.setTitle(this.title, TitleEventSource.Api);
+				}
+			});
 			if (this._shellLaunchConfig.name) {
 				this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
@@ -1511,7 +1528,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('customGlyphs', config.customGlyphs);
 		const suggestedRendererType = TerminalInstance._suggestedRendererType;
 		// @meganrogge @Tyriar remove if the issue related to iPads and webgl is resolved
-		if ((!isIOS && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
+		if ((!isSafari && config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
@@ -1749,6 +1766,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						title = title.substring(0, firstSpaceIndex);
 					}
 				}
+				this._processName = title;
 				break;
 			case TitleEventSource.Api:
 				// If the title has not been set by the API or the rename command, unregister the handler that
@@ -1762,6 +1780,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// absolute Windows file path
 				if (this._processManager.os === OperatingSystem.Windows && title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
 					title = path.win32.parse(title).name;
+					this._sequence = title;
 				}
 				break;
 		}
@@ -1769,18 +1788,32 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
 
-		const didTitleChange = title !== this._title;
-		this._title = title;
-		this._titleSource = eventSource;
-		if (didTitleChange) {
-			this._setAriaLabel(this._xterm, this._instanceId, this._title);
-
-			if (this._titleReadyComplete) {
-				this._titleReadyComplete(title);
-				this._titleReadyComplete = undefined;
-			}
-			this._onTitleChanged.fire(this);
+		const cwd = this._cwd || this._initialCwd || '';
+		const properties = {
+			cwd,
+			cwdFolder: path.basename(cwd),
+			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+			process: this._processName || title,
+			sequence: this._sequence,
+			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			separator: { label: this._configHelper.config.tabs.separator }
+		};
+		title = template(this._configHelper.config.tabs.title, properties);
+		const description = template(this._configHelper.config.tabs.description, properties);
+		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
+		if (!title || !titleChanged) {
+			return;
 		}
+		this._title = title;
+		this._description = description;
+		this._titleSource = eventSource;
+		this._setAriaLabel(this._xterm, this._instanceId, this._title);
+
+		if (this._titleReadyComplete) {
+			this._titleReadyComplete(title);
+			this._titleReadyComplete = undefined;
+		}
+		this._onTitleChanged.fire(this);
 	}
 
 	waitForTitle(): Promise<string> {
@@ -1919,8 +1952,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		xterm.setOption('logLevel', isDebug ? 'info' : 'debug');
 	}
 
-	getInitialCwd(): Promise<string> {
-		return this._processManager.getInitialCwd();
+	async getInitialCwd(): Promise<string> {
+		if (!this._initialCwd) {
+			this._initialCwd = await this._processManager.getInitialCwd();
+		}
+		return this._initialCwd;
 	}
 
 	getCwd(): Promise<string> {

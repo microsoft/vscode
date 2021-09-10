@@ -23,7 +23,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -78,7 +78,7 @@ export class CellOutputElement extends Disposable {
 	private readonly contextKeyService: IContextKeyService;
 
 	constructor(
-		private notebookEditor: INotebookEditor,
+		private notebookEditor: INotebookEditorDelegate,
 		private viewCell: CodeCellViewModel,
 		private outputContainer: HTMLElement,
 		readonly output: ICellOutputViewModel,
@@ -512,7 +512,7 @@ export class CellOutputContainer extends Disposable {
 	}
 
 	constructor(
-		private notebookEditor: INotebookEditor,
+		private notebookEditor: INotebookEditorDelegate,
 		private viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
 		private options: { limit: number; },
@@ -796,11 +796,11 @@ export class CellOutputContainer extends Disposable {
 			supportThemeIcons: true
 		};
 
-		const element = renderMarkdown(md, {
+		const rendered = renderMarkdown(md, {
 			actionHandler: {
 				callback: (content) => {
 					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.viewModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
+						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.textModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
 					}
 
 					return;
@@ -808,9 +808,10 @@ export class CellOutputContainer extends Disposable {
 				disposables
 			}
 		});
+		disposables.add(rendered);
 
-		element.classList.add('output-show-more');
-		return element;
+		rendered.element.classList.add('output-show-more');
+		return rendered.element;
 	}
 
 	private _relayoutCell() {
