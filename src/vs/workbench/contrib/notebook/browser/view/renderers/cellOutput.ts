@@ -225,7 +225,9 @@ export class CellOutputElement extends Disposable {
 
 		// generate an innerOutputContainer only when needed, for text streaming, it will reuse the previous element's container
 		this._generateInnerOutputContainer(previousSibling, pickedMimeTypeRenderer);
-		this._attachToolbar(this.innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		this._renderDisposableStore.add(DOM.scheduleAtNextAnimationFrame(() => {
+			this._attachToolbar(this.innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		}));
 
 		this.renderedOutputContainer = DOM.append(this.innerContainer, DOM.$('.rendered-output'));
 

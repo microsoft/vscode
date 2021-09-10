@@ -138,7 +138,7 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	protected setBetweenCellToolbarContext(templateData: BaseCellRenderTemplate, element: CodeCellViewModel | MarkupCellViewModel, context: INotebookCellActionContext): void {
+	protected updateBetweenCellToolbar(templateData: BaseCellRenderTemplate, element: CodeCellViewModel | MarkupCellViewModel, context: INotebookCellActionContext): void {
 		templateData.betweenCellToolbar.context = context;
 
 		const container = templateData.bottomCellContainer;
@@ -418,23 +418,28 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		// render toolbar first
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
-		const toolbarContext = <INotebookCellToolbarActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
-		templateData.toolbar.context = toolbarContext;
-		templateData.deleteToolbar.context = toolbarContext;
+		// during scrolling, `disposeElement` is called right after `renderElement`
+		// if toolbar update is synchronous, it will invalidate layout
+		// since toolbars are only useable after UI is stable, we can postpone this to next frame
+		elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			const toolbarContext = <INotebookCellToolbarActionContext>{
+				ui: true,
+				cell: element,
+				notebookEditor: this.notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+			templateData.toolbar.context = toolbarContext;
+			templateData.deleteToolbar.context = toolbarContext;
 
-		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
+			this.updateBetweenCellToolbar(templateData, element, toolbarContext);
+			templateData.statusBar.update(toolbarContext);
+		}));
 
 		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
 		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, cellEditorOptions.getValue(element.internalMetadata), this.renderedEditors,);
 		elementDisposables.add(markdownCell);
 		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(cellEditorOptions.getValue(element.internalMetadata))));
 
-		templateData.statusBar.update(toolbarContext);
 	}
 
 	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
@@ -1043,20 +1048,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
-		const toolbarContext = <INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			cellTemplate: templateData,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
-		templateData.toolbar.context = toolbarContext;
-		templateData.runToolbar.context = toolbarContext;
-		templateData.deleteToolbar.context = toolbarContext;
+		elementDisposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			const toolbarContext = <INotebookCellActionContext>{
+				ui: true,
+				cell: element,
+				cellTemplate: templateData,
+				notebookEditor: this.notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
 
-		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
-
-		templateData.statusBar.update(toolbarContext);
+			templateData.toolbar.context = toolbarContext;
+			templateData.runToolbar.context = toolbarContext;
+			templateData.deleteToolbar.context = toolbarContext;
+			this.updateBetweenCellToolbar(templateData, element, toolbarContext);
+			templateData.statusBar.update(toolbarContext);
+		}));
 	}
 
 	disposeTemplate(templateData: CodeCellRenderTemplate): void {
