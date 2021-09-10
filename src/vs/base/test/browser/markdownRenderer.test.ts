@@ -24,7 +24,7 @@ suite('MarkdownRenderer', () => {
 	suite('Sanitization', () => {
 		test('Should not render images with unknown schemes', () => {
 			const markdown = { value: `![image](no-such://example.com/cat.gif)` };
-			const result: HTMLElement = renderMarkdown(markdown);
+			const result: HTMLElement = renderMarkdown(markdown).element;
 			assert.strictEqual(result.innerHTML, '<p><img alt="image"></p>');
 		});
 	});
@@ -32,28 +32,28 @@ suite('MarkdownRenderer', () => {
 	suite('Images', () => {
 		test('image rendering conforms to default', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif 'caption')` };
-			const result: HTMLElement = renderMarkdown(markdown);
+			const result: HTMLElement = renderMarkdown(markdown).element;
 			assertNodeEquals(result, '<div><p><img title="caption" alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image rendering conforms to default without title', () => {
 			const markdown = { value: `![image](http://example.com/cat.gif)` };
-			const result: HTMLElement = renderMarkdown(markdown);
+			const result: HTMLElement = renderMarkdown(markdown).element;
 			assertNodeEquals(result, '<div><p><img alt="image" src="http://example.com/cat.gif"></p></div>');
 		});
 
 		test('image width from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` });
+			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|width=100px 'caption')` }).element;
 			assertNodeEquals(result, `<div><p><img width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image height from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=100 'caption')` });
+			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=100 'caption')` }).element;
 			assertNodeEquals(result, `<div><p><img height="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 
 		test('image width and height from title params', () => {
-			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` });
+			const result: HTMLElement = renderMarkdown({ value: `![image](http://example.com/cat.gif|height=200,width=100 'caption')` }).element;
 			assertNodeEquals(result, `<div><p><img height="200" width="100" title="caption" alt="image" src="http://example.com/cat.gif"></p></div>`);
 		});
 	});
@@ -64,7 +64,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds);
+			let result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
@@ -72,7 +72,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds);
+			let result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p><span class="codicon codicon-zap"></span> $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
@@ -80,7 +80,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds);
+			let result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
 
@@ -92,7 +92,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
 			mds.appendText('$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds);
+			let result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap)&nbsp;$(not&nbsp;a&nbsp;theme&nbsp;icon)&nbsp;$(add)</p>`);
 		});
 
@@ -100,7 +100,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportThemeIcons: false });
 			mds.appendMarkdown('\\$(zap) $(not a theme icon) $(add)');
 
-			let result: HTMLElement = renderMarkdown(mds);
+			let result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) $(add)</p>`);
 		});
 
@@ -109,7 +109,7 @@ suite('MarkdownRenderer', () => {
 	test('npm Hover Run Script not working #90855', function () {
 
 		const md: IMarkdownString = JSON.parse('{"value":"[Run Script](command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsers%5C%5Cjrieken%5C%5CCode%5C%5C_sample%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22echo%22%7D \\"Run the script as a task\\")","supportThemeIcons":false,"isTrusted":true,"uris":{"__uri_e49443":{"$mid":1,"fsPath":"c:\\\\Users\\\\jrieken\\\\Code\\\\_sample\\\\foo\\\\package.json","_sep":1,"external":"file:///c%3A/Users/jrieken/Code/_sample/foo/package.json","path":"/c:/Users/jrieken/Code/_sample/foo/package.json","scheme":"file"},"command:npm.runScriptFromHover?%7B%22documentUri%22%3A%7B%22%24mid%22%3A1%2C%22fsPath%22%3A%22c%3A%5C%5CUsers%5C%5Cjrieken%5C%5CCode%5C%5C_sample%5C%5Cfoo%5C%5Cpackage.json%22%2C%22_sep%22%3A1%2C%22external%22%3A%22file%3A%2F%2F%2Fc%253A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22path%22%3A%22%2Fc%3A%2FUsers%2Fjrieken%2FCode%2F_sample%2Ffoo%2Fpackage.json%22%2C%22scheme%22%3A%22file%22%7D%2C%22script%22%3A%22echo%22%7D":{"$mid":1,"path":"npm.runScriptFromHover","scheme":"command","query":"{\\"documentUri\\":\\"__uri_e49443\\",\\"script\\":\\"echo\\"}"}}}');
-		const element = renderMarkdown(md);
+		const element = renderMarkdown(md).element;
 
 		const anchor = element.querySelector('a')!;
 		assert.ok(anchor);
@@ -145,7 +145,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, {});
 			mds.appendMarkdown('a<b>b</b>c');
 
-			const result = renderMarkdown(mds);
+			const result = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>abc</p>`);
 		});
 
@@ -153,7 +153,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendMarkdown('a<b>b</b>c');
 
-			const result = renderMarkdown(mds);
+			const result = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
 		});
 
@@ -161,7 +161,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendMarkdown('a<b onclick="alert(1)">b</b><script>alert(2)</script>c');
 
-			const result = renderMarkdown(mds);
+			const result = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>a<b>b</b>c</p>`);
 		});
 
@@ -169,7 +169,7 @@ suite('MarkdownRenderer', () => {
 			const mds = new MarkdownString(undefined, { supportHtml: true });
 			mds.appendText('a<b>b</b>c');
 
-			const result = renderMarkdown(mds);
+			const result = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>a&lt;b&gt;b&lt;/b&gt;c</p>`);
 		});
 	});

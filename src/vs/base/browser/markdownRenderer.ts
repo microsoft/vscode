@@ -14,6 +14,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -38,7 +39,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
  * **Note** that for most cases you should be using [`MarkdownRenderer`](./src/vs/editor/browser/core/markdownRenderer.ts)
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): HTMLElement {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement, dispose: () => void } {
 	const element = createElement(options);
 
 	const _uriMassage = function (part: string): string {
@@ -245,18 +246,22 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
 
+	const disposables = new DisposableStore();
+
 	// signal size changes for image tags
 	if (options.asyncRenderCallback) {
 		for (const img of element.getElementsByTagName('img')) {
-			const listener = DOM.addDisposableListener(img, 'load', () => {
+			const listener = disposables.add(DOM.addDisposableListener(img, 'load', () => {
 				listener.dispose();
 				options.asyncRenderCallback!();
-			});
+			}));
 		}
 	}
 
-
-	return element;
+	return {
+		element,
+		dispose: () => { disposables.dispose(); }
+	};
 }
 
 function sanitizeRenderedMarkdown(
