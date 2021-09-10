@@ -124,8 +124,8 @@ export class RemoteTerminalChannelClient {
 	get onDidRequestDetach(): Event<{ requestId: number, workspaceId: string, instanceId: number }> {
 		return this._channel.listen<{ requestId: number, workspaceId: string, instanceId: number }>('$onDidRequestDetach');
 	}
-	get onDidChangeProperty(): Event<{ id: number, event: ITerminalProperty<any> }> {
-		return this._channel.listen<{ id: number, event: ITerminalProperty<any> }>('$onDidChangeProperty');
+	get onDidChangeProperty(): Event<{ id: number, property: ITerminalProperty<any> }> {
+		return this._channel.listen<{ id: number, property: ITerminalProperty<any> }>('$onDidChangeProperty');
 	}
 
 	constructor(

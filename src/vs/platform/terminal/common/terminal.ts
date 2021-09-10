@@ -212,7 +212,7 @@ export interface IPtyService {
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
-	readonly onDidChangeProperty: Event<{ id: number, value: ITerminalProperty<any> }>
+	readonly onDidChangeProperty: Event<{ id: number, property: ITerminalProperty<any> }>
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;

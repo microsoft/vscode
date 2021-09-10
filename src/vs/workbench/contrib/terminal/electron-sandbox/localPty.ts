@@ -15,8 +15,10 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminal
  */
 export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
-	initialCwd: string | undefined = undefined;
-	cwd: string | undefined = undefined;
+	private _properties: {
+		cwd: string;
+		initialCwd: string
+	};
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
@@ -44,11 +46,15 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
-		this._localPtyService.onDidChangeProperty((property) => {
-			if (property.id === TerminalPropertyType.Cwd) {
-				this.cwd = property.value.toString();
-			} else if (property.id === TerminalPropertyType.InitialCwd) {
-				this.initialCwd = property.value.toString();
+		this._properties = {
+			cwd: '',
+			initialCwd: ''
+		};
+		this._localPtyService.onDidChangeProperty((e) => {
+			if (e.property.type === TerminalPropertyType.Cwd) {
+				this._properties.cwd = e.property.value;
+			} else if (e.property.type === TerminalPropertyType.InitialCwd) {
+				this._properties.initialCwd = e.property.value;
 			}
 		});
 	}
@@ -81,10 +87,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._localPtyService.resize(this.id, cols, rows);
 	}
 	async getInitialCwd(): Promise<string> {
-		return this.initialCwd || '';
+		return this._properties.initialCwd;
 	}
 	async getCwd(): Promise<string> {
-		return this.cwd || this.initialCwd || '';
+		return this._properties.cwd || this._properties.initialCwd;
 	}
 	getLatency(): Promise<number> {
 		// TODO: The idea here was to add the result plus the time it took to get the latency

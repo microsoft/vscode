@@ -14,8 +14,10 @@ import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/commo
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
-	initialCwd: string | undefined = undefined;
-	cwd: string | undefined = undefined;
+	private _properties: {
+		cwd: string;
+		initialCwd: string
+	};
 	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
@@ -49,12 +51,16 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		private readonly _logService: ILogService
 	) {
 		super();
+		this._properties = {
+			cwd: '',
+			initialCwd: ''
+		};
 		this._startBarrier = new Barrier();
-		this._remoteTerminalChannel.onDidChangeProperty((property) => {
-			if (property.id === TerminalPropertyType.Cwd) {
-				this.cwd = property.event.toString();
-			} else if (property.id === TerminalPropertyType.InitialCwd) {
-				this.initialCwd = property.event.toString();
+		this._remoteTerminalChannel.onDidChangeProperty((e) => {
+			if (e.property.type === TerminalPropertyType.Cwd) {
+				this._properties.cwd = e.property.value;
+			} else if (e.property.type === TerminalPropertyType.InitialCwd) {
+				this._properties.initialCwd = e.property.value;
 			}
 		});
 	}
@@ -127,11 +133,11 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	}
 
 	async getInitialCwd(): Promise<string> {
-		return this.initialCwd || '';
+		return this._properties.initialCwd;
 	}
 
 	async getCwd(): Promise<string> {
-		return this.cwd || this.initialCwd || '';
+		return this._properties.cwd || this._properties.initialCwd;
 	}
 
 	handleData(e: string | IProcessDataEvent) {
