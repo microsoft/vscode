@@ -222,7 +222,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 		return {
 			group: primaryResolvedEditor.group ?? secondaryResolvedEditor.group,
-			editor: new SideBySideEditorInput(editor.label, editor.description, secondaryResolvedEditor.editor, primaryResolvedEditor.editor),
+			editor: this.instantiationService.createInstance(SideBySideEditorInput, editor.label, editor.description, secondaryResolvedEditor.editor, primaryResolvedEditor.editor),
 			options: editor.options
 		};
 	}

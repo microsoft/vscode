@@ -362,7 +362,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	public createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): IEditorInput {
 		const editableSettingsEditorInput = this.textEditorService.createTextEditor({ resource });
 		const defaultPreferencesEditorInput = this.instantiationService.createInstance(TextResourceEditorInput, this.getDefaultSettingsResource(configurationTarget), undefined, undefined, undefined, undefined);
-		return new SideBySideEditorInput(editableSettingsEditorInput.getName(), undefined, defaultPreferencesEditorInput, editableSettingsEditorInput);
+		return this.instantiationService.createInstance(SideBySideEditorInput, editableSettingsEditorInput.getName(), undefined, defaultPreferencesEditorInput, editableSettingsEditorInput);
 	}
 
 	public createSettings2EditorModel(): Settings2EditorModel {

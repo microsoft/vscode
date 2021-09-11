@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, GroupIdentifier, TextCompareEditorActiveContext, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -949,6 +949,7 @@ function registerSplitEditorInGroupCommands(): void {
 
 	async function splitEditorInGroup(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 		if (!editor) {
@@ -957,7 +958,7 @@ function registerSplitEditorInGroupCommands(): void {
 
 		await group.replaceEditors([{
 			editor,
-			replacement: new SideBySideEditorInput(undefined, undefined, editor, editor),
+			replacement: instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, editor, editor),
 			forceReplaceDirty: true
 		}]);
 	}
