@@ -108,7 +108,7 @@ export class MainThreadEditorTabs {
 				this._currentlyActiveTab = t;
 			}
 		}, this);
-		// Remove any empye groups
+		// Remove any empty groups
 		if (this._tabModel.get(event.groupId)?.length === 0) {
 			this._tabModel.delete(event.groupId);
 		}
@@ -122,6 +122,11 @@ export class MainThreadEditorTabs {
 				break;
 			case GroupChangeKind.EDITOR_CLOSE:
 				this._onDidTabClose(event);
+				break;
+			case GroupChangeKind.GROUP_ACTIVE:
+				if (this._editorGroupsService.activeGroup.id !== event.groupId) {
+					return;
+				}
 				break;
 			default:
 				break;
