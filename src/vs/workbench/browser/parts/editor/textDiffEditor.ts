@@ -147,8 +147,8 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 
 			// Otherwise restore View State unless disabled via settings
 			let hasPreviousViewState = false;
-			if (!optionsGotApplied && this.shouldRestoreEditorViewState(input, context)) {
-				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, diffEditor);
+			if (!optionsGotApplied) {
+				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, context, diffEditor);
 			}
 
 			// Diff navigator
@@ -178,8 +178,8 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		}
 	}
 
-	private restoreTextDiffEditorViewState(editor: DiffEditorInput, control: IDiffEditor): boolean {
-		const viewState = this.loadEditorViewState(editor);
+	private restoreTextDiffEditorViewState(editor: DiffEditorInput, context: IEditorOpenContext, control: IDiffEditor): boolean {
+		const viewState = this.loadEditorViewState(editor, context);
 		if (viewState) {
 			control.restoreViewState(viewState);
 

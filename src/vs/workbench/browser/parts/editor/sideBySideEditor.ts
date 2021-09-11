@@ -229,15 +229,15 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		}
 
 		// Set input to both sides also considering previous view state if any
-		const { primary, secondary } = this.loadSideBySideEditorViewState(input, options);
+		const { primary, secondary } = this.loadSideBySideEditorViewState(input, options, context);
 		await Promise.all([
 			this.secondaryEditorPane?.setInput(input.secondary as EditorInput, secondary, context, token),
 			this.primaryEditorPane?.setInput(input.primary as EditorInput, primary, context, token)
 		]);
 	}
 
-	private loadSideBySideEditorViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined } {
-		const viewState = this.loadEditorViewState(input);
+	private loadSideBySideEditorViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined } {
+		const viewState = this.loadEditorViewState(input, context);
 
 		const primaryOptions: IEditorOptions = {
 			...options,

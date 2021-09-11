@@ -83,8 +83,8 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 		}
 
 		// Otherwise restore View State unless disabled via settings
-		if (!optionsGotApplied && this.shouldRestoreEditorViewState(input, context)) {
-			this.restoreTextResourceEditorViewState(input, textEditor);
+		if (!optionsGotApplied) {
+			this.restoreTextResourceEditorViewState(input, context, textEditor);
 		}
 
 		// Since the resolved model provides information about being readonly
@@ -95,8 +95,8 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
 	}
 
-	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, control: IEditor) {
-		const viewState = this.loadEditorViewState(editor);
+	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, context: IEditorOpenContext, control: IEditor) {
+		const viewState = this.loadEditorViewState(editor, context);
 		if (viewState) {
 			control.restoreViewState(viewState);
 		}

@@ -112,6 +112,17 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		}
 	}
 
+	private shouldRestoreEditorViewState(input: IEditorInput, context?: IEditorOpenContext): boolean {
+
+		// new editor: check with workbench.editor.restoreViewState setting
+		if (context?.newInGroup) {
+			return this.textResourceConfigurationService.getValue<boolean>(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') === false ? false : true /* restore by default */;
+		}
+
+		// existing editor: always restore viewstate
+		return true;
+	}
+
 	override getViewState(): T | undefined {
 		const input = this.input;
 		if (!input || !this.tracksEditorViewState(input)) {
@@ -139,13 +150,17 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		this.viewState.saveEditorState(this.group, resource, editorViewState);
 	}
 
-	protected loadEditorViewState(input: IEditorInput | undefined): T | undefined {
+	protected loadEditorViewState(input: IEditorInput | undefined, context?: IEditorOpenContext): T | undefined {
 		if (!input || !this.group) {
 			return undefined; // we need valid input
 		}
 
 		if (!this.tracksEditorViewState(input)) {
 			return undefined; // not tracking for input
+		}
+
+		if (!this.shouldRestoreEditorViewState(input, context)) {
+			return undefined; // not enabled for input
 		}
 
 		const resource = this.toEditorViewStateResource(input);
@@ -198,22 +213,6 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	 * Asks to return the `URI` to associate with the view state.
 	 */
 	protected abstract toEditorViewStateResource(input: IEditorInput): URI | undefined;
-
-	/**
-	 * Whether editor view state should be restored for the given input
-	 * and context or not. Subclasses can override for more fine grained
-	 * control.
-	 */
-	protected shouldRestoreEditorViewState(input: IEditorInput, context?: IEditorOpenContext): boolean {
-
-		// new editor: check with workbench.editor.restoreViewState setting
-		if (context?.newInGroup) {
-			return this.textResourceConfigurationService.getValue<boolean>(EditorResourceAccessor.getOriginalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') === false ? false : true /* restore by default */;
-		}
-
-		// existing editor: always restore viewstate
-		return true;
-	}
 
 	//#endregion
 }

@@ -654,7 +654,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 			}
 		}));
 
-		this.restoreViewState();
+		this.restoreViewState(context);
 
 		if (!options?.preserveFocus) {
 			this.focus();
@@ -708,8 +708,8 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		return input.typeId === SearchEditorInputTypeId;
 	}
 
-	private restoreViewState() {
-		const viewState = this.loadEditorViewState(this.getInput());
+	private restoreViewState(context: IEditorOpenContext) {
+		const viewState = this.loadEditorViewState(this.getInput(), context);
 		if (viewState) { this.searchResultEditor.restoreViewState(viewState); }
 	}
 
