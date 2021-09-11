@@ -524,6 +524,9 @@ abstract class PersistentConnection extends Disposable {
 
 	private _isReconnecting: boolean;
 
+	private readonly _onTelemetryEvent = this._register(new Emitter<{ event: string, data: Object }>());
+	public readonly onTelemetryEvent = this._onTelemetryEvent.event;
+
 	constructor(private readonly _connectionType: ConnectionType, options: IConnectionOptions, reconnectionToken: string, protocol: PersistentProtocol) {
 		super();
 		this._options = options;
@@ -556,11 +559,19 @@ abstract class PersistentConnection extends Disposable {
 			this._beginReconnecting();
 		}));
 
+		this._register(protocol.onTelemetryEvent((e) => {
+			this._onTelemetryEvent.fire(e);
+		}));
+
 		PersistentConnection._instances.push(this);
 
 		if (PersistentConnection._permanentFailure) {
 			this._gotoPermanentFailure(PersistentConnection._permanentFailureMillisSinceLastIncomingData, PersistentConnection._permanentFailureAttempt, PersistentConnection._permanentFailureHandled);
 		}
+	}
+
+	public logTelemetryEvent(event: string, data: Object): void {
+		this._onTelemetryEvent.fire({ event, data });
 	}
 
 	private async _beginReconnecting(): Promise<void> {

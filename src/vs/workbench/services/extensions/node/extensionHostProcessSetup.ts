@@ -73,7 +73,18 @@ const args = minimist(process.argv.slice(2), {
 })();
 
 // custom process.exit logic...
-const nativeExit: IExitFn = process.exit.bind(process);
+const nodeExit: IExitFn = process.exit.bind(process);
+const nativeExit: IExitFn = async () => {
+	// Try to get a call stack so we can see what code path decided to exit.
+	const err = new Error();
+	await sendTelemetry('ext.host.about-to-native-exit', { stack: err.stack });
+	nodeExit();
+
+	// Should be unreachable...
+	await sendTelemetry('ext.host.about-to-native-exit-FAILED', { stack: err.stack });
+	process.abort();
+};
+
 function patchProcess(allowExit: boolean) {
 	process.exit = function (code?: number) {
 		if (allowExit) {
@@ -96,6 +107,34 @@ interface IRendererConnection {
 	initData: IInitData;
 }
 
+export interface IExtHostTelemetryMessage {
+	type: 'ext-host-telemetry',
+	event: string,
+	data: unknown,
+}
+
+async function sendTelemetry(event: string, data?: any): Promise<void> {
+	if (process.send) {
+		const message: IExtHostTelemetryMessage = {
+			type: 'ext-host-telemetry',
+			event,
+			data: {
+				...data
+			},
+		};
+
+		await new Promise<void>((resolve, reject) => {
+			process.send!(message, (err: Error | null) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve();
+				}
+			});
+		});
+	}
+}
+
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
 let onTerminate = function (reason: string) {
@@ -115,8 +154,13 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
 			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
-			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
-			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
+			const disconnectRunnerExit = (message: string) => {
+				sendTelemetry('ext.host.exit.disconnect-runner');
+				onTerminate(message);
+			};
+
+			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => disconnectRunnerExit('renderer disconnected for too long (1)'), reconnectionGraceTime);
+			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => disconnectRunnerExit('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
 
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
