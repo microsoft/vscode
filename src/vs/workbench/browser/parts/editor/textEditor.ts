@@ -14,7 +14,7 @@ import { IEditorOpenContext, EditorInputCapabilities, IEditorInput } from 'vs/wo
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
-import { BaseEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
+import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -39,7 +39,7 @@ export interface IEditorConfiguration {
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
  * be subclassed and not instantiated.
  */
-export abstract class BaseTextEditor<T extends IEditorViewState> extends BaseEditorWithViewState<T> {
+export abstract class BaseTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> {
 
 	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 

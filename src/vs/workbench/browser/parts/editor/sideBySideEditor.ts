@@ -26,7 +26,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SIDE_BY_SIDE_EDITOR_BORDER } from 'vs/workbench/common/theme';
-import { BaseEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
+import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
@@ -37,7 +37,7 @@ interface ISideBySideEditorViewState {
 	secondary: object;
 }
 
-export class SideBySideEditor extends BaseEditorWithViewState<ISideBySideEditorViewState> {
+export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEditorViewState> {
 
 	static readonly ID: string = SIDE_BY_SIDE_EDITOR_ID;
 
@@ -229,14 +229,14 @@ export class SideBySideEditor extends BaseEditorWithViewState<ISideBySideEditorV
 		}
 
 		// Set input to both sides also considering previous view state if any
-		const { primary, secondary } = this.restoreSideBySideEditorViewState(input, options);
+		const { primary, secondary } = this.loadSideBySideEditorViewState(input, options);
 		await Promise.all([
 			this.secondaryEditorPane?.setInput(input.secondary as EditorInput, secondary, context, token),
 			this.primaryEditorPane?.setInput(input.primary as EditorInput, primary, context, token)
 		]);
 	}
 
-	private restoreSideBySideEditorViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined } {
+	private loadSideBySideEditorViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined } {
 		const viewState = this.loadEditorViewState(input);
 
 		const primaryOptions: IEditorOptions = {

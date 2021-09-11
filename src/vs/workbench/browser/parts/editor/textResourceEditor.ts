@@ -96,11 +96,9 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 	}
 
 	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, control: IEditor) {
-		if (editor instanceof UntitledTextEditorInput || editor instanceof TextResourceEditorInput) {
-			const viewState = this.loadEditorViewState(editor);
-			if (viewState) {
-				control.restoreViewState(viewState);
-			}
+		const viewState = this.loadEditorViewState(editor);
+		if (viewState) {
+			control.restoreViewState(viewState);
 		}
 	}
 
@@ -146,7 +144,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}

@@ -22,7 +22,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 /**
  * Base class of editors that want to store and restore view state.
  */
-export abstract class BaseEditorWithViewState<T extends object> extends EditorPane {
+export abstract class AbstractEditorWithViewState<T extends object> extends EditorPane {
 
 	private viewState: IEditorMemento<T>;
 
@@ -142,6 +142,10 @@ export abstract class BaseEditorWithViewState<T extends object> extends EditorPa
 	protected loadEditorViewState(input: IEditorInput | undefined): T | undefined {
 		if (!input || !this.group) {
 			return undefined; // we need valid input
+		}
+
+		if (!this.tracksEditorViewState(input)) {
+			return undefined; // not tracking for input
 		}
 
 		const resource = this.toEditorViewStateResource(input);
