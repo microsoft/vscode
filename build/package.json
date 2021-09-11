@@ -42,7 +42,7 @@
     "colors": "^1.4.0",
     "commander": "^7.0.0",
     "electron-osx-sign": "^0.4.16",
-    "esbuild": "^0.8.30",
+    "esbuild": "^0.8.57",
     "fs-extra": "^9.1.0",
     "got": "11.8.1",
     "iconv-lite-umd": "0.6.8",
