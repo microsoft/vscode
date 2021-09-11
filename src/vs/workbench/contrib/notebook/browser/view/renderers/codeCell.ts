@@ -8,6 +8,7 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
@@ -101,7 +102,20 @@ export class CodeCell extends Disposable {
 		}));
 		updateForFocusMode();
 
-		const updateEditorOptions = () => templateData.editor?.updateOptions({ readOnly: notebookEditor.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
+		const updateEditorOptions = () => {
+			const editor = templateData.editor;
+			if (!editor) {
+				return;
+			}
+
+			const isReadonly = notebookEditor.isReadOnly;
+			const padding = notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata);
+			const options = editor.getOptions();
+			if (options.get(EditorOption.readOnly) !== isReadonly || options.get(EditorOption.padding) !== padding) {
+				editor.updateOptions({ readOnly: notebookEditor.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
+			}
+		};
+
 		updateEditorOptions();
 		this._register(viewCell.onDidChangeState((e) => {
 			if (e.metadataChanged || e.internalMetadataChanged) {
