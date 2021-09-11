@@ -30,6 +30,7 @@ export class CodeCell extends Disposable {
 
 	private _renderedInputCollapseState: boolean | undefined;
 	private _renderedOutputCollapseState: boolean | undefined;
+	private _isDisposed: boolean = false;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -61,6 +62,10 @@ export class CodeCell extends Disposable {
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(viewCell.resolveTextModel(), cts.token).then(model => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			if (model && templateData.editor) {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
@@ -400,6 +405,8 @@ export class CodeCell extends Disposable {
 	}
 
 	override dispose() {
+		this._isDisposed = true;
+
 		this.viewCell.detachTextEditor();
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
