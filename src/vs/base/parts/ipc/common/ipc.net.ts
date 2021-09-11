@@ -613,7 +613,7 @@ class LoadEstimator {
 	/**
 	 * returns an estimative number, from 0 (low load) to 1 (high load)
 	 */
-	private load(): number {
+	public load(): number {
 		const now = Date.now();
 		const historyLimit = (1 + LoadEstimator._HISTORY_LENGTH) * 1000;
 		let score = 0;
@@ -632,6 +632,7 @@ class LoadEstimator {
 
 export interface ILoadEstimator {
 	hasHighLoad(): boolean;
+	load(): number;
 }
 
 /**
@@ -745,6 +746,18 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
 		this._socketWriter.write(msg);
 		this._socketWriter.flush();
+	}
+
+	public get lastReadTime() {
+		return this._socketReader.lastReadTime;
+	}
+
+	public get load() {
+		return this._loadEstimator.load();
+	}
+
+	public get hasIncomingKeepAliveTimeout() {
+		return !!this._incomingKeepAliveTimeout;
 	}
 
 	private _sendKeepAliveCheck(): void {

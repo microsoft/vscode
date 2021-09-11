@@ -96,6 +96,34 @@ interface IRendererConnection {
 	initData: IInitData;
 }
 
+interface IExtHostTelemetryMessage {
+	type: 'ext-host-telemetry',
+	event: string,
+	data: unknown,
+}
+
+async function sendTelemetry(event: string, data?: any): Promise<void> {
+	if (process.send) {
+		const message: IExtHostTelemetryMessage = {
+			type: 'ext-host-telemetry',
+			event,
+			data: {
+				...data
+			},
+		};
+
+		await new Promise<void>((resolve, reject) => {
+			process.send!(message, (err: Error | null) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve();
+				}
+			});
+		});
+	}
+}
+
 // This calls exit directly in case the initialization is not finished and we need to exit
 // Otherwise, if initialization completed we go to extensionHostMain.terminate()
 let onTerminate = function (reason: string) {
@@ -118,6 +146,18 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
 			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
 
+			const start = new Date();
+			setInterval(() => {
+				sendTelemetry('ext.host.disconnect.runner.status', {
+					runner1scheduled: disconnectRunner1.isScheduled(),
+					runner2scheduled: disconnectRunner2.isScheduled(),
+					uptime: new Date().getTime() - start.getTime(),
+					lastReadTime: protocol?.lastReadTime,
+					load: protocol?.load,
+					hasTimeoutChecker: protocol?.hasIncomingKeepAliveTimeout,
+				});
+			}, 30 * 60 * 1000); // every 30 minutes
+
 			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
 					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
@@ -137,17 +177,24 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 					} else {
 						clearTimeout(timer);
 						protocol = new PersistentProtocol(socket, initialDataChunk);
-						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
+						protocol.onDidDispose(() => {
+							sendTelemetry('ext.host.protocol.closed');
+							onTerminate('renderer disconnected');
+						});
 						resolve(protocol);
 
 						// Wait for rich client to reconnect
 						protocol.onSocketClose(() => {
+							sendTelemetry('ext.host.socket.closed');
+
 							// The socket has closed, let's give the renderer a certain amount of time to reconnect
 							disconnectRunner1.schedule();
 						});
 					}
 				}
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_REDUCE_GRACE_TIME') {
+					sendTelemetry('ext.host.reduceed.grace.time');
+
 					if (disconnectRunner2.isScheduled()) {
 						// we are disconnected and already running the short reconnection timer
 						return;
@@ -164,6 +211,8 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 			if (process.send) {
 				process.send(req);
 			}
+
+			sendTelemetry('ext.host.ready');
 		});
 
 	} else {
@@ -357,6 +406,22 @@ export async function startExtensionHostProcess(): Promise<void> {
 		uriTransformer
 	);
 
+	process.on('unhandledRejection', (reason, promise) => {
+		const err = reason as Error;
+		const stack = err?.stack;
+		sendTelemetry('ext.host.unhandledRejection', { promise, reason, stack });
+	});
+	process.on('uncaughtException', (err: Error) => {
+		sendTelemetry('ext.host.uncaughtException', { err, stack: err.stack });
+	});
+	const signals = ['SIGABRT', 'SIGILL', 'SIGINT', 'SIGSEGV', 'SIGTERM'];
+	signals.forEach(signal => process.on(signal as NodeJS.Signals, () => {
+		sendTelemetry('ext.host.signal', { signal });
+		nativeExit();
+	}));
 	// rewrite onTerminate-function to be a proper shutdown
-	onTerminate = (reason: string) => extensionHostMain.terminate(reason);
+	onTerminate = (reason: string) => {
+		sendTelemetry('ext.host.termination.started');
+		extensionHostMain.terminate(reason);
+	};
 }
