@@ -39,6 +39,12 @@ interface ISideBySideEditorViewState {
 	ratio: number | undefined;
 }
 
+function isSideBySideEditorViewState(thing: unknown): thing is ISideBySideEditorViewState {
+	const candidate = thing as ISideBySideEditorViewState | undefined;
+
+	return typeof candidate?.primary === 'object' && typeof candidate.secondary === 'object';
+}
+
 export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEditorViewState> {
 
 	static readonly ID: string = SIDE_BY_SIDE_EDITOR_ID;
@@ -238,7 +244,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		}
 
 		// Restore any previous view state
-		const { primary, secondary, viewState } = this.loadSideBySideEditorViewState(input, options, context);
+		const { primary, secondary, viewState } = this.loadViewState(input, options, context);
 		this.lastFocusedSide = viewState?.focus;
 
 		if (typeof viewState?.ratio === 'number' && this.splitview) {
@@ -256,8 +262,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		]);
 	}
 
-	private loadSideBySideEditorViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined, viewState: ISideBySideEditorViewState | undefined } {
-		const viewState = this.loadEditorViewState(input, context);
+	private loadViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined, viewState: ISideBySideEditorViewState | undefined } {
+		const viewState = isSideBySideEditorViewState(options?.viewState) ? options?.viewState : this.loadEditorViewState(input, context);
 
 		const primaryOptions: IEditorOptions = {
 			...options,

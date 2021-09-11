@@ -84,16 +84,6 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		await this.textFileService.revert(this.resource, options);
 	}
-
-	protected getViewStateFor(group: GroupIdentifier): object | undefined {
-		for (const editorPane of this.editorService.visibleEditorPanes) {
-			if (editorPane.group.id === group && this.matches(editorPane.input)) {
-				return editorPane.getViewState();
-			}
-		}
-
-		return undefined;
-	}
 }
 
 /**

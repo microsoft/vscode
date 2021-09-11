@@ -18,6 +18,7 @@ import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserv
 import { timeout } from 'vs/base/common/async';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 suite('EditorsObserver', function () {
 
@@ -36,7 +37,7 @@ suite('EditorsObserver', function () {
 		disposables.clear();
 	});
 
-	async function createPart(): Promise<TestEditorPart> {
+	async function createPart(): Promise<[TestEditorPart, IInstantiationService]> {
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
@@ -44,15 +45,15 @@ suite('EditorsObserver', function () {
 		instantiationService.stub(IEditorGroupsService, part);
 		disposables.add(toDisposable(() => part.clearState()));
 
-		return part;
+		return [part, instantiationService];
 	}
 
-	async function createEditorObserver(): Promise<[EditorPart, EditorsObserver]> {
-		const part = await createPart();
+	async function createEditorObserver(): Promise<[EditorPart, EditorsObserver, IInstantiationService]> {
+		const [part, instantiationService] = await createPart();
 
 		const observer = disposables.add(new EditorsObserver(part, new TestStorageService()));
 
-		return [part, observer];
+		return [part, observer, instantiationService];
 	}
 
 	test('basics (single group)', async () => {
@@ -249,12 +250,12 @@ suite('EditorsObserver', function () {
 	});
 
 	test('hasEditor/hasEditors - side by side editor support', async () => {
-		const [part, observer] = await createEditorObserver();
+		const [part, observer, instantiationService] = await createEditorObserver();
 
 		const primary = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
 		const secondary = new TestFileEditorInput(URI.parse('foo://bar2'), 'otherTypeId');
 
-		const input = new SideBySideEditorInput('name', undefined, secondary, primary);
+		const input = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, secondary, primary);
 
 		assert.strictEqual(observer.hasEditors(primary.resource), false);
 		assert.strictEqual(observer.hasEditor({ resource: primary.resource, typeId: primary.typeId, editorId: primary.editorId }), false);
@@ -346,7 +347,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('initial editors are part of observer and state is persisted & restored (single group)', async () => {
-		const part = await createPart();
+		const [part] = await createPart();
 
 		const rootGroup = part.activeGroup;
 
@@ -393,7 +394,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('initial editors are part of observer (multi group)', async () => {
-		const part = await createPart();
+		const [part] = await createPart();
 
 		const rootGroup = part.activeGroup;
 
@@ -442,7 +443,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('observer does not restore editors that cannot be serialized', async () => {
-		const part = await createPart();
+		const [part] = await createPart();
 
 		const rootGroup = part.activeGroup;
 
@@ -471,7 +472,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('observer closes editors when limit reached (across all groups)', async () => {
-		const part = await createPart();
+		const [part] = await createPart();
 		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
 
 		const storage = new TestStorageService();
@@ -532,7 +533,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('observer closes editors when limit reached (in group)', async () => {
-		const part = await createPart();
+		const [part] = await createPart();
 		part.enforcePartOptions({ limit: { enabled: true, value: 3, perEditorGroup: true } });
 
 		const storage = new TestStorageService();
@@ -599,7 +600,7 @@ suite('EditorsObserver', function () {
 	});
 
 	test('observer does not close sticky', async () => {
-		const part = await createPart();
+		const [part] = await createPart();
 		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
 
 		const storage = new TestStorageService();

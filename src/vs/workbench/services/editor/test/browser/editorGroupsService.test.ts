@@ -1145,12 +1145,12 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('replaceEditors - should be able to replace when side by side editor is involved with same input side by side', async () => {
-		const [part] = await createPart();
+		const [part, instantiationService] = await createPart();
 		const group = part.activeGroup;
 		assert.strictEqual(group.isEmpty, true);
 
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
-		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input, input);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input);
 
 		await group.openEditor(input);
 		assert.strictEqual(group.count, 1);
