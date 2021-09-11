@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
@@ -15,10 +15,7 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminal
  */
 export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
-	private _properties: {
-		cwd: string;
-		initialCwd: string
-	};
+
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
@@ -46,10 +43,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
-		this._properties = {
-			cwd: '',
-			initialCwd: ''
-		};
 	}
 
 	start(): Promise<ITerminalLaunchError | undefined> {
@@ -79,11 +72,11 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		}
 		this._localPtyService.resize(this.id, cols, rows);
 	}
-	async getInitialCwd(): Promise<string> {
-		return this._properties.initialCwd;
+	getInitialCwd(): Promise<string> {
+		return this._localPtyService.getInitialCwd(this.id);
 	}
 	async getCwd(): Promise<string> {
-		return this._properties.cwd || this._properties.initialCwd;
+		return this._localPtyService.getCwd(this.id);
 	}
 	getLatency(): Promise<number> {
 		// TODO: The idea here was to add the result plus the time it took to get the latency
@@ -124,11 +117,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._onDidChangeHasChildProcesses.fire(e);
 	}
 	handleDidChangeProperty(e: ITerminalProperty<any>) {
-		if (e.type === TerminalPropertyType.Cwd) {
-			this._properties.cwd = e.value;
-		} else if (e.type === TerminalPropertyType.InitialCwd) {
-			this._properties.initialCwd = e.value;
-		}
 		this._onDidChangeProperty.fire(e);
 	}
 

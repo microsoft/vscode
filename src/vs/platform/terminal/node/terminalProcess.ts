@@ -77,8 +77,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly id = 0;
 	readonly shouldPersist = false;
 
-	currentCwd: string | undefined = undefined;
-
+	private _properties: {
+		cwd: string;
+		initialCwd: string
+	};
 	private static _lastKillOrStart = 0;
 
 	private _exitCode: number | undefined;
@@ -145,7 +147,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			name = 'xterm-256color';
 		}
 		this._initialCwd = cwd;
-		this.currentCwd = cwd;
+		this._properties = {
+			cwd: this._initialCwd,
+			initialCwd: this._initialCwd
+		};
 		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
@@ -499,9 +504,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 						if (!error && stdout !== '') {
 							const newCwd = stdout.substring(stdout.indexOf('/'), stdout.length - 1);
-							if (this.currentCwd !== newCwd) {
-								this.currentCwd = newCwd;
-								this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this.currentCwd });
+							if (this._properties.cwd !== newCwd) {
+								this._properties.cwd = newCwd;
+								this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
 								resolve(newCwd);
 							}
 						} else {
@@ -520,11 +525,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._logService.trace('IPty#pid');
 			try {
 				const newCwd = await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
-				if (newCwd !== this.currentCwd) {
-					this.currentCwd = newCwd;
-					this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this.currentCwd });
+				if (newCwd !== this._properties.cwd) {
+					this._properties.cwd = newCwd;
+					this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
 				}
-				return this.currentCwd;
+				return this._properties.cwd;
 			} catch (error) {
 				return this._initialCwd;
 			}

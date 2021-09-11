@@ -546,6 +546,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (!this._process) {
 			return Promise.resolve('');
 		}
+		console.log('getting cwd');
 		return this._process.getCwd();
 	}
 

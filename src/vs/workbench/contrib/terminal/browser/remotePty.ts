@@ -8,16 +8,12 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class RemotePty extends Disposable implements ITerminalChildProcess {
-	private _properties: {
-		cwd: string;
-		initialCwd: string
-	};
 	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
@@ -51,10 +47,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		private readonly _logService: ILogService
 	) {
 		super();
-		this._properties = {
-			cwd: '',
-			initialCwd: ''
-		};
 		this._startBarrier = new Barrier();
 	}
 
@@ -125,12 +117,11 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		return this._remoteTerminalChannel.setUnicodeVersion(this._id, version);
 	}
 
-	async getInitialCwd(): Promise<string> {
-		return this._properties.initialCwd;
+	getInitialCwd(): Promise<string> {
+		return this._remoteTerminalChannel.getInitialCwd(this.id);
 	}
-
 	async getCwd(): Promise<string> {
-		return this._properties.cwd || this._properties.initialCwd;
+		return this._remoteTerminalChannel.getCwd(this.id);
 	}
 
 	handleData(e: string | IProcessDataEvent) {
@@ -165,11 +156,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._onDidChangeHasChildProcesses.fire(e);
 	}
 	handleDidChangeProperty(e: ITerminalProperty<any>) {
-		if (e.type === TerminalPropertyType.Cwd) {
-			this._properties.cwd = e.value;
-		} else if (e.type === TerminalPropertyType.InitialCwd) {
-			this._properties.initialCwd = e.value;
-		}
 		this._onDidChangeProperty.fire(e);
 	}
 
