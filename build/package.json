@@ -28,7 +28,7 @@
     "@types/p-limit": "^2.2.0",
     "@types/plist": "^3.0.2",
     "@types/pump": "^1.1.1",
-    "@types/request": "^2.47.0",
+    "@types/request": "^2.48.7",
     "@types/rimraf": "^2.0.5",
     "@types/through": "^0.0.29",
     "@types/through2": "^2.0.36",
