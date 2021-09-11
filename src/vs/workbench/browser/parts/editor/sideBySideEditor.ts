@@ -234,7 +234,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 				this.disposeEditors();
 			}
 
-			await this.createEditors(input, options, context, token);
+			this.createEditors(input);
 		}
 
 		// Restore any previous view state
@@ -274,7 +274,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		return { primary: primaryOptions, secondary: secondaryOptions, viewState };
 	}
 
-	private async createEditors(newInput: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	private createEditors(newInput: SideBySideEditorInput): void {
 
 		// Create editors
 		this.secondaryEditorPane = this.doCreateEditor(newInput.secondary as EditorInput, assertIsDefined(this.secondaryEditorContainer));
