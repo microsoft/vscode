@@ -2433,8 +2433,8 @@ suite('EditorService', () => {
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
-		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input, input);
-		const otherSideBySideInput = new SideBySideEditorInput(undefined, undefined, otherInput, otherInput);
+		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input, input, service);
+		const otherSideBySideInput = new SideBySideEditorInput(undefined, undefined, otherInput, otherInput, service);
 
 		await service.openEditor(sideBySideInput, undefined, SIDE_GROUP);
 
