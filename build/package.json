@@ -40,7 +40,7 @@
     "azure-storage": "^2.10.4",
     "byline": "^5.0.0",
     "colors": "^1.4.0",
-    "commander": "^7.0.0",
+    "commander": "^7.2.0",
     "electron-osx-sign": "^0.4.16",
     "esbuild": "^0.8.30",
     "fs-extra": "^9.1.0",
