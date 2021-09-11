@@ -12,6 +12,7 @@
 	line-height: 11px;
 	font-weight: normal;
 	text-align: center;
+	vertical-align: text-top;
 	display: inline-block;
 	box-sizing: border-box;
 }
