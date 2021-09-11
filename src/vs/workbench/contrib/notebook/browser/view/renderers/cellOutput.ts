@@ -67,9 +67,14 @@ export class CellOutputElement extends Disposable {
 
 	public useDedicatedDOM: boolean = true;
 
+	private _height: number = -1;
 	get domOffsetHeight() {
 		if (this.useDedicatedDOM) {
-			return this.innerContainer.offsetHeight;
+			if (this._height === -1) {
+				return this.innerContainer.offsetHeight;
+			} else {
+				return this._height;
+			}
 		} else {
 			return 0;
 		}
@@ -229,7 +234,7 @@ export class CellOutputElement extends Disposable {
 			this._attachToolbar(this.innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 		}));
 
-		this.renderedOutputContainer = DOM.append(this.innerContainer, DOM.$('.rendered-output'));
+		this.renderedOutputContainer = DOM.$('.rendered-output'); // DOM.append(globalOutputContainer, DOM.$('.rendered-output'));
 
 		if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
 			const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
@@ -267,7 +272,10 @@ export class CellOutputElement extends Disposable {
 		}
 
 		// let's use resize listener for them
-		const offsetHeight = this.renderResult?.initHeight !== undefined ? this.renderResult?.initHeight : Math.ceil(this.innerContainer.offsetHeight);
+		// todo@rebornix we should only check renderedOutputContainer when it's unique
+		const offsetHeight = this.renderResult?.initHeight !== undefined ? this.renderResult?.initHeight : Math.ceil(this.renderedOutputContainer.offsetHeight);
+		this._height = offsetHeight;
+		this.innerContainer.appendChild(this.renderedOutputContainer);
 		const dimension = {
 			width: this.viewCell.layoutInfo.editorWidth,
 			height: offsetHeight
@@ -300,6 +308,7 @@ export class CellOutputElement extends Disposable {
 				};
 
 				this._validateFinalOutputHeight(true);
+				this._height = height;
 				this.viewCell.updateOutputHeight(currIndex, height, 'CellOutputElement#outputResize');
 				this._relayoutCell();
 			}
