@@ -35,6 +35,8 @@ import { URI } from 'vs/base/common/uri';
 interface ISideBySideEditorViewState {
 	primary: object;
 	secondary: object;
+	focus: Side.PRIMARY | Side.SECONDARY | undefined;
+	ratio: number | undefined;
 }
 
 export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEditorViewState> {
@@ -129,20 +131,9 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	private recreateSplitview(): void {
 		const container = assertIsDefined(this.getContainer());
 
-		// Clear old (if any)
-		let ratio: number | undefined = undefined;
+		// Clear old (if any) but remember ratio
+		const ratio = this.getSplitViewRatio();
 		if (this.splitview) {
-
-			// Keep ratio to restore later but only when
-			// the sizes differ significantly enough
-			const leftViewSize = this.splitview.getViewSize(0);
-			const rightViewSize = this.splitview.getViewSize(1);
-			if (Math.abs(leftViewSize - rightViewSize) > 1) {
-				const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
-				ratio = leftViewSize / totalSize;
-			}
-
-			// Remove from container
 			container.removeChild(this.splitview.el);
 			this.splitviewDisposables.clear();
 		}
@@ -151,6 +142,24 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		this.createSplitView(container, ratio);
 
 		this.layout(this.dimension);
+	}
+
+	private getSplitViewRatio(): number | undefined {
+		let ratio: number | undefined = undefined;
+
+		if (this.splitview) {
+			const leftViewSize = this.splitview.getViewSize(0);
+			const rightViewSize = this.splitview.getViewSize(1);
+
+			// Only return a ratio when the view size is significantly
+			// enough different for left and right view sizes
+			if (Math.abs(leftViewSize - rightViewSize) > 1) {
+				const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
+				ratio = leftViewSize / totalSize;
+			}
+		}
+
+		return ratio;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -228,15 +237,26 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			await this.createEditors(input, options, context, token);
 		}
 
-		// Set input to both sides also considering previous view state if any
-		const { primary, secondary } = this.loadSideBySideEditorViewState(input, options, context);
+		// Restore any previous view state
+		const { primary, secondary, viewState } = this.loadSideBySideEditorViewState(input, options, context);
+		this.lastFocusedSide = viewState?.focus;
+
+		if (typeof viewState?.ratio === 'number' && this.splitview) {
+			const totalSize = this.splitview.orientation === Orientation.HORIZONTAL ? this.dimension.width : this.dimension.height;
+
+			this.splitview.resizeView(0, Math.round(totalSize * viewState.ratio));
+		} else {
+			this.splitview?.distributeViewSizes();
+		}
+
+		// Set input to both sides
 		await Promise.all([
 			this.secondaryEditorPane?.setInput(input.secondary as EditorInput, secondary, context, token),
 			this.primaryEditorPane?.setInput(input.primary as EditorInput, primary, context, token)
 		]);
 	}
 
-	private loadSideBySideEditorViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined } {
+	private loadSideBySideEditorViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined, secondary: IEditorOptions | undefined, viewState: ISideBySideEditorViewState | undefined } {
 		const viewState = this.loadEditorViewState(input, context);
 
 		const primaryOptions: IEditorOptions = {
@@ -251,7 +271,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			};
 		}
 
-		return { primary: primaryOptions, secondary: secondaryOptions };
+		return { primary: primaryOptions, secondary: secondaryOptions, viewState };
 	}
 
 	private async createEditors(newInput: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -375,7 +395,12 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			return; // we actually need view states
 		}
 
-		return { primary: primarViewState, secondary: secondaryViewState };
+		return {
+			primary: primarViewState,
+			secondary: secondaryViewState,
+			focus: this.lastFocusedSide,
+			ratio: this.getSplitViewRatio()
+		};
 	}
 
 	protected toEditorViewStateResource(input: IEditorInput): URI | undefined {
