@@ -349,6 +349,14 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			});
 		}));
 
+		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {
+			for (let i = 0; i < this.length; i++) {
+				const cell = this._viewCells[i];
+				cell.updateOptions(e);
+			}
+		}));
+
+
 		this._register(this._selectionCollection.onDidChangeSelection(e => {
 			this._onDidChangeSelection.fire(e);
 		}));

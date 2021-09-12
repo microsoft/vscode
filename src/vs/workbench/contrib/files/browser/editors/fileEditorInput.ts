@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -390,7 +390,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				resource: target,
 				encoding: this.getEncoding(),
 				options: {
-					viewState: this.getViewStateFor(group)
+					viewState: findViewStateForEditor(this, group, this.editorService)
 				}
 			}
 		};
@@ -419,7 +419,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 			untypedInput.options = {
 				...untypedInput.options,
-				viewState: this.getViewStateFor(options.preserveViewState)
+				viewState: findViewStateForEditor(this, options.preserveViewState, this.editorService)
 			};
 		}
 

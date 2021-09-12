@@ -17,6 +17,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 
@@ -134,12 +135,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}
 		}));
 
-		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
-				this.layoutChange({});
-			}
-		}));
-
 		this._outputCollection = new Array(this.model.outputs.length);
 
 		this._layoutInfo = {
@@ -157,6 +152,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			bottomToolbarOffset: 0,
 			layoutState: CellLayoutState.Uninitialized
 		};
+	}
+
+	updateOptions(e: NotebookOptionsChangeEvent) {
+		if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
+			this.layoutChange({});
+		}
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
