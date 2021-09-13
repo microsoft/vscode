@@ -1800,7 +1800,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const cwd = this._cwd || this._initialCwd || '';
 		const properties = {
 			cwd,
-			cwdFolder: this._getCwdFolder(this._initialCwd, cwd),
+			cwdFolder: this.getCwdFolder(),
 			workspaceFolder: path.basename(cwd),
 			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
 			process: this._processName || title,
@@ -1826,7 +1826,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onTitleChanged.fire(this);
 	}
 
-	private _getCwdFolder(initialCwd?: string, cwd?: string): string {
+	getCwdFolder(): string {
+		const initialCwd = this._initialCwd;
+		const cwd = this._cwd || this._initialCwd;
 		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length <= 1;
 		if (!cwd || !this._capabilities.includes(ProcessCapability.CwdDetection) || (singleRootWorkspace && initialCwd === cwd)) {
 			return '';
