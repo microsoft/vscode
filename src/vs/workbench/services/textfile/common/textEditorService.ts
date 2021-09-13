@@ -97,7 +97,7 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 			const primary = this.createTextEditor({ ...input.primary });
 			const secondary = this.createTextEditor({ ...input.secondary });
 
-			return new SideBySideEditorInput(input.label, input.description, secondary, primary);
+			return this.instantiationService.createInstance(SideBySideEditorInput, input.label, input.description, secondary, primary);
 		}
 
 		// Untitled text file support

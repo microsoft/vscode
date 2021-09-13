@@ -30,6 +30,9 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'x64', pkgTarget: 'node8-linux-x64' },
 	{ platform: 'linux', arch: 'armhf', pkgTarget: 'node8-linux-armv7' },
 	{ platform: 'linux', arch: 'arm64', pkgTarget: 'node8-linux-arm64' },
+	{ platform: 'alpine', arch: 'arm64', pkgTarget: 'node8-alpine-arm64' },
+	// legacy: we use to ship only one alpine so it was put in the arch, but now we ship
+	// multiple alpine images and moved to a better model (alpine as the platform)
 	{ platform: 'linux', arch: 'alpine', pkgTarget: 'node8-linux-alpine' },
 ];
 
@@ -37,7 +40,7 @@ const noop = () => { return Promise.resolve(); };
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
 	for (const target of ['reh', 'reh-web']) {
-		gulp.task(`vscode-${target}-${platform}${ arch ? `-${arch}` : '' }-min`, noop);
+		gulp.task(`vscode-${target}-${platform}${arch ? `-${arch}` : ''}-min`, noop);
 	}
 });
 
@@ -88,8 +91,9 @@ function nodejs(platform, arch) {
 			.pipe(rename('node.exe'));
 	}
 
-	if (arch === 'alpine') {
-		const contents = cp.execSync(`docker run --rm node:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
+	if (arch === 'alpine' || platform === 'alpine') {
+		const imageName = arch === 'arm64' ? 'arm64v8/node' : 'node';
+		const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
 		return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
 	}
 

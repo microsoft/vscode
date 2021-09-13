@@ -18,7 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
-import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { SearchEditorFindMatchClass, SearchEditorInputTypeId, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
 import { defaultSearchConfig, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -49,7 +49,7 @@ export type SearchConfiguration = {
 export const SEARCH_EDITOR_EXT = '.code-search';
 
 export class SearchEditorInput extends EditorInput {
-	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
+	static readonly ID: string = SearchEditorInputTypeId;
 
 	override get typeId(): string {
 		return SearchEditorInput.ID;

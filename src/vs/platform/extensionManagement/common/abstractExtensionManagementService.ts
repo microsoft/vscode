@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
 	DidUninstallExtensionEvent, ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOperation, InstallOptions,
-	InstallVSIXOptions, INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, IReportedExtension, StatisticType, CURRENT_TARGET_PLATFORM, UninstallOptions
+	InstallVSIXOptions, INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS, IReportedExtension, StatisticType, UninstallOptions, TargetPlatform, isTargetPlatformCompatible, TargetPlatformToString
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -81,22 +81,28 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}));
 	}
 
+	async canInstall(extension: IGalleryExtension): Promise<boolean> {
+		const currentTargetPlatform = await this.getTargetPlatform();
+		return extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform));
+	}
+
 	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
 			throw new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"));
+		}
+
+		if (!await this.canInstall(extension)) {
+			const targetPlatform = await this.getTargetPlatform();
+			const error = new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, product.nameLong, TargetPlatformToString(targetPlatform)), INSTALL_ERROR_VALIDATING);
+			this.logService.error(`Cannot install extension.`, extension.identifier.id, error.message);
+			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
+			throw error;
 		}
 
 		try {
 			extension = await this.checkAndGetCompatibleVersion(extension, !options.installGivenVersion);
 		} catch (error) {
 			this.logService.error(getErrorMessage(error));
-			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
-			throw error;
-		}
-
-		if (!await this.canInstall(extension)) {
-			const error = new ExtensionManagementError(`Not supported`, INSTALL_ERROR_VALIDATING);
-			this.logService.error(`Cannot install extension as it is not supported.`, extension.identifier.id, error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
 		}
@@ -381,13 +387,14 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), INSTALL_ERROR_MALICIOUS);
 		}
 
+		const targetPlatform = await this.getTargetPlatform();
 		let compatibleExtension: IGalleryExtension | null = null;
-		if (await this.galleryService.isExtensionCompatible(extension, CURRENT_TARGET_PLATFORM)) {
+		if (await this.galleryService.isExtensionCompatible(extension, targetPlatform)) {
 			compatibleExtension = extension;
 		}
 
 		if (!compatibleExtension && fetchCompatibleVersion) {
-			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, CURRENT_TARGET_PLATFORM);
+			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, targetPlatform);
 		}
 
 		if (!compatibleExtension) {
@@ -586,11 +593,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		}
 	}
 
+	abstract getTargetPlatform(): Promise<TargetPlatform>;
 	abstract zip(extension: ILocalExtension): Promise<URI>;
 	abstract unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
 	abstract install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
-	abstract canInstall(extension: IGalleryExtension): Promise<boolean>;
 	abstract getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
 
 	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
