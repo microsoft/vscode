@@ -20,7 +20,7 @@ export class MainThreadEditorTabs {
 	private readonly _dispoables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
-	private _currentlyActiveTab: IEditorTabDto | undefined = undefined;
+	private _currentlyActiveTab: { groupId: number, tab: IEditorTabDto } | undefined = undefined;
 	private _queuedEvents: IEditorChangeEvent[] = [];
 
 	constructor(
@@ -64,7 +64,7 @@ export class MainThreadEditorTabs {
 					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
 				};
 				if (tab.isActive) {
-					this._currentlyActiveTab = tab;
+					this._currentlyActiveTab = { groupId: group.id, tab };
 				}
 				tabs.push(tab);
 			}
@@ -92,9 +92,9 @@ export class MainThreadEditorTabs {
 		// Update the currently active tab which may or may not be the opened one
 		if (tab.isActive) {
 			if (this._currentlyActiveTab) {
-				this._currentlyActiveTab.isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.resource), editorId: this._currentlyActiveTab.editorId });
+				this._currentlyActiveTab.tab.isActive = (this._editorGroupsService.activeGroup.id === this._currentlyActiveTab.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.tab.resource), options: { override: this._currentlyActiveTab.tab.editorId } });
 			}
-			this._currentlyActiveTab = tab;
+			this._currentlyActiveTab = { groupId: event.groupId, tab };
 		}
 	}
 
@@ -103,20 +103,8 @@ export class MainThreadEditorTabs {
 			return;
 		}
 		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 1);
+		this._findAndUpdateActiveTab();
 
-		// Go to the active group and update the active tab
-		const activeGroupId = this._editorGroupsService.activeGroup.id;
-		this._tabModel.get(activeGroupId)?.forEach(t => {
-			if (t.resource) {
-				t.isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(t.resource), options: { override: t.editorId } });
-			}
-			if (t.isActive) {
-				if (this._currentlyActiveTab) {
-					this._currentlyActiveTab.isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.resource), options: { override: this._currentlyActiveTab.editorId } });
-				}
-				this._currentlyActiveTab = t;
-			}
-		}, this);
 		// Remove any empty groups
 		if (this._tabModel.get(event.groupId)?.length === 0) {
 			this._tabModel.delete(event.groupId);
@@ -124,15 +112,25 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidGroupActivate(event: IEditorChangeEvent): void {
-		this._tabModel.get(event.groupId)?.forEach(t => {
+		if (event.kind !== GroupChangeKind.GROUP_INDEX) {
+			return;
+		}
+		this._findAndUpdateActiveTab();
+	}
+
+	private _findAndUpdateActiveTab() {
+		// Go to the active group and update the active tab
+		const activeGroupId = this._editorGroupsService.activeGroup.id;
+		this._tabModel.get(activeGroupId)?.forEach(t => {
 			if (t.resource) {
-				t.isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(t.resource), options: { override: t.editorId } });
+				t.isActive = this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(t.resource), options: { override: t.editorId } });
 			}
 			if (t.isActive) {
 				if (this._currentlyActiveTab) {
-					this._currentlyActiveTab.isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.resource), options: { override: this._currentlyActiveTab.editorId } });
+					this._currentlyActiveTab.tab.isActive = (this._editorGroupsService.activeGroup.id === this._currentlyActiveTab.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.tab.resource), options: { override: this._currentlyActiveTab.tab.editorId } });
 				}
-				this._currentlyActiveTab = t;
+				this._currentlyActiveTab = { groupId: activeGroupId, tab: t };
+				return;
 			}
 		}, this);
 	}
@@ -152,10 +150,6 @@ export class MainThreadEditorTabs {
 				}
 				this._onDidGroupActivate(event);
 				break;
-			case GroupChangeKind.EDITOR_ACTIVE:
-				if (this._editorGroupsService.activeGroup.id !== event.groupId) {
-					return;
-				}
 			case GroupChangeKind.GROUP_INDEX:
 				this._createTabsModel();
 			default:
