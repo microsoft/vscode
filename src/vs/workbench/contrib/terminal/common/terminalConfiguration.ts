@@ -11,7 +11,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 const terminalDescriptors = '\n- ' + [
-	localize('cwd', "`\${cwd}`: the terminal's current working directory - on Windows, this will not dynamically update"),
+	localize('cwd', "`\${cwd}`: the terminal's current working directory, displayed when in multi-root workspaces, or when the value differs from the initialCwd on linux or mac"),
 	localize('cwdFolder', "`\${cwdFolder}`: the terminal's current folder - on Windows, this will not dynamically update"),
 	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
 	localize('process', "`\${process}`: the name of the terminal process"),
