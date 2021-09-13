@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, ITerminalProperty, TerminalShellType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, ITerminalProperty, TerminalShellType, TitleEventSource, TerminalPropertyType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -163,6 +163,10 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
 		this._throwIfNoPty(id).setIcon(icon, color);
+	}
+
+	async refreshProperty(id: number, property: TerminalPropertyType): Promise<any> {
+		return this._throwIfNoPty(id).refreshProperty(property);
 	}
 
 	async detachFromProcess(id: number): Promise<void> {
@@ -439,6 +443,10 @@ export class PersistentTerminalProcess extends Disposable {
 		} else {
 			this.shutdown(true);
 		}
+	}
+
+	async refreshProperty(property: TerminalPropertyType): Promise<any> {
+		return this._terminalProcess.refreshProperty(property);
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
