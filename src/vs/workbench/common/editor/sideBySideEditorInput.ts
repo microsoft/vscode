@@ -8,9 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * Side by side editor inputs that have a primary and secondary side.
@@ -61,7 +62,8 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		protected readonly name: string | undefined,
 		protected readonly description: string | undefined,
 		private readonly _secondary: IEditorInput,
-		private readonly _primary: IEditorInput
+		private readonly _primary: IEditorInput,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -142,12 +144,20 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			!isResourceDiffEditorInput(primaryResourceEditorInput) && !isResourceDiffEditorInput(secondaryResourceEditorInput) &&
 			!isResourceSideBySideEditorInput(primaryResourceEditorInput) && !isResourceSideBySideEditorInput(secondaryResourceEditorInput)
 		) {
-			return {
+			const untypedInput: IResourceSideBySideEditorInput = {
 				label: this.name,
 				description: this.description,
 				primary: primaryResourceEditorInput,
 				secondary: secondaryResourceEditorInput
 			};
+
+			if (typeof options?.preserveViewState === 'number') {
+				untypedInput.options = {
+					viewState: findViewStateForEditor(this, options.preserveViewState, this.editorService)
+				};
+			}
+
+			return untypedInput;
 		}
 
 		return undefined;
@@ -255,6 +265,6 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 export class SideBySideEditorInputSerializer extends AbstractSideBySideEditorInputSerializer {
 
 	protected createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
-		return new SideBySideEditorInput(name, description, secondaryInput, primaryInput);
+		return instantiationService.createInstance(SideBySideEditorInput, name, description, secondaryInput, primaryInput);
 	}
 }
