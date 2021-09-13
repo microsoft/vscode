@@ -41,8 +41,8 @@ suite('Extension Gallery Service', () => {
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider);
 		storageService = new InMemoryStorageService();
-		configurationService = new TestConfigurationService({ 'telemetry.enableTelemetry': true });
-		configurationService.updateValue('telemetry.enableTelemetry', true);
+		configurationService = new TestConfigurationService({ 'telemetry.enableTelemetry': 'true' });
+		configurationService.updateValue('telemetry.enableTelemetry', 'true');
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 

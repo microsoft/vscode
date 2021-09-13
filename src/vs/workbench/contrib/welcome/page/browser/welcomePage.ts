@@ -50,7 +50,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
 		if (
 			product.enableTelemetry
-			&& this.configurationService.getValue('telemetry.enableTelemetry')
+			&& this.configurationService.getValue('telemetry.enableTelemetry') !== 'false'
 			&& !this.environmentService.skipWelcome
 			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)
 		) {

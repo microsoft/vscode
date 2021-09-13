@@ -46,7 +46,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 			return false;
 		}
 
-		return !!this._configurationService.getValue('telemetry.enableTelemetry');
+		return this._configurationService.getValue('telemetry.enableTelemetry') === 'true';
 	}
 
 	$publicLog(eventName: string, data: any = Object.create(null)): void {

@@ -34,6 +34,7 @@ export class TelemetryService implements ITelemetryService {
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
+	private _errorOptIn: boolean;
 	private _enabled: boolean;
 	public readonly sendErrorTelemetry: boolean;
 
@@ -48,6 +49,7 @@ export class TelemetryService implements ITelemetryService {
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = true;
+		this._errorOptIn = true;
 		this._enabled = true;
 		this.sendErrorTelemetry = !!config.sendErrorTelemetry;
 
@@ -77,6 +79,14 @@ export class TelemetryService implements ITelemetryService {
 			};
 			this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
 		});
+
+		// Once the service initializes we update the telemetry value to the new format
+		this._convertOldTelemetrySettingToNew();
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('telemetry.enableTelemetry')) {
+				this._convertOldTelemetrySettingToNew();
+			}
+		}, this);
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -87,9 +97,17 @@ export class TelemetryService implements ITelemetryService {
 		this._enabled = value;
 	}
 
+	private _convertOldTelemetrySettingToNew(): void {
+		const telemetryValue = this._configurationService.getValue('telemetry.enableTelemetry');
+		if (typeof telemetryValue === 'boolean') {
+			this._configurationService.updateValue('telemetry.enableTelemetry', telemetryValue ? 'true' : 'false');
+		}
+	}
+
 	private _updateUserOptIn(): void {
 		const config = this._configurationService?.getValue<any>(TELEMETRY_SECTION_ID);
-		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
+		this._errorOptIn = config ? config.enableTelemetry === 'error' || config.enableTelemetry === 'true' : this._userOptIn;
+		this._userOptIn = config ? config.enableTelemetry === 'true' : this._userOptIn;
 	}
 
 	get isOptedIn(): boolean {
@@ -148,7 +166,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
-		if (!this.sendErrorTelemetry) {
+		if (!this.sendErrorTelemetry || !this._errorOptIn) {
 			return Promise.resolve(undefined);
 		}
 
@@ -215,12 +233,18 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	'title': localize('telemetryConfigurationTitle', "Telemetry"),
 	'properties': {
 		'telemetry.enableTelemetry': {
-			'type': 'boolean',
+			'type': 'string',
+			'enum': ['true', 'error', 'false'],
+			'enumDescriptions': [
+				localize('telemetry.enableTelemetry.default', "Enables all telemetry data to be collected."),
+				localize('telemetry.enableTelemetry.error', "Enables only error telemetry data and not general usage data."),
+				localize('telemetry.enableTelemetry.false', "Disables all product telemetry.")
+			],
 			'markdownDescription':
 				!product.privacyStatementUrl ?
 					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) :
 					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl),
-			'default': true,
+			'default': 'true',
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
 			'tags': ['usesOnlineServices', 'telemetry']

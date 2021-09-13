@@ -111,7 +111,7 @@ class RemoteTelemetryEnablementUpdater extends Disposable implements IWorkbenchC
 	}
 
 	private updateRemoteTelemetryEnablement(): Promise<void> {
-		if (!this.configurationService.getValue('telemetry.enableTelemetry')) {
+		if (this.configurationService.getValue('telemetry.enableTelemetry') === 'false') {
 			return this.remoteAgentService.disableTelemetry();
 		}
 

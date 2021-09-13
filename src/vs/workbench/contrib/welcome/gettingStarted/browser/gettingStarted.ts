@@ -1393,7 +1393,7 @@ export class GettingStartedPage extends EditorPane {
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
 		const categoryFooter = $('.getting-started-footer');
-		if (this.editorInput.showTelemetryNotice && this.configurationService.getValue('telemetry.enableTelemetry') && product.enableTelemetry) {
+		if (this.editorInput.showTelemetryNotice && this.configurationService.getValue('telemetry.enableTelemetry') !== 'false' && product.enableTelemetry) {
 			const mdRenderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 			const privacyStatementCopy = localize('privacy statement', "privacy statement");
