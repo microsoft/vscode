@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -97,6 +97,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
+	private _capabilities: ProcessCapability[] = [];
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
@@ -104,6 +105,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
 	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
+
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
@@ -179,6 +182,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
 			});
+		} else {
+			this.capabilities.push(ProcessCapability.CwdDetection);
 		}
 	}
 
@@ -346,7 +351,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, capabilities: this.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {

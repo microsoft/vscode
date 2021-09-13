@@ -5,14 +5,15 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class TerminalProcessExtHostProxy extends Disposable implements ITerminalChildProcess, ITerminalProcessExtHostProxy {
 	readonly id = 0;
 	readonly shouldPersist = false;
-
+	private _capabilities: ProcessCapability[] = [];
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
@@ -73,7 +74,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	emitReady(pid: number, cwd: string): void {
-		this._onProcessReady.fire({ pid, cwd });
+		this._onProcessReady.fire({ pid, cwd, capabilities: this.capabilities });
 	}
 
 	emitExit(exitCode: number | undefined): void {

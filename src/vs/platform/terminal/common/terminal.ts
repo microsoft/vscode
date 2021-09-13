@@ -203,7 +203,7 @@ export interface IPtyService {
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
-	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;
+	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>;
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
 	readonly onProcessShellTypeChanged: Event<{ id: number, event: TerminalShellType }>;
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
@@ -461,7 +461,12 @@ export interface ITerminalLaunchError {
 export interface IProcessReadyEvent {
 	pid: number,
 	cwd: string,
+	capabilities: ProcessCapability[],
 	requiresWindowsMode?: boolean
+}
+
+export const enum ProcessCapability {
+	CwdDetection = 'cwdDetection'
 }
 
 /**
@@ -480,6 +485,11 @@ export interface ITerminalChildProcess {
 	 * Whether the process should be persisted across reloads.
 	 */
 	shouldPersist: boolean;
+
+	/**
+	 * Capabilities of the process, designated when it starts
+	 */
+	capabilities: ProcessCapability[];
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;

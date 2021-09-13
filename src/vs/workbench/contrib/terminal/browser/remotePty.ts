@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -41,6 +41,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		cwd: '',
 		initialCwd: ''
 	};
+
+	private _capabilities: ProcessCapability[] = [];
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 
 	get id(): number { return this._id; }
 
@@ -144,6 +147,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._onProcessExit.fire(e);
 	}
 	handleReady(e: IProcessReadyEvent) {
+		if (e.capabilities) {
+			this._capabilities = e.capabilities;
+		}
 		this._onProcessReady.fire(e);
 	}
 	handleTitleChanged(e: string) {
