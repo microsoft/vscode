@@ -84,7 +84,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			this._targetPlatformPromise = (async () => {
 				let targetPlatform = getTargetPlatform(platform, arch);
 				if (targetPlatform === TargetPlatform.LINUX_X64 && await this.isAlpineLinux()) {
-					targetPlatform = TargetPlatform.ALPINE;
+					targetPlatform = TargetPlatform.ALPINE_X64;
 				}
 				this.logService.debug('ExtensionManagementService#TargetPlatform:', targetPlatform);
 				return targetPlatform;

@@ -26,7 +26,7 @@ export const enum TargetPlatform {
 	LINUX_ARM64 = 'linux-arm64',
 	LINUX_ARMHF = 'linux-armhf',
 
-	ALPINE = 'alpine-x64',
+	ALPINE_X64 = 'alpine-x64',
 
 	DARWIN_X64 = 'darwin-x64',
 	DARWIN_ARM64 = 'darwin-arm64',
@@ -48,7 +48,7 @@ export function TargetPlatformToString(targetPlatform: TargetPlatform) {
 		case TargetPlatform.LINUX_ARM64: return 'Linux ARM 64';
 		case TargetPlatform.LINUX_ARMHF: return 'Linux ARM';
 
-		case TargetPlatform.ALPINE: return 'Alpine Linux 64 bit';
+		case TargetPlatform.ALPINE_X64: return 'Alpine Linux 64 bit';
 
 		case TargetPlatform.DARWIN_X64: return 'Mac';
 		case TargetPlatform.DARWIN_ARM64: return 'Mac Silicon';
@@ -71,7 +71,7 @@ export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 		case TargetPlatform.LINUX_ARM64: return TargetPlatform.LINUX_ARM64;
 		case TargetPlatform.LINUX_ARMHF: return TargetPlatform.LINUX_ARMHF;
 
-		case TargetPlatform.ALPINE: return TargetPlatform.ALPINE;
+		case TargetPlatform.ALPINE_X64: return TargetPlatform.ALPINE_X64;
 
 		case TargetPlatform.DARWIN_X64: return TargetPlatform.DARWIN_X64;
 		case TargetPlatform.DARWIN_ARM64: return TargetPlatform.DARWIN_ARM64;
