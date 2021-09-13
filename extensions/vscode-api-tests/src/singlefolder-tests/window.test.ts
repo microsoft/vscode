@@ -348,7 +348,7 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	test.skip('Tabs - Ensure tabs getter is correct', async () => {
+	test('Tabs - Ensure tabs getter is correct', async () => {
 		assert.ok(workspace.workspaceFolders);
 		const workspaceRoot = workspace.workspaceFolders[0].uri;
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
@@ -385,7 +385,7 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
 	});
 
-	test.only('Tabs - ensure active tab is correct', async () => {
+	test('Tabs - ensure active tab is correct', async () => {
 
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),

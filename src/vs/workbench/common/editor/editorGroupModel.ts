@@ -499,7 +499,6 @@ export class EditorGroupModel extends Disposable {
 			return; // already active
 		}
 
-		console.log(`Making editor ${editor.resource?.toString()} active`);
 		this.active = editor;
 
 		// Bring to front in MRU list
