@@ -2646,11 +2646,17 @@ export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.fo
 	hc: foreground
 }, nls.localize('notebookStatusRunningIcon.foreground', "The running icon color of notebook cells in the cell status bar."));
 
+export const notebookOutputContainerBorderColor = registerColor('notebook.outputContainerBorderColor', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('notebook.outputContainerBorderColor', "The border color of the notebook output container."));
+
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
 	dark: null,
 	light: null,
 	hc: null
-}, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
+}, nls.localize('notebook.outputContainerBackgroundColor', "The color of the notebook output container background."));
 
 // TODO@rebornix currently also used for toolbar border, if we keep all of this, pick a generic name
 export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparator', {
@@ -2794,6 +2800,11 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .output { background-color: ${containerBackground}; }`);
 		collector.addRule(`.notebookOverlay .output-element { background-color: ${containerBackground}; }`);
 		collector.addRule(`.notebookOverlay .output-show-more-container { background-color: ${containerBackground}; }`);
+	}
+
+	const containerBorder = theme.getColor(notebookOutputContainerBorderColor);
+	if (containerBorder) {
+		collector.addRule(`.notebookOverlay .output-element { border: 1px solid transparent; border-color: ${containerBorder} !important; }`);
 	}
 
 	const notebookBackground = theme.getColor(editorBackground);

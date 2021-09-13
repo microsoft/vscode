@@ -235,6 +235,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						padding-bottom: var(--notebook-output-node-padding);
 						padding-left: var(--notebook-output-node-left-padding);
 						box-sizing: border-box;
+						border: 1px solid var(--theme-notebook-output-border);
 						background-color: var(--theme-notebook-output-background);
 					}
 
