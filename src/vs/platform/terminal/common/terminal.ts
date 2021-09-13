@@ -532,7 +532,7 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty(property: TerminalPropertyType): any;
+	refreshProperty(property: TerminalPropertyType): Promise<any>;
 }
 
 export interface IReconnectConstants {

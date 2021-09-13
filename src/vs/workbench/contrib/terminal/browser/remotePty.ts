@@ -167,6 +167,11 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._onDidChangeHasChildProcesses.fire(e);
 	}
 	handleDidChangeProperty(e: ITerminalProperty<any>) {
+		if (e.type === TerminalPropertyType.Cwd) {
+			this._properties.cwd = e.value;
+		} else if (e.type === TerminalPropertyType.InitialCwd) {
+			this._properties.initialCwd = e.value;
+		}
 		this._onDidChangeProperty.fire(e);
 	}
 

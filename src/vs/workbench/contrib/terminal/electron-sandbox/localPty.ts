@@ -125,9 +125,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	}
 	handleDidChangeProperty(e: ITerminalProperty<any>) {
 		if (e.type === TerminalPropertyType.Cwd) {
-			this._properties!.cwd = e.value;
+			this._properties.cwd = e.value;
 		} else if (e.type === TerminalPropertyType.InitialCwd) {
-			this._properties!.initialCwd = e.value;
+			this._properties.initialCwd = e.value;
 		}
 		this._onDidChangeProperty.fire(e);
 	}
