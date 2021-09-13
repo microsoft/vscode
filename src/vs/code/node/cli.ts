@@ -393,10 +393,8 @@ export async function main(argv: string[]): Promise<any> {
 							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
 
 							const cts = new CancellationTokenSource();
-							await Promise.race([
-								watchFileContents(tmpName, chunk => stream.write(chunk), cts.token),
-								Event.toPromise(Event.fromNodeEventEmitter(child, 'close')).then(() => cts.dispose(true))
-							]);
+							child.on('close', () => cts.dispose(true));
+							await watchFileContents(tmpName, chunk => stream.write(chunk), cts.token);
 						} finally {
 							unlinkSync(tmpName);
 						}
