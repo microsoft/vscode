@@ -1726,7 +1726,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async getCwd(): Promise<string> { return ''; }
 	async getLatency(): Promise<number> { return 0; }
 	async processBinary(data: string): Promise<void> { }
-	refreshProperty(property: TerminalPropertyType) { return undefined; }
+	refreshProperty(property: TerminalPropertyType): Promise<any> { return Promise.resolve(''); }
 }
 
 export class TestQuickInputService implements IQuickInputService {

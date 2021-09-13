@@ -258,8 +258,8 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 
-	refreshProperty(property: TerminalPropertyType) {
-		return undefined;
+	refreshProperty(property: TerminalPropertyType): Promise<any> {
+		return Promise.resolve('');
 	}
 
 	async start(): Promise<undefined> {
