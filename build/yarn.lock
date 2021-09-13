@@ -43,7 +43,7 @@
     uuid "^8.3.0"
     xml2js "^0.4.19"
 
-"@azure/core-lro@^2.0.0":
+"@azure/core-lro@^2.2.0":
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/@azure/core-lro/-/core-lro-2.2.0.tgz#82252566b811c255989f90e639f00f177f02ec55"
   integrity sha512-TJo95eNT1dwYOPCb0m1C2zyxVlHuRRkKGeg9TKu8XMF2qh4v6c1weD63r9RVIrLdHdnSqS0n6PTXBpWoB8NqMw==
@@ -107,19 +107,19 @@
   dependencies:
     tslib "^2.0.0"
 
-"@azure/storage-blob@^12.7.0":
-  version "12.7.0"
-  resolved "https://registry.yarnpkg.com/@azure/storage-blob/-/storage-blob-12.7.0.tgz#f17f278000a46bca516e5864d846cd8fa57d6d7d"
-  integrity sha512-7YEWEx03Us/YBxthzBv788R7jokwpCD5KcIsvtE5xRaijNX9o80KXpabhEwLR9DD9nmt/AlU/c1R+aXydgCduQ==
+"@azure/storage-blob@^12.8.0":
+  version "12.8.0"
+  resolved "https://registry.yarnpkg.com/@azure/storage-blob/-/storage-blob-12.8.0.tgz#97b7ecc6c7b17bcbaf0281c79c16af6f512d6130"
+  integrity sha512-c8+Wz19xauW0bGkTCoqZH4dYfbtBniPiGiRQOn1ca6G5jsjr4azwaTk9gwjVY8r3vY2Taf95eivLzipfIfiS4A==
   dependencies:
     "@azure/abort-controller" "^1.0.0"
     "@azure/core-http" "^2.0.0"
-    "@azure/core-lro" "^2.0.0"
+    "@azure/core-lro" "^2.2.0"
     "@azure/core-paging" "^1.1.1"
     "@azure/core-tracing" "1.0.0-preview.13"
     "@azure/logger" "^1.0.0"
     events "^3.0.0"
-    tslib "^2.0.0"
+    tslib "^2.2.0"
 
 "@malept/cross-spawn-promise@^1.1.0":
   version "1.1.1"
