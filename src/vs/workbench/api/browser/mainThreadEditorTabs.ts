@@ -21,6 +21,7 @@ export class MainThreadEditorTabs {
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
 	private _currentlyActiveTab: IEditorTabDto | undefined = undefined;
+	private _queuedEvents: IEditorChangeEvent[] = [];
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -30,7 +31,16 @@ export class MainThreadEditorTabs {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
-		this._dispoables.add(editorService.onDidEditorsChange((e) => this._updateTabsModel(e), this));
+		// Queue all events that arrive on the same event loop and then send them as a batch
+		this._dispoables.add(editorService.onDidEditorsChange((e) => {
+			this._queuedEvents.push(e);
+			if (this._queuedEvents.length === 1) {
+				queueMicrotask(() => {
+					this._queuedEvents.forEach(e => this._updateTabsModel(e));
+					this._queuedEvents = [];
+				});
+			}
+		}, this));
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
 
@@ -78,7 +88,6 @@ export class MainThreadEditorTabs {
 			editorId: editor.editorId,
 			isActive: (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive(editor)
 		};
-		console.log(`Event Group ID : ${event.groupId}, Active Group Id: ${this._editorGroupsService.activeGroup.id}`);
 		this._tabModel.get(event.groupId)?.push(tab);
 		// Update the currently active tab which may or may not be the opened one
 		if (tab.isActive) {
@@ -114,6 +123,20 @@ export class MainThreadEditorTabs {
 		}
 	}
 
+	private _onDidGroupActivate(event: IEditorChangeEvent): void {
+		this._tabModel.get(event.groupId)?.forEach(t => {
+			if (t.resource) {
+				t.isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(t.resource), editorId: t.editorId });
+			}
+			if (t.isActive) {
+				if (this._currentlyActiveTab) {
+					this._currentlyActiveTab.isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.resource), editorId: this._currentlyActiveTab.editorId });
+				}
+				this._currentlyActiveTab = t;
+			}
+		}, this);
+	}
+
 	private _updateTabsModel(event: IEditorChangeEvent): void {
 		// Call the correct function for the change type
 		switch (event.kind) {
@@ -127,6 +150,8 @@ export class MainThreadEditorTabs {
 				if (this._editorGroupsService.activeGroup.id !== event.groupId) {
 					return;
 				}
+				console.log(`Active: ${this._editorGroupsService.activeGroup.id}`);
+				this._onDidGroupActivate(event);
 				break;
 			default:
 				break;

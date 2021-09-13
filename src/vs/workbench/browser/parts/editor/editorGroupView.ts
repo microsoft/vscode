@@ -8,7 +8,7 @@ import { EditorGroupModel, IEditorOpenOptions, EditorCloseEvent, ISerializedEdit
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { Event, Emitter, Relay, PauseableEmitter } from 'vs/base/common/event';
+import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -86,7 +86,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private readonly _onDidGroupChange = this._register(new PauseableEmitter<IGroupChangeEvent>());
+	private readonly _onDidGroupChange = this._register(new Emitter<IGroupChangeEvent>());
 	readonly onDidGroupChange = this._onDidGroupChange.event;
 
 	private readonly _onDidOpenEditorFail = this._register(new Emitter<EditorInput>());
@@ -809,7 +809,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_ACTIVE });
-		this._onDidGroupChange.resume();
 	}
 
 	//#endregion
@@ -1027,7 +1026,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model and make sure to continue to use the editor we get from
 		// the model. It is possible that the editor was already opened and we
 		// want to ensure that we use the existing instance in that case.
-		this._onDidGroupChange.pause();
 		const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
 
 		// Conditionally lock the group

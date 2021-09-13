@@ -398,8 +398,6 @@ suite('vscode API - window', () => {
 		assert.strictEqual(window.activeTab.resource?.toString(), docA.uri.toString());
 
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
-		// Wait 1000ms
-		await new Promise((resolve) => setTimeout(resolve, 1000));
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docB.uri.toString());
 
