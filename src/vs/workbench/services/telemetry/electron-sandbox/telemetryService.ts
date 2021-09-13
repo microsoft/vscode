@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, NullTelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryService, ITelemetryInfo, ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { getTelemetryLevel, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
