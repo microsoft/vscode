@@ -269,8 +269,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
-	async persistTerminalState(): Promise<void> {
-		return this._proxy.persistTerminalState();
+	async serializeTerminalState(ids: number[]): Promise<string> {
+		return this._proxy.serializeTerminalState(ids);
+	}
+
+	async reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string) {
+		return this._proxy.reviveTerminalProcesses(args, state);
 	}
 
 	async restartPtyHost(): Promise<void> {

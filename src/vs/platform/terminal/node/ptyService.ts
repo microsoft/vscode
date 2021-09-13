@@ -22,8 +22,6 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent
 import { ITerminalSerializer, TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { Promises as pfs } from 'vs/base/node/pfs';
-import { join } from 'path';
 
 type WorkspaceId = string;
 
@@ -36,6 +34,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string, instanceId: number }>;
+	private readonly _revivedPtyIdMap: Map<number, { newId: number, state: ISerializedTerminalState }> = new Map();
 
 	private readonly _onHeartbeat = this._register(new Emitter<void>());
 	readonly onHeartbeat = this._onHeartbeat.event;
@@ -101,19 +100,64 @@ export class PtyService extends Disposable implements IPtyService {
 		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
 	}
 
-	async persistTerminalState(): Promise<void> {
-		let processes: any[] = [];
+	async serializeTerminalState(ids: number[]): Promise<string> {
+		const promises: Promise<ISerializedTerminalState>[] = [];
 		for (const [persistentProcessId, persistentProcess] of this._ptys.entries()) {
-			processes.push({
-				id: persistentProcessId,
-				// TODO: Serialize in parallel
-				buffer: await (persistentProcess as any)._serializer.generateReplayEvent()
+			if (ids.indexOf(persistentProcessId) !== -1) {
+				promises.push(new Promise<ISerializedTerminalState>(async r => {
+					r({
+						id: persistentProcessId,
+						shellLaunchConfig: persistentProcess.shellLaunchConfig,
+						processDetails: await this._buildProcessDetails(persistentProcessId, persistentProcess),
+						replayEvent: await (persistentProcess as any)._serializer.generateReplayEvent()
+					});
+				}));
+			}
+		}
+		const serialized: ICrossVersionSerializedTerminalState = {
+			version: 1,
+			state: await Promise.all(promises)
+		};
+		return JSON.stringify(serialized);
+	}
+
+	async reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string) {
+		console.log('reviveTerminalProcesses', args, state);
+		const parsedUnknown = JSON.parse(state);
+		if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
+			this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
+			return;
+		}
+		const parsedCrossVersion = parsedUnknown as ICrossVersionSerializedTerminalState;
+		if (parsedCrossVersion.version !== 1) {
+			this._logService.warn(`Could not revive serialized processes, wrong version "${parsedCrossVersion.version}"`, parsedCrossVersion);
+			return;
+		}
+		const parsed = parsedCrossVersion.state as ISerializedTerminalState[];
+		console.log('parsed', parsed);
+		for (const state of parsed) {
+			const newId = await this.createProcess(
+				{
+					...state.shellLaunchConfig,
+					cwd: state.processDetails.cwd
+				},
+				state.processDetails.cwd,
+				100,
+				100,
+				'11',
+				process.env,
+				process.env,
+				false,
+				true,
+				state.processDetails.workspaceId,
+				state.processDetails.workspaceName
+			);
+			this._revivedPtyIdMap.set(state.id, { newId, state });
+			console.log('revived', {
+				oldId: state.id,
+				newId
 			});
 		}
-		const state = {
-			processes
-		};
-		pfs.writeFile(join(process.env.HOME!, 'testbuffer2'), JSON.stringify(state));
 	}
 
 	async shutdownAll(): Promise<void> {
@@ -167,6 +211,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async attachToProcess(id: number): Promise<void> {
 		try {
+			// const persistentProcessId = this._revivedPtyIdMap.get(id)?.newId ?? id;
 			this._throwIfNoPty(id).attach();
 			this._logService.trace(`Persistent process reconnection "${id}"`);
 		} catch (e) {
@@ -264,11 +309,13 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
+		console.log('setTerminalLayoutInfo', args);
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
+		console.log('getTerminalLayoutInfo', layout);
 		this._logService.trace('ptyService#getLayoutInfo', args);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
@@ -291,10 +338,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
-			const persistentProcess = this._throwIfNoPty(t.terminal);
+			const persistentProcessId = this._revivedPtyIdMap.get(t.terminal)?.newId ?? t.terminal;
+			const persistentProcess = this._throwIfNoPty(persistentProcessId);
 			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess);
 			return {
-				terminal: processDetails ?? null,
+				terminal: { ...processDetails, id: persistentProcessId } ?? null,
 				relativeSize: t.relativeSize
 			};
 		} catch (e) {
@@ -372,6 +420,7 @@ export class PersistentTerminalProcess extends Disposable {
 	private _serializer: ITerminalSerializer;
 
 	get pid(): number { return this._pid; }
+	get shellLaunchConfig(): IShellLaunchConfig { return this._terminalProcess.shellLaunchConfig; }
 	get title(): string { return this._title || this._terminalProcess.currentTitle; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._icon; }
@@ -666,4 +715,20 @@ function printTime(ms: number): string {
 	const _s = s ? `${s}s` : ``;
 	const _ms = ms ? `${ms}ms` : ``;
 	return `${_h}${_m}${_s}${_ms}`;
+}
+
+/**
+ * Serialized terminal state matching the interface that can be used across versions, the version
+ * should be verified before using the state payload.
+ */
+export interface ICrossVersionSerializedTerminalState {
+	version: number;
+	state: unknown;
+}
+
+export interface ISerializedTerminalState {
+	id: number;
+	shellLaunchConfig: IShellLaunchConfig;
+	processDetails: IProcessDetails;
+	replayEvent: IPtyHostProcessReplayEvent;
 }

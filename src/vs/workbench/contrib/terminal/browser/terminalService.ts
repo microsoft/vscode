@@ -247,7 +247,8 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+		// TODO: Pass persisting through
+		lifecycleService.onWillShutdown(e => this._onWillShutdown(e, true));
 
 		this._configurationService.onDidChangeConfiguration(async e => {
 			const platformKey = await this._getPlatformKey();
@@ -547,17 +548,18 @@ export class TerminalService implements ITerminalService {
 			return false;
 		}
 
-		// TODO: Fine tune which reasons are supported - what is LOAD?
-		console.log('persist buffer, reason: ' + reason);
-		if (reason === ShutdownReason.CLOSE) {
-			// TODO: persist buffer to disk
+		// Persist terminal _buffer state_
+		if (this._configHelper.config.enablePersistentSessions && reason !== ShutdownReason.RELOAD) {
+			console.log('persist buffer, reason: ' + reason);
+			// TODO: Fine tune which reasons are supported - what is LOAD?
 			// TODO: This is called once per workspace?
 			// TODO: Either do this or confirm dialog?
 			await this._localTerminalService?.persistTerminalState();
 		}
 
-		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (!shouldPersistTerminals) {
+		// Persist terminal _processes_
+		const shouldPersistProcesses = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
+		if (!shouldPersistProcesses) {
 			const hasDirtyInstances = (
 				(this.configHelper.config.confirmOnExit === 'always' && this.instances.length > 0) ||
 				(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
@@ -582,7 +584,7 @@ export class TerminalService implements ITerminalService {
 		return veto;
 	}
 
-	private _onWillShutdown(e: WillShutdownEvent): void {
+	private _onWillShutdown(e: WillShutdownEvent, persistTerminalState: boolean): void {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
@@ -596,7 +598,11 @@ export class TerminalService implements ITerminalService {
 		for (const instance of this.instances) {
 			instance.dispose();
 		}
-		this._localTerminalService?.setTerminalLayoutInfo(undefined);
+
+		// Clear terminal layout info only when not persisting
+		if (!persistTerminalState) {
+			this._localTerminalService?.setTerminalLayoutInfo(undefined);
+		}
 	}
 
 	getFindState(): FindReplaceState {
@@ -605,6 +611,9 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _saveState(): void {
+		if (this._isShuttingDown) {
+			return;
+		}
 		if (!this.configHelper.config.enablePersistentSessions) {
 			return;
 		}

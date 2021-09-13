@@ -14,11 +14,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
@@ -47,6 +49,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService notificationService: INotificationService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IHistoryService historyService: IHistoryService,
 	) {
@@ -125,6 +128,9 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 				this._localPtyService.acceptPtyHostResolvedVariables?.(e.requestId, result);
 			}));
 		}
+
+		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+		console.log('SerializedState', serializedState);
 	}
 
 	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
@@ -140,7 +146,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	}
 
 	async persistTerminalState(): Promise<void> {
-		return this._localPtyService.persistTerminalState();
+		const ids = Array.from(this._ptys.keys());
+		const serialized = await this._localPtyService.serializeTerminalState(ids);
+		console.log('Store serialized state', serialized);
+		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
@@ -204,6 +213,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			workspaceId: this._getWorkspaceId(),
 			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
+		console.log('setTerminalLayoutInfo', args);
 		await this._localPtyService.setTerminalLayoutInfo(args);
 	}
 
@@ -211,7 +221,17 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
-		return await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+		if (serializedState) {
+			try {
+				await this._localPtyService.reviveTerminalProcesses(layoutArgs, serializedState);
+			} catch {
+				// no-op
+			}
+		}
+		const i = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+		console.log('getTerminalLayoutInfo', i);
+		return i;
 	}
 
 	private _getWorkspaceId(): string {
