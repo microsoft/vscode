@@ -525,7 +525,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 					run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
 						args = sanitizeOpenSettingsArgs(args);
-						return accessor.get(IPreferencesService).openRemoteSettings(args);
+						return accessor.get(IPreferencesService).openRemoteSettings({ jsonEditor: true, ...args });
 					}
 				});
 			});
