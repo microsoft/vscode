@@ -1186,6 +1186,46 @@ export class GettingStartedPage extends EditorPane {
 		return widget;
 	}
 
+	private runStepCommand(href: string) {
+
+		const isCommand = href.startsWith('command:');
+		const toSide = href.startsWith('command:toSide:');
+		const command = href.replace(/command:(toSide:)?/, 'command:');
+
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+
+		const fullSize = this.groupsService.contentDimension;
+
+		if (toSide && fullSize.width > 700) {
+			if (this.groupsService.count === 1) {
+				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
+
+				let gettingStartedSize: number;
+				if (fullSize.width > 1600) {
+					gettingStartedSize = 800;
+				} else if (fullSize.width > 800) {
+					gettingStartedSize = 400;
+				} else {
+					gettingStartedSize = 350;
+				}
+
+				const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
+				this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+			}
+
+			const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
+			if (nonGettingStartedGroup) {
+				this.groupsService.activateGroup(nonGettingStartedGroup);
+				nonGettingStartedGroup.focus();
+			}
+		}
+		this.openerService.open(command, { allowCommands: true });
+
+		if (!isCommand && (href.startsWith('https://') || href.startsWith('http://'))) {
+			this.gettingStartedService.progressByEvent('onLink:' + href);
+		}
+	}
+
 	private buildStepMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
 		while (container.firstChild) { container.removeChild(container.firstChild); }
 
@@ -1196,47 +1236,13 @@ export class GettingStartedPage extends EditorPane {
 				const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
 
 				const isCommand = node.href.startsWith('command:');
-				const toSide = node.href.startsWith('command:toSide:');
 				const command = node.href.replace(/command:(toSide:)?/, 'command:');
 
 				button.label = node.label;
-				button.onDidClick(async e => {
+				button.onDidClick(e => {
 					e.stopPropagation();
 					e.preventDefault();
-
-					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: node.href });
-
-					const fullSize = this.groupsService.contentDimension;
-
-					if (toSide && fullSize.width > 700) {
-						if (this.groupsService.count === 1) {
-							this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
-
-							let gettingStartedSize: number;
-							if (fullSize.width > 1600) {
-								gettingStartedSize = 800;
-							} else if (fullSize.width > 800) {
-								gettingStartedSize = 400;
-							} else {
-								gettingStartedSize = 350;
-							}
-
-							const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-							this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
-						}
-
-						const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
-						if (nonGettingStartedGroup) {
-							this.groupsService.activateGroup(nonGettingStartedGroup);
-							nonGettingStartedGroup.focus();
-						}
-					}
-					this.openerService.open(command, { allowCommands: true });
-
-					if (!isCommand && (node.href.startsWith('https://') || node.href.startsWith('http://'))) {
-						this.gettingStartedService.progressByEvent('onLink:' + node.href);
-					}
-
+					this.runStepCommand(node.href);
 				}, null, this.detailsPageDisposables);
 
 				if (isCommand) {
@@ -1254,7 +1260,7 @@ export class GettingStartedPage extends EditorPane {
 					if (typeof node === 'string') {
 						append(p, renderFormattedText(node, { inline: true, renderCodeSegments: true }));
 					} else {
-						const link = this.instantiationService.createInstance(Link, node, {});
+						const link = this.instantiationService.createInstance(Link, node, { opener: (href) => this.runStepCommand(href) });
 
 						append(p, link.el);
 						this.detailsPageDisposables.add(link);

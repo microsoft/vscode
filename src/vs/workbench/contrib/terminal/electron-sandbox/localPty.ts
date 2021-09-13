@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
@@ -15,8 +15,7 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminal
  */
 export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
-	initialCwd: string | undefined = undefined;
-	cwd: string | undefined = undefined;
+
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
@@ -35,7 +34,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<TerminalProperty>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<ITerminalProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	constructor(
@@ -73,19 +72,11 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		}
 		this._localPtyService.resize(this.id, cols, rows);
 	}
-	async getInitialCwd(): Promise<string> {
-		if (!this.initialCwd) {
-			this.initialCwd = await this._localPtyService.getInitialCwd(this.id);
-		}
-		return this.initialCwd;
+	getInitialCwd(): Promise<string> {
+		return this._localPtyService.getInitialCwd(this.id);
 	}
 	async getCwd(): Promise<string> {
-		const cwd = await this._localPtyService.getCwd(this.id);
-		if (this.cwd !== cwd) {
-			this.cwd = cwd;
-			this.handleDidChangeProperty({ type: TerminalPropertyType.cwd, value: this.cwd });
-		}
-		return this.cwd;
+		return this._localPtyService.getCwd(this.id);
 	}
 	getLatency(): Promise<number> {
 		// TODO: The idea here was to add the result plus the time it took to get the latency
@@ -125,7 +116,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	handleDidChangeHasChildProcesses(e: boolean) {
 		this._onDidChangeHasChildProcesses.fire(e);
 	}
-	handleDidChangeProperty(e: TerminalProperty) {
+	handleDidChangeProperty(e: ITerminalProperty<any>) {
 		this._onDidChangeProperty.fire(e);
 	}
 

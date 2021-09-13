@@ -313,12 +313,14 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('openEditor - prefers existing side by side editor if same', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		const group = createEditorGroupModel();
 		const input1 = new TestFileEditorInput('testInput', URI.file('fake1'));
 		const input2 = new TestFileEditorInput('testInput', URI.file('fake2'));
 
-		const sideBySideInputSame = new SideBySideEditorInput(undefined, undefined, input1, input1);
-		const sideBySideInputDifferent = new SideBySideEditorInput(undefined, undefined, input1, input2);
+		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input1, input1);
+		const sideBySideInputDifferent = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input1, input2);
 
 		let res = group.openEditor(sideBySideInputSame, { pinned: true, active: true });
 		assert.strictEqual(res.editor, sideBySideInputSame);
@@ -339,10 +341,12 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('indexOf() - prefers direct matching editor over side by side matching one', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		const group = createEditorGroupModel();
 		const input1 = new TestFileEditorInput('testInput', URI.file('fake1'));
 
-		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input1, input1);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input1, input1);
 
 		group.openEditor(sideBySideInput, { pinned: true, active: true });
 		assert.strictEqual(group.indexOf(sideBySideInput), 0);
@@ -378,8 +382,8 @@ suite('EditorGroupModel', () => {
 			modified: untypedInput1
 		};
 
-		const sideBySideInputSame = new SideBySideEditorInput('name', undefined, input1, input1);
-		const sideBySideInputDifferent = new SideBySideEditorInput('name', undefined, input1, input2);
+		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, input1, input1);
+		const sideBySideInputDifferent = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, input1, input2);
 
 		const untypedSideBySideInputSame: IResourceSideBySideEditorInput = {
 			primary: untypedInput1,
@@ -487,8 +491,8 @@ suite('EditorGroupModel', () => {
 		const diffInput1 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input1, input2, undefined);
 		const diffInput2 = instantiationService.createInstance(DiffEditorInput, 'name', 'description', input2, input1, undefined);
 
-		const sideBySideInputSame = new SideBySideEditorInput('name', undefined, input1, input1);
-		const sideBySideInputDifferent = new SideBySideEditorInput('name', undefined, input1, input2);
+		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, input1, input1);
+		const sideBySideInputDifferent = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, input1, input2);
 
 		group.openEditor(input1, { pinned: true, active: true });
 

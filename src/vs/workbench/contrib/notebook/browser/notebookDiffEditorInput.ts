@@ -12,6 +12,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditorModel {
 	constructor(
@@ -52,6 +53,7 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		public readonly viewType: string,
 		@IFileService fileService: IFileService,
 		@ILabelService labelService: ILabelService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(
 			name,
@@ -60,7 +62,8 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 			modified,
 			undefined,
 			labelService,
-			fileService
+			fileService,
+			editorService
 		);
 	}
 

@@ -18,6 +18,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -44,9 +45,10 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		readonly modified: IEditorInput,
 		private readonly forceOpenAsBinary: boolean | undefined,
 		@ILabelService private readonly labelService: ILabelService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(name, description, original, modified);
+		super(name, description, original, modified, editorService);
 	}
 
 	override getName(): string {

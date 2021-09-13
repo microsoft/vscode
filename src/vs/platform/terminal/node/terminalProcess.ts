@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalProperty, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -77,6 +77,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly id = 0;
 	readonly shouldPersist = false;
 
+	private _properties: {
+		cwd: string;
+		initialCwd: string
+	};
 	private static _lastKillOrStart = 0;
 
 	private _exitCode: number | undefined;
@@ -114,7 +118,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<TerminalProperty>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<ITerminalProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
@@ -143,6 +147,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			name = 'xterm-256color';
 		}
 		this._initialCwd = cwd;
+		this._properties = {
+			cwd: this._initialCwd,
+			initialCwd: this._initialCwd
+		};
 		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
@@ -203,6 +211,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				return { message: localize('launchFail.cwdDoesNotExist', "Starting directory (cwd) \"{0}\" does not exist", this._initialCwd.toString()) };
 			}
 		}
+		this._onDidChangeProperty.fire({ type: TerminalPropertyType.InitialCwd, value: this._initialCwd });
 		return undefined;
 	}
 
@@ -494,7 +503,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					this._logService.trace('IPty#pid');
 					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 						if (!error && stdout !== '') {
-							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+							const newCwd = stdout.substring(stdout.indexOf('/'), stdout.length - 1);
+							if (this._properties.cwd !== newCwd) {
+								this._properties.cwd = newCwd;
+								this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
+								resolve(newCwd);
+							}
 						} else {
 							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
 							resolve(this._initialCwd);
@@ -510,7 +524,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			this._logService.trace('IPty#pid');
 			try {
-				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
+				const newCwd = await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
+				if (newCwd !== this._properties.cwd) {
+					this._properties.cwd = newCwd;
+					this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
+				}
+				return this._properties.cwd;
 			} catch (error) {
 				return this._initialCwd;
 			}

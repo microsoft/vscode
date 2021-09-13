@@ -22,6 +22,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -191,6 +192,23 @@ export interface IEditorPane extends IComposite {
 	 * Finds out if this editor is visible or not.
 	 */
 	isVisible(): boolean;
+}
+
+/**
+ * Try to retrieve the view state for the editor pane that
+ * has the provided editor input opened, if at all.
+ *
+ * This method will return `undefined` if the editor input
+ * is not visible in any of the opened editor panes.
+ */
+export function findViewStateForEditor(input: IEditorInput, group: GroupIdentifier, editorService: IEditorService): object | undefined {
+	for (const editorPane of editorService.visibleEditorPanes) {
+		if (editorPane.group.id === group && input.matches(editorPane.input)) {
+			return editorPane.getViewState();
+		}
+	}
+
+	return undefined;
 }
 
 /**
@@ -372,6 +390,10 @@ export function isResourceDiffEditorInput(editor: unknown): editor is IResourceD
 export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
 	if (isEditorInput(editor)) {
 		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	if (isResourceDiffEditorInput(editor)) {
+		return false; // make sure to not accidentally match on diff editors
 	}
 
 	const candidate = editor as IResourceSideBySideEditorInput | undefined;

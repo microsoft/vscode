@@ -1160,7 +1160,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
 			this._processManager.onDidChangeProperty(e => {
-				if (e.type === TerminalPropertyType.cwd || e.type === TerminalPropertyType.initialCwd) {
+				if (e.type === TerminalPropertyType.Cwd || e.type === TerminalPropertyType.InitialCwd) {
 					this._cwd = e.value;
 					this.setTitle(this.title, TitleEventSource.Api);
 				}

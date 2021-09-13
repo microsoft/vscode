@@ -80,6 +80,7 @@ suite('Workbench editor utils', () => {
 		assert.ok(!isResourceDiffEditorInput({}));
 		assert.ok(!isResourceDiffEditorInput({ resource: URI.file('/') }));
 		assert.ok(isResourceDiffEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
+		assert.ok(isResourceDiffEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') }, primary: { resource: URI.file('/') }, secondary: { resource: URI.file('/') } }));
 		assert.ok(!isResourceDiffEditorInput({ primary: { resource: URI.file('/') }, secondary: { resource: URI.file('/') } }));
 
 		assert.ok(!isResourceSideBySideEditorInput(undefined));
@@ -87,6 +88,7 @@ suite('Workbench editor utils', () => {
 		assert.ok(!isResourceSideBySideEditorInput({ resource: URI.file('/') }));
 		assert.ok(isResourceSideBySideEditorInput({ primary: { resource: URI.file('/') }, secondary: { resource: URI.file('/') } }));
 		assert.ok(!isResourceSideBySideEditorInput({ original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
+		assert.ok(!isResourceSideBySideEditorInput({ primary: { resource: URI.file('/') }, secondary: { resource: URI.file('/') }, original: { resource: URI.file('/') }, modified: { resource: URI.file('/') } }));
 	});
 
 	test('EditorInputCapabilities', () => {
@@ -110,7 +112,7 @@ suite('Workbench editor utils', () => {
 		testInput1.capabilities = EditorInputCapabilities.None;
 		testInput2.capabilities = EditorInputCapabilities.None;
 
-		const sideBySideInput = new SideBySideEditorInput('name', undefined, testInput1, testInput2);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', undefined, testInput1, testInput2);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.None), true);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), false);
 		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), false);
@@ -189,7 +191,7 @@ suite('Workbench editor utils', () => {
 		assert.ok(!EditorResourceAccessor.getOriginalUri(file, { filterByScheme: Schemas.untitled }));
 
 		const diffInput = instantiationService.createInstance(DiffEditorInput, 'name', 'description', untitled, file, undefined);
-		const sideBySideInput = new SideBySideEditorInput('name', 'description', untitled, file);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', untitled, file);
 		for (const input of [diffInput, sideBySideInput]) {
 			assert.ok(!EditorResourceAccessor.getCanonicalUri(input));
 			assert.ok(!EditorResourceAccessor.getCanonicalUri(input, { filterByScheme: Schemas.file }));
@@ -393,7 +395,7 @@ suite('Workbench editor utils', () => {
 			if (custom) {
 				await accessor.editorService.openEditor(new TestFileEditorInput(resource, 'testTypeId'), { pinned: true, override: EditorResolution.DISABLED });
 			} else if (sideBySide) {
-				await accessor.editorService.openEditor(new SideBySideEditorInput('testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorResolution.DISABLED });
+				await accessor.editorService.openEditor(instantiationService.createInstance(SideBySideEditorInput, 'testSideBySideEditor', undefined, new TestFileEditorInput(resource, 'testTypeId'), new TestFileEditorInput(resource, 'testTypeId')), { pinned: true, override: EditorResolution.DISABLED });
 			} else {
 				await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 			}
