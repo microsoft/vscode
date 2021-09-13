@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProcessProperties, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -37,6 +37,8 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 	private _inReplay = false;
 
+	private _properties: ITerminalProcessProperties;
+
 	get id(): number { return this._id; }
 
 	constructor(
@@ -48,6 +50,10 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	) {
 		super();
 		this._startBarrier = new Barrier();
+		this._properties = {
+			cwd: '',
+			initialCwd: ''
+		};
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
@@ -117,11 +123,16 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		return this._remoteTerminalChannel.setUnicodeVersion(this._id, version);
 	}
 
-	getInitialCwd(): Promise<string> {
-		return this._remoteTerminalChannel.getInitialCwd(this.id);
+	async getInitialCwd(): Promise<string> {
+		return this._properties.initialCwd;
 	}
+
 	async getCwd(): Promise<string> {
-		return this._remoteTerminalChannel.getCwd(this.id);
+		return this._properties.cwd || this._properties.initialCwd;
+	}
+
+	async refreshProperty(property: TerminalPropertyType): Promise<any> {
+		this._remoteTerminalChannel.refreshProperty(this._id, property);
 	}
 
 	handleData(e: string | IProcessDataEvent) {

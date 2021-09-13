@@ -262,6 +262,7 @@ export interface IPtyService {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	refreshProperty(id: number, property: TerminalPropertyType): Promise<any>;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -531,6 +532,7 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
+	refreshProperty(property: TerminalPropertyType): any;
 }
 
 export interface IReconnectConstants {
@@ -538,6 +540,11 @@ export interface IReconnectConstants {
 	shortGraceTime: number;
 	scrollback: number;
 	useExperimentalSerialization: boolean;
+}
+
+export interface ITerminalProcessProperties {
+	cwd: string;
+	initialCwd: string
 }
 
 export const enum LocalReconnectConstants {

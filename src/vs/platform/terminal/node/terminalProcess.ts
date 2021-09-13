@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProcessProperties, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -77,12 +77,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly id = 0;
 	readonly shouldPersist = false;
 
-	private _properties: {
-		cwd: string;
-		initialCwd: string
-	};
+	private _properties: ITerminalProcessProperties;
 	private static _lastKillOrStart = 0;
-
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
 	private _closeTimeout: any;
@@ -397,6 +393,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.input(data, true);
 	}
 
+	async refreshProperty(property: TerminalPropertyType): Promise<any> {
+		if (property === TerminalPropertyType.Cwd) {
+			return this.getCwd();
+		} else if (property === TerminalPropertyType.InitialCwd) {
+			return this.getInitialCwd();
+		}
+	}
+
 	private _startWrite(): void {
 		// Don't write if it's already queued of is there is nothing to write
 		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
@@ -486,6 +490,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	getInitialCwd(): Promise<string> {
+		this._onDidChangeProperty.fire({ type: TerminalPropertyType.InitialCwd, value: this._initialCwd });
 		return Promise.resolve(this._initialCwd);
 	}
 

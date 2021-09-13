@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -62,6 +62,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	) {
 		super();
 	}
+	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 
 	emitData(data: string): void {
 		this._onProcessData.fire(data);
@@ -154,5 +155,13 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 			this._onRequestLatency.fire();
 			this._pendingLatencyRequests.push(resolve);
 		});
+	}
+
+	async refreshProperty(property: TerminalPropertyType): Promise<any> {
+		if (property === TerminalPropertyType.Cwd) {
+			return this.getCwd();
+		} else if (property === TerminalPropertyType.InitialCwd) {
+			return this.getInitialCwd();
+		}
 	}
 }
