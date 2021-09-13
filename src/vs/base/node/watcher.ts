@@ -251,7 +251,17 @@ export async function watchFileContents(path: string, onData: (chunk: Uint8Array
 
 	let resolveFn: Function;
 	let rejectFn: Function;
-	const promise = new Promise<void>((resolve, reject) => {
+	return new Promise<void>((resolve, reject) => {
+	    cts.token.onCancellationRequested(async () => {
+		watcher.dispose();
+		await Promises.close(handle);
+
+		if (error) {
+			reject(error);
+		} else {
+			resolve();
+		}
+	});
 		resolveFn = resolve;
 		rejectFn = reject;
 	});
