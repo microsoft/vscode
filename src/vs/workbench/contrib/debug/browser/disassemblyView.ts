@@ -43,6 +43,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { URI } from 'vs/base/common/uri';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
+import { Constants } from 'vs/base/common/uint';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -296,21 +297,7 @@ export class DisassemblyView extends EditorPane {
 
 		const index = this.getIndexFromAddress(address);
 		if (index >= 0) {
-			// If the row is out of the viewport, reveal it
-			const topElement = Math.floor(this._disassembledInstructions.scrollTop / this.fontInfo.lineHeight);
-			const bottomElement = Math.floor((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
-			if (index > topElement && index < bottomElement) {
-				// Inside the viewport, don't do anything here
-			} else if (index <= topElement && index > topElement - 5) {
-				// Not too far from top, review it at the top
-				this._disassembledInstructions.reveal(index, 0);
-			} else if (index >= bottomElement && index < bottomElement + 5) {
-				// Not too far from bottom, review it at the bottom
-				this._disassembledInstructions.reveal(index, 1);
-			} else {
-				// Far from the current viewport, reveal it
-				this._disassembledInstructions.reveal(index, 0.5);
-			}
+			this._disassembledInstructions.reveal(index);
 
 			if (focus) {
 				this._disassembledInstructions.domFocus();
@@ -714,12 +701,26 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	private openSourceCode(instruction: DebugProtocol.DisassembledInstruction | undefined) {
 		if (instruction) {
 			let sourceURI = this.getUriFromSource(instruction);
+			// let range = { startLineNumber: instruction.line!, startColumn: instruction.column ?? 0, endLineNumber: undefined, endColumn: undefined };
+			// let range = { startLineNumber: instruction.line!, startColumn: instruction.column ?? 0, endLineNumber: instruction.endLine, endColumn: instruction.endColumn };
+			const selection = instruction.endLine ? {
+				startLineNumber: instruction.line!,
+				endLineNumber: instruction.endLine!,
+				startColumn: instruction.column || 1,
+				endColumn: instruction.endColumn || Constants.MAX_SAFE_SMALL_INTEGER,
+			} : {
+				startLineNumber: instruction.line!,
+				endLineNumber: instruction.line!,
+				startColumn: instruction.column || 1,
+				endColumn: instruction.endColumn || Constants.MAX_SAFE_SMALL_INTEGER,
+			};
+
 			this._disassemblyView.editorService.openEditor({
 				resource: sourceURI,
 				description: 'from disassembly',
 				options: {
 					preserveFocus: false,
-					selection: { startLineNumber: instruction.line!, startColumn: instruction.column ?? 0, endLineNumber: instruction.endLine, endColumn: instruction.endColumn },
+					selection: selection,
 					revealIfOpened: true,
 					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport,
 					pinned: false,
