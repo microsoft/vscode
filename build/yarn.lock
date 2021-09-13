@@ -999,10 +999,10 @@ ecc-jsbn@~0.1.1:
     jsbn "~0.1.0"
     safer-buffer "^2.1.0"
 
-electron-osx-sign@^0.4.16:
-  version "0.4.16"
-  resolved "https://registry.yarnpkg.com/electron-osx-sign/-/electron-osx-sign-0.4.16.tgz#0be8e579b2d9fa4c12d2a21f063898294b3434aa"
-  integrity sha512-ziMWfc3NmQlwnWLW6EaZq8nH2BWVng/atX5GWsGwhexJYpdW6hsg//MkAfRTRx1kR3Veiqkeiog1ibkbA4x0rg==
+electron-osx-sign@^0.4.17:
+  version "0.4.17"
+  resolved "https://registry.yarnpkg.com/electron-osx-sign/-/electron-osx-sign-0.4.17.tgz#2727ca0c79e1e4e5ccd3861fb3da9c3c913b006c"
+  integrity sha512-wUJPmZJQCs1zgdlQgeIpRcvrf7M5/COQaOV68Va1J/SgmWx5KL2otgg+fAae7luw6qz9R8Gvu/Qpe9tAOu/3xQ==
   dependencies:
     bluebird "^3.5.0"
     compare-version "^0.1.2"
