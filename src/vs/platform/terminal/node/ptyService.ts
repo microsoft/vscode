@@ -524,8 +524,9 @@ export class PersistentTerminalProcess extends Disposable {
 
 			// If the process was revived, trigger a replay on first start. An alternative approach
 			// could be to start it on the pty host before attaching but this fails on Windows as
-			// conpty's inherit cursor option which is required ends up sending DSR CPR which causes
-			// conhost to hang. https://github.com/microsoft/terminal/issues/11213
+			// conpty's inherit cursor option which is required, ends up sending DSR CPR which
+			// causes conhost to hang when no response is received from the terminal (which wouldn't
+			// be attached yet). https://github.com/microsoft/terminal/issues/11213
 			if (this._wasRevived) {
 				this.triggerReplay();
 			}
