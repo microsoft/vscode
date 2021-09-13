@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProcessProperties, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -30,14 +30,17 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<ITerminalProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	private _startBarrier: Barrier;
 
 	private _inReplay = false;
 
-	private _properties: ITerminalProcessProperties;
+	private _properties: IProcessPropertyMap = {
+		cwd: '',
+		initialCwd: ''
+	};
 
 	get id(): number { return this._id; }
 
@@ -50,10 +53,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	) {
 		super();
 		this._startBarrier = new Barrier();
-		this._properties = {
-			cwd: '',
-			initialCwd: ''
-		};
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
@@ -131,7 +130,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		return this._properties.cwd || this._properties.initialCwd;
 	}
 
-	async refreshProperty(property: TerminalPropertyType): Promise<any> {
+	async refreshProperty(property: ProcessPropertyType): Promise<any> {
 		this._remoteTerminalChannel.refreshProperty(this._id, property);
 	}
 
@@ -166,10 +165,10 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	handleDidChangeHasChildProcesses(e: boolean) {
 		this._onDidChangeHasChildProcesses.fire(e);
 	}
-	handleDidChangeProperty(e: ITerminalProperty<any>) {
-		if (e.type === TerminalPropertyType.Cwd) {
+	handleDidChangeProperty(e: IProcessProperty<any>) {
+		if (e.type === ProcessPropertyType.Cwd) {
 			this._properties.cwd = e.value;
-		} else if (e.type === TerminalPropertyType.InitialCwd) {
+		} else if (e.type === ProcessPropertyType.InitialCwd) {
 			this._properties.initialCwd = e.value;
 		}
 		this._onDidChangeProperty.fire(e);

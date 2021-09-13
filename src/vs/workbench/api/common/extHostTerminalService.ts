@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, ITerminalProperty, TerminalShellType, IShellLaunchConfig, TerminalPropertyType } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, IShellLaunchConfig, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -250,7 +250,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessShellTypeChanged = new Emitter<TerminalShellType>();
 	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onDidChangeProperty = new Emitter<ITerminalProperty<any>>();
+	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
 	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 
@@ -258,7 +258,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 
-	refreshProperty(property: TerminalPropertyType): Promise<any> {
+	refreshProperty(property: ProcessPropertyType): Promise<any> {
 		return Promise.resolve('');
 	}
 

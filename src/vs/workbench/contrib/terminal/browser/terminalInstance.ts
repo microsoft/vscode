@@ -46,7 +46,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, TerminalPropertyType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
@@ -1160,7 +1160,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
 			this._processManager.onDidChangeProperty(e => {
-				if (e.type === TerminalPropertyType.Cwd || e.type === TerminalPropertyType.InitialCwd) {
+				if (e.type === ProcessPropertyType.Cwd || e.type === ProcessPropertyType.InitialCwd) {
 					this._cwd = e.value;
 					this.setTitle(this.title, TitleEventSource.Api);
 				}
@@ -1960,7 +1960,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	getCwd(): Promise<string> {
-		return this._processManager.refreshProperty(TerminalPropertyType.Cwd);
+		return this._processManager.refreshProperty(ProcessPropertyType.Cwd);
 	}
 
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {
