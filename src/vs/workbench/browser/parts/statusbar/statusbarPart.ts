@@ -48,7 +48,7 @@ import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/iconLabel/ico
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 interface IStatusbarEntryPriority {
 
@@ -437,11 +437,33 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
-	private readonly hoverDelegate: IHoverDelegate = {
-		showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
-		delay: this.configurationService.getValue<number>('workbench.hover.delay'),
-		placement: 'element'
-	};
+	private readonly hoverDelegate = new class implements IHoverDelegate {
+
+		private lastHoverHideTime = 0;
+
+		readonly placement = 'element';
+
+		get delay() {
+			if (Date.now() - this.lastHoverHideTime < 200) {
+				return 0; // show instantly when a hover was recently shown
+			}
+
+			return this.configurationService.getValue<number>('workbench.hover.delay');
+		}
+
+		constructor(
+			private readonly configurationService: IConfigurationService,
+			private readonly hoverService: IHoverService
+		) { }
+
+		showHover(options: IHoverDelegateOptions): IHoverWidget | undefined {
+			return this.hoverService.showHover(options);
+		}
+
+		onDidHideHover(): void {
+			this.lastHoverHideTime = Date.now();
+		}
+	}(this.configurationService, this.hoverService);
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -839,11 +861,9 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 
 class StatusbarEntryItem extends Disposable {
 
-	readonly labelContainer: HTMLElement;
 	private readonly label: StatusBarCodiconLabel;
 
 	private entry: IStatusbarEntry | undefined = undefined;
-	get name(): string { return assertIsDefined(this.entry).name; }
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -852,6 +872,12 @@ class StatusbarEntryItem extends Disposable {
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
 
 	private readonly hover = this._register(new MutableDisposable<ICustomHover>());
+
+	readonly labelContainer: HTMLElement;
+
+	get name(): string {
+		return assertIsDefined(this.entry).name;
+	}
 
 	constructor(
 		private container: HTMLElement,
@@ -908,9 +934,14 @@ class StatusbarEntryItem extends Disposable {
 			this.labelContainer.setAttribute('role', entry.role || 'button');
 		}
 
-		// Update: Hover (on the container, because label can be disabled)
+		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			this.hover.value = setupCustomHover(this.hoverDelegate, this.labelContainer, { markdown: entry.tooltip, markdownNotSupportedFallback: undefined });
+			const hover = { markdown: entry.tooltip, markdownNotSupportedFallback: undefined };
+			if (this.hover.value) {
+				this.hover.value.update(hover);
+			} else {
+				this.hover.value = setupCustomHover(this.hoverDelegate, this.container, hover);
+			}
 		}
 
 		// Update: Command

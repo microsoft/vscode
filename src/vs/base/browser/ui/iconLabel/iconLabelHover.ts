@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverDelegate, IHoverDelegateTarget, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -35,6 +35,11 @@ export interface ICustomHover extends IDisposable {
 	 * Allows to programmatically hide the hover.
 	 */
 	hide(): void;
+
+	/**
+	 * Updates the contents of the hover.
+	 */
+	update(tooltip: string | IIconLabelMarkdownString | HTMLElement): void;
 }
 
 export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement | undefined): ICustomHover | undefined {
@@ -42,7 +47,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		return undefined;
 	}
 
-	const tooltip = getTooltipForCustom(markdownTooltip);
+	let tooltip = getTooltipForCustom(markdownTooltip);
 
 	let hoverPreparation: IDisposable | undefined;
 
@@ -57,6 +62,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			hoverPreparation?.dispose();
 			hoverPreparation = undefined;
 		}
+		hoverDelegate.onDidHideHover?.();
 	};
 
 	const showHoverDelayed = (delay: number) => {
@@ -87,26 +93,28 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		const showHover = async () => {
 			if (hoverPreparation && (hoverWidget?.isDisposed !== false)) {
 
-				const hoverOptions = {
+				const hoverOptions: IHoverDelegateOptions = {
 					content: localize('iconLabel.loading', "Loading..."),
 					target,
-					hoverPosition: HoverPosition.BELOW
+					hoverPosition: HoverPosition.BELOW,
+					skipFadeInAnimation: delay === 0
 				};
 				hoverWidget?.dispose();
 				hoverWidget = hoverDelegate.showHover(hoverOptions);
 
-				const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) && !(markdownTooltip instanceof HTMLElement) ? markdownTooltip.markdownNotSupportedFallback : undefined);
+				const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) && !(markdownTooltip instanceof HTMLElement) ? markdownTooltip?.markdownNotSupportedFallback : undefined);
 
 				hoverWidget?.dispose();
 				hoverWidget = undefined;
 
 				// awaiting the tooltip could take a while. Make sure we're still preparing to hover.
 				if (resolvedTooltip && hoverPreparation) {
-					const hoverOptions = {
+					const hoverOptions: IHoverDelegateOptions = {
 						content: resolvedTooltip,
 						target,
 						showPointer: hoverDelegate.placement === 'element',
-						hoverPosition: HoverPosition.BELOW
+						hoverPosition: HoverPosition.BELOW,
+						skipFadeInAnimation: delay === 0
 					};
 
 					hoverWidget = hoverDelegate.showHover(hoverOptions);
@@ -127,18 +135,28 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		});
 	};
 	const mouseOverDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_OVER, () => showHoverDelayed(hoverDelegate.delay), true);
-	return {
+	const hover: ICustomHover = {
 		show: () => {
 			showHoverDelayed(0); // show hover immediately
 		},
 		hide: () => {
 			hideHover(true, true);
 		},
+		update: newTooltip => {
+			markdownTooltip = newTooltip;
+			tooltip = getTooltipForCustom(newTooltip);
+
+			if (hoverWidget && !hoverWidget.isDisposed) {
+				hover.hide();
+				hover.show();
+			}
+		},
 		dispose: () => {
 			mouseOverDomEmitter.dispose();
 			hideHover(true, true);
 		}
 	};
+	return hover;
 }
 
 function getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString | HTMLElement): (token: CancellationToken) => Promise<string | IMarkdownString | HTMLElement | undefined> {
