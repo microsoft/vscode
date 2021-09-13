@@ -122,7 +122,6 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string) {
-		console.log('reviveTerminalProcesses', args, state);
 		const parsedUnknown = JSON.parse(state);
 		if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
 			this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);
@@ -134,29 +133,32 @@ export class PtyService extends Disposable implements IPtyService {
 			return;
 		}
 		const parsed = parsedCrossVersion.state as ISerializedTerminalState[];
-		console.log('parsed', parsed);
 		for (const state of parsed) {
 			const newId = await this.createProcess(
 				{
 					...state.shellLaunchConfig,
-					cwd: state.processDetails.cwd
+					cwd: state.processDetails.cwd,
+					initialText: state.replayEvent.events[0].data + '\n\rRestored! :o\n\r'
 				},
 				state.processDetails.cwd,
+				// TODO: Set correct values
 				100,
 				100,
 				'11',
 				process.env,
 				process.env,
-				false,
+				true,
 				true,
 				state.processDetails.workspaceId,
-				state.processDetails.workspaceName
+				state.processDetails.workspaceName,
+				true
 			);
+			const error = await this.start(newId);
+			if (error) {
+				this._logService.warn('Could not revive serialized processes, failed launch', error);
+				continue;
+			}
 			this._revivedPtyIdMap.set(state.id, { newId, state });
-			console.log('revived', {
-				oldId: state.id,
-				newId
-			});
 		}
 	}
 
@@ -175,7 +177,8 @@ export class PtyService extends Disposable implements IPtyService {
 		windowsEnableConpty: boolean,
 		shouldPersist: boolean,
 		workspaceId: string,
-		workspaceName: string
+		workspaceName: string,
+		isReviving?: boolean
 	): Promise<number> {
 		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
@@ -193,7 +196,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onDidChangeHasChildProcesses) {
 			process.onDidChangeHasChildProcesses(event => this._onProcessDidChangeHasChildProcesses.fire({ id, event }));
 		}
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, unicodeVersion, this._reconnectConstants, this._logService, shellLaunchConfig.icon);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -309,13 +312,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
-		console.log('setTerminalLayoutInfo', args);
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		const layout = this._workspaceLayoutInfos.get(args.workspaceId);
-		console.log('getTerminalLayoutInfo', layout);
 		this._logService.trace('ptyService#getLayoutInfo', args);
 		if (layout) {
 			const expandedTabs = await Promise.all(layout.tabs.map(async tab => this._expandTerminalTab(tab)));
@@ -418,6 +419,7 @@ export class PersistentTerminalProcess extends Disposable {
 	private _title: string | undefined;
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _serializer: ITerminalSerializer;
+	private _wasRevived: boolean;
 
 	get pid(): number { return this._pid; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._terminalProcess.shellLaunchConfig; }
@@ -447,18 +449,21 @@ export class PersistentTerminalProcess extends Disposable {
 		unicodeVersion: '6' | '11',
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
+		reviveBuffer: string | undefined,
 		private _icon?: TerminalIcon,
 		private _color?: string
 	) {
 		super();
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
+		this._wasRevived = reviveBuffer !== undefined;
 
 		if (reconnectConstants.useExperimentalSerialization) {
 			this._serializer = new XtermSerializer(
 				cols,
 				rows,
 				reconnectConstants.scrollback,
-				unicodeVersion
+				unicodeVersion,
+				reviveBuffer
 			);
 		} else {
 			this._serializer = new TerminalRecorder(cols, rows);
@@ -516,6 +521,14 @@ export class PersistentTerminalProcess extends Disposable {
 				return result;
 			}
 			this._isStarted = true;
+
+			// If the process was revived, trigger a replay on first start. An alternative approach
+			// could be to start it on the pty host before attaching but this fails on Windows as
+			// conpty's inherit cursor option which is required ends up sending DSR CPR which causes
+			// conhost to hang. https://github.com/microsoft/terminal/issues/11213
+			if (this._wasRevived) {
+				this.triggerReplay();
+			}
 		} else {
 			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
@@ -636,9 +649,13 @@ class XtermSerializer implements ITerminalSerializer {
 		cols: number,
 		rows: number,
 		scrollback: number,
-		unicodeVersion: '6' | '11'
+		unicodeVersion: '6' | '11',
+		reviveBuffer: string | undefined
 	) {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
+		if (reviveBuffer) {
+			this._xterm.writeln(reviveBuffer);
+		}
 		this.setUnicodeVersion(unicodeVersion);
 	}
 
