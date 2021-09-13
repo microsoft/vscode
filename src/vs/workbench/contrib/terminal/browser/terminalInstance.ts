@@ -1960,7 +1960,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	getCwd(): Promise<string> {
-		return this._processManager.getCwd();
+		return this._processManager.refreshProperty(TerminalPropertyType.Cwd);
 	}
 
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {

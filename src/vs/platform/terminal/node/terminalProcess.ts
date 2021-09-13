@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProcessProperties, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -77,12 +77,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly id = 0;
 	readonly shouldPersist = false;
 
-	private _properties: {
-		cwd: string;
-		initialCwd: string
-	};
+	private _properties: ITerminalProcessProperties;
 	private static _lastKillOrStart = 0;
-
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
 	private _closeTimeout: any;
@@ -397,6 +393,18 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.input(data, true);
 	}
 
+	async refreshProperty(property: TerminalPropertyType): Promise<any> {
+		if (property === TerminalPropertyType.Cwd) {
+			const newCwd = await this.getCwd();
+			if (newCwd !== this._properties.cwd || this._properties.cwd === '') {
+				this._properties.cwd = newCwd;
+				this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
+			}
+		} else if (property === TerminalPropertyType.InitialCwd) {
+			return this.getInitialCwd();
+		}
+	}
+
 	private _startWrite(): void {
 		// Don't write if it's already queued of is there is nothing to write
 		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
@@ -503,12 +511,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					this._logService.trace('IPty#pid');
 					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 						if (!error && stdout !== '') {
-							const newCwd = stdout.substring(stdout.indexOf('/'), stdout.length - 1);
-							if (this._properties.cwd !== newCwd) {
-								this._properties.cwd = newCwd;
-								this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
-								resolve(newCwd);
-							}
+							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 						} else {
 							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
 							resolve(this._initialCwd);
@@ -524,12 +527,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			this._logService.trace('IPty#pid');
 			try {
-				const newCwd = await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
-				if (newCwd !== this._properties.cwd) {
-					this._properties.cwd = newCwd;
-					this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
-				}
-				return this._properties.cwd;
+				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
 			} catch (error) {
 				return this._initialCwd;
 			}
