@@ -94,6 +94,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 		return this.configuration.os;
 	}
 
+	get crashReporterId(): string | undefined { return this.args['crash-reporter-id']; }
+	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
+
 	constructor(
 		readonly configuration: INativeWorkbenchConfiguration,
 		productService: IProductService

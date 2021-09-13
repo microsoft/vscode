@@ -47,20 +47,19 @@ const codeCachePath = getCodeCachePath();
 const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Configure crash reporter
-perf.mark('code/willStartCrashReporter');
 // If a crash-reporter-directory is specified we store the crash reports
 // in the specified directory and don't upload them to the crash server.
 //
 // Appcenter crash reporting is enabled if
 // * enable-crash-reporter runtime argument is set to 'true'
 // * --disable-crash-reporter command line parameter is not set
+// * insiders quality is used
+// * the crash reporter ID ends with a 0
 //
 // Disable crash reporting in all other cases.
-if (args['crash-reporter-directory'] ||
-	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+if (args['crash-reporter-directory'] || (argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
 	configureCrashReporter();
 }
-perf.mark('code/didStartCrashReporter');
 
 // Set logs path before app 'ready' event if running portable
 // to ensure that no 'logs' folder is created on disk at a
@@ -312,9 +311,11 @@ function getArgvConfigPath() {
 }
 
 function configureCrashReporter() {
-
-	let crashReporterDirectory = args['crash-reporter-directory'];
+	let enableCrashReporter = false;
 	let submitURL = '';
+
+	// Always enable crash reporter for a dedicated directory if specified
+	let crashReporterDirectory = args['crash-reporter-directory'];
 	if (crashReporterDirectory) {
 		crashReporterDirectory = path.normalize(crashReporterDirectory);
 
@@ -336,19 +337,24 @@ function configureCrashReporter() {
 		// need to change that directory to the provided one
 		console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
 		app.setPath('crashDumps', crashReporterDirectory);
+
+		enableCrashReporter = true;
 	}
 
-	// Otherwise we configure the crash reporter from product.json
+	// Otherwise we configure the crash reporter from product.json if enabled
 	else {
 		const appCenter = product.appCenter;
-		if (appCenter) {
-			const isWindows = (process.platform === 'win32');
-			const isLinux = (process.platform === 'linux');
-			const isDarwin = (process.platform === 'darwin');
-			const crashReporterId = argvConfig['crash-reporter-id'];
-			const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-			if (uuidPattern.test(crashReporterId)) {
-				if (isWindows) {
+		const crashReporterId = argvConfig['crash-reporter-id'];
+		const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+		if (
+			appCenter &&							// only when appCenter is configured
+			product.quality === 'insider' &&		// only for insiders
+			typeof crashReporterId === 'string' &&	// only if we have a crash reporter ID
+			uuidPattern.test(crashReporterId) &&	// only if the crash reporter ID is valid
+			crashReporterId.endsWith('0')			// only if the crash reporter ID ends with `0`
+		) {
+			switch (process.platform) {
+				case 'win32':
 					switch (process.arch) {
 						case 'ia32':
 							submitURL = appCenter['win32-ia32'];
@@ -360,7 +366,8 @@ function configureCrashReporter() {
 							submitURL = appCenter['win32-arm64'];
 							break;
 					}
-				} else if (isDarwin) {
+					break;
+				case 'darwin':
 					if (product.darwinUniversalAssetId) {
 						submitURL = appCenter['darwin-universal'];
 					} else {
@@ -373,30 +380,40 @@ function configureCrashReporter() {
 								break;
 						}
 					}
-				} else if (isLinux) {
+					break;
+				case 'linux':
 					submitURL = appCenter['linux-x64'];
-				}
-				submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
-				// Send the id for child node process that are explicitly starting crash reporter.
-				// For vscode this is ExtensionHost process currently.
-				const argv = process.argv;
-				const endOfArgsMarkerIndex = argv.indexOf('--');
-				if (endOfArgsMarkerIndex === -1) {
-					argv.push('--crash-reporter-id', crashReporterId);
-				} else {
-					// if the we have an argument "--" (end of argument marker)
-					// we cannot add arguments at the end. rather, we add
-					// arguments before the "--" marker.
-					argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
-				}
+					break;
 			}
+
+			submitURL = `${submitURL}&uid=${crashReporterId}&iid=${crashReporterId}&sid=${crashReporterId}`;
+
+			// Send the id for child node process that are explicitly starting crash reporter.
+			// For vscode this is ExtensionHost process currently.
+			const argv = process.argv;
+			const endOfArgsMarkerIndex = argv.indexOf('--');
+			if (endOfArgsMarkerIndex === -1) {
+				argv.push('--crash-reporter-id', crashReporterId);
+			} else {
+				// if the we have an argument "--" (end of argument marker)
+				// we cannot add arguments at the end. rather, we add
+				// arguments before the "--" marker.
+				argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
+			}
+
+			enableCrashReporter = true;
 		}
 	}
 
-	// Start crash reporter for all processes
-	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
-	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
+	if (!enableCrashReporter) {
+		return; // crash reporter is not enabled
+	}
+
+	const productName = product.crashReporter?.productName || product.nameShort;
+	const companyName = product.crashReporter?.companyName || 'Microsoft';
 	const uploadToServer = !process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory;
+
+	perf.mark('code/willStartCrashReporter');
 	crashReporter.start({
 		companyName,
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
@@ -404,6 +421,7 @@ function configureCrashReporter() {
 		uploadToServer,
 		compress: true
 	});
+	perf.mark('code/didStartCrashReporter');
 }
 
 /**
