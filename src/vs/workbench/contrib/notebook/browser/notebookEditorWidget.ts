@@ -2804,7 +2804,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const containerBorder = theme.getColor(notebookOutputContainerBorderColor);
 	if (containerBorder) {
-		collector.addRule(`.notebookOverlay .output-element { border: 1px solid transparent; border-color: ${containerBorder} !important; }`);
+		collector.addRule(`.notebookOverlay .output-element { border-top: none !important; border: 1px solid transparent; border-color: ${containerBorder} !important; }`);
 	}
 
 	const notebookBackground = theme.getColor(editorBackground);
