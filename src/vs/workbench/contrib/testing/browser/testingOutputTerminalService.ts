@@ -225,7 +225,7 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	}
 
 	refreshProperty(property: TerminalPropertyType) {
-		return undefined;
+		return Promise.resolve('');
 	}
 	//#endregion
 }
