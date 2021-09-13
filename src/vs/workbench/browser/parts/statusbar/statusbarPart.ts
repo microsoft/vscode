@@ -31,28 +31,8 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { CONTEXT_STATUS_BAR_FOCUSED, HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
-import { IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
+import { IStatusbarEntryPriority, IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
-
-interface IStatusbarEntryPriority {
-
-	/**
-	 * The main priority of the entry that
-	 * defines the order of appearance.
-	 *
-	 * May not be unique across all entries.
-	 */
-	readonly primary: number;
-
-	/**
-	 * The secondary priority of the entry
-	 * is used in case the main priority
-	 * matches another one's priority.
-	 *
-	 * Should be unique across all entries.
-	 */
-	readonly secondary: number;
-}
 
 interface IPendingStatusbarEntry {
 	readonly id: string;
@@ -160,9 +140,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
 		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry, this.hoverDelegate);
 
-		// Append to parent
-		this.appendOneStatusbarEntry(itemContainer, alignment, priority);
-
 		// Add to view model
 		const viewModelEntry: IStatusbarViewModelEntry = new class implements IStatusbarViewModelEntry {
 			readonly id = id;
@@ -174,6 +151,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			get name() { return item.name; }
 		};
 		const viewModelEntryDispose = this.viewModel.add(viewModelEntry);
+
+		// Append to parent
+		this.appendOneStatusbarEntry(viewModelEntry);
 
 		return {
 			update: entry => {
@@ -276,43 +256,20 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 	}
 
-	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): void {
-		const entries = this.viewModel.getEntries(alignment);
+	private appendOneStatusbarEntry(entry: IStatusbarViewModelEntry): void {
+		const entries = this.viewModel.getEntries(entry.alignment);
 
-		if (alignment === StatusbarAlignment.RIGHT) {
+		if (entry.alignment === StatusbarAlignment.RIGHT) {
 			entries.reverse(); // reversing due to flex: row-reverse
 		}
 
-		const target = assertIsDefined(alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
+		const target = assertIsDefined(entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
-		// find an entry that has lower priority than the new one
-		// and then insert the item before that one
-		let appended = false;
-		for (const entry of entries) {
-
-			// pick a priority that ideally is not the same
-			// by falling back to secondary priority
-			let existingEntryPriority = entry.priority.primary;
-			let newEntryPriority = priority.primary;
-			if (existingEntryPriority === newEntryPriority) {
-				existingEntryPriority = entry.priority.secondary;
-				newEntryPriority = priority.secondary;
-			}
-
-			// insert according to priority
-			if (
-				alignment === StatusbarAlignment.LEFT && existingEntryPriority < newEntryPriority ||
-				alignment === StatusbarAlignment.RIGHT && existingEntryPriority > newEntryPriority // reversing due to flex: row-reverse
-			) {
-				target.insertBefore(itemContainer, entry.container);
-				appended = true;
-				break;
-			}
-		}
-
-		// Fallback to just appending otherwise
-		if (!appended) {
-			target.appendChild(itemContainer);
+		const index = entries.indexOf(entry);
+		if (index + 1 === entries.length) {
+			target.appendChild(entry.container); // append at the end if last
+		} else {
+			target.insertBefore(entry.container, entries[index + 1].container); // insert before next element otherwise
 		}
 	}
 

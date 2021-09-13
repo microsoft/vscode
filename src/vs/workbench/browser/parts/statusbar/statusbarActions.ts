@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { Action } from 'vs/base/common/actions';
@@ -16,6 +15,8 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false, localize('statusBarFocused', "Whether the status bar has keyboard focus"));
 
 export class ToggleStatusbarEntryVisibilityAction extends Action {
 
@@ -44,8 +45,6 @@ export class HideStatusbarEntryAction extends Action {
 		this.model.hide(this.id);
 	}
 }
-
-export const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false, localize('statusBarFocused', "Whether the status bar has keyboard focus"));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.statusBar.focusPrevious',

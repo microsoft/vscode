@@ -9,7 +9,7 @@ import { hide, show, isAncestor } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
 
-interface IStatusbarEntryPriority {
+export interface IStatusbarEntryPriority {
 
 	/**
 	 * The main priority of the entry that
@@ -40,7 +40,7 @@ export interface IStatusbarViewModelEntry {
 
 export class StatusbarViewModel extends Disposable {
 
-	static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
+	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
 
 	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
@@ -186,9 +186,11 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	isEntryFocused(): boolean {
-		const focused = this._entries.find(entry => isAncestor(document.activeElement, entry.container));
+		return !!this.getFocusedEntry();
+	}
 
-		return !!focused;
+	private getFocusedEntry(): IStatusbarViewModelEntry | undefined {
+		return this._entries.find(entry => isAncestor(document.activeElement, entry.container));
 	}
 
 	private focusEntry(delta: number, restartPosition: number): void {
@@ -204,7 +206,7 @@ export class StatusbarViewModel extends Disposable {
 			return entry;
 		};
 
-		const focused = this._entries.find(entry => isAncestor(document.activeElement, entry.container));
+		const focused = this.getFocusedEntry();
 		if (focused) {
 			const entry = getVisibleEntry(this._entries.indexOf(focused) + delta);
 			if (entry) {
