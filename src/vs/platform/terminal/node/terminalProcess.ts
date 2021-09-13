@@ -395,7 +395,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	async refreshProperty(property: TerminalPropertyType): Promise<any> {
 		if (property === TerminalPropertyType.Cwd) {
-			return this.getCwd();
+			const newCwd = await this.getCwd();
+			if (newCwd !== this._properties.cwd || this._properties.cwd === '') {
+				this._properties.cwd = newCwd;
+				this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
+			}
 		} else if (property === TerminalPropertyType.InitialCwd) {
 			return this.getInitialCwd();
 		}
@@ -490,7 +494,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	getInitialCwd(): Promise<string> {
-		this._onDidChangeProperty.fire({ type: TerminalPropertyType.InitialCwd, value: this._initialCwd });
 		return Promise.resolve(this._initialCwd);
 	}
 
@@ -508,12 +511,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					this._logService.trace('IPty#pid');
 					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 						if (!error && stdout !== '') {
-							const newCwd = stdout.substring(stdout.indexOf('/'), stdout.length - 1);
-							if (this._properties.cwd !== newCwd) {
-								this._properties.cwd = newCwd;
-								this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
-								resolve(newCwd);
-							}
+							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 						} else {
 							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
 							resolve(this._initialCwd);
@@ -529,12 +527,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			this._logService.trace('IPty#pid');
 			try {
-				const newCwd = await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
-				if (newCwd !== this._properties.cwd) {
-					this._properties.cwd = newCwd;
-					this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
-				}
-				return this._properties.cwd;
+				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
 			} catch (error) {
 				return this._initialCwd;
 			}
