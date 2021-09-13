@@ -8,7 +8,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isMacintosh, platform } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
@@ -83,8 +83,12 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		if (!this._targetPlatformPromise) {
 			this._targetPlatformPromise = (async () => {
 				let targetPlatform = getTargetPlatform(platform, arch);
-				if (targetPlatform === TargetPlatform.LINUX_X64 && await this.isAlpineLinux()) {
-					targetPlatform = TargetPlatform.ALPINE_X64;
+				if (isLinux && await this.isAlpineLinux()) {
+					if (targetPlatform === TargetPlatform.LINUX_X64) {
+						targetPlatform = TargetPlatform.ALPINE_X64;
+					} else {
+						targetPlatform = TargetPlatform.UNKNOWN;
+					}
 				}
 				this.logService.debug('ExtensionManagementService#TargetPlatform:', targetPlatform);
 				return targetPlatform;
