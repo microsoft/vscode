@@ -400,15 +400,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.input(data, true);
 	}
 
-	async refreshProperty(property: ProcessPropertyType): Promise<any> {
-		if (property === ProcessPropertyType.Cwd) {
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		if (type === ProcessPropertyType.Cwd) {
 			const newCwd = await this.getCwd();
 			if (newCwd !== this._properties.cwd) {
 				this._properties.cwd = newCwd;
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
 			}
 			return newCwd;
-		} else if (property === ProcessPropertyType.InitialCwd) {
+		} else {
 			return this.getInitialCwd();
 		}
 	}

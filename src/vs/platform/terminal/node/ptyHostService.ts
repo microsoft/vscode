@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
@@ -269,7 +269,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
-	async refreshProperty(id: number, property: ProcessPropertyType): Promise<any> {
+	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._proxy.refreshProperty(id, property);
 	}
 

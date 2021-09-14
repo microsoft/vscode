@@ -46,7 +46,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
@@ -2007,7 +2007,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return await this._processManager.getInitialCwd();
 	}
 
-	async refreshProperty(type: ProcessPropertyType): Promise<any> {
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._processManager.refreshProperty(type);
 	}
 

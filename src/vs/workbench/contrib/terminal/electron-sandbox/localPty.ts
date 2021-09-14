@@ -83,8 +83,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	async getCwd(): Promise<string> {
 		return this._properties.cwd || this._properties.initialCwd;
 	}
-	async refreshProperty(property: ProcessPropertyType): Promise<any> {
-		this._localPtyService.refreshProperty(this.id, property);
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		return this._localPtyService.refreshProperty(this.id, type);
 	}
 	getLatency(): Promise<number> {
 		// TODO: The idea here was to add the result plus the time it took to get the latency
