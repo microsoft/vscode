@@ -1641,6 +1641,7 @@ class InnerMinimap extends Disposable {
 		if (!lineIndexToXOffset) {
 			const lineData = this._model.getLineContent(lineNumber);
 			lineIndexToXOffset = [MINIMAP_GUTTER_WIDTH];
+			let prevx = MINIMAP_GUTTER_WIDTH;
 			for (let i = 1; i < lineData.length + 1; i++) {
 				const charCode = lineData.charCodeAt(i - 1);
 				const dx = charCode === CharCode.Tab
@@ -1649,13 +1650,25 @@ class InnerMinimap extends Disposable {
 						? 2 * charWidth
 						: charWidth;
 
-				lineIndexToXOffset[i] = lineIndexToXOffset[i - 1] + dx;
+				const x = prevx + dx;
+				if (x >= canvasInnerWidth) {
+					// no need to keep on going, as we've hit the canvas width
+					lineIndexToXOffset[i] = canvasInnerWidth;
+					break;
+				}
+
+				lineIndexToXOffset[i] = x;
+				prevx = x;
 			}
 
 			lineOffsetMap.set(lineNumber, lineIndexToXOffset);
 		}
 
-		return lineIndexToXOffset[column - 1];
+		if (column - 1 < lineIndexToXOffset.length) {
+			return lineIndexToXOffset[column - 1];
+		}
+		// goes over the canvas width
+		return canvasInnerWidth;
 	}
 
 	private renderDecoration(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, x: number, y: number, width: number, height: number) {
