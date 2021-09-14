@@ -76,7 +76,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGet
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
-import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+// import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/statusBarProviders';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/contributedStatusBarItemController';

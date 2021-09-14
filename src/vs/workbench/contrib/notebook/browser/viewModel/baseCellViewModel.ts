@@ -289,7 +289,7 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _restoreViewState(state: editorCommon.ICodeEditorViewState | null): void {
 		if (state) {
-			this._textEditor?.restoreViewState(state);
+			// this._textEditor?.restoreViewState(state);
 		}
 	}
 

@@ -29,6 +29,7 @@ interface IItem<T> {
 	readonly templateId: string;
 	row: IRow | null;
 	size: number;
+	initTop: number | null;
 	width: number | undefined;
 	hasDynamicHeight: boolean;
 	lastDynamicHeightWidth: number | undefined;
@@ -321,6 +322,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
+		this.rowsContainer.style.top = '0px';
 
 		const transformOptimization = getOrDefault(options, o => o.transformOptimization, DefaultOptions.transformOptimization);
 		if (transformOptimization) {
@@ -499,6 +501,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			hasDynamicHeight: !!this.virtualDelegate.hasDynamicHeight && this.virtualDelegate.hasDynamicHeight(element),
 			lastDynamicHeightWidth: undefined,
 			row: null,
+			initTop: null,
 			uri: undefined,
 			dropTarget: false,
 			dragStartDisposable: Disposable.None
@@ -746,7 +749,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.rowsContainer.style.left = `-${renderLeft}px`;
 		}
 
-		this.rowsContainer.style.top = `-${renderTop}px`;
+		this.rowsContainer.style.transform = `translate3d(0px, -${renderTop}px, 0px)`;
 
 		if (this.horizontalScrolling && scrollWidth !== undefined) {
 			this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;
@@ -828,7 +831,15 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
-		item.row!.domNode.style.top = `${this.elementTop(index)}px`;
+		// if (item.initTop === null) {
+		// 	const initTop = this.elementTop(index);
+		// 	item.initTop = initTop;
+		// 	item.row!.domNode.style.top = `${initTop}px`;
+		// } else {
+		// const initTop = item.initTop;
+		const newTop = this.elementTop(index);
+		item.row!.domNode.style.transform = `translateY(${newTop}px)`;
+		// }
 
 		if (this.setRowHeight) {
 			item.row!.domNode.style.height = `${item.size}px`;
@@ -852,6 +863,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const item = this.items[index];
 		item.dragStartDisposable.dispose();
 
+		item.initTop = null;
 		if (item.row) {
 			const renderer = this.renderers.get(item.templateId);
 

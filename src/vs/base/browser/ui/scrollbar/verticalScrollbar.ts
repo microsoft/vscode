@@ -71,7 +71,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
 		this.slider.setHeight(sliderSize);
-		this.slider.setTop(sliderPosition);
+		// this.slider.setTop(sliderPosition);
+		this.slider.domNode.style.transform = `translateY(${sliderPosition}px)`;
 	}
 
 	protected _renderDomNode(largeSize: number, smallSize: number): void {

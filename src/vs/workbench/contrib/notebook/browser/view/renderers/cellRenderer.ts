@@ -444,7 +444,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
 		const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight, this.notebookEditor.textModel?.viewType);
-		templateData.focusIndicatorBottom.style.top = `${indicatorPostion.bottomIndicatorTop}px`;
+		templateData.focusIndicatorBottom.style.transform = `translateY(${indicatorPostion.bottomIndicatorTop}px)`;
 		templateData.focusIndicatorLeft.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
 
@@ -944,7 +944,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		disposables.add(DOM.scheduleAtNextAnimationFrame(() => {
 			templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 			templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
-			templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px`;
+			templateData.focusIndicatorBottom.style.transform = `translateY(${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px)`;
 			templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
 			templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
 			templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap}px`;
