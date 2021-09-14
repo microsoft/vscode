@@ -30,18 +30,17 @@ export class VersionStatus extends Disposable {
 		]));
 
 		this._statusItem.name = localize('versionStatus.name', "TypeScript Version");
-
-		this._statusItem.command = {
-			command: SelectTypeScriptVersionCommand.id,
-			title: localize('versionStatus.command', "Select"),
-		};
+		this._statusItem.detail = localize('versionStatus.detail', "TypeScript Version");
 
 		this._register(this._client.onTsServerStarted(({ version }) => this.onDidChangeTypeScriptVersion(version)));
 	}
 
 	private onDidChangeTypeScriptVersion(version: TypeScriptVersion) {
-		this._statusItem.text = localize('versionStatus.text', "TypeScript Version: {0}", version.displayName);
-		this._statusItem.command!.tooltip = version.path;
+		this._statusItem.text = version.displayName;
+		this._statusItem.command = {
+			command: SelectTypeScriptVersionCommand.id,
+			title: localize('versionStatus.command', "Select Version"),
+			tooltip: version.path
+		};
 	}
 }
-

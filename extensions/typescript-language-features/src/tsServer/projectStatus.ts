@@ -65,6 +65,8 @@ export class ProjectStatus extends Disposable {
 			languageModeIds.typescript,
 			languageModeIds.typescriptreact,
 		]));
+		this._statusItem.name = localize('statusItem.name', "Project config");
+		this._statusItem.text = 'TSConfig';
 
 		commandManager.register({
 			id: this.openOpenConfigCommandId,
@@ -99,7 +101,7 @@ export class ProjectStatus extends Disposable {
 		}
 
 		const doc = editor.document;
-		if (languageModeIds.isTypeScriptDocument(doc)) {
+		if (languageModeIds.isSupportedLanguageMode(doc)) {
 			const file = this._client.toOpenedFilePath(doc, { suppressAlertOnFailure: true });
 			if (file) {
 				if (!this._ready) {
@@ -141,24 +143,20 @@ export class ProjectStatus extends Disposable {
 
 		if (this._state.type === ProjectInfoState.Type.Resolved) {
 			if (isImplicitProjectConfigFile(this._state.configFile)) {
-				this._statusItem.text = localize('create.text', "This file is currently not part of a tsconfig/jsconfig project");
-				this._statusItem.detail = '';
+				this._statusItem.detail = localize('item.noTsConfig.detail', "None");
 				this._statusItem.command = {
 					command: this.createConfigCommandId,
 					title: localize('create.command', "Create tsconfig"),
-					tooltip: localize('create.command', "Create tsconfig"),
 					arguments: [rootPath],
 				};
 				return;
 			}
 		}
 
-		this._statusItem.text = localize('open.text', "Project config");
 		this._statusItem.detail = this._state.type === ProjectInfoState.Type.Resolved ? vscode.workspace.asRelativePath(this._state.configFile) : '';
 		this._statusItem.command = {
 			command: this.openOpenConfigCommandId,
-			title: localize('open.command', "Open tsconfig"),
-			tooltip: localize('open.command', "Open tsconfig"),
+			title: localize('item.command', "Open config file"),
 			arguments: [rootPath],
 		};
 	}
