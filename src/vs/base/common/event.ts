@@ -736,7 +736,7 @@ export class DebounceEmitter<T> extends PauseableEmitter<T> {
  * An emitter which queue all events and then process them at the
  * end of the event loop.
  */
-export class MicroTaskEmitter<T> extends Emitter<T> {
+export class MicrotaskEmitter<T> extends Emitter<T> {
 	private _queuedEvents: T[] = [];
 	constructor(options?: EmitterOptions) {
 		super(options);
