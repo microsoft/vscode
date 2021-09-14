@@ -239,7 +239,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(configurationService.onDidChangeRestrictedSettings(e => {
-			if (e.default.length) {
+			if (e.default.length && this.currentSettingsModel) {
 				this.updateElementsByKey([...e.default]);
 			}
 		}));

@@ -180,47 +180,83 @@ export class TelemetryService implements ITelemetryService {
 		return this.publicLogError(eventName, data as ITelemetryData);
 	}
 
-	private _cleanupInfo(stack: string, anonymizeFilePaths?: boolean): string {
+	private _anonymizeFilePaths(stack: string): string {
 		let updatedStack = stack;
 
-		if (anonymizeFilePaths) {
-			const cleanUpIndexes: [number, number][] = [];
-			for (let regexp of this._cleanupPatterns) {
-				while (true) {
-					const result = regexp.exec(stack);
-					if (!result) {
-						break;
-					}
-					cleanUpIndexes.push([result.index, regexp.lastIndex]);
-				}
-			}
-
-			const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
-			const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
-			let lastIndex = 0;
-			updatedStack = '';
-
+		const cleanUpIndexes: [number, number][] = [];
+		for (let regexp of this._cleanupPatterns) {
 			while (true) {
-				const result = fileRegex.exec(stack);
+				const result = regexp.exec(stack);
 				if (!result) {
 					break;
 				}
-				// Anoynimize user file paths that do not need to be retained or cleaned up.
-				if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
-					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
-					lastIndex = fileRegex.lastIndex;
-				}
+				cleanUpIndexes.push([result.index, regexp.lastIndex]);
 			}
-			if (lastIndex < stack.length) {
-				updatedStack += stack.substr(lastIndex);
+		}
+
+		const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
+		const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+		let lastIndex = 0;
+		updatedStack = '';
+
+		while (true) {
+			const result = fileRegex.exec(stack);
+			if (!result) {
+				break;
 			}
+			// Anoynimize user file paths that do not need to be retained or cleaned up.
+			if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
+				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+				lastIndex = fileRegex.lastIndex;
+			}
+		}
+		if (lastIndex < stack.length) {
+			updatedStack += stack.substr(lastIndex);
+		}
+
+		return updatedStack;
+	}
+
+	private _removePropertiesWithPossibleUserInfo(property: string): string {
+		// If for some reason it is undefined we skip it (this shouldn't be possible);
+		if (!property) {
+			return property;
+		}
+
+		const value = property.toLowerCase();
+
+		// Regex which matches @*.site
+		const emailRegex = /@[a-zA-Z0-9-.]+/;
+		const secretRegex = /\S*(key|token|sig|password|passwd|pwd)[="':\s]+\S*/;
+
+		// Check for common user data in the telemetry events
+		if (secretRegex.test(value)) {
+			return '<REDACTED: secret>';
+		} else if (emailRegex.test(value)) {
+			return '<REDACTED: email>';
+		}
+
+		return property;
+	}
+
+
+	private _cleanupInfo(property: string, anonymizeFilePaths?: boolean): string {
+		let updatedProperty = property;
+
+		// anonymize file paths
+		if (anonymizeFilePaths) {
+			updatedProperty = this._anonymizeFilePaths(updatedProperty);
 		}
 
 		// sanitize with configured cleanup patterns
 		for (let regexp of this._cleanupPatterns) {
-			updatedStack = updatedStack.replace(regexp, '');
+			updatedProperty = updatedProperty.replace(regexp, '');
 		}
-		return updatedStack;
+
+		// remove possible user info
+		updatedProperty = this._removePropertiesWithPossibleUserInfo(updatedProperty);
+
+		return updatedProperty;
 	}
 }
 

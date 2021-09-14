@@ -82,14 +82,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	getTargetPlatform(): Promise<TargetPlatform> {
 		if (!this._targetPlatformPromise) {
 			this._targetPlatformPromise = (async () => {
-				let targetPlatform = getTargetPlatform(platform, arch);
-				if (isLinux && await this.isAlpineLinux()) {
-					if (targetPlatform === TargetPlatform.LINUX_X64) {
-						targetPlatform = TargetPlatform.ALPINE_X64;
-					} else {
-						targetPlatform = TargetPlatform.UNKNOWN;
-					}
-				}
+				const isAlpineLinux = await this.isAlpineLinux();
+				const targetPlatform = getTargetPlatform(isAlpineLinux ? 'alpine' : platform, arch);
 				this.logService.debug('ExtensionManagementService#TargetPlatform:', targetPlatform);
 				return targetPlatform;
 			})();
@@ -98,6 +92,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	private async isAlpineLinux(): Promise<boolean> {
+		if (!isLinux) {
+			return false;
+		}
 		let content: string | undefined;
 		try {
 			const fileContent = await this.fileService.readFile(URI.file('/etc/os-release'));
