@@ -580,44 +580,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 					}
 
 					const cellOutput = viewModel.ensureOutputCell(data.cellId, data.cellTop);
-					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left).element;
+					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
 
-					const content = data.content;
-					if (content.type === RenderOutputType.Html) {
-						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
-						outputNode.innerHTML = trustedHtml as string;
-						domEval(outputNode);
-					} else if (preloadsAndErrors.some(e => e instanceof Error)) {
-						const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
-						showPreloadErrors(outputNode, ...errors);
-					} else {
-						const rendererApi = preloadsAndErrors[0] as RendererApi;
-						try {
-							rendererApi.renderOutputItem(new OutputItem(outputId, outputNode, content.mimeType, content.metadata, content.valueBytes), outputNode);
-						} catch (e) {
-							showPreloadErrors(outputNode, e);
-						}
-					}
-
-					resizeObserver.observe(outputNode, outputId, true);
-
-					const offsetHeight = outputNode.offsetHeight;
-					const cps = document.defaultView!.getComputedStyle(outputNode);
-					if (offsetHeight !== 0 && cps.padding === '0px') {
-						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
-						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.updateHeight(outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
-							isOutput: true,
-							init: true,
-						});
-
-						outputNode.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
-					} else {
-						dimensionUpdater.updateHeight(outputId, outputNode.offsetHeight, {
-							isOutput: true,
-							init: true,
-						});
-					}
+					outputNode.render(data.content, preloadsAndErrors);
 
 					// don't hide until after this step so that the height is right
 					cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
@@ -1406,7 +1371,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public readonly element: HTMLElement;
 
-		constructor(outputId: string, left: number) {
+		constructor(
+			private readonly outputId: string,
+			left: number,
+		) {
 			this.element = document.createElement('div');
 			this.element.id = outputId;
 			this.element.classList.add('output');
@@ -1417,6 +1385,44 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			addMouseoverListeners(this.element, outputId);
 			addOutputFocusTracker(this.element, outputId);
+		}
+
+		public render(content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[]) {
+			if (content.type === RenderOutputType.Html) {
+				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
+				this.element.innerHTML = trustedHtml as string;
+				domEval(this.element);
+			} else if (preloadsAndErrors.some(e => e instanceof Error)) {
+				const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
+				showPreloadErrors(this.element, ...errors);
+			} else {
+				const rendererApi = preloadsAndErrors[0] as RendererApi;
+				try {
+					rendererApi.renderOutputItem(new OutputItem(this.outputId, this.element, content.mimeType, content.metadata, content.valueBytes), this.element);
+				} catch (e) {
+					showPreloadErrors(this.element, e);
+				}
+			}
+
+			resizeObserver.observe(this.element, this.outputId, true);
+
+			const offsetHeight = this.element.offsetHeight;
+			const cps = document.defaultView!.getComputedStyle(this.element);
+			if (offsetHeight !== 0 && cps.padding === '0px') {
+				// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
+				// thus we need to ensure the padding is accounted when updating the init height of the output
+				dimensionUpdater.updateHeight(this.outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
+					isOutput: true,
+					init: true,
+				});
+
+				this.element.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
+			} else {
+				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
+					isOutput: true,
+					init: true,
+				});
+			}
 		}
 	}
 
