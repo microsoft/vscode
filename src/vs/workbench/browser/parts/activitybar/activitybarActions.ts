@@ -390,6 +390,25 @@ registerAction2(
 	}
 );
 
+registerAction2(
+	class FocusActivityBarAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.focusActivityBar',
+				title: { value: localize('focusActivityBar', "Focus Activity Bar"), original: 'Focus Activity Bar' },
+				category: CATEGORIES.View,
+				f1: true
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const activityBarService = accessor.get(IActivityBarService);
+			const layoutService = accessor.get(IWorkbenchLayoutService);
+			layoutService.setActivityBarHidden(false);
+			activityBarService.focusActivityBar();
+		}
+	});
+
 registerThemingParticipant((theme, collector) => {
 	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activityBarForegroundColor) {

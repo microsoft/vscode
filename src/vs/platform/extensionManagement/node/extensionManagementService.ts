@@ -8,7 +8,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isMacintosh, platform } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
@@ -82,10 +82,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	getTargetPlatform(): Promise<TargetPlatform> {
 		if (!this._targetPlatformPromise) {
 			this._targetPlatformPromise = (async () => {
-				let targetPlatform = getTargetPlatform(platform, arch);
-				if (targetPlatform === TargetPlatform.LINUX_X64 && await this.isAlpineLinux()) {
-					targetPlatform = TargetPlatform.ALPINE;
-				}
+				const isAlpineLinux = await this.isAlpineLinux();
+				const targetPlatform = getTargetPlatform(isAlpineLinux ? 'alpine' : platform, arch);
 				this.logService.debug('ExtensionManagementService#TargetPlatform:', targetPlatform);
 				return targetPlatform;
 			})();
@@ -94,6 +92,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	private async isAlpineLinux(): Promise<boolean> {
+		if (!isLinux) {
+			return false;
+		}
 		let content: string | undefined;
 		try {
 			const fileContent = await this.fileService.readFile(URI.file('/etc/os-release'));

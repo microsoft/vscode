@@ -23,6 +23,8 @@ import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);
@@ -31,6 +33,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -48,13 +51,20 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Settings Sync"), this.environmentService.userDataSyncLogResource);
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
 
-		const registerTelemetryChannel = (level: LogLevel) => {
-			if (level === LogLevel.Trace && !Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels).getChannel(Constants.telemetryLogChannelId)) {
+		const registerTelemetryChannel = () => {
+			if (getTelemetryLevel(this.productService, this.environmentService) >= TelemetryLevel.LOG && this.logService.getLevel() === LogLevel.Trace) {
 				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), this.environmentService.telemetryLogResource);
+				return true;
 			}
+			return false;
 		};
-		registerTelemetryChannel(this.logService.getLevel());
-		this.logService.onDidChangeLogLevel(registerTelemetryChannel);
+		if (!registerTelemetryChannel()) {
+			const disposable = this.logService.onDidChangeLogLevel(() => {
+				if (registerTelemetryChannel()) {
+					disposable.dispose();
+				}
+			});
+		}
 
 		registerAction2(class ShowWindowLogAction extends Action2 {
 			constructor() {
@@ -90,9 +100,11 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
 		/* watch first and then check if file exists so that to avoid missing file creation event after watching #102117 */
 		const watcher = this.fileService.watch(dirname(file));
+		this.logService.debug(`[Registering Log Channel] Started watching:`, file.toString());
 		const exists = await this.fileService.exists(file);
 		if (exists) {
 			watcher.dispose();
+			this.logService.debug(`[Registering Log Channel] Stopped watching:`, file.toString());
 			outputChannelRegistry.registerChannel({ id, label, file, log: true });
 			return;
 		}
@@ -100,6 +112,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		const disposable = this.fileService.onDidFilesChange(e => {
 			if (e.contains(file, FileChangeType.ADDED, FileChangeType.UPDATED)) {
 				watcher.dispose();
+				this.logService.debug(`[Registering Log Channel] Stopped watching:`, file.toString());
 				disposable.dispose();
 				outputChannelRegistry.registerChannel({ id, label, file, log: true });
 			}
