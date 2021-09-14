@@ -22,6 +22,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent
 import { ITerminalSerializer, TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
+import { localize } from 'vs/nls';
 
 type WorkspaceId = string;
 
@@ -138,7 +139,8 @@ export class PtyService extends Disposable implements IPtyService {
 				{
 					...state.shellLaunchConfig,
 					cwd: state.processDetails.cwd,
-					initialText: state.replayEvent.events[0].data + '\n\rRestored! :o\n\r'
+					// Enable normal buffer, soft reset then write styled text, EL is used to style the whole line
+					initialText: state.replayEvent.events[0].data + `\1xb[?1049l\x1b[!p\n\r\x1b[40;37;2m> ${localize('terminal-session-restore', "Restored session")}\x1b[K\x1b[0m\n\r`
 				},
 				state.processDetails.cwd,
 				// TODO: Set correct values
@@ -153,11 +155,7 @@ export class PtyService extends Disposable implements IPtyService {
 				state.processDetails.workspaceName,
 				true
 			);
-			const error = await this.start(newId);
-			if (error) {
-				this._logService.warn('Could not revive serialized processes, failed launch', error);
-				continue;
-			}
+			// Don't start the process here as there's no terminal to answer CPR
 			this._revivedPtyIdMap.set(state.id, { newId, state });
 		}
 	}
