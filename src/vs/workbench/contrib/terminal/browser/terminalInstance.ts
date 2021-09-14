@@ -1181,7 +1181,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Only listen for process title changes when a name is not provided
-				if (this._configHelper.config.titleMode === 'sequence' || this._configHelper.config.tabs.title.includes('${sequence}') || this._configHelper.config.tabs.description.includes('${sequence}')) {
+				if (this._configHelper.config.tabs.title.includes('${sequence}') || this._configHelper.config.tabs.description.includes('${sequence}')) {
 					// Set the title to the first event if the sequence hasn't set it yet
 					Event.once(this._processManager.onProcessTitle)(e => {
 						if (!this._title) {
@@ -1444,11 +1444,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
 		this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized(), reset);
-
-		// Set title again as when creating the first process
-		if (this._shellLaunchConfig.name) {
-			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
-		}
 
 		this._xtermTypeAhead?.reset();
 	}
@@ -1766,7 +1761,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		switch (eventSource) {
 			case TitleEventSource.Process:
-
 				if (this._processManager.os === OperatingSystem.Windows) {
 					// Extract the file name without extension
 					title = path.win32.parse(title).name;
@@ -1798,27 +1792,29 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				break;
 		}
 
-		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
-		const cwd = this._cwd || this._initialCwd || '';
-		const properties = {
-			cwd,
-			cwdFolder: this.getCwdFolder(),
-			workspaceFolder: this._workspaceFolder,
-			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
-			process: this._processName,
-			sequence: this._sequence,
-			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-			separator: { label: this._configHelper.config.tabs.separator }
-		};
-		title = template(this._configHelper.config.tabs.title, properties);
-		const description = template(this._configHelper.config.tabs.description, properties);
-		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
-		if (!title || !titleChanged) {
-			return;
+		if (eventSource !== TitleEventSource.Api) {
+			// Remove special characters that could mess with rendering
+			const cwd = this._cwd || this._initialCwd || '';
+			const properties = {
+				cwd,
+				cwdFolder: this.getCwdFolder(),
+				workspaceFolder: this._workspaceFolder,
+				local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+				process: this._processName,
+				sequence: this._sequence,
+				task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+				separator: { label: this._configHelper.config.tabs.separator }
+			};
+			title = template(this._configHelper.config.tabs.title, properties);
+			const description = template(this._configHelper.config.tabs.description, properties);
+			const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
+			if (!title || !titleChanged) {
+				return;
+			}
+			this._description = description;
 		}
 		this._title = title;
-		this._description = description;
 		this._titleSource = eventSource;
 		this._setAriaLabel(this._xterm, this._instanceId, this._title);
 
