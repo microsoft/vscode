@@ -9,6 +9,7 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IStatusbarEntryRelativePriority } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -90,20 +91,31 @@ export interface IStatusbarService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * An event that is triggered when an entry's visibility is changed.
+	 */
+	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
+
+	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
 	 * to update or remove the statusbar entry.
 	 *
-	 * @param id  identifier of the entry is needed to allow users to hide entries via settings
-	 * @param alignment either LEFT or RIGHT
+	 * @param id identifier of the entry is needed to allow users to hide entries via settings
+	 * @param alignment either LEFT or RIGHT side in the status bar
 	 * @param priority items get arranged from highest priority to lowest priority from left to right
 	 * in their respective alignment slot
 	 */
 	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number): IStatusbarEntryAccessor;
 
 	/**
-	 * An event that is triggered when an entry's visibility is changed.
+	 * Adds an entry to the statusbar with the given alignment relative to another entry. Use the returned
+	 * accessor to update or remove the statusbar entry.
+	 *
+	 * @param id identifier of the entry is needed to allow users to hide entries via settings
+	 * @param alignment either LEFT or RIGHT side in the status bar
+	 * @param reference a reference to another entry to position relative to. The entry will be
+	 * positioned to the LEFT or RIGHT depending on the `alignment` property.
 	 */
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, reference?: IStatusbarEntryRelativePriority): IStatusbarEntryAccessor;
 
 	/**
 	 * Return if an entry is visible or not.
