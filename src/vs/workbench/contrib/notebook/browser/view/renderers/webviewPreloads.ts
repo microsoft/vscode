@@ -581,7 +581,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 					const cellOutput = viewModel.ensureOutputCell(data.cellId, data.cellTop);
 					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
-
 					outputNode.render(data.content, preloadsAndErrors);
 
 					// don't hide until after this step so that the height is right
@@ -1387,6 +1386,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			addOutputFocusTracker(this.element, outputId);
 		}
 
+		private hasResizeObserver = false;
+
 		public render(content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[]) {
 			if (content.type === RenderOutputType.Html) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
@@ -1404,7 +1405,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 			}
 
-			resizeObserver.observe(this.element, this.outputId, true);
+			if (!this.hasResizeObserver) {
+				this.hasResizeObserver = true;
+				resizeObserver.observe(this.element, this.outputId, true);
+			}
 
 			const offsetHeight = this.element.offsetHeight;
 			const cps = document.defaultView!.getComputedStyle(this.element);
