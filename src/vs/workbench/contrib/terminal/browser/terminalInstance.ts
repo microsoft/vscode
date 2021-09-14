@@ -1510,7 +1510,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	@debounce(2000)
 	private async _updateProcessCwd(): Promise<string> {
 		// reset cwd if it has changed, so file based url paths can be resolved
-		const cwd = await this.getCwd();
+		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
 		if (cwd && this._linkManager) {
 			this._linkManager.processCwd = cwd;
 		}
@@ -2000,8 +2000,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._initialCwd;
 	}
 
-	getCwd(): Promise<string> {
-		return this._processManager.refreshProperty(ProcessPropertyType.Cwd);
+	async getCwd(): Promise<string> {
+		return await this._processManager.getInitialCwd();
+	}
+
+	async refreshProperty(type: ProcessPropertyType): Promise<any> {
+		return this._processManager.refreshProperty(type);
 	}
 
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {

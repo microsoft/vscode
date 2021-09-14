@@ -407,6 +407,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._properties.cwd = newCwd;
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
 			}
+			return newCwd;
 		} else if (property === ProcessPropertyType.InitialCwd) {
 			return this.getInitialCwd();
 		}
