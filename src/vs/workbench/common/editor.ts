@@ -929,7 +929,10 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 	sticky: boolean;
 }
 
-export type IEditorChangeEvent = { groupId: GroupIdentifier } & IGroupChangeEvent;
+export interface IEditorsChangeEvent extends IGroupChangeEvent {
+	groupId: GroupIdentifier;
+}
+
 export interface IEditorMoveEvent extends IEditorIdentifier {
 	target: GroupIdentifier;
 }

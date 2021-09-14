@@ -7,7 +7,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { EditorResourceAccessor, IEditorChangeEvent, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorsChangeEvent, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupChangeKind, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -21,7 +21,7 @@ export class MainThreadEditorTabs {
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
 	private _currentlyActiveTab: { groupId: number, tab: IEditorTabDto } | undefined = undefined;
-	private _queuedEvents: IEditorChangeEvent[] = [];
+	private _queuedEvents: IEditorsChangeEvent[] = [];
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -73,7 +73,7 @@ export class MainThreadEditorTabs {
 		this._proxy.$acceptEditorTabs(tabs);
 	}
 
-	private _onDidTabOpen(event: IEditorChangeEvent): void {
+	private _onDidTabOpen(event: IEditorsChangeEvent): void {
 		if (event.kind !== GroupChangeKind.EDITOR_OPEN || !event.editor) {
 			return;
 		}
@@ -98,7 +98,7 @@ export class MainThreadEditorTabs {
 		}
 	}
 
-	private _onDidTabClose(event: IEditorChangeEvent): void {
+	private _onDidTabClose(event: IEditorsChangeEvent): void {
 		if (event.kind !== GroupChangeKind.EDITOR_CLOSE || event.editorIndex === undefined) {
 			return;
 		}
@@ -111,7 +111,7 @@ export class MainThreadEditorTabs {
 		}
 	}
 
-	private _onDidGroupActivate(event: IEditorChangeEvent): void {
+	private _onDidGroupActivate(event: IEditorsChangeEvent): void {
 		if (event.kind !== GroupChangeKind.GROUP_INDEX) {
 			return;
 		}
@@ -135,7 +135,7 @@ export class MainThreadEditorTabs {
 		}, this);
 	}
 
-	private _updateTabsModel(event: IEditorChangeEvent): void {
+	private _updateTabsModel(event: IEditorsChangeEvent): void {
 		// Call the correct function for the change type
 		switch (event.kind) {
 			case GroupChangeKind.EDITOR_OPEN:
