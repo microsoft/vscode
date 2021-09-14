@@ -567,9 +567,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			case 'html': {
 				const data = event.data;
-				const outputId = data.outputId;
 
-				outputRunner.enqueue(event.data.outputId, async (state) => {
+				outputRunner.enqueue(data.outputId, async (state) => {
 					const preloadsAndErrors = await Promise.all<unknown>([
 						data.rendererId ? renderers.load(data.rendererId) : undefined,
 						...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
@@ -579,12 +578,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						return;
 					}
 
-					const cellOutput = viewModel.ensureOutputCell(data.cellId, data.cellTop);
-					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
-					outputNode.render(data.content, preloadsAndErrors);
-
-					// don't hide until after this step so that the height is right
-					cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
+					viewModel.rerenderOutputCell(data, preloadsAndErrors);
 				});
 				break;
 			}
@@ -1007,7 +1001,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._outputCells.clear();
 		}
 
-		public ensureOutputCell(cellId: string, cellTop: number): OutputCell {
+		public rerenderOutputCell(data: webviewMessages.ICreationRequestMessage, preloadsAndErrors: unknown[]) {
+			const outputId = data.outputId;
+
+			const cellOutput = this.ensureOutputCell(data.cellId, data.cellTop);
+			const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
+			outputNode.render(data.content, preloadsAndErrors);
+
+			// don't hide until after this step so that the height is right
+			cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
+		}
+
+		private ensureOutputCell(cellId: string, cellTop: number): OutputCell {
 			let cell = this._outputCells.get(cellId);
 			if (!cell) {
 				cell = new OutputCell(cellId);
