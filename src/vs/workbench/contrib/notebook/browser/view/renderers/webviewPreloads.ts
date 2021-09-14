@@ -567,18 +567,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			case 'html': {
 				const data = event.data;
-
-				outputRunner.enqueue(data.outputId, async (state) => {
-					const preloadsAndErrors = await Promise.all<unknown>([
-						data.rendererId ? renderers.load(data.rendererId) : undefined,
-						...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
-					].map(p => p?.catch(err => err)));
-
-					if (state.cancelled) {
-						return;
-					}
-
-					viewModel.rerenderOutputCell(data, preloadsAndErrors);
+				outputRunner.enqueue(data.outputId, (state) => {
+					return viewModel.rerenderOutputCell(data, state);
 				});
 				break;
 			}
@@ -1001,11 +991,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._outputCells.clear();
 		}
 
-		public rerenderOutputCell(data: webviewMessages.ICreationRequestMessage, preloadsAndErrors: unknown[]) {
-			const outputId = data.outputId;
+		public async rerenderOutputCell(data: webviewMessages.ICreationRequestMessage, state: { cancelled: boolean }): Promise<void> {
+			const preloadsAndErrors = await Promise.all<unknown>([
+				data.rendererId ? renderers.load(data.rendererId) : undefined,
+				...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
+			].map(p => p?.catch(err => err)));
+
+			if (state.cancelled) {
+				return;
+			}
 
 			const cellOutput = this.ensureOutputCell(data.cellId, data.cellTop);
-			const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
+			const outputNode = cellOutput.createOutputNode(data.outputId, data.outputOffset, data.left);
 			outputNode.render(data.content, preloadsAndErrors);
 
 			// don't hide until after this step so that the height is right
