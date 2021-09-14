@@ -1064,10 +1064,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		description: 'selection-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
-		minimap: {
-			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
-			position: MinimapPosition.Inline
-		},
 	});
 
 	public override dispose(): void {
