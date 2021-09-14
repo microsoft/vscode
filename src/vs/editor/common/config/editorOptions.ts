@@ -3244,18 +3244,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
-				},
-				'editor.inlineSuggest.mode': {
-					type: 'string',
-					enum: ['prefix', 'subword', 'subwordSmart'],
-					enumDescriptions: [
-						nls.localize('inlineSuggest.mode.prefix', "Only render an inline suggestion if the replace text is a prefix of the insert text."),
-						nls.localize('inlineSuggest.mode.subword', "Only render an inline suggestion if the replace text is a subword of the insert text."),
-						nls.localize('inlineSuggest.mode.subwordSmart', "Only render an inline suggestion if the replace text is a subword of the insert text, but the subword must start after the cursor."),
-					],
-					default: defaults.mode,
-					description: nls.localize('inlineSuggest.mode', "Controls which mode to use for rendering inline suggestions.")
-				},
+				}
 			}
 		);
 	}
@@ -3571,17 +3560,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.preview,
 					description: nls.localize('suggest.preview', "Controls whether to preview the suggestion outcome in the editor.")
-				},
-				'editor.suggest.previewMode': {
-					type: 'string',
-					enum: ['prefix', 'subword', 'subwordSmart'],
-					enumDescriptions: [
-						nls.localize('suggest.previewMode.prefix', "Only render a preview if the replace text is a prefix of the insert text."),
-						nls.localize('suggest.previewMode.subword', "Only render a preview if the replace text is a subword of the insert text."),
-						nls.localize('suggest.previewMode.subwordSmart', "Render a preview if the replace text is a subword of the insert text, or if it is a prefix of the insert text."),
-					],
-					default: defaults.previewMode,
-					description: nls.localize('suggest.previewMode', "Controls which mode to use for rendering the suggest preview.")
 				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
