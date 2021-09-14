@@ -112,7 +112,7 @@ export class SuggestController implements IEditorContribution {
 	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
-	private readonly _selectors = new Set<ISuggestItemPreselector>();
+	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
 	constructor(
 		editor: ICodeEditor,
@@ -225,10 +225,8 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.add(this.model.onDidSuggest(e => {
 			if (!e.shy) {
 				let index = -1;
-				// Highest priority first
-				const selectors = [...this._selectors].sort((s1, s2) => s2.priority - s1.priority);
-				for (const s of selectors) {
-					index = s.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				for (const selector of this._selectors.itemsOrderedByPriorityDesc) {
+					index = selector.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
 					if (index !== -1) {
 						break;
 					}
@@ -613,13 +611,34 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	registerSelector(selector: ISuggestItemPreselector): IDisposable {
-		if (this._selectors.has(selector)) {
-			throw new Error('Selector is already registered');
+		return this._selectors.register(selector);
+	}
+}
+
+class PriorityRegistry<T> {
+	private readonly _items = new Array<T>();
+
+	constructor(private readonly prioritySelector: (item: T) => number) { }
+
+	register(value: T): IDisposable {
+		if (this._items.indexOf(value) !== -1) {
+			throw new Error('Value is already registered');
 		}
-		this._selectors.add(selector);
-		return toDisposable(() => {
-			this._selectors.delete(selector);
-		});
+		this._items.push(value);
+		this._items.sort((s1, s2) => this.prioritySelector(s2) - this.prioritySelector(s1));
+
+		return {
+			dispose: () => {
+				const idx = this._items.indexOf(value);
+				if (idx >= 0) {
+					this._items.splice(idx, 1);
+				}
+			}
+		};
+	}
+
+	get itemsOrderedByPriorityDesc(): readonly T[] {
+		return this._items;
 	}
 }
 

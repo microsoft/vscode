@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
@@ -582,22 +583,6 @@ export async function provideInlineCompletions(
 	};
 }
 
-function lengthOfLongestCommonPrefix(str1: string, str2: string): number {
-	let i = 0;
-	while (i < str1.length && i < str2.length && str1[i] === str2[i]) {
-		i++;
-	}
-	return i;
-}
-
-function lengthOfLongestCommonSuffix(str1: string, str2: string): number {
-	let i = 0;
-	while (i < str1.length && i < str2.length && str1[str1.length - i - 1] === str2[str2.length - i - 1]) {
-		i++;
-	}
-	return i;
-}
-
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion): NormalizedInlineCompletion;
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined;
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {
@@ -605,16 +590,16 @@ export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: No
 		return inlineCompletion;
 	}
 	const valueToReplace = model.getValueInRange(inlineCompletion.range);
-	const commonPrefixLength = lengthOfLongestCommonPrefix(valueToReplace, inlineCompletion.text);
-	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLength;
+	const commonPrefixLen = commonPrefixLength(valueToReplace, inlineCompletion.text);
+	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLen;
 	const start = model.getPositionAt(startOffset);
 
-	const remainingValueToReplace = valueToReplace.substr(commonPrefixLength);
-	const commonSuffixLength = lengthOfLongestCommonSuffix(remainingValueToReplace, inlineCompletion.text);
-	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLength));
+	const remainingValueToReplace = valueToReplace.substr(commonPrefixLen);
+	const commonSuffixLen = commonSuffixLength(remainingValueToReplace, inlineCompletion.text);
+	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLen));
 
 	return {
 		range: Range.fromPositions(start, end),
-		text: inlineCompletion.text.substr(commonPrefixLength, inlineCompletion.text.length - commonPrefixLength - commonSuffixLength),
+		text: inlineCompletion.text.substr(commonPrefixLen, inlineCompletion.text.length - commonPrefixLen - commonSuffixLen),
 	};
 }

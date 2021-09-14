@@ -97,10 +97,6 @@ export const enum State {
 	Auto = 2
 }
 
-function getDefault<T>(value: T | undefined, defaultValue: T): T {
-	return value === undefined ? defaultValue : value;
-}
-
 function isSuggestPreviewEnabled(editor: ICodeEditor): boolean {
 	return editor.getOption(EditorOption.suggest).preview;
 }
@@ -108,14 +104,14 @@ function isSuggestPreviewEnabled(editor: ICodeEditor): boolean {
 function shouldPreventQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
 	return (
 		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
-		&& !Boolean(getDefault(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions'), isSuggestPreviewEnabled(editor)))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions') ?? isSuggestPreviewEnabled(editor))
 	);
 }
 
 function shouldPreventSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
 	return (
 		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
-		&& !Boolean(getDefault(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters'), isSuggestPreviewEnabled(editor)))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters') ?? isSuggestPreviewEnabled(editor))
 	);
 }
 
