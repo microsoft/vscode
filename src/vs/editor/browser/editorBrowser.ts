@@ -371,6 +371,22 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Defaults to an internal DOM node.
 	 */
 	overflowWidgetsDomNode?: HTMLElement;
+
+	/**
+	 * Aria label for original editor.
+	 */
+	originalAriaLabel?: string;
+
+	/**
+	 * Aria label for modified editor.
+	 */
+	modifiedAriaLabel?: string;
+
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
 }
 
 /**
