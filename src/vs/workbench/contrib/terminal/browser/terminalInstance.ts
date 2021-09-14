@@ -1781,9 +1781,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			case TitleEventSource.Api:
 				// If the title has not been set by the API or the rename command, unregister the handler that
 				// automatically updates the terminal name
-				if (title && title !== '') {
-					this._processName = title;
-				}
+				this._processName = title;
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
 				break;
@@ -1830,15 +1828,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	getCwdFolder(): string {
-		//  oh instead of looking against initialCwd we should be looking again the default cwd of the workspace for single root workspaces ?
-		// ie.terminal.integrated.cwd if it's defined, otherwise the workspace folder. That would cause the last 2 to still say "hi"
 		const cwd = this._cwd || this._initialCwd;
-		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0;
-		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1;
 		if (!cwd ||
 			!this._capabilities.includes(ProcessCapability.CwdDetection) ||
-			zeroRootWorkspace ||
-			(singleRootWorkspace && this._equalIgnoringSlashes(this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd))) {
+			this._workspaceContextService.getWorkspace().folders.length === 0 ||
+			(this._equalIgnoringSlashes(this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd))) {
 			return '';
 		}
 		return path.basename(cwd);
