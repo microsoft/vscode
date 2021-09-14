@@ -825,12 +825,6 @@ export interface ITextModel {
 	isTooLargeForSyncing(): boolean;
 
 	/**
-	 * This file is too large for diff calculation.
-	 * @internal
-	 */
-	isTooLargeForDiffing(): boolean;
-
-	/**
 	 * The file is so large, that even tokenization is disabled.
 	 * @internal
 	 */

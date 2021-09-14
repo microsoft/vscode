@@ -45,17 +45,6 @@ function canSyncModel(modelService: IModelService, resource: URI): boolean {
 	return true;
 }
 
-function canSyncModelForDiff(modelService: IModelService, resource: URI): boolean {
-	let model = modelService.getModel(resource);
-	if (!model) {
-		return false;
-	}
-	if (model.isTooLargeForDiffing()) {
-		return false;
-	}
-	return true;
-}
-
 export class EditorWorkerServiceImpl extends Disposable implements IEditorWorkerService {
 
 	declare readonly _serviceBrand: undefined;
@@ -90,10 +79,6 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 
 	public override dispose(): void {
 		super.dispose();
-	}
-
-	public canComputeDiff(original: URI, modified: URI): boolean {
-		return (canSyncModelForDiff(this._modelService, original) && canSyncModelForDiff(this._modelService, modified));
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
@@ -312,12 +297,12 @@ class EditorModelManager extends Disposable {
 		super.dispose();
 	}
 
-	public ensureSyncedResources(resources: URI[]): void {
+	public ensureSyncedResources(resources: URI[], forceLargeModels: boolean): void {
 		for (const resource of resources) {
 			let resourceStr = resource.toString();
 
 			if (!this._syncedModels[resourceStr]) {
-				this._beginModelSync(resource);
+				this._beginModelSync(resource, forceLargeModels);
 			}
 			if (this._syncedModels[resourceStr]) {
 				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
@@ -341,12 +326,12 @@ class EditorModelManager extends Disposable {
 		}
 	}
 
-	private _beginModelSync(resource: URI): void {
+	private _beginModelSync(resource: URI, forceLargeModels: boolean): void {
 		let model = this._modelService.getModel(resource);
 		if (!model) {
 			return;
 		}
-		if (model.isTooLargeForSyncing()) {
+		if (!forceLargeModels && model.isTooLargeForSyncing()) {
 			return;
 		}
 
@@ -471,18 +456,18 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<EditorSimpleWorker> {
+	protected async _withSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<EditorSimpleWorker> {
 		if (this._disposed) {
 			return Promise.reject(canceled());
 		}
 		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
+			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources, forceLargeModels);
 			return proxy;
 		});
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
-		return this._withSyncedResources([original, modified]).then(proxy => {
+		return this._withSyncedResources([original, modified], /* forceLargeModels */true).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace, maxComputationTime);
 		});
 	}

@@ -1066,7 +1066,13 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const currentToken = this._diffComputationToken;
 		this._setState(editorBrowser.DiffEditorState.ComputingDiff);
 
-		if (!this._editorWorkerService.canComputeDiff(currentOriginalModel.uri, currentModifiedModel.uri)) {
+		const MODEL_DIFF_LIMIT = 500 * 1024 * 1024; // 500 MB
+		const canSyncModelForDiff = (model: ITextModel): boolean => {
+			const bufferTextLength = model.getValueLength();
+			return (bufferTextLength <= MODEL_DIFF_LIMIT);
+		};
+
+		if (!canSyncModelForDiff(currentOriginalModel) || !canSyncModelForDiff(currentModifiedModel)) {
 			if (
 				!DiffEditorWidget._equals(currentOriginalModel.uri, this._lastOriginalWarning)
 				|| !DiffEditorWidget._equals(currentModifiedModel.uri, this._lastModifiedWarning)
