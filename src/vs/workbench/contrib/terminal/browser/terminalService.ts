@@ -50,6 +50,7 @@ import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workben
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -179,6 +180,7 @@ export class TerminalService implements ITerminalService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -218,6 +220,12 @@ export class TerminalService implements ITerminalService {
 					}
 				};
 			});
+
+		workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			for (const terminal of this.instances) {
+				terminal.setTitle(terminal.title, TitleEventSource.Config);
+			}
+		});
 
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);

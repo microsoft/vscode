@@ -177,19 +177,19 @@ export enum TerminalIpcChannels {
 
 export const IPtyService = createDecorator<IPtyService>('ptyService');
 
-export const enum TerminalPropertyType {
-	Cwd,
-	InitialCwd
+export const enum ProcessPropertyType {
+	Cwd = 'cwd',
+	InitialCwd = 'initialCwd'
 }
 
-export interface ITerminalProperty<T extends TerminalPropertyType> {
+export interface IProcessProperty<T extends ProcessPropertyType> {
 	type: T,
-	value: ITerminalPropertyMap[T]
+	value: IProcessPropertyMap[T]
 }
 
-export interface ITerminalPropertyMap {
-	[TerminalPropertyType.Cwd]: string,
-	[TerminalPropertyType.InitialCwd]: string,
+export interface IProcessPropertyMap {
+	[ProcessPropertyType.Cwd]: string,
+	[ProcessPropertyType.InitialCwd]: string,
 }
 
 export interface IPtyService {
@@ -203,7 +203,7 @@ export interface IPtyService {
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
-	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;
+	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>;
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
 	readonly onProcessShellTypeChanged: Event<{ id: number, event: TerminalShellType }>;
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
@@ -212,7 +212,7 @@ export interface IPtyService {
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
-	readonly onDidChangeProperty: Event<{ id: number, property: ITerminalProperty<any> }>
+	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -272,6 +272,7 @@ export interface IPtyService {
 	 * flow for restoring terminals after reloading.
 	 */
 	reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string): Promise<void>;
+	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -470,7 +471,12 @@ export interface ITerminalLaunchError {
 export interface IProcessReadyEvent {
 	pid: number,
 	cwd: string,
+	capabilities: ProcessCapability[],
 	requiresWindowsMode?: boolean
+}
+
+export const enum ProcessCapability {
+	CwdDetection = 'cwdDetection'
 }
 
 /**
@@ -490,6 +496,11 @@ export interface ITerminalChildProcess {
 	 */
 	shouldPersist: boolean;
 
+	/**
+	 * Capabilities of the process, designated when it starts
+	 */
+	capabilities: ProcessCapability[];
+
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<IProcessReadyEvent>;
@@ -498,7 +509,7 @@ export interface ITerminalChildProcess {
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
 	onDidChangeHasChildProcesses?: Event<boolean>;
-	onDidChangeProperty: Event<ITerminalProperty<any>>;
+	onDidChangeProperty: Event<IProcessProperty<any>>;
 
 	/**
 	 * Starts the process.
@@ -541,6 +552,7 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
+	refreshProperty(property: ProcessPropertyType): Promise<any>;
 }
 
 export interface IReconnectConstants {
