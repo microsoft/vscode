@@ -166,6 +166,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _capabilities: ProcessCapability[] = [];
 
+	private _workspaceFolder: string = '';
+
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 	private _description: string | undefined = undefined;
@@ -655,7 +657,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._onCursorMove();
 					return false;
 				});
-				this._capabilities = processTraits.capabilities;
 			}
 			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
 			this._areLinksReady = true;
@@ -856,6 +857,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessReady((e) => {
 			this._linkManager?.setWidgetManager(this._widgetManager);
 			this._capabilities = e.capabilities;
+			this._workspaceFolder = path.basename(e.cwd.toString());
 		});
 
 		// const computedStyle = window.getComputedStyle(this._container);
@@ -1802,7 +1804,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const properties = {
 			cwd,
 			cwdFolder: this.getCwdFolder(),
-			workspaceFolder: path.basename(cwd),
+			workspaceFolder: this._workspaceFolder,
 			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
 			process: this._processName,
 			sequence: this._sequence,
@@ -1832,7 +1834,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!cwd ||
 			!this._capabilities.includes(ProcessCapability.CwdDetection) ||
 			this._workspaceContextService.getWorkspace().folders.length === 0 ||
-			(this._equalIgnoringSlashes(this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd))) {
+			(this._workspaceContextService.getWorkspace().folders.length === 1 && this._equalIgnoringSlashes(this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd))) {
 			return '';
 		}
 		return path.basename(cwd);
