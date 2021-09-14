@@ -266,7 +266,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
-			'default': isMacintosh ? ' — ' : ' - ',
+			'default': ' - ',
 			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
 		},
 		[TerminalSettingId.TerminalTitle]: {

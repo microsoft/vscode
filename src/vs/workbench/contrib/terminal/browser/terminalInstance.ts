@@ -1781,6 +1781,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			case TitleEventSource.Api:
 				// If the title has not been set by the API or the rename command, unregister the handler that
 				// automatically updates the terminal name
+				if (title && title !== '') {
+					this._processName = title;
+				}
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
 				break;
@@ -1803,7 +1806,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			cwdFolder: this.getCwdFolder(),
 			workspaceFolder: path.basename(cwd),
 			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
-			process: this._processName || title,
+			process: this._processName,
 			sequence: this._sequence,
 			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
 			separator: { label: this._configHelper.config.tabs.separator }

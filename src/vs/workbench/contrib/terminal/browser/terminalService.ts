@@ -221,12 +221,6 @@ export class TerminalService implements ITerminalService {
 				};
 			});
 
-		workspaceContextService.onDidChangeWorkspaceFolders(() => {
-			for (const terminal of this.instances) {
-				terminal.setTitle(terminal.title, TitleEventSource.Config);
-			}
-		});
-
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
@@ -267,11 +261,10 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration(TerminalSettingId.TerminalTitle) ||
 				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator) ||
 				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
-				for (const instance of this.instances) {
-					instance.setTitle(instance.title, TitleEventSource.Config);
-				}
+				this._updateTitles();
 			}
 		});
+		workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateTitles());
 
 		// Register a resource formatter for terminal URIs
 		labelService.registerFormatter({
@@ -324,6 +317,12 @@ export class TerminalService implements ITerminalService {
 
 	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
 		return this._primaryOffProcessTerminalService;
+	}
+
+	private _updateTitles(): void {
+		for (const instance of this.instances) {
+			instance.setTitle(instance.title, TitleEventSource.Config);
+		}
 	}
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
