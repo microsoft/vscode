@@ -975,16 +975,6 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	readonly ignoreTrimWhitespace: boolean;
 	/**
-	 * Returns whether the diff editor is rendering side by side or not.
-	 * @internal
-	 */
-	readonly renderSideBySide: boolean;
-	/**
-	 * Returns whether the diff editor is rendering +/- indicators or not.
-	 * @internal
-	 */
-	readonly renderIndicators: boolean;
-	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * @internal
 	 */
