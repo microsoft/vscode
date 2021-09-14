@@ -14,6 +14,7 @@ import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/commo
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 suite('EditorGroupsService', () => {
 
@@ -23,7 +24,7 @@ suite('EditorGroupsService', () => {
 	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_EDITOR_INPUT_ID));
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(SideBySideEditorInput)], TEST_EDITOR_INPUT_ID));
 	});
 
 	teardown(() => {
@@ -1141,6 +1142,27 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getEditorByIndex(2), input7);
 		assert.strictEqual(group.getEditorByIndex(3), input4);
 		assert.strictEqual(group.getEditorByIndex(4), input8);
+	});
+
+	test('replaceEditors - should be able to replace when side by side editor is involved with same input side by side', async () => {
+		const [part, instantiationService] = await createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input);
+
+		await group.openEditor(input);
+		assert.strictEqual(group.count, 1);
+		assert.strictEqual(group.getEditorByIndex(0), input);
+
+		await group.replaceEditors([{ editor: input, replacement: sideBySideInput }]);
+		assert.strictEqual(group.count, 1);
+		assert.strictEqual(group.getEditorByIndex(0), sideBySideInput);
+
+		await group.replaceEditors([{ editor: sideBySideInput, replacement: input }]);
+		assert.strictEqual(group.count, 1);
+		assert.strictEqual(group.getEditorByIndex(0), input);
 	});
 
 	test('find editors', async () => {

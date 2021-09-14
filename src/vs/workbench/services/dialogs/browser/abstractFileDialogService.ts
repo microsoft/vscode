@@ -27,6 +27,8 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
 import { PLAINTEXT_EXTENSION } from 'vs/editor/common/modes/modesRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -46,7 +48,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPathService private readonly pathService: IPathService,
-		@ICommandService protected readonly commandService: ICommandService
+		@ICommandService protected readonly commandService: ICommandService,
+		@IEditorService protected readonly editorService: IEditorService,
+		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService
 	) { }
 
 	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditorResourceAccessor, IEditorInput, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TestFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileEditorInput, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('SideBySideEditorInput', () => {
 
@@ -48,6 +48,8 @@ suite('SideBySideEditorInput', () => {
 	}
 
 	test('basics', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		let counter = 0;
 		const input = new MyEditorInput(URI.file('/fake'));
 		input.onWillDispose(() => {
@@ -61,7 +63,7 @@ suite('SideBySideEditorInput', () => {
 			counter++;
 		});
 
-		const sideBySideInput = new SideBySideEditorInput('name', 'description', input, otherInput);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', input, otherInput);
 
 		assert.ok(isSideBySideEditorInput(sideBySideInput));
 		assert.ok(!isSideBySideEditorInput(input));
@@ -73,22 +75,15 @@ suite('SideBySideEditorInput', () => {
 
 		sideBySideInput.dispose();
 		assert.strictEqual(counter, 0);
-
-		// Assert that a side by side input matches to one of the sides
-		// when both sides are identical
-
-		const sideBySideInput2 = new SideBySideEditorInput('name', 'description', input, input);
-		assert.strictEqual(sideBySideInput2.matches(input), true);
-
-		const sideBySideInput3 = new SideBySideEditorInput('name', 'description', new MyEditorInput(URI.file('/fake')), new MyEditorInput(URI.file('/fake')));
-		assert.strictEqual(sideBySideInput3.matches(input), true);
 	});
 
 	test('events dispatching', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
 
-		const sideBySideInut = new SideBySideEditorInput('name', 'description', otherInput, input);
+		const sideBySideInut = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', otherInput, input);
 
 		assert.ok(isSideBySideEditorInput(sideBySideInut));
 
@@ -117,19 +112,23 @@ suite('SideBySideEditorInput', () => {
 	});
 
 	test('toUntyped', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		const primaryInput = new MyEditorInput(URI.file('/fake'));
 		const secondaryInput = new MyEditorInput(URI.file('/fake2'));
 
-		const sideBySideInput = new SideBySideEditorInput('Side By Side Test', undefined, secondaryInput, primaryInput);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput);
 
 		const untypedSideBySideInput = sideBySideInput.toUntyped();
 		assert.ok(isResourceSideBySideEditorInput(untypedSideBySideInput));
 	});
 
 	test('untyped matches', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		const primaryInput = new TestFileEditorInput(URI.file('/fake'), 'primaryId');
 		const secondaryInput = new TestFileEditorInput(URI.file('/fake2'), 'secondaryId');
-		const sideBySideInput = new SideBySideEditorInput('Side By Side Test', undefined, secondaryInput, primaryInput);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput);
 
 		const primaryUntypedInput = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
 		const secondaryUntypedInput = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
@@ -149,5 +148,4 @@ suite('SideBySideEditorInput', () => {
 
 		assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
 	});
-
 });

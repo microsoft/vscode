@@ -229,6 +229,21 @@ declare module 'vscode' {
 		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
 	}
 
+	export namespace env {
+
+		/**
+		 * The authority part of the current opened `vscode-remote://` URI.
+		 * Defined by extensions, e.g. `ssh-remote+${host}` for remotes using a secure shell.
+		 *
+		 * *Note* that the value is `undefined` when there is no remote extension host but that the
+		 * value is defined in all extension hosts (local and remote) in case a remote extension host
+		 * exists. Use {@link Extension.extensionKind} to know if
+		 * a specific extension runs remote or not.
+		 */
+		export const remoteAuthority: string | undefined;
+
+	}
+
 	//#endregion
 
 	//#region editor insets: https://github.com/microsoft/vscode/issues/85682
@@ -911,6 +926,7 @@ declare module 'vscode' {
 		 * For more information on events that can send data see "DEC Private Mode Set (DECSET)" on
 		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 		 */
+		// todo@API Maybe, isInteractedWith to align with other isXYZ
 		readonly interactedWith: boolean;
 	}
 
@@ -1118,6 +1134,13 @@ declare module 'vscode' {
 		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
 		 */
 		sortByLabel: boolean;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/132068
+
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 
 		/*
 		 * An optional flag that can be set to true to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
@@ -1547,12 +1570,14 @@ declare module 'vscode' {
 		provides: string[];
 
 		/**
-		 * URI for the file to preload
+		 * URI of the JavaScript module to preload.
+		 *
+		 * This module must export an `activate` function that takes a context object that contains the notebook API.
 		 */
 		uri: Uri;
 
 		/**
-		 * @param uri URI for the file to preload
+		 * @param uri URI of the JavaScript module to preload
 		 * @param provides Value for the `provides` property
 		 */
 		constructor(uri: Uri, provides?: string | string[]);
@@ -2312,19 +2337,16 @@ declare module 'vscode' {
 
 		/**
 		 * The resource represented by the tab if availble.
-		 * If the tab contains more than one resource then primary will represent the left resource, and secondary the right one.
-		 * Note: Not all editor types have a resource associated with them
+		 * Note: Not all tabs have a resource associated with them.
 		 */
-		readonly resource?: Uri | { primary?: Uri, secondary?: Uri };
+		readonly resource?: Uri;
 
 		/**
-		 * The identifier of the editor which the tab should contain, because
-		 * not all tabs represent editors this may be undefined.
-		 * This is equivalent to `viewType` for custom editors and notebooks.
+		 * The identifier of the view contained in the tab
+		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
-		 * Note: Tabs are not guaranteed to contain editors but this id represents what editor the tab will resolve if available
 		 */
-		readonly editorId?: string;
+		readonly viewId?: string;
 
 		/**
 		 * Whether or not the tab is currently active
@@ -2794,119 +2816,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-	//#region https://github.com/microsoft/vscode/issues/15533 --- Type hierarchy --- @eskibear
-
-	/**
-	 * Represents an item of a type hierarchy, like a class or an interface.
-	 */
-	export class TypeHierarchyItem {
-		/**
-		 * The name of this item.
-		 */
-		name: string;
-
-		/**
-		 * The kind of this item.
-		 */
-		kind: SymbolKind;
-
-		/**
-		 * Tags for this item.
-		 */
-		tags?: ReadonlyArray<SymbolTag>;
-
-		/**
-		 * More detail for this item, e.g. the signature of a function.
-		 */
-		detail?: string;
-
-		/**
-		 * The resource identifier of this item.
-		 */
-		uri: Uri;
-
-		/**
-		 * The range enclosing this symbol not including leading/trailing whitespace
-		 * but everything else, e.g. comments and code.
-		 */
-		range: Range;
-
-		/**
-		 * The range that should be selected and revealed when this symbol is being
-		 * picked, e.g. the name of a class. Must be contained by the {@link TypeHierarchyItem.range range}-property.
-		 */
-		selectionRange: Range;
-
-		/**
-		 * Creates a new type hierarchy item.
-		 *
-		 * @param kind The kind of the item.
-		 * @param name The name of the item.
-		 * @param detail The details of the item.
-		 * @param uri The Uri of the item.
-		 * @param range The whole range of the item.
-		 * @param selectionRange The selection range of the item.
-		 */
-		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
-	}
-
-	/**
-	 * The type hierarchy provider interface describes the contract between extensions
-	 * and the type hierarchy feature.
-	 */
-	export interface TypeHierarchyProvider {
-
-		/**
-		 * Bootstraps type hierarchy by returning the item that is denoted by the given document
-		 * and position. This item will be used as entry into the type graph. Providers should
-		 * return `undefined` or `null` when there is no item at the given location.
-		 *
-		 * @param document The document in which the command was invoked.
-		 * @param position The position at which the command was invoked.
-		 * @param token A cancellation token.
-		 * @returns One or multiple type hierarchy items or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
-		 */
-		prepareTypeHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<TypeHierarchyItem | TypeHierarchyItem[]>;
-
-		/**
-		 * Provide all supertypes for an item, e.g all types from which a type is derived/inherited. In graph terms this describes directed
-		 * and annotated edges inside the type graph, e.g the given item is the starting node and the result is the nodes
-		 * that can be reached.
-		 *
-		 * @param item The hierarchy item for which super types should be computed.
-		 * @param token A cancellation token.
-		 * @returns A set of supertypes or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
-		 */
-		provideTypeHierarchySupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
-
-		/**
-		 * Provide all subtypes for an item, e.g all types which are derived/inherited from the given item. In
-		 * graph terms this describes directed and annotated edges inside the type graph, e.g the given item is the starting
-		 * node and the result is the nodes that can be reached.
-		 *
-		 * @param item The hierarchy item for which subtypes should be computed.
-		 * @param token A cancellation token.
-		 * @returns A set of subtypes or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
-		 */
-		provideTypeHierarchySubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
-	}
-
-	export namespace languages {
-		/**
-		 * Register a type hierarchy provider.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A type hierarchy provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTypeHierarchyProvider(selector: DocumentSelector, provider: TypeHierarchyProvider): Disposable;
-	}
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/129037
 
 	enum LanguageStatusSeverity {
@@ -2944,6 +2853,23 @@ declare module 'vscode' {
 	export interface QuickPickItemButtonEvent<T extends QuickPickItem> {
 		button: QuickInputButton;
 		item: T;
+	}
+
+	//#endregion
+
+	//#region @mjbvz https://github.com/microsoft/vscode/issues/40607
+	export interface MarkdownString {
+		/**
+		 * Indicates that this markdown string can contain raw html tags. Default to false.
+		 *
+		 * When `supportHtml` is false, the markdown renderer will strip out any raw html tags
+		 * that appear in the markdown text. This means you can only use markdown syntax for rendering.
+		 *
+		 * When `supportHtml` is true, the markdown render will also allow a safe subset of html tags
+		 * and attributes to be rendered. See https://github.com/microsoft/vscode/blob/6d2920473c6f13759c978dd89104c4270a83422d/src/vs/base/browser/markdownRenderer.ts#L296
+		 * for a list of all supported tags and attributes.
+		 */
+		supportHtml?: boolean;
 	}
 
 	//#endregion

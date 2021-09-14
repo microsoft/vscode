@@ -384,34 +384,4 @@ suite('NotebookViewModel API', () => {
 			}
 		);
 	});
-
-	test('split cell', async function () {
-		await withTestNotebook(
-			[
-				['var b = 1;', 'javascript', CellKind.Code, [], {}]
-			],
-			(editor, viewModel) => {
-				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }]), [
-					'var',
-					' b = 1;'
-				]);
-
-				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }, { lineNumber: 1, column: 6 }]), [
-					'var',
-					' b',
-					' = 1;'
-				]);
-
-				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 1 }]), [
-					'',
-					'var b = 1;'
-				]);
-
-				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 11 }]), [
-					'var b = 1;',
-					'',
-				]);
-			}
-		);
-	});
 });

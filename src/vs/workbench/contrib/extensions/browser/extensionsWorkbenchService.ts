@@ -14,7 +14,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult, TargetPlatform
+	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -399,7 +399,7 @@ class Extensions extends Disposable {
 		}
 		// Loading the compatible version only there is an engine property
 		// Otherwise falling back to old way so that we will not make many roundtrips
-		const compatible = gallery.properties.engine ? await this.galleryService.getCompatibleExtension(gallery, await this.server.getTargetPlatform()) : gallery;
+		const compatible = gallery.properties.engine ? await this.galleryService.getCompatibleExtension(gallery, await this.server.extensionManagementService.getTargetPlatform()) : gallery;
 		if (!compatible) {
 			return false;
 		}
@@ -414,11 +414,15 @@ class Extensions extends Disposable {
 		return false;
 	}
 
+	canInstall(galleryExtension: IGalleryExtension): Promise<boolean> {
+		return this.server.extensionManagementService.canInstall(galleryExtension);
+	}
+
 	private async syncInstalledExtensionWithGallery(extension: Extension): Promise<void> {
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		const compatible = await this.galleryService.getCompatibleExtension(extension.identifier, await this.server.getTargetPlatform());
+		const compatible = await this.galleryService.getCompatibleExtension(extension.identifier, await this.server.extensionManagementService.getTargetPlatform());
 		if (compatible) {
 			extension.gallery = compatible;
 			this._onChange.fire({ extension });
@@ -974,7 +978,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return Promises.settled(toUpdate.map(e => this.install(e)));
 	}
 
-	canInstall(extension: IExtension): boolean {
+	async canInstall(extension: IExtension): Promise<boolean> {
 		if (!(extension instanceof Extension)) {
 			return false;
 		}
@@ -987,14 +991,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (this.extensionManagementServerService.localExtensionManagementServer
-			|| this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (this.localExtensions && await this.localExtensions.canInstall(extension.gallery)) {
 			return true;
 		}
 
-		if (this.extensionManagementServerService.webExtensionManagementServer) {
+		if (this.remoteExtensions && await this.remoteExtensions.canInstall(extension.gallery)) {
+			return true;
+		}
+
+		if (this.webExtensions) {
 			const configuredExtensionKind = this.extensionManifestPropertiesService.getUserConfiguredExtensionKind(extension.gallery.identifier);
-			return configuredExtensionKind ? configuredExtensionKind.includes('web') : extension.gallery.allTargetPlatforms.includes(TargetPlatform.WEB);
+			return configuredExtensionKind ? configuredExtensionKind.includes('web') : await this.webExtensions.canInstall(extension.gallery);
 		}
 
 		return false;

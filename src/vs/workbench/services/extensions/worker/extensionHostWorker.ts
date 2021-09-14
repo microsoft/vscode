@@ -36,6 +36,7 @@ declare namespace self {
 	let importScripts: any;
 	let fetch: _Fetch;
 	let XMLHttpRequest: any;
+	let trustedTypes: any;
 }
 
 const nativeClose = self.close.bind(self);
@@ -88,12 +89,41 @@ if ((<any>self).Worker) {
 		if (/^file:/i.test(stringUrl.toString())) {
 			stringUrl = FileAccess.asBrowserUri(URI.parse(stringUrl.toString())).toString(true);
 		}
-		const js = `(function() {
-	const ttPolicy = self.trustedTypes ? self.trustedTypes.createPolicy('extensionHostWorker', { createScriptURL: (value) => value }) : undefined;
-	const stringUrl = '${stringUrl}';
-	importScripts(ttPolicy ? ttPolicy.createScriptURL(stringUrl) : stringUrl);
-})();
-`;
+
+		// IMPORTANT: bootstrapFn is stringified and injected as worker blob-url. Because of that it CANNOT
+		// have dependencies on other functions or variables. Only constant values are supported. Due to
+		// that logic of FileAccess.asBrowserUri had to be copied, see `asWorkerBrowserUrl` (below).
+		const bootstrapFnSource = (function bootstrapFn(workerUrl: string) {
+			function asWorkerBrowserUrl(url: string | URL | TrustedScriptURL): any {
+				if (typeof url === 'string' || url instanceof URL) {
+					return String(url).replace(/^file:\/\//i, 'vscode-file://vscode-app');
+				}
+				return url;
+			}
+
+			const nativeFetch = fetch.bind(self);
+			self.fetch = function (input, init) {
+				if (input instanceof Request) {
+					// Request object - massage not supported
+					return nativeFetch(input, init);
+				}
+				return nativeFetch(asWorkerBrowserUrl(input), init);
+			};
+			self.XMLHttpRequest = class extends XMLHttpRequest {
+				override open(method: string, url: string | URL, async?: boolean, username?: string | null, password?: string | null): void {
+					return super.open(method, asWorkerBrowserUrl(url), async ?? true, username, password);
+				}
+			};
+			const nativeImportScripts = importScripts.bind(self);
+			self.importScripts = (...urls: string[]) => {
+				nativeImportScripts(...urls.map(asWorkerBrowserUrl));
+			};
+
+			const ttPolicy = self.trustedTypes ? self.trustedTypes.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value }) : undefined;
+			nativeImportScripts(ttPolicy ? ttPolicy.createScriptURL(workerUrl) : workerUrl);
+		}).toString();
+
+		const js = `(${bootstrapFnSource}('${stringUrl}'))`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
 		const blob = new Blob([js], { type: 'application/javascript' });

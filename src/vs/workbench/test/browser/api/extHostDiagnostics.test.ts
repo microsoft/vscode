@@ -497,10 +497,10 @@ suite('ExtHostDiagnostics', () => {
 
 		const col = diags.createDiagnosticCollection(nullExtensionDescription.identifier);
 
-		const uriSensitive = URI.from({ scheme: 'foo', path: '/some/path' });
-		const uriSensitiveUpper = uriSensitive.with({ path: uriSensitive.path.toUpperCase() });
+		const uriSensitive = URI.from({ scheme: 'foo', path: '/SOME/path' });
+		const uriSensitiveCaseB = uriSensitive.with({ path: uriSensitive.path.toUpperCase() });
 
-		const uriInSensitive = URI.from({ scheme: 'insensitive', path: '/some/path' });
+		const uriInSensitive = URI.from({ scheme: 'insensitive', path: '/SOME/path' });
 		const uriInSensitiveUpper = uriInSensitive.with({ path: uriInSensitive.path.toUpperCase() });
 
 		col.set(uriSensitive, [new Diagnostic(new Range(0, 0, 0, 0), 'sensitive')]);
@@ -508,16 +508,23 @@ suite('ExtHostDiagnostics', () => {
 
 		// collection itself honours casing
 		assert.strictEqual(col.get(uriSensitive)?.length, 1);
-		assert.strictEqual(col.get(uriSensitiveUpper)?.length, 0);
+		assert.strictEqual(col.get(uriSensitiveCaseB)?.length, 0);
 
 		assert.strictEqual(col.get(uriInSensitive)?.length, 1);
 		assert.strictEqual(col.get(uriInSensitiveUpper)?.length, 1);
 
 		// languages.getDiagnostics honours casing
 		assert.strictEqual(diags.getDiagnostics(uriSensitive)?.length, 1);
-		assert.strictEqual(diags.getDiagnostics(uriSensitiveUpper)?.length, 0);
+		assert.strictEqual(diags.getDiagnostics(uriSensitiveCaseB)?.length, 0);
 
 		assert.strictEqual(diags.getDiagnostics(uriInSensitive)?.length, 1);
 		assert.strictEqual(diags.getDiagnostics(uriInSensitiveUpper)?.length, 1);
+
+
+		const fromForEach: URI[] = [];
+		col.forEach(uri => fromForEach.push(uri));
+		assert.strictEqual(fromForEach.length, 2);
+		assert.strictEqual(fromForEach[0].toString(), uriSensitive.toString());
+		assert.strictEqual(fromForEach[1].toString(), uriInSensitive.toString());
 	});
 });

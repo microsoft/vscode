@@ -1357,7 +1357,7 @@ suite('EditorService', () => {
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
-		const sideBySideInput = new SideBySideEditorInput('sideBySide', '', input, otherInput);
+		const sideBySideInput = new SideBySideEditorInput('sideBySide', '', input, otherInput, service);
 
 		const editor1 = await service.openEditor(sideBySideInput, { pinned: true });
 		assert.strictEqual(part.activeGroup.count, 1);
@@ -1416,7 +1416,7 @@ suite('EditorService', () => {
 
 		const input3 = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
 		const input4 = new TestFileEditorInput(URI.parse('my://resource4-openEditors'), TEST_EDITOR_INPUT_ID);
-		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4);
+		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4, service);
 
 		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
 
@@ -1461,7 +1461,7 @@ suite('EditorService', () => {
 
 		const input3 = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
 		const input4 = new TestFileEditorInput(URI.parse('my://resource4-openEditors'), TEST_EDITOR_INPUT_ID);
-		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4);
+		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4, service);
 
 		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
 
@@ -2424,5 +2424,24 @@ suite('EditorService', () => {
 			const found2 = service.findEditors(input);
 			assert.strictEqual(found2.length, 0);
 		}
+	});
+
+	test('side by side editor is not matching all other editors (https://github.com/microsoft/vscode/issues/132859)', async () => {
+		const [part, service] = await createEditorService();
+
+		const rootGroup = part.activeGroup;
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
+		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input, input, service);
+		const otherSideBySideInput = new SideBySideEditorInput(undefined, undefined, otherInput, otherInput, service);
+
+		await service.openEditor(sideBySideInput, undefined, SIDE_GROUP);
+
+		part.activateGroup(rootGroup);
+
+		await service.openEditor(otherSideBySideInput, { revealIfOpened: true, revealIfVisible: true });
+
+		assert.strictEqual(rootGroup.count, 1);
 	});
 });

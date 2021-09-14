@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -10,17 +11,17 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
-export class InteractiveEditorInput extends SideBySideEditorInput implements ICompositeNotebookEditorInput {
+export class InteractiveEditorInput extends EditorInput implements ICompositeNotebookEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, title?: string) {
 		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource, title);
 	}
 
-	static override readonly ID: string = 'workbench.input.interactive';
+	static readonly ID: string = 'workbench.input.interactive';
 
 	override get typeId(): string {
 		return InteractiveEditorInput.ID;
@@ -55,6 +56,9 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 		return this._inputModel;
 	}
 
+	get primary(): EditorInput {
+		return this._notebookEditorInput;
+	}
 	private _modelService: IModelService;
 	private _interactiveDocumentService: IInteractiveDocumentService;
 
@@ -68,7 +72,7 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
 	) {
 		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
-		super(undefined, undefined, input, input);
+		super();
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
 		this._initTitle = title;
@@ -78,6 +82,24 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 		this._inputModel = null;
 		this._modelService = modelService;
 		this._interactiveDocumentService = interactiveDocumentService;
+
+		this._registerListeners();
+	}
+
+	private _registerListeners(): void {
+		const oncePrimaryDisposed = Event.once(this.primary.onWillDispose);
+		this._register(oncePrimaryDisposed(() => {
+			if (!this.isDisposed()) {
+				this.dispose();
+			}
+		}));
+
+		// Re-emit some events from the primary side to the outside
+		this._register(this.primary.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this._register(this.primary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
+
+		// Re-emit some events from both sides to the outside
+		this._register(this.primary.onDidChangeCapabilities(() => this._onDidChangeCapabilities.fire()));
 	}
 
 	override isDirty() {

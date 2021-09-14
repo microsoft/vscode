@@ -5,9 +5,11 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, platform } from 'vs/base/common/platform';
+import { arch } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
@@ -19,8 +21,8 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, INSTALL_ERROR_VALIDATING, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
-	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
-	InstallVSIXOptions
+	ExtensionManagementError, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
+	InstallVSIXOptions, TargetPlatform
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
@@ -32,7 +34,7 @@ import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensio
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -57,9 +59,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@optional(IDownloadService) private downloadService: IDownloadService,
+		@IDownloadService private downloadService: IDownloadService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService fileService: IFileService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(galleryService, telemetryService, logService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
@@ -74,6 +76,42 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			}
 			removed.forEach(extension => this._onDidUninstallExtension.fire({ identifier: extension }));
 		}));
+	}
+
+	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
+	getTargetPlatform(): Promise<TargetPlatform> {
+		if (!this._targetPlatformPromise) {
+			this._targetPlatformPromise = (async () => {
+				let targetPlatform = getTargetPlatform(platform, arch);
+				if (isLinux && await this.isAlpineLinux()) {
+					if (targetPlatform === TargetPlatform.LINUX_X64) {
+						targetPlatform = TargetPlatform.ALPINE_X64;
+					} else {
+						targetPlatform = TargetPlatform.UNKNOWN;
+					}
+				}
+				this.logService.debug('ExtensionManagementService#TargetPlatform:', targetPlatform);
+				return targetPlatform;
+			})();
+		}
+		return this._targetPlatformPromise;
+	}
+
+	private async isAlpineLinux(): Promise<boolean> {
+		let content: string | undefined;
+		try {
+			const fileContent = await this.fileService.readFile(URI.file('/etc/os-release'));
+			content = fileContent.value.toString();
+		} catch (error) {
+			try {
+				const fileContent = await this.fileService.readFile(URI.file('/usr/lib/os-release'));
+				content = fileContent.value.toString();
+			} catch (error) {
+				/* Ignore */
+				this.logService.debug(`Error while getting the os-release file.`, getErrorMessage(error));
+			}
+		}
+		return !!content && (content.match(/^ID=([^\u001b\r\n]*)/m) || [])[1] === 'alpine';
 	}
 
 	async zip(extension: ILocalExtension): Promise<URI> {
@@ -97,10 +135,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
 		return this.extensionsScanner.scanExtensions(type);
-	}
-
-	async canInstall(extension: IGalleryExtension): Promise<boolean> {
-		return true;
 	}
 
 	async install(vsix: URI, options: InstallVSIXOptions = {}): Promise<ILocalExtension> {
@@ -137,10 +171,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		if (vsix.scheme === Schemas.file) {
 			return vsix;
 		}
-		if (!this.downloadService) {
-			throw new Error('Download service is not available');
-		}
-
 		const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 		await this.downloadService.download(vsix, downloadedLocation);
 		return downloadedLocation;

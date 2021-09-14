@@ -130,16 +130,6 @@ class DisposedModelInfo {
 	) { }
 }
 
-function schemaShouldMaintainUndoRedoElements(resource: URI) {
-	return (
-		resource.scheme === Schemas.file
-		|| resource.scheme === Schemas.vscodeRemote
-		|| resource.scheme === Schemas.userData
-		|| resource.scheme === Schemas.vscodeNotebookCell
-		|| resource.scheme === 'fake-fs' // for tests
-	);
-}
-
 export class ModelServiceImpl extends Disposable implements IModelService {
 
 	public static MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = 20 * 1024 * 1024;
@@ -555,6 +545,16 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	// --- end IModelService
 
+	protected _schemaShouldMaintainUndoRedoElements(resource: URI) {
+		return (
+			resource.scheme === Schemas.file
+			|| resource.scheme === Schemas.vscodeRemote
+			|| resource.scheme === Schemas.userData
+			|| resource.scheme === Schemas.vscodeNotebookCell
+			|| resource.scheme === 'fake-fs' // for tests
+		);
+	}
+
 	private _onWillDispose(model: ITextModel): void {
 		const modelId = MODEL_ID(model.uri);
 		const modelData = this._models[modelId];
@@ -562,7 +562,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const sharesUndoRedoStack = (this._undoRedoService.getUriComparisonKey(model.uri) !== model.uri.toString());
 		let maintainUndoRedoStack = false;
 		let heapSize = 0;
-		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && schemaShouldMaintainUndoRedoElements(model.uri))) {
+		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && this._schemaShouldMaintainUndoRedoElements(model.uri))) {
 			const elements = this._undoRedoService.getElements(model.uri);
 			if (elements.past.length > 0 || elements.future.length > 0) {
 				for (const element of elements.past) {

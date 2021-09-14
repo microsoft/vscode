@@ -239,7 +239,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(configurationService.onDidChangeRestrictedSettings(e => {
-			if (e.default.length) {
+			if (e.default.length && this.currentSettingsModel) {
 				this.updateElementsByKey([...e.default]);
 			}
 		}));
@@ -747,9 +747,9 @@ export class SettingsEditor2 extends EditorPane {
 			this.searchWidget.setValue(element.targetKey);
 		}));
 		this._register(this.settingRenderers.onDidChangeSettingHeight((params: HeightChangeParams) => {
-			const { element } = params;
+			const { element, height } = params;
 			try {
-				this.settingsTree.updateElementHeight(element, undefined);
+				this.settingsTree.updateElementHeight(element, height);
 			} catch (e) {
 				// the element was not found
 			}

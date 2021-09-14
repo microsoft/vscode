@@ -8,17 +8,17 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled, getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { getOrDefault } from 'vs/base/common/objects';
 import { IPager } from 'vs/base/common/paging';
-import { isWeb } from 'vs/base/common/platform';
+import { isWeb, platform } from 'vs/base/common/platform';
+import { arch } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { CURRENT_TARGET_PLATFORM, DefaultIconPath, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DefaultIconPath, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, asText, IRequestService, isSuccess } from 'vs/platform/request/common/request';
@@ -26,6 +26,8 @@ import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/service
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+
+const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 
 interface IRawGalleryExtensionFile {
 	readonly assetType: string;
@@ -314,12 +316,12 @@ function getIsPreview(flags: string): boolean {
 	return flags.indexOf('preview') !== -1;
 }
 
-function getTargetPlatform(version: IRawGalleryExtensionVersion): TargetPlatform {
+function getTargetPlatformForExtensionVersion(version: IRawGalleryExtensionVersion): TargetPlatform {
 	return version.targetPlatform ? toTargetPlatform(version.targetPlatform) : TargetPlatform.UNDEFINED;
 }
 
 function getAllTargetPlatforms(rawGalleryExtension: IRawGalleryExtension): TargetPlatform[] {
-	const allTargetPlatforms = distinct(rawGalleryExtension.versions.map(getTargetPlatform));
+	const allTargetPlatforms = distinct(rawGalleryExtension.versions.map(getTargetPlatformForExtensionVersion));
 
 	// Is a web extension only if it has WEB_EXTENSION_TAG
 	const isWebExtension = !!rawGalleryExtension.tags?.includes(WEB_EXTENSION_TAG);
@@ -341,49 +343,10 @@ function getAllTargetPlatforms(rawGalleryExtension: IRawGalleryExtension): Targe
 	return allTargetPlatforms;
 }
 
-function isNotWebExtensionInWebTargetPlatform(allTargetPlatforms: TargetPlatform[], productTargetPlatform: TargetPlatform): boolean {
-	// Not a web extension in web target platform
-	return productTargetPlatform === TargetPlatform.WEB && !allTargetPlatforms.includes(TargetPlatform.WEB);
-}
-
-function isTargetPlatformCompatible(extensionTargetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[], productTargetPlatform: TargetPlatform): boolean {
-	// Not compatible when extension is not a web extension in web target platform
-	if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, productTargetPlatform)) {
-		return false;
-	}
-
-	// Compatible when extension target platform is not defined
-	if (extensionTargetPlatform === TargetPlatform.UNDEFINED) {
-		return true;
-	}
-
-	// Compatible when extension target platform is universal
-	if (extensionTargetPlatform === TargetPlatform.UNIVERSAL) {
-		return true;
-	}
-
-	// Not compatible when extension target platform is unknown
-	if (extensionTargetPlatform === TargetPlatform.UNKNOWN) {
-		return false;
-	}
-
-	// Compatible when extension and product target platforms matches
-	if (extensionTargetPlatform === productTargetPlatform) {
-		return true;
-	}
-
-	// Fallback
-	switch (productTargetPlatform) {
-		case TargetPlatform.WIN32_X64: return extensionTargetPlatform === TargetPlatform.WIN32_IA32;
-		case TargetPlatform.WIN32_ARM64: return extensionTargetPlatform === TargetPlatform.WIN32_IA32;
-		default: return false;
-	}
-}
-
 function toExtensionWithLatestVersion(galleryExtension: IRawGalleryExtension, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const allTargetPlatforms = getAllTargetPlatforms(galleryExtension);
 	let latestVersion = galleryExtension.versions[0];
-	latestVersion = galleryExtension.versions.find(version => version.version === latestVersion.version && isTargetPlatformCompatible(getTargetPlatform(version), allTargetPlatforms, CURRENT_TARGET_PLATFORM)) || latestVersion;
+	latestVersion = galleryExtension.versions.find(version => version.version === latestVersion.version && isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(version), allTargetPlatforms, CURRENT_TARGET_PLATFORM)) || latestVersion;
 	return toExtension(galleryExtension, latestVersion, allTargetPlatforms, index, query, querySource);
 }
 
@@ -425,7 +388,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 			extensionPack: getExtensions(version, PropertyType.ExtensionPack),
 			engine: getEngine(version),
 			localizedLanguages: getLocalizedLanguages(version),
-			targetPlatform: getTargetPlatform(version),
+			targetPlatform: getTargetPlatformForExtensionVersion(version),
 		},
 		preview: getIsPreview(galleryExtension.flags),
 		/* __GDPR__FRAGMENT__
@@ -446,7 +409,7 @@ interface IRawExtensionsReport {
 	slow: string[];
 }
 
-export class ExtensionGalleryService implements IExtensionGalleryService {
+abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -456,6 +419,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
 
 	constructor(
+		storageService: IStorageService | undefined,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -463,7 +427,6 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@optional(IStorageService) storageService: IStorageService,
 	) {
 		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -579,7 +542,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private async isRawExtensionVersionCompatible(rawExtensionVersion: IRawGalleryExtensionVersion, allTargetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform): Promise<boolean> {
-		if (!isTargetPlatformCompatible(getTargetPlatform(rawExtensionVersion), allTargetPlatforms, targetPlatform)) {
+		if (!isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(rawExtensionVersion), allTargetPlatforms, targetPlatform)) {
 			return false;
 		}
 
@@ -930,6 +893,37 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 }
 
+export class ExtensionGalleryService extends AbstractExtensionGalleryService {
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IRequestService requestService: IRequestService,
+		@ILogService logService: ILogService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IFileService fileService: IFileService,
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super(storageService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService);
+	}
+}
+
+export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensionGalleryService {
+
+	constructor(
+		@IRequestService requestService: IRequestService,
+		@ILogService logService: ILogService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IFileService fileService: IFileService,
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super(undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService);
+	}
+}
+
 export async function resolveMarketplaceHeaders(version: string, productService: IProductService, environmentService: IEnvironmentService, configurationService: IConfigurationService, fileService: IFileService, storageService: {
 	get: (key: string, scope: StorageScope) => string | undefined,
 	store: (key: string, value: string, scope: StorageScope, target: StorageTarget) => void
@@ -939,7 +933,7 @@ export async function resolveMarketplaceHeaders(version: string, productService:
 		'User-Agent': `VSCode ${version}`
 	};
 	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
-	if (getTelemetryLevel(productService, environmentService) === TelemetryLevel.USER && configurationService.getValue('telemetry.enableTelemetry') === true) {
+	if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.USER && configurationService.getValue('telemetry.enableTelemetry') === true) {
 		headers['X-Market-User-Id'] = uuid;
 	}
 	return headers;

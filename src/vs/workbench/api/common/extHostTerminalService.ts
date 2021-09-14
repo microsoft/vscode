@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, IShellLaunchConfig, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -237,7 +237,8 @@ export class ExtHostTerminal {
 export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
-
+	private _capabilities: ProcessCapability[] = [];
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	private readonly _onProcessData = new Emitter<string>();
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessExit = new Emitter<number | undefined>();
@@ -250,9 +251,17 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessShellTypeChanged = new Emitter<TerminalShellType>();
 	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
+	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 
 	constructor(private readonly _pty: vscode.Pseudoterminal) { }
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
+	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
+
+	refreshProperty(property: ProcessPropertyType): Promise<any> {
+		return Promise.resolve('');
+	}
 
 	async start(): Promise<undefined> {
 		return undefined;
@@ -320,7 +329,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 			this._pty.setDimensions(initialDimensions);
 		}
 
-		this._onProcessReady.fire({ pid: -1, cwd: '' });
+		this._onProcessReady.fire({ pid: -1, cwd: '', capabilities: this._capabilities });
 	}
 }
 

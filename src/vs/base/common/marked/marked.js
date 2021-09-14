@@ -9,12 +9,11 @@
  * The code in this file is generated from files in ./src/
  */
 
-(function (global, factory) {
+ (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
-    typeof define === 'function' && define.amd ? define(factory) :
-      (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.marked = factory());
-}(this, (function () {
-  'use strict';
+  typeof define === 'function' && define.amd ? define(factory) :
+  (global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.marked = factory());
+}(this, (function () { 'use strict';
 
   function _defineProperties(target, props) {
     for (var i = 0; i < props.length; i++) {
@@ -70,7 +69,7 @@
     throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
   }
 
-  var defaults$5 = { exports: {} };
+  var defaults$5 = {exports: {}};
 
   function getDefaults$1() {
     return {
@@ -243,13 +242,13 @@
   }
 
   var noopTest$1 = {
-    exec: function noopTest() { }
+    exec: function noopTest() {}
   };
 
   function merge$2(obj) {
     var i = 1,
-      target,
-      key;
+        target,
+        key;
 
     for (; i < arguments.length; i++) {
       target = arguments[i];
@@ -269,7 +268,7 @@
     // before it to distinguish it from an escaped pipe
     var row = tableRow.replace(/\|/g, function (match, offset, str) {
       var escaped = false,
-        curr = offset;
+          curr = offset;
 
       while (--curr >= 0 && str[curr] === '\\') {
         escaped = !escaped;
@@ -284,7 +283,7 @@
         return ' |';
       }
     }),
-      cells = row.split(/ \|/);
+        cells = row.split(/ \|/);
     var i = 0; // First/last cell in a row cannot be empty if it has no leading/trailing pipe
 
     if (!cells[0].trim()) {
@@ -346,7 +345,7 @@
 
     var l = str.length;
     var level = 0,
-      i = 0;
+        i = 0;
 
     for (; i < l; i++) {
       if (str[i] === '\\') {
@@ -408,9 +407,9 @@
 
   var defaults$4 = defaults$5.exports.defaults;
   var rtrim = helpers.rtrim,
-    splitCells = helpers.splitCells,
-    _escape = helpers.escape,
-    findClosingBracket = helpers.findClosingBracket;
+      splitCells = helpers.splitCells,
+      _escape = helpers.escape,
+      findClosingBracket = helpers.findClosingBracket;
 
   function outputLink(cap, link, raw, lexer) {
     var href = link.href;
@@ -419,7 +418,7 @@
 
     if (cap[0].charAt(0) !== '!') {
       lexer.state.inLink = true;
-      return {
+      var token = {
         type: 'link',
         raw: raw,
         href: href,
@@ -427,6 +426,8 @@
         text: text,
         tokens: lexer.inlineTokens(text, [])
       };
+      lexer.state.inLink = false;
+      return token;
     } else {
       return {
         type: 'image',
@@ -1016,9 +1017,9 @@
       if (!nextChar || nextChar && (prevChar === '' || this.rules.inline.punctuation.exec(prevChar))) {
         var lLength = match[0].length - 1;
         var rDelim,
-          rLength,
-          delimTotal = lLength,
-          midDelimTotal = 0;
+            rLength,
+            delimTotal = lLength,
+            midDelimTotal = 0;
         var endReg = match[0][0] === '*' ? this.rules.inline.emStrong.rDelimAst : this.rules.inline.emStrong.rDelimUnd;
         endReg.lastIndex = 0; // Clip maskedSrc to same section of string as src (move to lexer?)
 
@@ -1209,8 +1210,8 @@
   }();
 
   var noopTest = helpers.noopTest,
-    edit = helpers.edit,
-    merge$1 = helpers.merge;
+      edit = helpers.edit,
+      merge$1 = helpers.merge;
   /**
    * Block-Level Grammar
    */
@@ -1224,15 +1225,15 @@
     blockquote: /^( {0,3}> ?(paragraph|[^\n]*)(?:\n|$))+/,
     list: /^( {0,3}bull)( [^\n]+?)?(?:\n|$)/,
     html: '^ {0,3}(?:' // optional indentation
-      + '<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)' // (1)
-      + '|comment[^\\n]*(\\n+|$)' // (2)
-      + '|<\\?[\\s\\S]*?(?:\\?>\\n*|$)' // (3)
-      + '|<![A-Z][\\s\\S]*?(?:>\\n*|$)' // (4)
-      + '|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>\\n*|$)' // (5)
-      + '|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n *)+\\n|$)' // (6)
-      + '|<(?!script|pre|style|textarea)([a-z][\\w-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n *)+\\n|$)' // (7) open tag
-      + '|</(?!script|pre|style|textarea)[a-z][\\w-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n *)+\\n|$)' // (7) closing tag
-      + ')',
+    + '<(script|pre|style|textarea)[\\s>][\\s\\S]*?(?:</\\1>[^\\n]*\\n+|$)' // (1)
+    + '|comment[^\\n]*(\\n+|$)' // (2)
+    + '|<\\?[\\s\\S]*?(?:\\?>\\n*|$)' // (3)
+    + '|<![A-Z][\\s\\S]*?(?:>\\n*|$)' // (4)
+    + '|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>\\n*|$)' // (5)
+    + '|</?(tag)(?: +|\\n|/?>)[\\s\\S]*?(?:(?:\\n *)+\\n|$)' // (6)
+    + '|<(?!script|pre|style|textarea)([a-z][\\w-]*)(?:attribute)*? */?>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n *)+\\n|$)' // (7) open tag
+    + '|</(?!script|pre|style|textarea)[a-z][\\w-]*\\s*>(?=[ \\t]*(?:\\n|$))[\\s\\S]*?(?:(?:\\n *)+\\n|$)' // (7) closing tag
+    + ')',
     def: /^ {0,3}\[(label)\]: *\n? *<?([^\s>]+)>?(?:(?: +\n? *| *\n *)(title))? *(?:\n+|$)/,
     table: noopTest,
     lheading: /^([^\n]+)\n {0,3}(=+|-+) *(?:\n+|$)/,
@@ -1251,9 +1252,9 @@
   block$1._comment = /<!--(?!-?>)[\s\S]*?(?:-->|$)/;
   block$1.html = edit(block$1.html, 'i').replace('comment', block$1._comment).replace('tag', block$1._tag).replace('attribute', / +[a-zA-Z:_][\w.:-]*(?: *= *"[^"\n]*"| *= *'[^'\n]*'| *= *[^\s"'=<>`]+)?/).getRegex();
   block$1.paragraph = edit(block$1._paragraph).replace('hr', block$1.hr).replace('heading', ' {0,3}#{1,6} ').replace('|lheading', '') // setex headings don't interrupt commonmark paragraphs
-    .replace('blockquote', ' {0,3}>').replace('fences', ' {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n').replace('list', ' {0,3}(?:[*+-]|1[.)]) ') // only lists starting from 1 can interrupt
-    .replace('html', '</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)').replace('tag', block$1._tag) // pars can be interrupted by type (6) html blocks
-    .getRegex();
+  .replace('blockquote', ' {0,3}>').replace('fences', ' {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n').replace('list', ' {0,3}(?:[*+-]|1[.)]) ') // only lists starting from 1 can interrupt
+  .replace('html', '</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)').replace('tag', block$1._tag) // pars can be interrupted by type (6) html blocks
+  .getRegex();
   block$1.blockquote = edit(block$1.blockquote).replace('paragraph', block$1.paragraph).getRegex();
   /**
    * Normal Block Grammar
@@ -1266,20 +1267,20 @@
 
   block$1.gfm = merge$1({}, block$1.normal, {
     table: '^ *([^\\n ].*\\|.*)\\n' // Header
-      + ' {0,3}(?:\\| *)?(:?-+:? *(?:\\| *:?-+:? *)*)\\|?' // Align
-      + '(?:\\n *((?:(?!\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)' // Cells
+    + ' {0,3}(?:\\| *)?(:?-+:? *(?:\\| *:?-+:? *)*)\\|?' // Align
+    + '(?:\\n((?:(?! *\\n|hr|heading|blockquote|code|fences|list|html).*(?:\\n|$))*)\\n*|$)' // Cells
 
   });
   block$1.gfm.table = edit(block$1.gfm.table).replace('hr', block$1.hr).replace('heading', ' {0,3}#{1,6} ').replace('blockquote', ' {0,3}>').replace('code', ' {4}[^\\n]').replace('fences', ' {0,3}(?:`{3,}(?=[^`\\n]*\\n)|~{3,})[^\\n]*\\n').replace('list', ' {0,3}(?:[*+-]|1[.)]) ') // only lists starting from 1 can interrupt
-    .replace('html', '</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)').replace('tag', block$1._tag) // tables can be interrupted by type (6) html blocks
-    .getRegex();
+  .replace('html', '</?(?:tag)(?: +|\\n|/?>)|<(?:script|pre|style|textarea|!--)').replace('tag', block$1._tag) // tables can be interrupted by type (6) html blocks
+  .getRegex();
   /**
    * Pedantic grammar (original John Gruber's loose markdown specification)
    */
 
   block$1.pedantic = merge$1({}, block$1.normal, {
     html: edit('^ *(?:comment *(?:\\n|\\s*$)' + '|<(tag)[\\s\\S]+?</\\1> *(?:\\n{2,}|\\s*$)' // closed tag
-      + '|<tag(?:"[^"]*"|\'[^\']*\'|\\s[^\'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))').replace('comment', block$1._comment).replace(/tag/g, '(?!(?:' + 'a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub' + '|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)' + '\\b)\\w+(?!:|[^\\w\\s@]*@)\\b').getRegex(),
+    + '|<tag(?:"[^"]*"|\'[^\']*\'|\\s[^\'"/>\\s]*)*?/?> *(?:\\n{2,}|\\s*$))').replace('comment', block$1._comment).replace(/tag/g, '(?!(?:' + 'a|em|strong|small|s|cite|q|dfn|abbr|data|time|code|var|samp|kbd|sub' + '|sup|i|b|u|mark|ruby|rt|rp|bdi|bdo|span|br|wbr|ins|del|img)' + '\\b)\\w+(?!:|[^\\w\\s@]*@)\\b').getRegex(),
     def: /^ *\[([^\]]+)\]: *<?([^\s>]+)>?(?: +(["(][^\n]+[")]))? *(?:\n+|$)/,
     heading: /^(#{1,6})(.*)(?:\n+|$)/,
     fences: noopTest,
@@ -1295,10 +1296,10 @@
     autolink: /^<(scheme:[^\s\x00-\x1f<>]*|email)>/,
     url: noopTest,
     tag: '^comment' + '|^</[a-zA-Z][\\w:-]*\\s*>' // self-closing tag
-      + '|^<[a-zA-Z][\\w-]*(?:attribute)*?\\s*/?>' // open tag
-      + '|^<\\?[\\s\\S]*?\\?>' // processing instruction, e.g. <?php ?>
-      + '|^<![a-zA-Z]+\\s[\\s\\S]*?>' // declaration, e.g. <!DOCTYPE html>
-      + '|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>',
+    + '|^<[a-zA-Z][\\w-]*(?:attribute)*?\\s*/?>' // open tag
+    + '|^<\\?[\\s\\S]*?\\?>' // processing instruction, e.g. <?php ?>
+    + '|^<![a-zA-Z]+\\s[\\s\\S]*?>' // declaration, e.g. <!DOCTYPE html>
+    + '|^<!\\[CDATA\\[[\\s\\S]*?\\]\\]>',
     // CDATA section
     link: /^!?\[(label)\]\(\s*(href)(?:\s+(title))?\s*\)/,
     reflink: /^!?\[(label)\]\[(?!\s*\])((?:\\[\[\]]?|[^\[\]\\])+)\]/,
@@ -1395,7 +1396,7 @@
   var Tokenizer$1 = Tokenizer_1;
   var defaults$3 = defaults$5.exports.defaults;
   var block = rules.block,
-    inline = rules.inline;
+      inline = rules.inline;
   var repeatString = helpers.repeatString;
   /**
    * smartypants text replacement
@@ -1403,13 +1404,13 @@
 
   function smartypants(text) {
     return text // em-dashes
-      .replace(/---/g, "\u2014") // en-dashes
-      .replace(/--/g, "\u2013") // opening singles
-      .replace(/(^|[-\u2014/(\[{"\s])'/g, "$1\u2018") // closing singles & apostrophes
-      .replace(/'/g, "\u2019") // opening doubles
-      .replace(/(^|[-\u2014/(\[{\u2018\s])"/g, "$1\u201C") // closing doubles
-      .replace(/"/g, "\u201D") // ellipses
-      .replace(/\.{3}/g, "\u2026");
+    .replace(/---/g, "\u2014") // en-dashes
+    .replace(/--/g, "\u2013") // opening singles
+    .replace(/(^|[-\u2014/(\[{"\s])'/g, "$1\u2018") // closing singles & apostrophes
+    .replace(/'/g, "\u2019") // opening doubles
+    .replace(/(^|[-\u2014/(\[{\u2018\s])"/g, "$1\u201C") // closing doubles
+    .replace(/"/g, "\u201D") // ellipses
+    .replace(/\.{3}/g, "\u2026");
   }
   /**
    * mangle email addresses
@@ -1418,8 +1419,8 @@
 
   function mangle(text) {
     var out = '',
-      i,
-      ch;
+        i,
+        ch;
     var l = text.length;
 
     for (i = 0; i < l; i++) {
@@ -1486,19 +1487,19 @@
       var lexer = new Lexer(options);
       return lexer.lex(src);
     }
-      /**
-       * Static Lex Inline Method
-       */
-      ;
+    /**
+     * Static Lex Inline Method
+     */
+    ;
 
     Lexer.lexInline = function lexInline(src, options) {
       var lexer = new Lexer(options);
       return lexer.inlineTokens(src);
     }
-      /**
-       * Preprocessing
-       */
-      ;
+    /**
+     * Preprocessing
+     */
+    ;
 
     var _proto = Lexer.prototype;
 
@@ -1513,10 +1514,10 @@
 
       return this.tokens;
     }
-      /**
-       * Lexing
-       */
-      ;
+    /**
+     * Lexing
+     */
+    ;
 
     _proto.blockTokens = function blockTokens(src, tokens) {
       var _this = this;
@@ -1730,10 +1731,10 @@
         tokens: tokens
       });
     }
-      /**
-       * Lexing/Compiling
-       */
-      ;
+    /**
+     * Lexing/Compiling
+     */
+    ;
 
     _proto.inlineTokens = function inlineTokens(src, tokens) {
       var _this2 = this;
@@ -1954,7 +1955,7 @@
 
   var defaults$2 = defaults$5.exports.defaults;
   var cleanUrl = helpers.cleanUrl,
-    escape$1 = helpers.escape;
+      escape$1 = helpers.escape;
   /**
    * Renderer
    */
@@ -2010,7 +2011,7 @@
 
     _proto.list = function list(body, ordered, start) {
       var type = ordered ? 'ol' : 'ul',
-        startatt = ordered && start !== 1 ? ' start="' + start + '"' : '';
+          startatt = ordered && start !== 1 ? ' start="' + start + '"' : '';
       return '<' + type + startatt + '>\n' + body + '</' + type + '>\n';
     };
 
@@ -2040,7 +2041,7 @@
       var tag = flags.align ? '<' + type + ' align="' + flags.align + '">' : '<' + type + '>';
       return tag + content + '</' + type + '>\n';
     } // span level renderer
-      ;
+    ;
 
     _proto.strong = function strong(text) {
       return '<strong>' + text + '</strong>';
@@ -2109,7 +2110,7 @@
    */
 
   var TextRenderer_1 = /*#__PURE__*/function () {
-    function TextRenderer() { }
+    function TextRenderer() {}
 
     var _proto = TextRenderer.prototype;
 
@@ -2166,13 +2167,13 @@
 
     _proto.serialize = function serialize(value) {
       return value.toLowerCase().trim() // remove html tags
-        .replace(/<[!\/a-z].*?>/ig, '') // remove unwanted chars
-        .replace(/[\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*+,./:;<=>?@[\]^`{|}~]/g, '').replace(/\s/g, '-');
+      .replace(/<[!\/a-z].*?>/ig, '') // remove unwanted chars
+      .replace(/[\u2000-\u206F\u2E00-\u2E7F\\'!"#$%&()*+,./:;<=>?@[\]^`{|}~]/g, '').replace(/\s/g, '-');
     }
-      /**
-       * Finds the next safe (unique) slug to use
-       */
-      ;
+    /**
+     * Finds the next safe (unique) slug to use
+     */
+    ;
 
     _proto.getNextSafeSlug = function getNextSafeSlug(originalSlug, isDryRun) {
       var slug = originalSlug;
@@ -2194,12 +2195,12 @@
 
       return slug;
     }
-      /**
-       * Convert string to unique id
-       * @param {object} options
-       * @param {boolean} options.dryrun Generates the next unique slug without updating the internal accumulator.
-       */
-      ;
+    /**
+     * Convert string to unique id
+     * @param {object} options
+     * @param {boolean} options.dryrun Generates the next unique slug without updating the internal accumulator.
+     */
+    ;
 
     _proto.slug = function slug(value, options) {
       if (options === void 0) {
@@ -2240,19 +2241,19 @@
       var parser = new Parser(options);
       return parser.parse(tokens);
     }
-      /**
-       * Static Parse Inline Method
-       */
-      ;
+    /**
+     * Static Parse Inline Method
+     */
+    ;
 
     Parser.parseInline = function parseInline(tokens, options) {
       var parser = new Parser(options);
       return parser.parseInline(tokens);
     }
-      /**
-       * Parse Loop
-       */
-      ;
+    /**
+     * Parse Loop
+     */
+    ;
 
     var _proto = Parser.prototype;
 
@@ -2262,25 +2263,25 @@
       }
 
       var out = '',
-        i,
-        j,
-        k,
-        l2,
-        l3,
-        row,
-        cell,
-        header,
-        body,
-        token,
-        ordered,
-        start,
-        loose,
-        itemBody,
-        item,
-        checked,
-        task,
-        checkbox,
-        ret;
+          i,
+          j,
+          k,
+          l2,
+          l3,
+          row,
+          cell,
+          header,
+          body,
+          token,
+          ordered,
+          start,
+          loose,
+          itemBody,
+          item,
+          checked,
+          task,
+          checkbox,
+          ret;
       var l = tokens.length;
 
       for (i = 0; i < l; i++) {
@@ -2450,17 +2451,17 @@
 
       return out;
     }
-      /**
-       * Parse Inline Tokens
-       */
-      ;
+    /**
+     * Parse Inline Tokens
+     */
+    ;
 
     _proto.parseInline = function parseInline(tokens, renderer) {
       renderer = renderer || this.renderer;
       var out = '',
-        i,
-        token,
-        ret;
+          i,
+          token,
+          ret;
       var l = tokens.length;
 
       for (i = 0; i < l; i++) {
@@ -2565,11 +2566,11 @@
   var TextRenderer = TextRenderer_1;
   var Slugger = Slugger_1;
   var merge = helpers.merge,
-    checkSanitizeDeprecation = helpers.checkSanitizeDeprecation,
-    escape = helpers.escape;
+      checkSanitizeDeprecation = helpers.checkSanitizeDeprecation,
+      escape = helpers.escape;
   var getDefaults = defaults$5.exports.getDefaults,
-    changeDefaults = defaults$5.exports.changeDefaults,
-    defaults = defaults$5.exports.defaults;
+      changeDefaults = defaults$5.exports.changeDefaults,
+      defaults = defaults$5.exports.defaults;
   /**
    * Marked
    */

@@ -45,7 +45,7 @@ export class MainThreadEditorTabs {
 				tabs.push({
 					viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 					label: editor.getName(),
-					resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) : EditorResourceAccessor.getCanonicalUri(editor),
+					resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 					editorId: editor.editorId,
 					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
 				});

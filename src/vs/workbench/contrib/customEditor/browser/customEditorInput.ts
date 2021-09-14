@@ -19,12 +19,10 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
-import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -37,9 +35,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		options?: { readonly customClasses?: string, readonly oldResource?: URI },
 	): IEditorInput {
 		return instantiationService.invokeFunction(accessor => {
-			if (viewType === defaultCustomEditor.id) {
-				return accessor.get(ITextEditorService).createTextEditor({ resource });
-			}
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
 			let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;

@@ -23,9 +23,8 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellEditState, CellFindMatch, CellFindMatchWithIndex, CellFocusMode, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellFindMatchWithIndex, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -195,7 +194,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private get selectionHandles() {
 		const handlesSet = new Set<number>();
 		const handles: number[] = [];
-		cellRangesToIndexes(this._selectionCollection.selections).map(index => this.cellAt(index)).forEach(cell => {
+		cellRangesToIndexes(this._selectionCollection.selections).map(index => index < this.length ? this.cellAt(index) : undefined).forEach(cell => {
 			if (cell && !handlesSet.has(cell.handle)) {
 				handles.push(cell.handle);
 			}
@@ -349,6 +348,14 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				}
 			});
 		}));
+
+		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {
+			for (let i = 0; i < this.length; i++) {
+				const cell = this._viewCells[i];
+				cell.updateOptions(e);
+			}
+		}));
+
 
 		this._register(this._selectionCollection.onDidChangeSelection(e => {
 			this._onDidChangeSelection.fire(e);
@@ -901,56 +908,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		return newLineModels;
-	}
-
-	async splitNotebookCell(index: number): Promise<CellViewModel[] | null> {
-		const cell = this.viewCells[index] as CellViewModel;
-
-		if (this._options.isReadOnly) {
-			return null;
-		}
-
-		const splitPoints = cell.focusMode === CellFocusMode.Container ? [{ lineNumber: 1, column: 1 }] : cell.getSelectionsStartPosition();
-
-		if (splitPoints && splitPoints.length > 0) {
-			await cell.resolveTextModel();
-
-			if (!cell.hasModel()) {
-				return null;
-			}
-
-			const newLinesContents = this.computeCellLinesContents(cell, splitPoints);
-			if (newLinesContents) {
-				const language = cell.language;
-				const kind = cell.cellKind;
-				const mime = cell.mime;
-
-				const textModel = await cell.resolveTextModel();
-				await this._bulkEditService.apply(
-					[
-						new ResourceTextEdit(cell.uri, { range: textModel.getFullModelRange(), text: newLinesContents[0] }),
-						new ResourceNotebookCellEdit(this._notebook.uri,
-							{
-								editType: CellEditType.Replace,
-								index: index + 1,
-								count: 0,
-								cells: newLinesContents.slice(1).map(line => ({
-									cellKind: kind,
-									language,
-									mime,
-									source: line,
-									outputs: [],
-									metadata: {}
-								}))
-							}
-						)
-					],
-					{ quotableLabel: 'Split Notebook Cell' }
-				);
-			}
-		}
-
-		return null;
 	}
 
 	getEditorViewState(): INotebookEditorViewState {

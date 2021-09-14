@@ -7,6 +7,7 @@ import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { Event } from 'vs/base/common/event';
 import { isAbsolute, join } from 'vs/base/common/path';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
@@ -134,7 +135,7 @@ export async function main(argv: string[]): Promise<any> {
 				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				await new Promise<void>(resolve => child.once('exit', () => resolve()));
+				await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
 			});
 		}
 
@@ -198,6 +199,23 @@ export async function main(argv: string[]): Promise<any> {
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
+
+			// When running with --wait, we want to continue running CLI process
+			// until either:
+			// - the wait marker file has been deleted (e.g. when closing the editor)
+			// - the launched process terminates (e.g. due to a crash)
+			processCallbacks.push(async child => {
+				try {
+					await Promise.race([
+						whenDeleted(waitMarkerFilePath!),
+						Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'))
+					]);
+				} finally {
+					if (stdinFilePath) {
+						unlinkSync(stdinFilePath); // Make sure to delete the tmp stdin file if we have any
+					}
+				}
+			});
 		}
 
 		// If we have been started with `--prof-startup` we need to find free ports to profile
@@ -320,23 +338,6 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		const child = spawn(process.execPath, argv.slice(2), options);
-
-		if (args.wait && waitMarkerFilePath) {
-			return new Promise<void>(resolve => {
-
-				// Complete when process exits
-				child.once('exit', () => resolve(undefined));
-
-				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
-			}).then(() => {
-
-				// Make sure to delete the tmp stdin file if we have any
-				if (stdinFilePath) {
-					unlinkSync(stdinFilePath);
-				}
-			});
-		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
 	}

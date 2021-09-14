@@ -211,6 +211,10 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
+		if (!editor.hasModel()) {
+			return;
+		}
+
 		const levels = args && args.levels || 1;
 		const direction = args && args.direction === 'up' ? 'up' : 'down';
 		let index: number | undefined = undefined;
@@ -227,7 +231,7 @@ registerAction2(class extends Action2 {
 
 		const controller = editor.getContribution<FoldingController>(FoldingController.id);
 		if (index !== undefined) {
-			const targetCell = editor.cellAt(index);
+			const targetCell = (index < 0 || index >= editor.getLength()) ? undefined : editor.cellAt(index);
 			if (targetCell?.cellKind === CellKind.Code && direction === 'down') {
 				return;
 			}
@@ -238,8 +242,8 @@ registerAction2(class extends Action2 {
 				controller.setFoldingStateDown(index, CellFoldingState.Collapsed, levels);
 			}
 
-			const viewIndex = editor._getViewModel()!.getNearestVisibleCellIndexUpwards(index);
-			editor.focusElement(editor.cellAt(viewIndex)!);
+			const viewIndex = editor._getViewModel().getNearestVisibleCellIndexUpwards(index);
+			editor.focusElement(editor.cellAt(viewIndex));
 		}
 	}
 });

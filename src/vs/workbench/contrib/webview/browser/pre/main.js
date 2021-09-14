@@ -668,6 +668,11 @@ function toContentHtml(data) {
 		}
 	});
 
+	// Set default aria role
+	if (!newDocument.body.hasAttribute('role')) {
+		newDocument.body.setAttribute('role', 'document');
+	}
+
 	// Inject default script
 	if (options.allowScripts) {
 		const defaultScript = newDocument.createElement('script');

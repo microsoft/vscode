@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { EditorResourceAccessor, IEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, isDiffEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 
 suite('Diff editor input', () => {
@@ -76,6 +76,7 @@ suite('Diff editor input', () => {
 
 		const untypedDiffInput = diffInput.toUntyped();
 		assert.ok(isResourceDiffEditorInput(untypedDiffInput));
+		assert.ok(!isResourceSideBySideEditorInput(untypedDiffInput));
 		assert.ok(diffInput.matches(untypedDiffInput));
 	});
 

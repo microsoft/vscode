@@ -762,21 +762,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private async doReopenLastClosedEditor(lastClosedEditor: IRecentlyClosedEditor): Promise<void> {
+		const options: IEditorOptions = { pinned: true, sticky: lastClosedEditor.sticky, index: lastClosedEditor.index, ignoreError: true };
 
-		// Determine editor options
-		let options: IEditorOptions;
-		if (lastClosedEditor.sticky) {
-			// Sticky: in case the target index is outside of the range of
-			// sticky editors, we make sure to not provide the index as
-			// option. Otherwise the index will cause the sticky flag to
-			// be ignored.
-			if (!this.editorGroupService.activeGroup.isSticky(lastClosedEditor.index)) {
-				options = { pinned: true, sticky: true, ignoreError: true };
-			} else {
-				options = { pinned: true, sticky: true, index: lastClosedEditor.index, ignoreError: true };
-			}
-		} else {
-			options = { pinned: true, index: lastClosedEditor.index, ignoreError: true };
+		// Special sticky handling: remove the index property from options
+		// if that would result in sticky state to not preserve or apply
+		// wrongly.
+		if (
+			(lastClosedEditor.sticky && !this.editorGroupService.activeGroup.isSticky(lastClosedEditor.index)) ||
+			(!lastClosedEditor.sticky && this.editorGroupService.activeGroup.isSticky(lastClosedEditor.index))
+		) {
+			options.index = undefined;
 		}
 
 		// Re-open editor unless already opened
