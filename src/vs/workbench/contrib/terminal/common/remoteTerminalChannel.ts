@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, ITerminalProperty, TerminalShellType, TerminalPropertyType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, TerminalShellType, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 
@@ -94,8 +94,8 @@ export class RemoteTerminalChannelClient {
 	get onProcessExit(): Event<{ id: number, event: number | undefined }> {
 		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
 	}
-	get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string, requireWindowsMode?: boolean } }> {
-		return this._channel.listen<{ id: number, event: { pid: number, cwd: string, requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
+	get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[], requireWindowsMode?: boolean } }> {
+		return this._channel.listen<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[], requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
 	}
 	get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
 		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
@@ -124,8 +124,8 @@ export class RemoteTerminalChannelClient {
 	get onDidRequestDetach(): Event<{ requestId: number, workspaceId: string, instanceId: number }> {
 		return this._channel.listen<{ requestId: number, workspaceId: string, instanceId: number }>('$onDidRequestDetach');
 	}
-	get onDidChangeProperty(): Event<{ id: number, property: ITerminalProperty<any> }> {
-		return this._channel.listen<{ id: number, property: ITerminalProperty<any> }>('$onDidChangeProperty');
+	get onDidChangeProperty(): Event<{ id: number, property: IProcessProperty<any> }> {
+		return this._channel.listen<{ id: number, property: IProcessProperty<any> }>('$onDidChangeProperty');
 	}
 
 	constructor(
@@ -293,7 +293,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$updateIcon', [id, icon, color]);
 	}
 
-	refreshProperty(id: number, property: TerminalPropertyType): Promise<any> {
+	refreshProperty(id: number, property: ProcessPropertyType): Promise<any> {
 		return this._channel.call('$refreshProperty', [id, property]);
 	}
 

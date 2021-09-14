@@ -12,12 +12,11 @@ import { SetLogLevelAction, OpenWindowSessionLogFileAction } from 'vs/workbench/
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService, FileChangeType, whenProviderRegistered } from 'vs/platform/files/common/files';
+import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { dirname } from 'vs/base/common/resources';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +24,8 @@ import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleane
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { timeout } from 'vs/base/common/async';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);
@@ -97,26 +98,25 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	private async registerLogChannel(id: string, label: string, file: URI): Promise<void> {
 		await whenProviderRegistered(file, this.fileService);
 		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
+		try {
+			await this.whenFileExists(file, 1);
+			outputChannelRegistry.registerChannel({ id, label, file, log: true });
+		} catch (error) {
+			this.logService.error('Error while registering log channel', file.toString(), getErrorMessage(error));
+		}
+	}
 
-		/* watch first and then check if file exists so that to avoid missing file creation event after watching #102117 */
-		const watcher = this.fileService.watch(dirname(file));
-		this.logService.debug(`[Registering Log Channel] Started watching:`, file.toString());
+	private async whenFileExists(file: URI, trial: number): Promise<void> {
 		const exists = await this.fileService.exists(file);
 		if (exists) {
-			watcher.dispose();
-			this.logService.debug(`[Registering Log Channel] Stopped watching:`, file.toString());
-			outputChannelRegistry.registerChannel({ id, label, file, log: true });
 			return;
 		}
-
-		const disposable = this.fileService.onDidFilesChange(e => {
-			if (e.contains(file, FileChangeType.ADDED, FileChangeType.UPDATED)) {
-				watcher.dispose();
-				this.logService.debug(`[Registering Log Channel] Stopped watching:`, file.toString());
-				disposable.dispose();
-				outputChannelRegistry.registerChannel({ id, label, file, log: true });
-			}
-		});
+		if (trial > 10) {
+			throw new Error(`Timed out while waiting for file to be created`);
+		}
+		this.logService.debug(`[Registering Log Channel] File does not exist. Waiting for 1s to retry.`, file.toString());
+		await timeout(1000);
+		await this.whenFileExists(file, trial + 1);
 	}
 
 }

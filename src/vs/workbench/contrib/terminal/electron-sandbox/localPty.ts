@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProcessProperties, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
@@ -15,7 +15,12 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminal
  */
 export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
-	private _properties: ITerminalProcessProperties;
+	private _properties: IProcessPropertyMap = {
+		cwd: '',
+		initialCwd: ''
+	};
+	private _capabilities: ProcessCapability[] = [];
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent | string>());
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
@@ -34,7 +39,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<ITerminalProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	constructor(
@@ -43,10 +48,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
-		this._properties = {
-			cwd: '',
-			initialCwd: ''
-		};
 	}
 
 	start(): Promise<ITerminalLaunchError | undefined> {
@@ -82,7 +83,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	async getCwd(): Promise<string> {
 		return this._properties.cwd || this._properties.initialCwd;
 	}
-	async refreshProperty(property: TerminalPropertyType): Promise<any> {
+	async refreshProperty(property: ProcessPropertyType): Promise<any> {
 		this._localPtyService.refreshProperty(this.id, property);
 	}
 	getLatency(): Promise<number> {
@@ -106,6 +107,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._onProcessExit.fire(e);
 	}
 	handleReady(e: IProcessReadyEvent) {
+		if (e.capabilities) {
+			this._capabilities = e.capabilities;
+		}
 		this._onProcessReady.fire(e);
 	}
 	handleTitleChanged(e: string) {
@@ -123,10 +127,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	handleDidChangeHasChildProcesses(e: boolean) {
 		this._onDidChangeHasChildProcesses.fire(e);
 	}
-	handleDidChangeProperty(e: ITerminalProperty<any>) {
-		if (e.type === TerminalPropertyType.Cwd) {
+	handleDidChangeProperty(e: IProcessProperty<any>) {
+		if (e.type === ProcessPropertyType.Cwd) {
 			this._properties.cwd = e.value;
-		} else if (e.type === TerminalPropertyType.InitialCwd) {
+		} else if (e.type === ProcessPropertyType.InitialCwd) {
 			this._properties.initialCwd = e.value;
 		}
 		this._onDidChangeProperty.fire(e);

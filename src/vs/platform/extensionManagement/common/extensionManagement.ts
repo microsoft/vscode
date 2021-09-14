@@ -83,7 +83,7 @@ export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 	}
 }
 
-export function getTargetPlatform(platform: Platform, arch: string | undefined): TargetPlatform {
+export function getTargetPlatform(platform: Platform | 'alpine', arch: string | undefined): TargetPlatform {
 	switch (platform) {
 		case Platform.Windows:
 			if (arch === 'x64') {
@@ -106,6 +106,12 @@ export function getTargetPlatform(platform: Platform, arch: string | undefined):
 			}
 			if (arch === 'arm') {
 				return TargetPlatform.LINUX_ARMHF;
+			}
+			return TargetPlatform.UNKNOWN;
+
+		case 'alpine':
+			if (arch === 'x64') {
+				return TargetPlatform.ALPINE_X64;
 			}
 			return TargetPlatform.UNKNOWN;
 

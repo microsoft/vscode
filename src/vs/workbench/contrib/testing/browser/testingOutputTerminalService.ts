@@ -10,7 +10,7 @@ import { listenStream } from 'vs/base/common/stream';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessCapability, ProcessPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -154,7 +154,8 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	private processDataEmitter = this._register(new Emitter<string | IProcessDataEvent>());
 	private titleEmitter = this._register(new Emitter<string>());
 	private readonly startedDeferred = new DeferredPromise<void>();
-
+	private _capabilities: ProcessCapability[] = [];
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	/** Whether the associated test has ended (indicating the terminal can be reused) */
 	public ended = true;
 	/** Result currently being displayed */
@@ -182,14 +183,14 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 
 	public readonly onProcessData = this.processDataEmitter.event;
 	public readonly onProcessExit = this._register(new Emitter<number | undefined>()).event;
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number; cwd: string; }>());
+	private readonly _onProcessReady = this._register(new Emitter<{ pid: number; cwd: string; capabilities: ProcessCapability[] }>());
 	public readonly onProcessReady = this._onProcessReady.event;
 	public readonly onProcessTitleChanged = this.titleEmitter.event;
 	public readonly onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>()).event;
 
 	public start(): Promise<ITerminalLaunchError | undefined> {
 		this.startedDeferred.complete();
-		this._onProcessReady.fire({ pid: -1, cwd: '' });
+		this._onProcessReady.fire({ pid: -1, cwd: '', capabilities: [] });
 		return Promise.resolve(undefined);
 	}
 	public shutdown(): void {
@@ -224,7 +225,7 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 		return Promise.resolve(0);
 	}
 
-	refreshProperty(property: TerminalPropertyType) {
+	refreshProperty(property: ProcessPropertyType) {
 		return Promise.resolve('');
 	}
 	//#endregion
