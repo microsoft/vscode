@@ -580,7 +580,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					}
 
 					const cellOutput = viewModel.ensureOutputCell(data.cellId, data.cellTop);
-					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
+					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left).element;
 
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
@@ -1298,7 +1298,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			container.appendChild(lowerWrapperElement);
 		}
 
-		public createOutputNode(outputId: string, outputOffset: number, left: number): HTMLElement {
+		public createOutputNode(outputId: string, outputOffset: number, left: number): OutputNode {
 			let outputContainer = this.outputElements.get(outputId);
 			if (!outputContainer) {
 				outputContainer = new OutputContainer(outputId);
@@ -1307,18 +1307,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			outputContainer.reset(outputOffset);
 
-			const outputNode = document.createElement('div');
-			outputNode.id = outputId;
-			outputNode.classList.add('output');
-			outputNode.style.position = 'absolute';
-			outputNode.style.top = `0px`;
-			outputNode.style.left = left + 'px';
-			outputNode.style.padding = '0px';
-			outputContainer.element.appendChild(outputNode);
-
-			addMouseoverListeners(outputNode, outputId);
-			addOutputFocusTracker(outputNode, outputId);
-
+			const outputNode = new OutputNode(outputId, left);
+			outputContainer.element.appendChild(outputNode.element);
 			return outputNode;
 		}
 
@@ -1410,6 +1400,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 			type,
 			...properties
 		});
+	}
+
+	class OutputNode {
+
+		public readonly element: HTMLElement;
+
+		constructor(outputId: string, left: number) {
+			this.element = document.createElement('div');
+			this.element.id = outputId;
+			this.element.classList.add('output');
+			this.element.style.position = 'absolute';
+			this.element.style.top = `0px`;
+			this.element.style.left = left + 'px';
+			this.element.style.padding = '0px';
+
+			addMouseoverListeners(this.element, outputId);
+			addOutputFocusTracker(this.element, outputId);
+		}
 	}
 
 	const markupCellDragManager = new class MarkupCellDragManager {
