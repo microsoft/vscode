@@ -418,7 +418,7 @@ export class NativeFileImport {
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Check for dropped external files to be folders
-		const files = coalesce(extractEditorsDropData(source, true).filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
+		const files = coalesce(extractEditorsDropData(source).filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
 		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
 
 		if (token.isCancellationRequested) {

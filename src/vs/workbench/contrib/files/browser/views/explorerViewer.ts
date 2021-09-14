@@ -980,12 +980,21 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		try {
 
-			// Desktop DND (Import file)
+			// External File DND (Import file)
 			if (data instanceof NativeDragAndDropData) {
-				if (isWeb) {
-					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
-					await browserUpload.upload(target, originalEvent);
-				} else {
+				// Native DND from Desktop
+				if (originalEvent.dataTransfer?.types.indexOf('Files') !== -1) {
+					if (isWeb) {
+						const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
+						await browserUpload.upload(target, originalEvent);
+					} else {
+						const nativeImport = this.instantiationService.createInstance(NativeFileImport);
+						await nativeImport.import(resolvedTarget, originalEvent);
+					}
+				}
+
+				// External FS-provided DND
+				else {
 					const nativeImport = this.instantiationService.createInstance(NativeFileImport);
 					await nativeImport.import(resolvedTarget, originalEvent);
 				}
