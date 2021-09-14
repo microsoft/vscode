@@ -1277,7 +1277,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public readonly element: HTMLElement;
 
-		public readonly outputElements = new Map</*outputId*/ string, HTMLElement>();
+		private readonly outputElements = new Map</*outputId*/ string, OutputContainer>();
 
 		constructor(cellId: string) {
 			const container = document.getElementById('container')!;
@@ -1301,16 +1301,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public createOutputNode(outputId: string, outputOffset: number, left: number): HTMLElement {
 			let outputContainer = this.outputElements.get(outputId);
 			if (!outputContainer) {
-				outputContainer = document.createElement('div');
-				outputContainer.classList.add('output_container');
-				outputContainer.style.position = 'absolute';
-				outputContainer.style.overflow = 'hidden';
-				this.element.appendChild(outputContainer);
+				outputContainer = new OutputContainer(outputId);
+				this.element.appendChild(outputContainer.element);
 				this.outputElements.set(outputId, outputContainer);
 			}
-			outputContainer.innerText = '';
-			outputContainer.style.maxHeight = '0px';
-			outputContainer.style.top = `${outputOffset}px`;
+			outputContainer.reset(outputOffset);
 
 			const outputNode = document.createElement('div');
 			outputNode.id = outputId;
@@ -1319,7 +1314,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			outputNode.style.top = `0px`;
 			outputNode.style.left = left + 'px';
 			outputNode.style.padding = '0px';
-			outputContainer.appendChild(outputNode);
+			outputContainer.element.appendChild(outputNode);
 
 			addMouseoverListeners(outputNode, outputId);
 			addOutputFocusTracker(outputNode, outputId);
@@ -1328,15 +1323,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {
-			const outputContainer = this.outputElements.get(outputId);
-			if (!outputContainer) {
-				return;
-			}
-
-			if (rendererId) {
-				renderers.clearOutput(rendererId, outputId);
-			}
-			outputContainer.remove();
+			this.outputElements.get(outputId)?.clear(rendererId);
 			this.outputElements.delete(outputId);
 		}
 
@@ -1349,7 +1336,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.visibility = 'visible';
 			this.element.style.top = `${top}px`;
 
-			dimensionUpdater.updateHeight(outputId, outputContainer.offsetHeight, {
+			dimensionUpdater.updateHeight(outputId, outputContainer.element.offsetHeight, {
 				isOutput: true,
 			});
 		}
@@ -1359,26 +1346,53 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public updateOutputHeight(outputId: string, height: number) {
-			const outputContainer = this.outputElements.get(outputId);
-			if (!outputContainer) {
-				return;
-			}
-
-			outputContainer.style.maxHeight = `${height}px`;
-			outputContainer.style.height = `${height}px`;
+			this.outputElements.get(outputId)?.updateHeight(height);
 		}
 
 		public updateScroll(request: webviewMessages.IContentWidgetTopRequest) {
 			this.element.style.top = `${request.cellTop}px`;
 
-			const outputContainer = this.outputElements.get(request.outputId);
-			if (outputContainer) {
-				outputContainer.style.top = `${request.outputOffset}px`;
-			}
+			this.outputElements.get(request.outputId)?.updateScroll(request.outputOffset);
 
 			if (request.forceDisplay) {
 				this.element.style.visibility = 'visible';
 			}
+		}
+	}
+
+	class OutputContainer {
+
+		public readonly element: HTMLElement;
+
+		constructor(
+			private readonly outputId: string,
+		) {
+			this.element = document.createElement('div');
+			this.element.classList.add('output_container');
+			this.element.style.position = 'absolute';
+			this.element.style.overflow = 'hidden';
+		}
+
+		public clear(rendererId: string | undefined) {
+			if (rendererId) {
+				renderers.clearOutput(rendererId, this.outputId);
+			}
+			this.element.remove();
+		}
+
+		public reset(outputOffset: number) {
+			this.element.innerText = '';
+			this.element.style.maxHeight = '0px';
+			this.element.style.top = `${outputOffset}px`;
+		}
+
+		public updateHeight(height: number) {
+			this.element.style.maxHeight = `${height}px`;
+			this.element.style.height = `${height}px`;
+		}
+
+		public updateScroll(outputOffset: number) {
+			this.element.style.top = `${outputOffset}px`;
 		}
 	}
 
