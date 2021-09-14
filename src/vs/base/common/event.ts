@@ -732,6 +732,26 @@ export class DebounceEmitter<T> extends PauseableEmitter<T> {
 	}
 }
 
+/**
+ * An emitter which queue all events and then process them at the
+ * end of the event loop.
+ */
+export class MicroTaskEmitter<T> extends Emitter<T> {
+	private _queuedEvents: T[] = [];
+	constructor(options?: EmitterOptions) {
+		super(options);
+	}
+	override fire(event: T): void {
+		this._queuedEvents.push(event);
+		if (this._queuedEvents.length === 1) {
+			queueMicrotask(() => {
+				this._queuedEvents.forEach(e => super.fire(e));
+				this._queuedEvents = [];
+			});
+		}
+	}
+}
+
 export class EventMultiplexer<T> implements IDisposable {
 
 	private readonly emitter: Emitter<T>;

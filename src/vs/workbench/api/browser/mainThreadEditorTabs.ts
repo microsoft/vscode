@@ -21,7 +21,6 @@ export class MainThreadEditorTabs {
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
 	private _currentlyActiveTab: { groupId: number, tab: IEditorTabDto } | undefined = undefined;
-	private _queuedEvents: IEditorsChangeEvent[] = [];
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -32,15 +31,7 @@ export class MainThreadEditorTabs {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
 		// Queue all events that arrive on the same event loop and then send them as a batch
-		this._dispoables.add(editorService.onDidEditorsChange((e) => {
-			this._queuedEvents.push(e);
-			if (this._queuedEvents.length === 1) {
-				queueMicrotask(() => {
-					this._queuedEvents.forEach(e => this._updateTabsModel(e));
-					this._queuedEvents = [];
-				});
-			}
-		}, this));
+		this._dispoables.add(editorService.onDidEditorsChange((e) => this._updateTabsModel(e)));
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
 

@@ -294,13 +294,13 @@ export class EditorGroupModel extends Disposable {
 			// Listeners
 			this.registerEditorListeners(newEditor);
 
+			// Event
+			this._onDidOpenEditor.fire(newEditor);
+
 			// Handle active
 			if (makeActive) {
 				this.doSetActive(newEditor);
 			}
-
-			// Event
-			this._onDidOpenEditor.fire(newEditor);
 
 			return {
 				editor: newEditor,
