@@ -1791,29 +1791,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				break;
 		}
-
+		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
-		if (eventSource !== TitleEventSource.Api) {
-			// Remove special characters that could mess with rendering
-			const cwd = this._cwd || this._initialCwd || '';
-			const properties = {
-				cwd,
-				cwdFolder: this.getCwdFolder(),
-				workspaceFolder: this._workspaceFolder,
-				local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
-				process: this._processName,
-				sequence: this._sequence,
-				task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-				separator: { label: this._configHelper.config.tabs.separator }
-			};
-			title = template(this._configHelper.config.tabs.title, properties);
-			const description = template(this._configHelper.config.tabs.description, properties);
-			const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
-			if (!title || !titleChanged) {
-				return;
-			}
-			this._description = description;
-		}
+		title = this._customizeTitle(title, eventSource);
 		this._title = title;
 		this._titleSource = eventSource;
 		this._setAriaLabel(this._xterm, this._instanceId, this._title);
@@ -1823,6 +1803,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._titleReadyComplete = undefined;
 		}
 		this._onTitleChanged.fire(this);
+	}
+
+	private _customizeTitle(title: string, eventSource: TitleEventSource): string {
+		if (eventSource === TitleEventSource.Api) {
+			return title;
+		}
+		const cwd = this._cwd || this._initialCwd || '';
+		const properties = {
+			cwd,
+			cwdFolder: this.getCwdFolder(),
+			workspaceFolder: this._workspaceFolder,
+			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+			process: this._processName,
+			sequence: this._sequence,
+			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			separator: { label: this._configHelper.config.tabs.separator }
+		};
+		title = template(this._configHelper.config.tabs.title, properties);
+		const description = template(this._configHelper.config.tabs.description, properties);
+		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
+		if (!title || !titleChanged) {
+			return title;
+		}
+		this._description = description;
+		return title;
 	}
 
 	getCwdFolder(): string {
