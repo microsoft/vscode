@@ -315,7 +315,6 @@ export class EditorGroupModel extends Disposable {
 			// Pin it
 			if (makePinned) {
 				this.doPin(existingEditor);
-
 			}
 
 			// Activate it
