@@ -568,7 +568,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'html': {
 				const data = event.data;
 				outputRunner.enqueue(data.outputId, (state) => {
-					return viewModel.rerenderOutputCell(data, state);
+					return viewModel.renderOutputCell(data, state);
 				});
 				break;
 			}
@@ -664,7 +664,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			case 'updateWorkspaceTrust': {
 				isWorkspaceTrusted = event.data.isTrusted;
-				viewModel.rerenderMarkupCells();
+				viewModel.rerender();
 				break;
 			}
 		}
@@ -896,6 +896,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private readonly _markupCells = new Map<string, MarkupCell>();
 		private readonly _outputCells = new Map<string, OutputCell>();
 
+		public clearAll() {
+			this._markupCells.clear();
+			this._outputCells.clear();
+		}
+
+		public rerender() {
+			this.rerenderMarkupCells();
+			this.renderOutputCells();
+		}
+
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
 			if (existing) {
@@ -949,7 +959,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			cell?.unhide();
 		}
 
-		public rerenderMarkupCells() {
+		private rerenderMarkupCells() {
 			for (const cell of this._markupCells.values()) {
 				cell.rerender();
 			}
@@ -986,12 +996,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public clearAll() {
-			this._markupCells.clear();
-			this._outputCells.clear();
+		private renderOutputCells() {
+			for (const outputCell of this._outputCells.values()) {
+				outputCell.rerender();
+			}
 		}
 
-		public async rerenderOutputCell(data: webviewMessages.ICreationRequestMessage, state: { cancelled: boolean }): Promise<void> {
+		public async renderOutputCell(data: webviewMessages.ICreationRequestMessage, state: { cancelled: boolean }): Promise<void> {
 			const preloadsAndErrors = await Promise.all<unknown>([
 				data.rendererId ? renderers.load(data.rendererId) : undefined,
 				...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
@@ -1002,7 +1013,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			const cellOutput = this.ensureOutputCell(data.cellId, data.cellTop);
-			const outputNode = cellOutput.createOutputNode(data.outputId, data.outputOffset, data.left);
+			const outputNode = cellOutput.createOutputElement(data.outputId, data.outputOffset, data.left);
 			outputNode.render(data.content, preloadsAndErrors);
 
 			// don't hide until after this step so that the height is right
@@ -1264,18 +1275,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 			container.appendChild(lowerWrapperElement);
 		}
 
-		public createOutputNode(outputId: string, outputOffset: number, left: number): OutputNode {
+		public createOutputElement(outputId: string, outputOffset: number, left: number): OutputElement {
 			let outputContainer = this.outputElements.get(outputId);
 			if (!outputContainer) {
 				outputContainer = new OutputContainer(outputId);
 				this.element.appendChild(outputContainer.element);
 				this.outputElements.set(outputId, outputContainer);
 			}
-			outputContainer.reset(outputOffset);
 
-			const outputNode = new OutputNode(outputId, left);
-			outputContainer.element.appendChild(outputNode.element);
-			return outputNode;
+			return outputContainer.createOutputElement(outputId, outputOffset, left);
 		}
 
 		public clearOutput(outputId: string, rendererId: string | undefined) {
@@ -1301,6 +1309,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.visibility = 'hidden';
 		}
 
+		public rerender() {
+			for (const outputElement of this.outputElements.values()) {
+				outputElement.rerender();
+			}
+		}
+
 		public updateOutputHeight(outputId: string, height: number) {
 			this.outputElements.get(outputId)?.updateHeight(height);
 		}
@@ -1320,6 +1334,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public readonly element: HTMLElement;
 
+		private _outputNode?: OutputElement;
+
 		constructor(
 			private readonly outputId: string,
 		) {
@@ -1336,12 +1352,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.remove();
 		}
 
-		public reset(outputOffset: number) {
-			this.element.innerText = '';
-			this.element.style.maxHeight = '0px';
-			this.element.style.top = `${outputOffset}px`;
-		}
-
 		public updateHeight(height: number) {
 			this.element.style.maxHeight = `${height}px`;
 			this.element.style.height = `${height}px`;
@@ -1349,6 +1359,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public updateScroll(outputOffset: number) {
 			this.element.style.top = `${outputOffset}px`;
+		}
+
+		public createOutputElement(outputId: string, outputOffset: number, left: number): OutputElement {
+			this.element.innerText = '';
+			this.element.style.maxHeight = '0px';
+			this.element.style.top = `${outputOffset}px`;
+
+			this._outputNode = new OutputElement(outputId, left);
+			this.element.appendChild(this._outputNode.element);
+			return this._outputNode;
+		}
+
+		public rerender() {
+			this._outputNode?.rerender();
 		}
 	}
 
@@ -1368,9 +1392,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	}
 
-	class OutputNode {
+	class OutputElement {
 
 		public readonly element: HTMLElement;
+
+		private _content?: { content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[] };
+		private hasResizeObserver = false;
 
 		constructor(
 			private readonly outputId: string,
@@ -1388,9 +1415,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 			addOutputFocusTracker(this.element, outputId);
 		}
 
-		private hasResizeObserver = false;
 
 		public render(content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[]) {
+			this._content = { content, preloadsAndErrors };
 			if (content.type === RenderOutputType.Html) {
 				const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 				this.element.innerHTML = trustedHtml as string;
@@ -1428,6 +1455,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 					isOutput: true,
 					init: true,
 				});
+			}
+		}
+
+		public rerender() {
+			if (this._content) {
+				this.render(this._content.content, this._content.preloadsAndErrors);
 			}
 		}
 	}
