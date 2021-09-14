@@ -20,6 +20,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
+import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -41,8 +42,8 @@ suite('Extension Gallery Service', () => {
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider);
 		storageService = new InMemoryStorageService();
-		configurationService = new TestConfigurationService({ 'telemetry.enableTelemetry': true });
-		configurationService.updateValue('telemetry.enableTelemetry', true);
+		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
+		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
