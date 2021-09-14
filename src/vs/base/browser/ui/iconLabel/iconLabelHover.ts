@@ -42,16 +42,62 @@ export interface ICustomHover extends IDisposable {
 	update(tooltip: string | IIconLabelMarkdownString | HTMLElement): void;
 }
 
+type HoverWidgetContent = IMarkdownString | string | HTMLElement | undefined;
+class UpdatableHoverWidget {
+
+	private _content: HoverWidgetContent;
+	private _hoverWidget: IHoverWidget | undefined;
+
+	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget, private fadeInAnimation: boolean) {
+
+	}
+	update(content: HoverWidgetContent): void {
+		this._content = content;
+
+		let skipFadeInAnimation = !this.fadeInAnimation;
+
+		if (this._hoverWidget) {
+			if (this._hoverWidget.isDisposed) {
+				return;
+			}
+			this._hoverWidget.dispose();
+			skipFadeInAnimation = true; // hover is already up, no need to fade in
+		}
+
+		if (content) {
+			const hoverOptions: IHoverDelegateOptions = {
+				content: content,
+				target: this.target,
+				showPointer: this.hoverDelegate.placement === 'element',
+				hoverPosition: HoverPosition.BELOW,
+				skipFadeInAnimation
+			};
+
+			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions);
+		}
+	}
+
+	get content(): HoverWidgetContent {
+		return this._content;
+	}
+
+	get isDisposed() {
+		return this._hoverWidget && this._hoverWidget.isDisposed;
+	}
+
+	dispose(): void {
+		this._hoverWidget?.dispose();
+	}
+
+}
 export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement | undefined): ICustomHover | undefined {
 	if (!markdownTooltip) {
 		return undefined;
 	}
 
-	let tooltip = getTooltipForCustom(markdownTooltip);
-
 	let hoverPreparation: IDisposable | undefined;
 
-	let hoverWidget: IHoverWidget | undefined;
+	let hoverWidget: UpdatableHoverWidget | undefined;
 
 	const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
 		if (disposeWidget) {
@@ -91,33 +137,17 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		}
 
 		const showHover = async () => {
-			if (hoverPreparation && (hoverWidget?.isDisposed !== false)) {
+			if (hoverPreparation && (!hoverWidget || hoverWidget.isDisposed)) {
 
-				const hoverOptions: IHoverDelegateOptions = {
-					content: localize('iconLabel.loading', "Loading..."),
-					target,
-					hoverPosition: HoverPosition.BELOW,
-					skipFadeInAnimation: delay === 0
-				};
-				hoverWidget?.dispose();
-				hoverWidget = hoverDelegate.showHover(hoverOptions);
+				hoverWidget = new UpdatableHoverWidget(hoverDelegate, target, delay > 0);
 
-				const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) && !(markdownTooltip instanceof HTMLElement) ? markdownTooltip?.markdownNotSupportedFallback : undefined);
+				hoverWidget.update(localize('iconLabel.loading', "Loading..."));
 
-				hoverWidget?.dispose();
-				hoverWidget = undefined;
+				let resolvedTooltip = await computeTooltip(markdownTooltip, tokenSource.token);
 
 				// awaiting the tooltip could take a while. Make sure we're still preparing to hover.
-				if (resolvedTooltip && hoverPreparation) {
-					const hoverOptions: IHoverDelegateOptions = {
-						content: resolvedTooltip,
-						target,
-						showPointer: hoverDelegate.placement === 'element',
-						hoverPosition: HoverPosition.BELOW,
-						skipFadeInAnimation: delay === 0
-					};
-
-					hoverWidget = hoverDelegate.showHover(hoverOptions);
+				if (hoverPreparation) {
+					hoverWidget.update(resolvedTooltip);
 				}
 
 			}
@@ -142,13 +172,13 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		hide: () => {
 			hideHover(true, true);
 		},
-		update: newTooltip => {
+		update: async newTooltip => {
 			markdownTooltip = newTooltip;
-			tooltip = getTooltipForCustom(newTooltip);
-
 			if (hoverWidget && !hoverWidget.isDisposed) {
-				hover.hide();
-				hover.show();
+				let resolvedTooltip = await computeTooltip(markdownTooltip, CancellationToken.None);
+				if (hoverWidget && !hoverWidget.isDisposed) {
+					hoverWidget.update(resolvedTooltip);
+				}
 			}
 		},
 		dispose: () => {
@@ -159,13 +189,12 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 	return hover;
 }
 
-function getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString | HTMLElement): (token: CancellationToken) => Promise<string | IMarkdownString | HTMLElement | undefined> {
-	if (isString(markdownTooltip) || markdownTooltip instanceof HTMLElement) {
-		return async () => markdownTooltip;
+async function computeTooltip(markdownTooltip: string | IIconLabelMarkdownString | HTMLElement | undefined, token: CancellationToken): Promise<HoverWidgetContent> {
+	if (markdownTooltip === undefined || isString(markdownTooltip) || markdownTooltip instanceof HTMLElement) {
+		return markdownTooltip;
 	} else if (isFunction(markdownTooltip.markdown)) {
-		return markdownTooltip.markdown;
-	} else {
-		const markdown = markdownTooltip.markdown;
-		return async () => markdown;
+		return markdownTooltip.markdown(token);
 	}
+	return markdownTooltip.markdown ?? markdownTooltip.markdownNotSupportedFallback;
+
 }
