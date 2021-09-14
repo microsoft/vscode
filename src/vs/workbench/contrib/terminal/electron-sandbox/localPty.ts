@@ -107,9 +107,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._onProcessExit.fire(e);
 	}
 	handleReady(e: IProcessReadyEvent) {
-		if (e.capabilities) {
-			this._capabilities = e.capabilities;
-		}
+		this._capabilities = e.capabilities;
 		this._onProcessReady.fire(e);
 	}
 	handleTitleChanged(e: string) {

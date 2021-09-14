@@ -1827,13 +1827,34 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	getCwdFolder(): string {
-		const initialCwd = this._initialCwd;
+		//  oh instead of looking against initialCwd we should be looking again the default cwd of the workspace for single root workspaces ?
+		// ie.terminal.integrated.cwd if it's defined, otherwise the workspace folder. That would cause the last 2 to still say "hi"
 		const cwd = this._cwd || this._initialCwd;
-		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length <= 1;
-		if (!cwd || !this._capabilities.includes(ProcessCapability.CwdDetection) || (singleRootWorkspace && initialCwd === cwd)) {
+		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0;
+		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1;
+		if (!cwd ||
+			!this._capabilities.includes(ProcessCapability.CwdDetection) ||
+			zeroRootWorkspace ||
+			(singleRootWorkspace && this._equalIgnoringSlashes(this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd))) {
 			return '';
 		}
 		return path.basename(cwd);
+	}
+
+	private _equalIgnoringSlashes(workspaceUri: string, cwd: string): boolean {
+		let workspacePaths = workspaceUri.includes('/') ? workspaceUri.split('/') : workspaceUri.split('\\');
+		let cwdPaths = cwd.includes('/') ? cwd.split('/') : cwd.split('\\');
+		workspacePaths = workspacePaths.slice(4);
+		cwdPaths = cwdPaths.slice(1);
+		if (workspacePaths.length !== cwdPaths.length) {
+			return false;
+		}
+		for (let i = 0; i < cwdPaths.length; i++) {
+			if (workspacePaths[i] !== cwdPaths[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	waitForTitle(): Promise<string> {
