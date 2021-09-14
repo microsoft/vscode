@@ -6,7 +6,7 @@ ports:
 tasks:
   - init: |
       yarn
-      yarn gitpod:init
+      yarn server:init
     command: |
       gp sync-done init
       export NODE_ENV=development

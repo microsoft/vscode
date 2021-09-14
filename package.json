@@ -56,8 +56,8 @@
     "hygiene": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js core-ci",
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
-    "gitpod:init": "yarn --cwd ./build compile && yarn compile && yarn download-builtin-extensions",
-    "gitpod:smoketest": "yarn --cwd ./test/smoke compile && yarn smoketest-no-compile --web --verbose --headless --electronArgs=\"--disable-dev-shm-usage --use-gl=swiftshader\""
+    "server:init": "yarn --cwd ./build compile && yarn compile && yarn download-builtin-extensions",
+    "server:smoketest": "yarn --cwd ./test/smoke compile && yarn smoketest-no-compile --web --verbose --headless --electronArgs=\"--disable-dev-shm-usage --use-gl=swiftshader\""
   },
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",

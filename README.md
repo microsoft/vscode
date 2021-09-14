@@ -4,7 +4,7 @@
 
 ## What is this?
 
-This project provides a version of VS Code that runs a server on a remote machine and allows through a modern web browser. It's based on the very same architecture used by [Gitpod](https://www.gitpod.io) or [GitHub Codespaces](https://github.com).
+This project provides a version of VS Code that runs a server on a remote machine and allows access through a modern web browser. It's based on the very same architecture used by [Gitpod](https://www.gitpod.io) or [GitHub Codespaces](https://github.com).
 
 <img width="1624" alt="Screenshot 2021-09-02 at 08 39 26" src="https://user-images.githubusercontent.com/372735/131794918-d6602646-4d67-435b-88fe-620a3cc0a3aa.png">
 
@@ -22,17 +22,17 @@ At Gitpod we've been asked a lot about how we do it. So we thought we might just
 
 - Start the server:
 ```bash
-docker run -it --init -p 3000:3000 -v "$(pwd):/home/workspace:cached" gitpod/vscode
+docker run -it --init -p 3000:3000 -v "$(pwd):/home/workspace:cached" gitpod/openvscode-server
 ```
 - after this, visit [localhost:3000](http://localhost:3000).
 
 ### Linux
 
-- [Download the latest release](https://github.com/gitpod-io/vscode-releases/releases/latest)
+- [Download the latest release](https://github.com/gitpod-io/openvscode-server/releases/latest)
 - untar and run the server:
 ```bash
-tar -xzf code-web-server-v*.tar.gz
-cd code-web-server-v*
+tar -xzf code-web-server-v${OPENVSCODE_SERVER_VERSION}.tar.gz
+cd code-web-server-v${OPENVSCODE_SERVER_VERSION}
 ./server.sh
 ```
 - after this, visit [localhost:3000](http://localhost:3000).
@@ -49,7 +49,7 @@ This project really only adds the minimal bits required to run VS Code in a web 
 
 ### Starting from sources
 
-- [Start a Gitpod workspace](https://gitpod.io/#https://github.com/gitpod-io/vscode/tree/web-server)
+- [Start a Gitpod workspace](https://gitpod.io/#https://github.com/gitpod-io/openvscode-server)
 - Dev version of the server should be already up and running. Notice that the dev version is slower to load since it is not bundled (around 2000 files).
 
 ### Updating VS Code
@@ -57,8 +57,8 @@ This project really only adds the minimal bits required to run VS Code in a web 
 - Update your local VS Code, open the About dialog and remember the release commit and Node.js version.
 - Fetch latest upstream changes and rebase the branch based on the local VS Code's commit. Drop all commits before `code web server initial commit`.
 - Check that [.gitpod.Dockerfile](./.gitpod.Dockerfile) and [remote/.yarnrc](./remote/.yarnrc) has latest major Node.js version of local VS Code's Node.js version.
-- Recompile everything: `git clean -dfx && yarn && yarn gitpod:init`
-- Run smoke tests: `yarn gitpod:smoketest`.
+- Recompile everything: `git clean -dfx && yarn && yarn server:init`
+- Run smoke tests: `yarn server:smoketest`.
 - Start the dev server and play:
   - filesystem (open some project)
   - extension host process: check language smartness
@@ -69,4 +69,4 @@ This project really only adds the minimal bits required to run VS Code in a web 
 - Check server/browser logs for any warnings/errors about missing capabilities and fix them.
 - Build the production server with all changes: `yarn gulp server-min`.
 - Run it and play as with the dev server: `/workspace/server-pkg/server.sh`
-- Open a PR with your changes and ask for help if needed. It should be agaist `gitpod-io/vscode` repo and `web-server` branch!
+- Open a PR with your changes and ask for help if needed. It should be agaist `gitpod-io/openvscode-server` repo and `web-server` branch!
