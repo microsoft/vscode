@@ -1835,18 +1835,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!cwd ||
 			!this._capabilities.includes(ProcessCapability.CwdDetection) ||
 			this._workspaceContextService.getWorkspace().folders.length === 0 ||
-			(this._workspaceContextService.getWorkspace().folders.length === 1 && this._equalIgnoringSlashes(this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd))) {
+			(this._workspaceContextService.getWorkspace().folders.length === 1 && this._equalIgnoringSlashes(this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd), this._configHelper.config.cwd)) {
 			return '';
 		}
 		return path.basename(cwd);
 	}
 
-	private _equalIgnoringSlashes(workspaceUri: string, cwd: string): boolean {
-		let workspacePaths = workspaceUri.includes('/') ? workspaceUri.split('/') : workspaceUri.split('\\');
+	private _equalIgnoringSlashes(workspaceUri: string, cwd: string, configCwd?: string): boolean {
+		let paths = configCwd || workspaceUri;
+		let workspacePaths = paths.includes('/') ? paths.split('/') : paths.split('\\');
 		let cwdPaths = cwd.includes('/') ? cwd.split('/') : cwd.split('\\');
-		workspacePaths = workspacePaths.slice(4);
+		paths = paths === configCwd ? paths.slice(1) : paths.slice(4);
 		cwdPaths = cwdPaths.slice(1);
-		if (workspacePaths.length !== cwdPaths.length) {
+		if (paths.length !== cwdPaths.length) {
 			return false;
 		}
 		for (let i = 0; i < cwdPaths.length; i++) {
