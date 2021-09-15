@@ -2017,63 +2017,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	private _nearestCodeCellIndex(index: number /* exclusive */) {
-		if (!this.viewModel) {
-			return -1;
-		}
-
-		return this.viewModel.nearestCodeCellIndex(index);
-	}
-
-	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = '', ui: boolean = false): CellViewModel | null {
-		if (!this.viewModel) {
-			return null;
-		}
-
-		if (this.viewModel.options.isReadOnly) {
-			return null;
-		}
-
-		const index = cell ? this.viewModel.getCellIndex(cell) : 0;
-		const nextIndex = ui ? this.viewModel.getNextVisibleCellIndex(index) : index + 1;
-		let language;
-		if (type === CellKind.Code) {
-			const supportedLanguages = this.activeKernel?.supportedLanguages ?? this.modeService.getRegisteredModes();
-			const defaultLanguage = supportedLanguages[0] || 'plaintext';
-			if (cell?.cellKind === CellKind.Code) {
-				language = cell.language;
-			} else if (cell?.cellKind === CellKind.Markup) {
-				const nearestCodeCellIndex = this._nearestCodeCellIndex(index);
-				if (nearestCodeCellIndex > -1) {
-					language = this.viewModel.cellAt(nearestCodeCellIndex)!.language;
-				} else {
-					language = defaultLanguage;
-				}
-			} else {
-				if (cell === undefined && direction === 'above') {
-					// insert cell at the very top
-					language = this.viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || defaultLanguage;
-				} else {
-					language = defaultLanguage;
-				}
-			}
-
-			if (!supportedLanguages.includes(language)) {
-				// the language no longer exists
-				language = defaultLanguage;
-			}
-		} else {
-			language = 'markdown';
-		}
-
-		const insertIndex = cell ?
-			(direction === 'above' ? index : nextIndex) :
-			index;
-		const focused = this._list.getFocusedElements();
-		const selections = this._list.getSelectedElements();
-		return this.viewModel.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused[0]?.handle ?? null, selections);
-	}
-
 	getActiveCell() {
 		const elements = this._list.getFocusedElements();
 

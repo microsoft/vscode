@@ -465,11 +465,6 @@ export interface INotebookEditor {
 	getOutputRenderer(): OutputRenderer;
 
 	/**
-	 * Insert a new cell around `cell`
-	 */
-	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string, ui?: boolean): CellViewModel | null;
-
-	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
