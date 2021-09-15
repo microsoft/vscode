@@ -45,9 +45,16 @@ export interface IStatusbarEntryLocation {
 	 * to the referenced entry.
 	 */
 	alignment: StatusbarAlignment;
+
+	/**
+	 * Whether to move the entry close to the location
+	 * so that it appears as if both this entry and
+	 * the location belong to each other.
+	 */
+	compact?: boolean;
 }
 
-function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
+export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
 	const candidate = thing as IStatusbarEntryLocation | undefined;
 
 	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
@@ -69,7 +76,7 @@ export class StatusbarViewModel extends Disposable {
 	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
 
-	private _entries: IStatusbarViewModelEntry[] = [];
+	private _entries: IStatusbarViewModelEntry[] = []; // Intentionally not using a map here since multiple entries can have the same ID
 	get entries(): IStatusbarViewModelEntry[] { return this._entries.slice(0); }
 
 	private _lastFocusedEntry: IStatusbarViewModelEntry | undefined;
@@ -143,8 +150,7 @@ export class StatusbarViewModel extends Disposable {
 
 	add(entry: IStatusbarViewModelEntry): void {
 
-		// Intentionally not using a map here since
-		// multiple entries can have the same ID!
+		// Add to set of entries
 		this._entries.push(entry);
 
 		// Update visibility directly

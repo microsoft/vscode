@@ -31,7 +31,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { CONTEXT_STATUS_BAR_FOCUSED, HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
-import { IStatusbarEntryPriority, IStatusbarEntryLocation, IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
+import { IStatusbarEntryPriority, IStatusbarEntryLocation, IStatusbarViewModelEntry, StatusbarViewModel, isStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
 
 interface IPendingStatusbarEntry {
@@ -175,6 +175,24 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		};
 	}
 
+	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
+		const itemContainer = document.createElement('div');
+		itemContainer.id = id;
+
+		itemContainer.classList.add('statusbar-item');
+		if (extraClasses) {
+			itemContainer.classList.add(...extraClasses);
+		}
+
+		if (alignment === StatusbarAlignment.RIGHT) {
+			itemContainer.classList.add('right');
+		} else {
+			itemContainer.classList.add('left');
+		}
+
+		return itemContainer;
+	}
+
 	private doAddOrRemoveModelEntry(entry: IStatusbarViewModelEntry, add: boolean) {
 
 		// Update model but remember previous entries
@@ -291,6 +309,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 			target.appendChild(entry.container);
 		}
+
+		// Update CSS classes
+		this.updateClasses();
 	}
 
 	private appendStatusbarEntry(entry: IStatusbarViewModelEntry): void {
@@ -307,6 +328,38 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			target.appendChild(entry.container); // append at the end if last
 		} else {
 			target.insertBefore(entry.container, entries[index + 1].container); // insert before next element otherwise
+		}
+
+		// Update CSS classes
+		this.updateClasses();
+	}
+
+	private updateClasses(): void {
+		const entries = this.viewModel.entries;
+		const mapIdToEntry = new Map<string, IStatusbarViewModelEntry>();
+
+		// Clear compact related CSS classes if any
+		for (const entry of entries) {
+			mapIdToEntry.set(entry.id, entry);
+
+			entry.container.classList.remove('compact-left');
+			entry.container.classList.remove('compact-right');
+		}
+
+		// Update entries with compact related CSS classes as needed
+		for (const entry of entries) {
+			if (isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.compact) {
+				const location = mapIdToEntry.get(entry.priority.primary.id);
+				if (location) {
+					if (entry.priority.primary.alignment === StatusbarAlignment.LEFT) {
+						location.container.classList.add('compact-left');
+						entry.container.classList.add('compact-right');
+					} else {
+						location.container.classList.add('compact-right');
+						entry.container.classList.add('compact-left');
+					}
+				}
+			}
 		}
 	}
 
@@ -394,24 +447,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 
 		this.styleElement.textContent = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
-	}
-
-	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
-		const itemContainer = document.createElement('div');
-		itemContainer.id = id;
-
-		itemContainer.classList.add('statusbar-item');
-		if (extraClasses) {
-			itemContainer.classList.add(...extraClasses);
-		}
-
-		if (alignment === StatusbarAlignment.RIGHT) {
-			itemContainer.classList.add('right');
-		} else {
-			itemContainer.classList.add('left');
-		}
-
-		return itemContainer;
 	}
 
 	override layout(width: number, height: number): void {

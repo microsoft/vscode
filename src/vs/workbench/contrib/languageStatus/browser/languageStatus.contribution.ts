@@ -177,7 +177,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				command: ShowTooltipCommand
 			};
 			if (!this._combinedEntry) {
-				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT });
+				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
 			} else {
 				this._combinedEntry.update(props);
 			}
