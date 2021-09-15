@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, IEditorOpenEvent, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,6 +22,16 @@ const EditorOpenPositioning = {
 
 export interface EditorCloseEvent extends IEditorCloseEvent {
 	readonly editor: EditorInput;
+}
+
+export interface EditorOpenEvent extends IEditorOpenEvent {
+	readonly editor: EditorInput;
+	readonly index: number;
+}
+
+export interface EditorMoveEvent extends IEditorMoveEvent {
+	readonly editor: EditorInput;
+	readonly index: number;
 }
 
 export interface EditorIdentifier extends IEditorIdentifier {
@@ -91,7 +101,7 @@ export class EditorGroupModel extends Disposable {
 	private readonly _onDidActivateEditor = this._register(new Emitter<EditorInput>());
 	readonly onDidActivateEditor = this._onDidActivateEditor.event;
 
-	private readonly _onDidOpenEditor = this._register(new Emitter<EditorInput>());
+	private readonly _onDidOpenEditor = this._register(new Emitter<EditorOpenEvent>());
 	readonly onDidOpenEditor = this._onDidOpenEditor.event;
 
 	private readonly _onDidCloseEditor = this._register(new Emitter<EditorCloseEvent>());
@@ -109,7 +119,7 @@ export class EditorGroupModel extends Disposable {
 	private readonly _onDidChangeEditorCapabilities = this._register(new Emitter<EditorInput>());
 	readonly onDidChangeEditorCapabilities = this._onDidChangeEditorCapabilities.event;
 
-	private readonly _onDidMoveEditor = this._register(new Emitter<EditorInput>());
+	private readonly _onDidMoveEditor = this._register(new Emitter<EditorMoveEvent>());
 	readonly onDidMoveEditor = this._onDidMoveEditor.event;
 
 	private readonly _onDidChangeEditorPinned = this._register(new Emitter<EditorInput>());
@@ -295,7 +305,7 @@ export class EditorGroupModel extends Disposable {
 			this.registerEditorListeners(newEditor);
 
 			// Event
-			this._onDidOpenEditor.fire(newEditor);
+			this._onDidOpenEditor.fire({ editor: newEditor, groupId: this.id, index: targetIndex });
 
 			// Handle active
 			if (makeActive) {
@@ -475,7 +485,7 @@ export class EditorGroupModel extends Disposable {
 		this.editors.splice(toIndex, 0, editor);
 
 		// Event
-		this._onDidMoveEditor.fire(editor);
+		this._onDidMoveEditor.fire({ editor: editor, groupId: this.id, index: index, target: toIndex });
 
 		return editor;
 	}

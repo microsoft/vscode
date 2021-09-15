@@ -417,6 +417,7 @@ export interface IGroupChangeEvent {
 	kind: GroupChangeKind;
 	editor?: IEditorInput;
 	editorIndex?: number;
+	previousEditorIndex?: number;
 }
 
 export const enum OpenEditorContext {

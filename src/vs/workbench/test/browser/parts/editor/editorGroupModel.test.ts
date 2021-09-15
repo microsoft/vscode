@@ -106,12 +106,12 @@ suite('EditorGroupModel', () => {
 		};
 
 		group.onDidChangeLocked(() => groupEvents.locked.push(group.id));
-		group.onDidOpenEditor(e => groupEvents.opened.push(e));
+		group.onDidOpenEditor(e => groupEvents.opened.push(e.editor));
 		group.onDidCloseEditor(e => groupEvents.closed.push(e));
 		group.onDidActivateEditor(e => groupEvents.activated.push(e));
 		group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
 		group.onDidChangeEditorSticky(e => group.isSticky(e) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e));
-		group.onDidMoveEditor(e => groupEvents.moved.push(e));
+		group.onDidMoveEditor(e => groupEvents.moved.push(e.editor));
 		group.onWillDisposeEditor(e => groupEvents.disposed.push(e));
 
 		return groupEvents;

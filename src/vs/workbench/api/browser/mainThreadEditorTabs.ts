@@ -21,6 +21,7 @@ export class MainThreadEditorTabs {
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
 	private _currentlyActiveTab: { groupId: number, tab: IEditorTabDto } | undefined = undefined;
+	private _oldTabModel: IEditorTabDto[] = [];
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -65,7 +66,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabOpen(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_OPEN || !event.editor) {
+		if (event.kind !== GroupChangeKind.EDITOR_OPEN || !event.editor || event.editorIndex === undefined) {
 			return;
 		}
 		if (!this._tabModel.has(event.groupId)) {
@@ -79,7 +80,7 @@ export class MainThreadEditorTabs {
 			editorId: editor.editorId,
 			isActive: (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive(editor)
 		};
-		this._tabModel.get(event.groupId)?.push(tab);
+		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 0, tab);
 		// Update the currently active tab which may or may not be the opened one
 		if (tab.isActive) {
 			if (this._currentlyActiveTab) {
@@ -99,6 +100,25 @@ export class MainThreadEditorTabs {
 		// Remove any empty groups
 		if (this._tabModel.get(event.groupId)?.length === 0) {
 			this._tabModel.delete(event.groupId);
+		}
+	}
+
+	private _onDidTabMove(event: IEditorsChangeEvent): void {
+		if (event.kind !== GroupChangeKind.EDITOR_MOVE || event.editorIndex === undefined || event.previousEditorIndex === undefined) {
+			return;
+		}
+		const movedTab = this._tabModel.get(event.groupId)?.splice(event.previousEditorIndex, 1);
+		if (movedTab === undefined) {
+			return;
+		}
+		this._tabModel.get(event.groupId)?.splice(event.previousEditorIndex, 0, movedTab[0]);
+		movedTab[0].isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(movedTab[0].resource), options: { override: movedTab[0].editorId } });
+		// Update the currently active tab
+		if (movedTab[0].isActive) {
+			if (this._currentlyActiveTab) {
+				this._currentlyActiveTab.tab.isActive = (this._editorGroupsService.activeGroup.id === this._currentlyActiveTab.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(this._currentlyActiveTab.tab.resource), options: { override: this._currentlyActiveTab.tab.editorId } });
+			}
+			this._currentlyActiveTab = { groupId: event.groupId, tab: movedTab[0] };
 		}
 	}
 
@@ -126,6 +146,23 @@ export class MainThreadEditorTabs {
 		}, this);
 	}
 
+	/**
+	 * Helper function to compare previous tab model to current one
+	 * @param current The current tab model to compare to the previous mode
+	 * @returns True if they're equivalent, false otherwise
+	 */
+	private _compareTabsModel(current: IEditorTabDto[]): boolean {
+		if (this._oldTabModel.length !== current.length) {
+			return false;
+		}
+		for (let i = 0; i < current.length; i++) {
+			if (this._oldTabModel[i].resource !== current[i].resource && this._oldTabModel[i].editorId !== current[i].editorId) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	private _updateTabsModel(event: IEditorsChangeEvent): void {
 		// Call the correct function for the change type
 		switch (event.kind) {
@@ -143,12 +180,17 @@ export class MainThreadEditorTabs {
 				break;
 			case GroupChangeKind.GROUP_INDEX:
 				this._createTabsModel();
+			case GroupChangeKind.EDITOR_MOVE:
+				this._onDidTabMove(event);
 			default:
 				break;
 		}
 		// Flatten the map into a singular array to send the ext host
 		let allTabs: IEditorTabDto[] = [];
 		this._tabModel.forEach((tabs) => allTabs = allTabs.concat(tabs));
-		this._proxy.$acceptEditorTabs(allTabs);
+		if (!this._compareTabsModel(allTabs)) {
+			this._proxy.$acceptEditorTabs(allTabs);
+			this._oldTabModel = allTabs;
+		}
 	}
 }
