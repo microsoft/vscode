@@ -681,7 +681,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			default:
 				{
-					return this.inMemoryResourcePrefix + resource.toString(true);
+					return this.inMemoryResourcePrefix + '/' + resource.scheme + resource.path;
 				}
 		}
 	}
