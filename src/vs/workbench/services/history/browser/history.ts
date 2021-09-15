@@ -42,7 +42,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
  */
-export class TextEditorState {
+class TextEditorState {
 
 	private static readonly EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
 
@@ -112,7 +112,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor?: IEditorIdentifier;
 
-	private readonly editorHistoryListeners = new Map();
 	private readonly editorStackListeners = new Map();
 
 	constructor(
@@ -620,19 +619,22 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private moveInNavigationStack(event: FileOperationEvent): void {
-		this.removeFromNavigationStack(event);
-		if (event.target) {
+		const removed = this.removeFromNavigationStack(event);
+		if (removed && event.target) {
 			this.addToNavigationStack({ resource: event.target.resource });
 		}
 	}
 
-	private removeFromNavigationStack(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private removeFromNavigationStack(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): boolean {
+		let removed = false;
+
 		this.navigationStack = this.navigationStack.filter(entry => {
 			const matches = this.matches(arg1, entry.editor);
 
 			// Cleanup any listeners associated with the input when removing
 			if (matches) {
 				this.clearOnEditorDispose(arg1, this.editorStackListeners);
+				removed = true;
 			}
 
 			return !matches;
@@ -642,6 +644,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Context Keys
 		this.updateContextKeys();
+
+		return removed;
 	}
 
 	private matches(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent, inputB: IEditorInput | IResourceEditorInput): boolean {
@@ -881,6 +885,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private history: Array<IEditorInput | IResourceEditorInput> | undefined = undefined;
 
+	private readonly editorHistoryListeners = new Map();
+
 	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
 		const matcher = this._register(this.instantiationService.createInstance(
 			ResourceGlobMatcher,
@@ -982,13 +988,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private moveInHistory(event: FileOperationEvent): void {
-		this.removeFromHistory(event);
-		if (event.target) {
+		const removed = this.removeFromHistory(event);
+		if (removed && event.target) {
 			this.addToHistory({ resource: event.target.resource });
 		}
 	}
 
-	removeFromHistory(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	removeFromHistory(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): boolean {
+		let removed = false;
+
 		this.ensureHistoryLoaded(this.history);
 
 		this.history = this.history.filter(entry => {
@@ -997,10 +1005,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Cleanup any listeners associated with the input when removing from history
 			if (matches) {
 				this.clearOnEditorDispose(arg1, this.editorHistoryListeners);
+				removed = true;
 			}
 
 			return !matches;
 		});
+
+		return removed;
 	}
 
 	private replaceInHistory(editor: IEditorInput | IResourceEditorInput, ...replacements: ReadonlyArray<IEditorInput | IResourceEditorInput>): void {
