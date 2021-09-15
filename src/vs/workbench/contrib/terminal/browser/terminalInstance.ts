@@ -165,6 +165,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hasHadInput: boolean;
 
 	private _capabilities: ProcessCapability[] = [];
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
@@ -222,6 +223,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
 
+	get processName(): string | undefined { return this._processName; }
+	get sequence(): string | undefined { return this._sequence; }
+	get staticTitle(): string | undefined { return this._staticTitle; }
+	get workspaceFolder(): string { return this._workspaceFolder; }
+	get cwd(): string | undefined { return this._cwd; }
+	get initialCwd(): string | undefined { return this._initialCwd; }
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
 	private readonly _onExit = new Emitter<number | undefined>();
@@ -1802,26 +1809,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._messageTitleDisposable = undefined;
 				break;
 		}
-
-		const cwd = this._cwd || this._initialCwd || '';
-		const templateProperties: ITerminalLabelTemplateProperties = {
-			cwd,
-			cwdFolder: '',
-			workspaceFolder: this._workspaceFolder,
-			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
-			process: this._processName,
-			sequence: this._sequence,
-			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-			separator: { label: this._configHelper.config.tabs.separator }
-		};
-		title = refreshLabel(this._configHelper.config.tabs.title, templateProperties, this._workspaceContextService, this._capabilities, this._configHelper.config.cwd, this._staticTitle);
-		const description = refreshLabel(this._configHelper.config.tabs.description, templateProperties, this._workspaceContextService, this._capabilities, this._configHelper.config.cwd);
-		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
-		if (!title || !titleChanged) {
-			return;
-		}
-		this._description = description;
-		this._title = title;
+		const labelComputer = new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService);
+		labelComputer.onLabelChanged(e => {
+			this._title = e.title;
+			this._description = e.description;
+			// this._onTitleChanged.fire(this);
+		});
+		this._title = labelComputer.title;
+		this._description = labelComputer.description;
 		this._titleSource = eventSource;
 		this._setAriaLabel(this._xterm, this._instanceId, this._title);
 
@@ -2251,28 +2246,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 });
 
-export function refreshLabel(
-	labelTemplate: string,
-	templateProperties: ITerminalLabelTemplateProperties,
-	workspaceContextService: IWorkspaceContextService,
-	capabilities: ProcessCapability[],
-	configCwd?: string,
-	staticTitle?: string): string {
-	if (staticTitle) {
-		return staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process || '';
-	}
-
-	if (!templateProperties.cwd || !capabilities.includes(ProcessCapability.CwdDetection) ||
-		(workspaceContextService.getWorkspace().folders.length <= 1 &&
-			(templateProperties.cwd === (configCwd || (workspaceContextService.getWorkspace().folders[0].uri.fsPath))))) {
-		templateProperties.cwdFolder = '';
-	} else if (templateProperties.cwd && typeof templateProperties.cwd === 'string') {
-		templateProperties.cwdFolder = path.basename(templateProperties.cwd);
-	}
-	//Remove special characters that could mess with rendering
-	return template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
-}
-
 export interface ITerminalLabelTemplateProperties {
 	cwd?: string | null | undefined;
 	cwdFolder?: string | null | undefined;
@@ -2282,4 +2255,57 @@ export interface ITerminalLabelTemplateProperties {
 	sequence?: string | null | undefined;
 	task?: string | null | undefined;
 	separator?: string | ISeparator | null | undefined;
+}
+
+const enum TerminalLabelType {
+	Title = 'title',
+	Description = 'description'
+}
+
+class TerminalLabelComputer {
+	title: string;
+	description: string;
+	//TODO: extend disposable so this listener can be registered?
+	private readonly _onLabelChanged = new Emitter<{ title: string, description: string }>();
+	readonly onLabelChanged = this._onLabelChanged.event;
+	constructor(
+		private readonly _configHelper: TerminalConfigHelper,
+		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+	) {
+		this.title = this.computeLabel(_configHelper.config.tabs.title, TerminalLabelType.Title);
+		this.description = this.computeLabel(_configHelper.config.tabs.description, TerminalLabelType.Description);
+		if (this.title !== this._instance.title || this.description !== this._instance.description) {
+			this._onLabelChanged.fire({ title: this.title, description: this.description });
+		}
+	}
+
+	computeLabel(
+		labelTemplate: string,
+		labelType: TerminalLabelType
+	) {
+		const templateProperties: ITerminalLabelTemplateProperties = {
+			cwd: this._instance.cwd || this._instance.initialCwd || '',
+			cwdFolder: '',
+			workspaceFolder: this._instance.workspaceFolder,
+			local: this._instance.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+			process: this._instance.processName,
+			sequence: this._instance.sequence,
+			task: this._instance.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			separator: { label: this._configHelper.config.tabs.separator }
+		};
+		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
+			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process || '';
+		}
+
+		if (!templateProperties.cwd || !this._instance.capabilities.includes(ProcessCapability.CwdDetection) ||
+			(this._workspaceContextService.getWorkspace().folders.length <= 1 &&
+				(templateProperties.cwd === (this._configHelper.config.cwd || (this._workspaceContextService.getWorkspace().folders[0].uri.fsPath))))) {
+			templateProperties.cwdFolder = '';
+		} else if (templateProperties.cwd && typeof templateProperties.cwd === 'string') {
+			templateProperties.cwdFolder = path.basename(templateProperties.cwd);
+		}
+		//Remove special characters that could mess with rendering
+		return template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
+	}
 }

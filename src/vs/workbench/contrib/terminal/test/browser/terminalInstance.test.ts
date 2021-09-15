@@ -5,7 +5,7 @@
 
 import { strictEqual } from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { ITerminalLabelTemplateProperties, refreshLabel } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { ITerminalLabelTemplateProperties } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -44,6 +44,7 @@ suite.only('Workbench - TerminalInstance', () => {
 			mockWorkspace = new Workspace('workspace', [toWorkspaceFolder(ROOT_1_URI)]);
 			mockMultiRootWorkspace = new Workspace('workspace', [toWorkspaceFolder(ROOT_1_URI), toWorkspaceFolder(ROOT_2_URI)]);
 			mockContextService.setWorkspace(mockWorkspace);
+			//TODO: test LabelComputer
 		});
 
 		test('should resolve to "" when the template variables are empty', () => {
