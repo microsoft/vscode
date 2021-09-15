@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
@@ -136,9 +136,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private registerListeners(): void {
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
-		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
+		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
 		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
 
 		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
@@ -150,7 +150,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// make sure to trigger the onActiveEditorChanged() to track the editor
 		// properly (fixes https://github.com/microsoft/vscode/issues/59908)
 		if (this.editorService.activeEditorPane) {
-			this.onActiveEditorChanged();
+			this.onDidActiveEditorChange();
 		}
 
 		// Mouse back/forward support
@@ -187,7 +187,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private onActiveEditorChanged(): void {
+	private onDidActiveEditorChange(): void {
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeEditorPane)) {
 			return; // return if the active editor is still the same
@@ -555,7 +555,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Clear editor listeners from removed entries
-		removedEntries.forEach(removedEntry => this.clearOnEditorDispose(removedEntry.editor, this.editorStackListeners));
+		for (const removedEntry of removedEntries) {
+			this.clearOnEditorDispose(removedEntry.editor, this.editorStackListeners);
+		}
 
 		// Remove this from the stack unless the stack input is a resource
 		// that can easily be restored even when the input gets disposed
@@ -625,8 +627,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private removeFromNavigationStack(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
-		this.navigationStack = this.navigationStack.filter(e => {
-			const matches = this.matches(arg1, e.editor);
+		this.navigationStack = this.navigationStack.filter(entry => {
+			const matches = this.matches(arg1, entry.editor);
 
 			// Cleanup any listeners associated with the input when removing
 			if (matches) {
@@ -704,7 +706,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private recentlyClosedEditors: IRecentlyClosedEditor[] = [];
 	private ignoreEditorCloseEvent = false;
 
-	private onEditorClosed(event: IEditorCloseEvent): void {
+	private onDidCloseEditor(event: IEditorCloseEvent): void {
 		if (this.ignoreEditorCloseEvent) {
 			return; // blocked
 		}
@@ -924,10 +926,35 @@ export class HistoryService extends Disposable implements IHistoryService {
 			this.clearOnEditorDispose(this.history.pop()!, this.editorHistoryListeners);
 		}
 
-		// Remove this from the history unless the history input is a resource
-		// that can easily be restored even when the input gets disposed
+		// React to editor input disposing if this is a typed editor
 		if (isEditorInput(historyInput)) {
-			this.onEditorDispose(historyInput, () => this.removeFromHistory(historyInput), this.editorHistoryListeners);
+			this.onEditorDispose(historyInput, () => this.updateHistoryOnEditorDispose(historyInput), this.editorHistoryListeners);
+		}
+	}
+
+	private updateHistoryOnEditorDispose(historyInput: IEditorInput): void {
+
+		// Any non side-by-side editor input gets removed directly on dispose
+		if (!isSideBySideEditorInput(historyInput)) {
+			this.removeFromHistory(historyInput);
+		}
+
+		// Side-by-side editors get special treatment: we try to distill the
+		// possibly untyped resource inputs from both sides to be able to
+		// offer these entries from the history to the user still.
+		else {
+			const resourceInputs: IResourceEditorInput[] = [];
+			const sideInputs = historyInput.primary.matches(historyInput.secondary) ? [historyInput.primary] : [historyInput.primary, historyInput.secondary];
+			for (const sideInput of sideInputs) {
+				const candidateResourceInput = this.preferResourceEditorInput(sideInput);
+				if (isResourceEditorInput(candidateResourceInput)) {
+					resourceInputs.push(candidateResourceInput);
+				}
+			}
+
+			// Insert the untyped resource inputs where our disposed
+			// side-by-side editor input is in the history stack
+			this.replaceInHistory(historyInput, ...resourceInputs);
 		}
 	}
 
@@ -942,12 +969,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private removeExcludedFromHistory(): void {
 		this.ensureHistoryLoaded(this.history);
 
-		this.history = this.history.filter(e => {
-			const include = this.includeInHistory(e);
+		this.history = this.history.filter(entry => {
+			const include = this.includeInHistory(entry);
 
 			// Cleanup any listeners associated with the input when removing from history
 			if (!include) {
-				this.clearOnEditorDispose(e, this.editorHistoryListeners);
+				this.clearOnEditorDispose(entry, this.editorHistoryListeners);
 			}
 
 			return include;
@@ -964,8 +991,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 	removeFromHistory(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.ensureHistoryLoaded(this.history);
 
-		this.history = this.history.filter(e => {
-			const matches = this.matches(arg1, e);
+		this.history = this.history.filter(entry => {
+			const matches = this.matches(arg1, entry);
 
 			// Cleanup any listeners associated with the input when removing from history
 			if (matches) {
@@ -974,6 +1001,43 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			return !matches;
 		});
+	}
+
+	private replaceInHistory(editor: IEditorInput | IResourceEditorInput, ...replacements: ReadonlyArray<IEditorInput | IResourceEditorInput>): void {
+		this.ensureHistoryLoaded(this.history);
+
+		let replaced = false;
+
+		const newHistory: Array<IEditorInput | IResourceEditorInput> = [];
+		for (const entry of this.history) {
+
+			// Entry matches and is going to be disposed + replaced
+			if (this.matches(editor, entry)) {
+
+				// Cleanup any listeners associated with the input when replacing from history
+				this.clearOnEditorDispose(editor, this.editorHistoryListeners);
+
+				// Insert replacements but only once
+				if (!replaced) {
+					newHistory.push(...replacements);
+					replaced = true;
+				}
+			}
+
+			// Entry does not match, but only add it if it didn't match
+			// our replacements already
+			else if (!replacements.some(replacement => this.matches(replacement, entry))) {
+				newHistory.push(entry);
+			}
+		}
+
+		// If the target editor to replace was not found, make sure to
+		// insert the replacements to the end to ensure we got them
+		if (!replaced) {
+			newHistory.push(...replacements);
+		}
+
+		this.history = newHistory;
 	}
 
 	clearRecentlyOpened(): void {
