@@ -27,7 +27,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -756,7 +756,7 @@ const commonEditorOptions: IEditorOptions = {
 	},
 };
 
-const diffEditorOptions: IDiffEditorOptions = {
+const diffEditorOptions: IDiffEditorConstructionOptions = {
 	...commonEditorOptions,
 	enableSplitViewResizing: true,
 	isInEmbeddedEditor: true,

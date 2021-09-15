@@ -27,6 +27,7 @@ export const enum TargetPlatform {
 	LINUX_ARMHF = 'linux-armhf',
 
 	ALPINE_X64 = 'alpine-x64',
+	ALPINE_ARM64 = 'alpine-arm64',
 
 	DARWIN_X64 = 'darwin-x64',
 	DARWIN_ARM64 = 'darwin-arm64',
@@ -49,6 +50,7 @@ export function TargetPlatformToString(targetPlatform: TargetPlatform) {
 		case TargetPlatform.LINUX_ARMHF: return 'Linux ARM';
 
 		case TargetPlatform.ALPINE_X64: return 'Alpine Linux 64 bit';
+		case TargetPlatform.ALPINE_ARM64: return 'Alpine ARM 64';
 
 		case TargetPlatform.DARWIN_X64: return 'Mac';
 		case TargetPlatform.DARWIN_ARM64: return 'Mac Silicon';
@@ -72,6 +74,7 @@ export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 		case TargetPlatform.LINUX_ARMHF: return TargetPlatform.LINUX_ARMHF;
 
 		case TargetPlatform.ALPINE_X64: return TargetPlatform.ALPINE_X64;
+		case TargetPlatform.ALPINE_ARM64: return TargetPlatform.ALPINE_ARM64;
 
 		case TargetPlatform.DARWIN_X64: return TargetPlatform.DARWIN_X64;
 		case TargetPlatform.DARWIN_ARM64: return TargetPlatform.DARWIN_ARM64;
@@ -83,7 +86,7 @@ export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 	}
 }
 
-export function getTargetPlatform(platform: Platform, arch: string | undefined): TargetPlatform {
+export function getTargetPlatform(platform: Platform | 'alpine', arch: string | undefined): TargetPlatform {
 	switch (platform) {
 		case Platform.Windows:
 			if (arch === 'x64') {
@@ -106,6 +109,15 @@ export function getTargetPlatform(platform: Platform, arch: string | undefined):
 			}
 			if (arch === 'arm') {
 				return TargetPlatform.LINUX_ARMHF;
+			}
+			return TargetPlatform.UNKNOWN;
+
+		case 'alpine':
+			if (arch === 'x64') {
+				return TargetPlatform.ALPINE_X64;
+			}
+			if (arch === 'arm64') {
+				return TargetPlatform.ALPINE_ARM64;
 			}
 			return TargetPlatform.UNKNOWN;
 

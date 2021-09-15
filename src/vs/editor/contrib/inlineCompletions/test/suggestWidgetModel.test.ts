@@ -13,7 +13,7 @@ import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry 
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
-import { minimizeInlineCompletion, SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
+import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
 import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
@@ -31,6 +31,7 @@ import assert = require('assert');
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 
 suite('Suggest Widget Model', () => {
 	test('Active', async () => {

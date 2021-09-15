@@ -64,6 +64,8 @@ suite('SideBySideEditorInput', () => {
 		});
 
 		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', input, otherInput);
+		assert.strictEqual(sideBySideInput.getName(), 'name');
+		assert.strictEqual(sideBySideInput.getDescription(), 'description');
 
 		assert.ok(isSideBySideEditorInput(sideBySideInput));
 		assert.ok(!isSideBySideEditorInput(input));
@@ -75,6 +77,12 @@ suite('SideBySideEditorInput', () => {
 
 		sideBySideInput.dispose();
 		assert.strictEqual(counter, 0);
+
+		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input);
+		assert.strictEqual(sideBySideInputSame.getName(), input.getName());
+		assert.strictEqual(sideBySideInputSame.getDescription(), input.getDescription());
+		assert.strictEqual(sideBySideInputSame.getTitle(), input.getTitle());
+		assert.strictEqual(sideBySideInputSame.resource?.toString(), input.resource?.toString());
 	});
 
 	test('events dispatching', () => {

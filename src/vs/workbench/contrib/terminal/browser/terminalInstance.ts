@@ -46,7 +46,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
@@ -165,6 +165,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hasHadInput: boolean;
 
 	private _capabilities: ProcessCapability[] = [];
+
+	private _workspaceFolder: string = '';
 
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
@@ -655,7 +657,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._onCursorMove();
 					return false;
 				});
-				this._capabilities = processTraits.capabilities;
 			}
 			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
 			this._areLinksReady = true;
@@ -856,6 +857,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessReady((e) => {
 			this._linkManager?.setWidgetManager(this._widgetManager);
 			this._capabilities = e.capabilities;
+			this._workspaceFolder = path.basename(e.cwd.toString());
 		});
 
 		// const computedStyle = window.getComputedStyle(this._container);
@@ -1179,7 +1181,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Only listen for process title changes when a name is not provided
-				if (this._configHelper.config.titleMode === 'sequence') {
+				if (this._configHelper.config.tabs.title.includes('${sequence}') || this._configHelper.config.tabs.description.includes('${sequence}')) {
 					// Set the title to the first event if the sequence hasn't set it yet
 					Event.once(this._processManager.onProcessTitle)(e => {
 						if (!this._title) {
@@ -1443,11 +1445,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, this._accessibilityService.isScreenReaderOptimized(), reset);
 
-		// Set title again as when creating the first process
-		if (this._shellLaunchConfig.name) {
-			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
-		}
-
 		this._xtermTypeAhead?.reset();
 	}
 
@@ -1510,7 +1507,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	@debounce(2000)
 	private async _updateProcessCwd(): Promise<string> {
 		// reset cwd if it has changed, so file based url paths can be resolved
-		const cwd = await this.getCwd();
+		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
 		if (cwd && this._linkManager) {
 			this._linkManager.processCwd = cwd;
 		}
@@ -1764,7 +1761,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		switch (eventSource) {
 			case TitleEventSource.Process:
-
 				if (this._processManager.os === OperatingSystem.Windows) {
 					// Extract the file name without extension
 					title = path.win32.parse(title).name;
@@ -1781,6 +1777,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			case TitleEventSource.Api:
 				// If the title has not been set by the API or the rename command, unregister the handler that
 				// automatically updates the terminal name
+				this._processName = title;
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
 				break;
@@ -1794,28 +1791,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				break;
 		}
-
 		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
-		const cwd = this._cwd || this._initialCwd || '';
-		const properties = {
-			cwd,
-			cwdFolder: this.getCwdFolder(),
-			workspaceFolder: path.basename(cwd),
-			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
-			process: this._processName || title,
-			sequence: this._sequence,
-			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-			separator: { label: this._configHelper.config.tabs.separator }
-		};
-		title = template(this._configHelper.config.tabs.title, properties);
-		const description = template(this._configHelper.config.tabs.description, properties);
-		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
-		if (!title || !titleChanged) {
-			return;
-		}
+		title = this._customizeTitle(title, eventSource);
 		this._title = title;
-		this._description = description;
 		this._titleSource = eventSource;
 		this._setAriaLabel(this._xterm, this._instanceId, this._title);
 
@@ -1826,14 +1805,56 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onTitleChanged.fire(this);
 	}
 
+	private _customizeTitle(title: string, eventSource: TitleEventSource): string {
+		if (eventSource === TitleEventSource.Api) {
+			return title;
+		}
+		const cwd = this._cwd || this._initialCwd || '';
+		const properties = {
+			cwd,
+			cwdFolder: this.getCwdFolder(),
+			workspaceFolder: this._workspaceFolder,
+			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+			process: this._processName,
+			sequence: this._sequence,
+			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			separator: { label: this._configHelper.config.tabs.separator }
+		};
+		title = template(this._configHelper.config.tabs.title, properties);
+		const description = template(this._configHelper.config.tabs.description, properties);
+		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
+		if (!title || !titleChanged) {
+			return title;
+		}
+		this._description = description;
+		return title;
+	}
+
 	getCwdFolder(): string {
-		const initialCwd = this._initialCwd;
 		const cwd = this._cwd || this._initialCwd;
-		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length <= 1;
-		if (!cwd || !this._capabilities.includes(ProcessCapability.CwdDetection) || (singleRootWorkspace && initialCwd === cwd)) {
+		if (!cwd ||
+			!this._capabilities.includes(ProcessCapability.CwdDetection) ||
+			this._workspaceContextService.getWorkspace().folders.length === 0 ||
+			(this._workspaceContextService.getWorkspace().folders.length === 1 && this._equalIgnoringSlashes(this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd))) {
 			return '';
 		}
 		return path.basename(cwd);
+	}
+
+	private _equalIgnoringSlashes(workspaceUri: string, cwd: string): boolean {
+		let workspacePaths = workspaceUri.includes('/') ? workspaceUri.split('/') : workspaceUri.split('\\');
+		let cwdPaths = cwd.includes('/') ? cwd.split('/') : cwd.split('\\');
+		workspacePaths = workspacePaths.slice(4);
+		cwdPaths = cwdPaths.slice(1);
+		if (workspacePaths.length !== cwdPaths.length) {
+			return false;
+		}
+		for (let i = 0; i < cwdPaths.length; i++) {
+			if (workspacePaths[i] !== cwdPaths[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	waitForTitle(): Promise<string> {
@@ -1979,8 +2000,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._initialCwd;
 	}
 
-	getCwd(): Promise<string> {
-		return this._processManager.refreshProperty(ProcessPropertyType.Cwd);
+	async getCwd(): Promise<string> {
+		return await this._processManager.getInitialCwd();
+	}
+
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		return this._processManager.refreshProperty(type);
 	}
 
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {

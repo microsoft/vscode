@@ -641,8 +641,8 @@ export class ExplorerView extends ViewPane {
 		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
-				if (!viewState || previousInput instanceof ExplorerItem) {
-					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
+				if (!viewState || previousInput instanceof ExplorerItem || !previousInput) {
+					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder/empty workspace.
 					await Promise.all(input.map(async item => {
 						try {
 							await this.tree.expand(item);
