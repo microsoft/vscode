@@ -461,7 +461,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 		const modeService = accessor.get(IModeService);
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
 		const executionP = runCell(accessor, context);
-		const newCell = insertCell(modeService, context.notebookEditor, context.cell, CellKind.Code, 'below');
+		const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Code, 'below');
 
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
