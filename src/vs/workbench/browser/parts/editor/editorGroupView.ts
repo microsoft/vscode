@@ -556,7 +556,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor: event.editor, previousEditorIndex: event.index, editorIndex: event.target });
 	}
 
-	private onDidOpenEditor(event: EditorOpenEvent): void {
+	private onDidOpenEditor({ editor, index }: EditorOpenEvent): void {
 
 		/* __GDPR__
 			"editorOpened" : {
@@ -565,14 +565,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				]
 			}
 		*/
-		const editor = event.editor;
 		this.telemetryService.publicLog('editorOpened', this.toEditorTelemetryDescriptor(editor));
 
 		// Update container
 		this.updateContainer();
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex: event.index });
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex: index });
 	}
 
 	private handleOnDidCloseEditor(event: EditorCloseEvent): void {

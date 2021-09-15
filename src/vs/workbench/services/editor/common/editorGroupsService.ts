@@ -418,6 +418,10 @@ export interface IGroupChangeEvent {
 	kind: GroupChangeKind;
 	editor?: EditorInput;
 	editorIndex?: number;
+	/**
+	 * For EDITOR_MOVE only. Signifies the index the editor is moving from.
+	 * editorIndex will contain the index the editor is moving to.
+	*/
 	previousEditorIndex?: number;
 }
 
