@@ -738,6 +738,9 @@
 	opacity: 0.5 !important;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container {
+	padding-top: 1px !important;
+}
 
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container.emptyNotebook {
 	opacity: 1 !important;
