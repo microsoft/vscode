@@ -485,7 +485,7 @@ export class EditorGroupModel extends Disposable {
 		this.editors.splice(toIndex, 0, editor);
 
 		// Event
-		this._onDidMoveEditor.fire({ editor: editor, groupId: this.id, index: index, target: toIndex });
+		this._onDidMoveEditor.fire({ editor, groupId: this.id, index, target: toIndex });
 
 		return editor;
 	}
