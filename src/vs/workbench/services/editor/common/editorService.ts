@@ -105,7 +105,7 @@ export interface IEditorService {
 	 * - editors moving
 	 * - groups moving (unless they are empty)
 	 */
-	readonly onDidEditorsChange: Event<IEditorsChangeEvent>;
+	readonly onDidEditorsChange: Event<IEditorsChangeEvent[]>;
 
 	/**
 	 * Emitted when an editor is closed.

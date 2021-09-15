@@ -47,7 +47,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
 	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
-	private readonly _onDidEditorsChange = this._register(new MicrotaskEmitter<IEditorsChangeEvent>());
+	private readonly _onDidEditorsChange = this._register(new MicrotaskEmitter<IEditorsChangeEvent[]>({ merge: (events) => events.flat(1) }));
 	readonly onDidEditorsChange = this._onDidEditorsChange.event;
 
 	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
@@ -142,7 +142,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
-		this._onDidEditorsChange.fire({ groupId: activeGroup.id, editor: this.lastActiveEditor, kind: GroupChangeKind.EDITOR_ACTIVE });
+		this._onDidEditorsChange.fire([{ groupId: activeGroup.id, editor: this.lastActiveEditor, kind: GroupChangeKind.EDITOR_ACTIVE }]);
 	}
 
 	private registerGroupListeners(group: IEditorGroupView): void {
@@ -155,7 +155,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					this._onDidVisibleEditorsChange.fire();
 					break;
 				default:
-					this._onDidEditorsChange.fire({ groupId: group.id, ...e });
+					this._onDidEditorsChange.fire([{ groupId: group.id, ...e }]);
 					break;
 			}
 		}));

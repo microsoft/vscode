@@ -32,7 +32,7 @@ export class MainThreadEditorTabs {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
 		// Queue all events that arrive on the same event loop and then send them as a batch
-		this._dispoables.add(editorService.onDidEditorsChange((e) => this._updateTabsModel(e)));
+		this._dispoables.add(editorService.onDidEditorsChange((events) => this._updateTabsModel(events)));
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
 
@@ -163,28 +163,32 @@ export class MainThreadEditorTabs {
 		return true;
 	}
 
-	private _updateTabsModel(event: IEditorsChangeEvent): void {
-		// Call the correct function for the change type
-		switch (event.kind) {
-			case GroupChangeKind.EDITOR_OPEN:
-				this._onDidTabOpen(event);
-				break;
-			case GroupChangeKind.EDITOR_CLOSE:
-				this._onDidTabClose(event);
-				break;
-			case GroupChangeKind.GROUP_ACTIVE:
-				if (this._editorGroupsService.activeGroup.id !== event.groupId) {
+	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
+		events.forEach(event => {
+			// Call the correct function for the change type
+			switch (event.kind) {
+				case GroupChangeKind.EDITOR_OPEN:
+					this._onDidTabOpen(event);
+					break;
+				case GroupChangeKind.EDITOR_CLOSE:
+					this._onDidTabClose(event);
+					break;
+				case GroupChangeKind.GROUP_ACTIVE:
+					if (this._editorGroupsService.activeGroup.id !== event.groupId) {
+						return;
+					}
+					this._onDidGroupActivate(event);
+					break;
+				case GroupChangeKind.GROUP_INDEX:
+					this._createTabsModel();
 					return;
-				}
-				this._onDidGroupActivate(event);
-				break;
-			case GroupChangeKind.GROUP_INDEX:
-				this._createTabsModel();
-			case GroupChangeKind.EDITOR_MOVE:
-				this._onDidTabMove(event);
-			default:
-				break;
-		}
+				case GroupChangeKind.EDITOR_MOVE:
+					this._onDidTabMove(event);
+					break;
+				default:
+					break;
+			}
+		});
 		// Flatten the map into a singular array to send the ext host
 		let allTabs: IEditorTabDto[] = [];
 		this._tabModel.forEach((tabs) => allTabs = allTabs.concat(tabs));
