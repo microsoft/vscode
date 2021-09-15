@@ -110,7 +110,8 @@ export class PtyService extends Disposable implements IPtyService {
 						id: persistentProcessId,
 						shellLaunchConfig: persistentProcess.shellLaunchConfig,
 						processDetails: await this._buildProcessDetails(persistentProcessId, persistentProcess),
-						replayEvent: await (persistentProcess as any)._serializer.generateReplayEvent()
+						replayEvent: await (persistentProcess as any)._serializer.generateReplayEvent(),
+						timestamp: Date.now()
 					});
 				}));
 			}
@@ -139,13 +140,13 @@ export class PtyService extends Disposable implements IPtyService {
 				{
 					...state.shellLaunchConfig,
 					cwd: state.processDetails.cwd,
-					// Enable normal buffer, soft reset then write styled text, EL is used to style the whole line
-					initialText: state.replayEvent.events[0].data + `\1xb[?1049l\x1b[!p\n\r\x1b[40;37;2m> ${localize('terminal-session-restore', "Restored session")}\x1b[K\x1b[0m\n\r`
+					// TODO: Only serialize normal buffer and exclude modes
+					initialText: state.replayEvent.events[0].data + '\n\r\x1b[40;37;2m> ' + localize('terminal-session-restore', "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(), new Date(state.timestamp).toLocaleTimeString()) + '\x1b[K\x1b[0m\n\r'
 				},
 				state.processDetails.cwd,
 				// TODO: Set correct values
-				100,
-				100,
+				state.replayEvent.events[0].cols,
+				state.replayEvent.events[0].rows,
 				'11',
 				process.env,
 				process.env,
@@ -755,4 +756,5 @@ export interface ISerializedTerminalState {
 	shellLaunchConfig: IShellLaunchConfig;
 	processDetails: IProcessDetails;
 	replayEvent: IPtyHostProcessReplayEvent;
+	timestamp: number;
 }
