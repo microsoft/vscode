@@ -164,8 +164,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
-		EventLoop:
-		for (const event of events) {
+		events.forEach(event => {
 			// Call the correct function for the change type
 			switch (event.kind) {
 				case GroupChangeKind.EDITOR_OPEN:
@@ -183,14 +182,14 @@ export class MainThreadEditorTabs {
 				case GroupChangeKind.GROUP_INDEX:
 					this._createTabsModel();
 					// Here we stop the loop as no need to process other events
-					break EventLoop;
+					break;
 				case GroupChangeKind.EDITOR_MOVE:
 					this._onDidTabMove(event);
 					break;
 				default:
 					break;
 			}
-		}
+		});
 		// Flatten the map into a singular array to send the ext host
 		let allTabs: IEditorTabDto[] = [];
 		this._tabModel.forEach((tabs) => allTabs = allTabs.concat(tabs));
