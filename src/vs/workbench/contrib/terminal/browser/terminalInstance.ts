@@ -164,17 +164,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _hasHadInput: boolean;
 
-	private _capabilities: ProcessCapability[] = [];
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
 
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
-	private _description: string | undefined = undefined;
-	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
-	private _processName: string | undefined = undefined;
-	private _sequence: string | undefined = undefined;
-	private _staticTitle: string | undefined = undefined;
-	private _workspaceFolder: string = '';
+
+	private _capabilities: ProcessCapability[] = [];
+	private _description?: string;
+	private _processName?: string;
+	private _sequence?: string;
+	private _staticTitle?: string;
+	private _workspaceFolder?: string;
 
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
@@ -226,9 +225,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get processName(): string | undefined { return this._processName; }
 	get sequence(): string | undefined { return this._sequence; }
 	get staticTitle(): string | undefined { return this._staticTitle; }
-	get workspaceFolder(): string { return this._workspaceFolder; }
+	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
 	get cwd(): string | undefined { return this._cwd; }
 	get initialCwd(): string | undefined { return this._initialCwd; }
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
+	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
 	private readonly _onExit = new Emitter<number | undefined>();
@@ -1809,7 +1810,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._messageTitleDisposable = undefined;
 				break;
 		}
-		const labelComputer = new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService);
+		const labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
 		labelComputer.onLabelChanged(e => {
 			this._title = e.title;
 			this._description = e.description;
@@ -2262,10 +2263,9 @@ const enum TerminalLabelType {
 	Description = 'description'
 }
 
-class TerminalLabelComputer {
+class TerminalLabelComputer extends Disposable {
 	title: string;
 	description: string;
-	//TODO: extend disposable so this listener can be registered?
 	private readonly _onLabelChanged = new Emitter<{ title: string, description: string }>();
 	readonly onLabelChanged = this._onLabelChanged.event;
 	constructor(
@@ -2273,6 +2273,7 @@ class TerminalLabelComputer {
 		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
+		super();
 		this.title = this.computeLabel(_configHelper.config.tabs.title, TerminalLabelType.Title);
 		this.description = this.computeLabel(_configHelper.config.tabs.description, TerminalLabelType.Description);
 		if (this.title !== this._instance.title || this.description !== this._instance.description) {

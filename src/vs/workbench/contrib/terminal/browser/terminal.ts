@@ -401,12 +401,12 @@ export interface ITerminalInstance {
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 
-	readonly processName: string | undefined;
-	readonly sequence: string | undefined;
-	readonly staticTitle: string | undefined;
-	readonly workspaceFolder: string;
-	readonly cwd: string | undefined;
-	readonly initialCwd: string | undefined;
+	readonly processName?: string;
+	readonly sequence?: string;
+	readonly staticTitle?: string;
+	readonly workspaceFolder?: string;
+	readonly cwd?: string;
+	readonly initialCwd?: string;
 	readonly capabilities: ProcessCapability[];
 
 	readonly statusList: ITerminalStatusList;

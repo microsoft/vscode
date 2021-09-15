@@ -540,9 +540,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				return this._initialCwd;
 			}
 		}
-		if (isWindows) {
-			return this._initialCwd + 'm';
-		}
 		return this._initialCwd;
 	}
 
