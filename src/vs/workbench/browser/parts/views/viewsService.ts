@@ -556,7 +556,8 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
 		switch (viewContainerLocation) {
 			case ViewContainerLocation.Panel:
-				this.registerPanel(viewContainer);
+			case ViewContainerLocation.AuxiliaryBar:
+				this.registerPanel(viewContainer, viewContainerLocation);
 				break;
 			case ViewContainerLocation.Sidebar:
 				if (viewContainer.ctorDescriptor) {
@@ -569,7 +570,8 @@ export class ViewsService extends Disposable implements IViewsService {
 	private deregisterViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
 		switch (viewContainerLocation) {
 			case ViewContainerLocation.Panel:
-				this.deregisterPanel(viewContainer);
+			case ViewContainerLocation.AuxiliaryBar:
+				this.deregisterPanel(viewContainer, viewContainerLocation);
 				break;
 			case ViewContainerLocation.Sidebar:
 				if (viewContainer.ctorDescriptor) {
@@ -597,7 +599,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return viewPaneContainer;
 	}
 
-	private registerPanel(viewContainer: ViewContainer): void {
+	private registerPanel(viewContainer: ViewContainer, location: ViewContainerLocation): void {
 		const that = this;
 		class PaneContainerPanel extends Panel {
 			constructor(
@@ -616,10 +618,11 @@ export class ViewsService extends Disposable implements IViewsService {
 				const viewPaneContainerDisposables = this._register(new DisposableStore());
 
 				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				return that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Panel, viewPaneContainerDisposables, this.instantiationService);
+				return that.createViewPaneContainer(element, viewContainer, location, viewPaneContainerDisposables, this.instantiationService);
 			}
 		}
-		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
+
+		Registry.as<PanelRegistry>(location === ViewContainerLocation.Panel ? PanelExtensions.Panels : PanelExtensions.AuxiliaryBar).registerPanel(PanelDescriptor.create(
 			PaneContainerPanel,
 			viewContainer.id,
 			viewContainer.title,
@@ -629,8 +632,8 @@ export class ViewsService extends Disposable implements IViewsService {
 		));
 	}
 
-	private deregisterPanel(viewContainer: ViewContainer): void {
-		Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(viewContainer.id);
+	private deregisterPanel(viewContainer: ViewContainer, location: ViewContainerLocation): void {
+		Registry.as<PanelRegistry>(location === ViewContainerLocation.Panel ? PanelExtensions.Panels : PanelExtensions.AuxiliaryBar).deregisterPanel(viewContainer.id);
 	}
 
 	private registerViewlet(viewContainer: ViewContainer): void {

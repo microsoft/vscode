@@ -53,12 +53,10 @@ interface IPlaceholderViewContainer {
 	name?: string;
 }
 
-export class BasePanelPart extends CompositePart<Panel> implements IPanelService {
+export abstract class BasePanelPart extends CompositePart<Panel> {
+	protected abstract pinnedPanelsKey: string;
+	protected abstract placeholdeViewContainersKey: string;
 
-	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
-
-	static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
-	static readonly PLACEHOLDER_VIEW_CONTAINERS = 'workbench.panel.placeholderPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
 	declare readonly _serviceBrand: undefined;
@@ -107,7 +105,11 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
 
 	constructor(
-		id: string,
+		private readonly partId: Parts,
+		activePanelSettingsKey: string,
+		panelRegistryId: string,
+		private readonly backgroundColor: string,
+		private readonly viewContainerLocation: ViewContainerLocation,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -129,19 +131,19 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 			keybindingService,
 			instantiationService,
 			themeService,
-			Registry.as<PanelRegistry>(PanelExtensions.Panels),
-			PanelPart.activePanelSettingsKey,
-			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
+			Registry.as<PanelRegistry>(panelRegistryId),
+			activePanelSettingsKey,
+			Registry.as<PanelRegistry>(panelRegistryId).getDefaultPanelId(),
 			'panel',
 			'panel',
 			undefined,
-			id,
+			partId,
 			{ hasTitle: true }
 		);
 
-		this.panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
+		this.panelRegistry = Registry.as<PanelRegistry>(panelRegistryId);
 
-		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
+		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.viewContainerLocation,
 			(id: string, focus?: boolean) => (this.openPanel(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
 			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore),
 			() => this.compositeBar.getCompositeBarItems()
@@ -174,8 +176,8 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 			compositeSize: 0,
 			overflowActionSize: 44,
 			colors: theme => ({
-				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
-				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
+				activeBackgroundColor: theme.getColor(this.backgroundColor), // Background color for overflow action
+				inactiveBackgroundColor: theme.getColor(this.backgroundColor), // Background color for overflow action
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
 				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
@@ -239,7 +241,7 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 
 				if (isActive) {
 					// Only try to open the panel if it has been created and visible
-					if (!activePanel && this.element && this.layoutService.isVisible(Parts.PANEL_PART)) {
+					if (!activePanel && this.element && this.layoutService.isVisible(this.partId)) {
 						this.doOpenPanel(panel.id);
 					}
 
@@ -269,7 +271,7 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 		}
 		this.panelDisposables.delete(panelId);
 
-		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Panel)
+		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(this.viewContainerLocation)
 			.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
 
 		if (activeContainers.length) {
@@ -477,7 +479,7 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
-		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND) || '';
+		container.style.backgroundColor = this.getColor(this.backgroundColor) || '';
 		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		container.style.borderLeftColor = borderColor;
 		container.style.borderRightColor = borderColor;
@@ -494,7 +496,7 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 		}
 
 		// First check if panel is hidden and show if so
-		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
+		if (!this.layoutService.isVisible(this.partId)) {
 			try {
 				this.blockOpeningPanel = true;
 				this.layoutService.setPanelHidden(false);
@@ -560,7 +562,7 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 
 	hideActivePanel(): void {
 		// First check if panel is visible and hide if so
-		if (this.layoutService.isVisible(Parts.PANEL_PART)) {
+		if (this.layoutService.isVisible(this.partId)) {
 			this.layoutService.setPanelHidden(true);
 		}
 
@@ -585,7 +587,7 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 	}
 
 	override layout(width: number, height: number): void {
-		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
+		if (!this.layoutService.isVisible(this.partId)) {
 			return;
 		}
 
@@ -677,7 +679,7 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 	}
 
 	private onDidStorageValueChange(e: IStorageValueChangeEvent): void {
-		if (e.key === PanelPart.PINNED_PANELS && e.scope === StorageScope.GLOBAL
+		if (e.key === this.pinnedPanelsKey && e.scope === StorageScope.GLOBAL
 			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
 			this._cachedPanelsValue = undefined;
 			const newCompositeItems: ICompositeBarItem[] = [];
@@ -762,11 +764,11 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 	}
 
 	private getStoredCachedPanelsValue(): string {
-		return this.storageService.get(PanelPart.PINNED_PANELS, StorageScope.GLOBAL, '[]');
+		return this.storageService.get(this.pinnedPanelsKey, StorageScope.GLOBAL, '[]');
 	}
 
 	private setStoredCachedViewletsValue(value: string): void {
-		this.storageService.store(PanelPart.PINNED_PANELS, value, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(this.pinnedPanelsKey, value, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	private getPlaceholderViewContainers(): IPlaceholderViewContainer[] {
@@ -794,25 +796,23 @@ export class BasePanelPart extends CompositePart<Panel> implements IPanelService
 	}
 
 	private getStoredPlaceholderViewContainersValue(): string {
-		return this.storageService.get(PanelPart.PLACEHOLDER_VIEW_CONTAINERS, StorageScope.WORKSPACE, '[]');
+		return this.storageService.get(this.placeholdeViewContainersKey, StorageScope.WORKSPACE, '[]');
 	}
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
-		this.storageService.store(PanelPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(this.placeholdeViewContainersKey, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private getViewContainer(panelId: string): ViewContainer | undefined {
 		return this.viewDescriptorService.getViewContainerById(panelId) || undefined;
 	}
-
-	toJSON(): object {
-		return {
-			type: Parts.PANEL_PART
-		};
-	}
 }
 
 export class PanelPart extends BasePanelPart {
+	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
+	protected pinnedPanelsKey = 'workbench.panel.pinnedPanels';
+	protected placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
+
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
@@ -828,6 +828,10 @@ export class PanelPart extends BasePanelPart {
 	) {
 		super(
 			Parts.PANEL_PART,
+			PanelPart.activePanelSettingsKey,
+			PanelExtensions.Panels,
+			PANEL_BACKGROUND,
+			ViewContainerLocation.Panel,
 			notificationService,
 			storageService,
 			telemetryService,
@@ -840,6 +844,12 @@ export class PanelPart extends BasePanelPart {
 			contextKeyService,
 			extensionService,
 		);
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.PANEL_PART
+		};
 	}
 }
 

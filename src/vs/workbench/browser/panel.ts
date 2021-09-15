@@ -7,7 +7,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IPanel } from 'vs/workbench/common/panel';
 import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IConstructorSignature0, BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { assertIsDefined } from 'vs/base/common/types';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
@@ -117,7 +116,7 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	 * Gets the id of the panel that should open on startup by default.
 	 */
 	getDefaultPanelId(): string {
-		return assertIsDefined(this.defaultPanelId);
+		return this.defaultPanelId ?? '';
 	}
 
 	/**
@@ -129,7 +128,9 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 }
 
 export const Extensions = {
-	Panels: 'workbench.contributions.panels'
+	Panels: 'workbench.contributions.panels',
+	AuxiliaryBar: 'workbench.contributions.auxiliarybar'
 };
 
 Registry.add(Extensions.Panels, new PanelRegistry());
+Registry.add(Extensions.AuxiliaryBar, new PanelRegistry());

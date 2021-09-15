@@ -592,7 +592,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	// Old Format (deprecated)
 	// {Common Prefix}.{Uniqueness Id}.{Source View Id}
 	private generateContainerId(location: ViewContainerLocation): string {
-		return `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${location === ViewContainerLocation.Panel ? 'panel' : 'sidebar'}.${generateUuid()}`;
+		return `${ViewDescriptorService.COMMON_CONTAINER_ID_PREFIX}.${ViewContainerLocationToString(location) ? 'panel' : 'sidebar'}.${generateUuid()}`;
 	}
 
 	private getStoredCachedViewPositionsValue(): string {
