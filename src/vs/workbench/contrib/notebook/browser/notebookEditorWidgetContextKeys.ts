@@ -5,7 +5,7 @@
 
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICellViewModel, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE, INotebookEditorDelegate, NOTEBOOK_CELL_TOOLBAR_LOCATION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -21,6 +21,7 @@ export class NotebookEditorContextKeys {
 	private readonly _useConsolidatedOutputButton: IContextKey<boolean>;
 	private readonly _viewType!: IContextKey<string>;
 	private readonly _missingKernelExtension: IContextKey<boolean>;
+	private readonly _cellToolbarLocation: IContextKey<'left' | 'right' | 'hidden'>;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _viewModelDisposables = new DisposableStore();
@@ -41,6 +42,7 @@ export class NotebookEditorContextKeys {
 		this._hasOutputs = NOTEBOOK_HAS_OUTPUTS.bindTo(contextKeyService);
 		this._viewType = NOTEBOOK_VIEW_TYPE.bindTo(contextKeyService);
 		this._missingKernelExtension = NOTEBOOK_MISSING_KERNEL_EXTENSION.bindTo(contextKeyService);
+		this._cellToolbarLocation = NOTEBOOK_CELL_TOOLBAR_LOCATION.bindTo(contextKeyService);
 
 		this._handleDidChangeModel();
 		this._updateForNotebookOptions();
@@ -68,6 +70,7 @@ export class NotebookEditorContextKeys {
 	private _handleDidChangeModel(): void {
 
 		this._updateKernelContext();
+		this._updateForNotebookOptions();
 
 		this._viewModelDisposables.clear();
 		dispose(this._cellStateListeners);
@@ -163,5 +166,6 @@ export class NotebookEditorContextKeys {
 	private _updateForNotebookOptions(): void {
 		const layout = this._editor.notebookOptions.getLayoutConfiguration();
 		this._useConsolidatedOutputButton.set(layout.consolidatedOutputButton);
+		this._cellToolbarLocation.set(this._editor.notebookOptions.computeCellToolbarLocation(this._editor.textModel?.viewType));
 	}
 }
