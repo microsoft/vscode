@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { NOTIFICATIONS_BORDER } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -292,7 +292,6 @@ class EditorStatusContribution implements IWorkbenchContribution {
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`:root {
 		--code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)};
-		--code-language-status-item-active-background: ${theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND)?.darken(.8)};
 	}`);
 });
 
