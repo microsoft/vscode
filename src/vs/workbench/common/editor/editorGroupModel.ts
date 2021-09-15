@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, IEditorOpenEvent, IEditorMoveEvent } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -715,7 +715,7 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	indexOf(candidate: IEditorInput | null, editors = this.editors, options?: IMatchOptions): number {
+	indexOf(candidate: EditorInput | null, editors = this.editors, options?: IMatchOptions): number {
 		let index = -1;
 
 		if (candidate) {
@@ -758,7 +758,7 @@ export class EditorGroupModel extends Disposable {
 		return false;
 	}
 
-	private matches(editor: IEditorInput | null, candidate: IEditorInput | IUntypedEditorInput | null, options?: IMatchOptions): boolean {
+	private matches(editor: EditorInput | null, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchOptions): boolean {
 		if (!editor || !candidate) {
 			return false;
 		}

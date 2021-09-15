@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorGroupColumn, columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -263,14 +263,14 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		this._revivers.delete(viewType);
 	}
 
-	private updateWebviewViewStates(activeEditorInput: IEditorInput | undefined) {
+	private updateWebviewViewStates(activeEditorInput: EditorInput | undefined) {
 		if (!this._webviewInputs.size) {
 			return;
 		}
 
 		const viewStates: extHostProtocol.WebviewPanelViewStateData = {};
 
-		const updateViewStatesForInput = (group: IEditorGroup, topLevelInput: IEditorInput, editorInput: IEditorInput) => {
+		const updateViewStatesForInput = (group: IEditorGroup, topLevelInput: EditorInput, editorInput: EditorInput) => {
 			if (!(editorInput instanceof WebviewInput)) {
 				return;
 			}

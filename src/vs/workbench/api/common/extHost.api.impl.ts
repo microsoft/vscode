@@ -333,6 +333,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return getRemoteName(initData.remote.authority);
 			},
 			get remoteAuthority() {
+				checkProposedApiEnabled(extension);
 				return initData.remote.authority;
 			},
 			get uiKind() {

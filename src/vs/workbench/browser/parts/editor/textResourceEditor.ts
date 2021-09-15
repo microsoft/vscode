@@ -6,7 +6,8 @@
 import { localize } from 'vs/nls';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -125,7 +126,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 		}
 	}
 
-	protected override tracksEditorViewState(input: IEditorInput): boolean {
+	protected override tracksEditorViewState(input: EditorInput): boolean {
 		// editor view state persistence is only enabled for untitled and resource inputs
 		return input instanceof UntitledTextEditorInput || input instanceof TextResourceEditorInput;
 	}

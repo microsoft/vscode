@@ -12,8 +12,8 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { getTelemetryConfiguration, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
 	appender: ITelemetryAppender;
@@ -34,6 +34,7 @@ export class TelemetryService implements ITelemetryService {
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
+	private _errorOptIn: boolean;
 	private _enabled: boolean;
 	public readonly sendErrorTelemetry: boolean;
 
@@ -48,6 +49,7 @@ export class TelemetryService implements ITelemetryService {
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = true;
+		this._errorOptIn = true;
 		this._enabled = true;
 		this.sendErrorTelemetry = !!config.sendErrorTelemetry;
 
@@ -77,6 +79,15 @@ export class TelemetryService implements ITelemetryService {
 			};
 			this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
 		});
+
+		// TODO @sbatten @lramos15 bring this code in after one iteration
+		// Once the service initializes we update the telemetry value to the new format
+		// this._convertOldTelemetrySettingToNew();
+		// this._configurationService.onDidChangeConfiguration(e => {
+		// 	if (e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
+		// 		this._convertOldTelemetrySettingToNew();
+		// 	}
+		// }, this);
 	}
 
 	setExperimentProperty(name: string, value: string): void {
@@ -87,9 +98,18 @@ export class TelemetryService implements ITelemetryService {
 		this._enabled = value;
 	}
 
+	// TODO: @sbatten @lramos15 bring this code in after one iteration
+	// private _convertOldTelemetrySettingToNew(): void {
+	// 	const telemetryValue = this._configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
+	// 	if (typeof telemetryValue === 'boolean') {
+	// 		this._configurationService.updateValue(TELEMETRY_SETTING_ID, telemetryValue ? 'true' : 'false');
+	// 	}
+	// }
+
 	private _updateUserOptIn(): void {
-		const config = this._configurationService?.getValue<any>(TELEMETRY_SECTION_ID);
-		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
+		const telemetryConfig = getTelemetryConfiguration(this._configurationService);
+		this._errorOptIn = telemetryConfig !== TelemetryConfiguration.OFF;
+		this._userOptIn = telemetryConfig === TelemetryConfiguration.ON;
 	}
 
 	get isOptedIn(): boolean {
@@ -148,7 +168,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
-		if (!this.sendErrorTelemetry) {
+		if (!this.sendErrorTelemetry || !this._errorOptIn) {
 			return Promise.resolve(undefined);
 		}
 
@@ -240,17 +260,40 @@ export class TelemetryService implements ITelemetryService {
 	}
 }
 
-
-const TELEMETRY_SECTION_ID = 'telemetry';
-
-
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,
 	'type': 'object',
 	'title': localize('telemetryConfigurationTitle', "Telemetry"),
 	'properties': {
-		'telemetry.enableTelemetry': {
+		[TELEMETRY_SETTING_ID]: {
+			'type': 'string',
+			'enum': [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.OFF],
+			'enumDescriptions': [
+				localize('telemetry.enableTelemetry.default', "Enables all telemetry data to be collected."),
+				localize('telemetry.enableTelemetry.error', "Enables only error telemetry data and not general usage data."),
+				localize('telemetry.enableTelemetry.false', "Disables all product telemetry.")
+			],
+			'markdownDescription':
+				!product.privacyStatementUrl ?
+					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) :
+					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl),
+			'default': TelemetryConfiguration.ON,
+			'restricted': true,
+			'scope': ConfigurationScope.APPLICATION,
+			'tags': ['usesOnlineServices', 'telemetry']
+		}
+	}
+});
+
+// Deprecated telemetry setting
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	'id': TELEMETRY_SECTION_ID,
+	'order': 110,
+	'type': 'object',
+	'title': localize('telemetryConfigurationTitle', "Telemetry"),
+	'properties': {
+		[TELEMETRY_OLD_SETTING_ID]: {
 			'type': 'boolean',
 			'markdownDescription':
 				!product.privacyStatementUrl ?
@@ -258,8 +301,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl),
 			'default': true,
 			'restricted': true,
+			'markdownDeprecationMessage': localize('enableTelemetryDeprecated', "Deprecated in favor of the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
 			'scope': ConfigurationScope.APPLICATION,
 			'tags': ['usesOnlineServices', 'telemetry']
 		}
 	}
 });
+

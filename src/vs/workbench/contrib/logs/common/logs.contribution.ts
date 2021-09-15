@@ -22,10 +22,11 @@ import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { timeout } from 'vs/base/common/async';
 import { getErrorMessage } from 'vs/base/common/errors';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);

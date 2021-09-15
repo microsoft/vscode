@@ -7,7 +7,8 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION, IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IFileEditorInput, IUntypedEditorInput, IUntypedFileEditorInput, EditorExtensions, isResourceDiffEditorInput, isResourceSideBySideEditorInput, IUntitledTextResourceEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -38,7 +39,7 @@ export interface ITextEditorService {
 	 *
 	 * @param input the untyped editor input to create a typed input from
 	 */
-	createTextEditor(input: IUntypedEditorInput): IEditorInput;
+	createTextEditor(input: IUntypedEditorInput): EditorInput;
 	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
 }
 
@@ -80,9 +81,9 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 		));
 	}
 
-	createTextEditor(input: IUntypedEditorInput): IEditorInput;
+	createTextEditor(input: IUntypedEditorInput): EditorInput;
 	createTextEditor(input: IUntypedFileEditorInput): IFileEditorInput;
-	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): IEditorInput | IFileEditorInput {
+	createTextEditor(input: IUntypedEditorInput | IUntypedFileEditorInput): EditorInput | IFileEditorInput {
 
 		// Diff Editor Support
 		if (isResourceDiffEditorInput(input)) {

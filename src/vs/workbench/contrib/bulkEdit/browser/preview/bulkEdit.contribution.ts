@@ -20,7 +20,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { EditorResourceAccessor, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -58,7 +59,7 @@ class UXState {
 
 		// (2) close preview editors
 		for (let group of this._editorGroupsService.groups) {
-			let previewEditors: IEditorInput[] = [];
+			let previewEditors: EditorInput[] = [];
 			for (let input of group.editors) {
 
 				let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
