@@ -141,14 +141,16 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		super(
 			modelService,
 			modeService,
-			languageDetectionService,
-			undefined,
-			preferredMode = preferredMode === UntitledTextEditorModel.ACTIVE_EDITOR_LANGUAGE_MODE
-				? editorService.activeTextEditorMode
-				: preferredMode);
+			languageDetectionService);
 
 		// Make known to working copy service
 		this._register(this.workingCopyService.registerWorkingCopy(this));
+
+		// This is typically controlled by the setting `files.defaultLanguage`.
+		// If that setting is set, we should not detect the language.
+		if (preferredMode) {
+			this.setMode(preferredMode);
+		}
 
 		// Fetch config
 		this.onConfigurationChange(false);
