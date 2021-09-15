@@ -53,7 +53,7 @@ interface IPlaceholderViewContainer {
 	name?: string;
 }
 
-export class PanelPart extends CompositePart<Panel> implements IPanelService {
+export class BasePanelPart extends CompositePart<Panel> implements IPanelService {
 
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
@@ -107,6 +107,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
 
 	constructor(
+		id: string,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -134,7 +135,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			'panel',
 			'panel',
 			undefined,
-			Parts.PANEL_PART,
+			id,
 			{ hasTitle: true }
 		);
 
@@ -808,6 +809,37 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return {
 			type: Parts.PANEL_PART
 		};
+	}
+}
+
+export class PanelPart extends BasePanelPart {
+	constructor(
+		@INotificationService notificationService: INotificationService,
+		@IStorageService storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService extensionService: IExtensionService,
+	) {
+		super(
+			Parts.PANEL_PART,
+			notificationService,
+			storageService,
+			telemetryService,
+			contextMenuService,
+			layoutService,
+			keybindingService,
+			instantiationService,
+			themeService,
+			viewDescriptorService,
+			contextKeyService,
+			extensionService,
+		);
 	}
 }
 
