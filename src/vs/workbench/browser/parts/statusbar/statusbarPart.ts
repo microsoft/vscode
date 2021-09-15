@@ -90,6 +90,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 
 	private registerListeners(): void {
+
+		// Entry visibility changes
+		this._register(this.onDidChangeEntryVisibility(() => this.updateClasses()));
+
+		// Workbench state changes
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
@@ -336,20 +341,24 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private updateClasses(): void {
 		const entries = this.viewModel.entries;
-		const mapIdToEntry = new Map<string, IStatusbarViewModelEntry>();
 
 		// Clear compact related CSS classes if any
+		const mapIdToVisibleEntry = new Map<string, IStatusbarViewModelEntry>();
 		for (const entry of entries) {
-			mapIdToEntry.set(entry.id, entry);
+			if (!this.viewModel.isHidden(entry.id)) {
+				mapIdToVisibleEntry.set(entry.id, entry);
+			}
 
-			entry.container.classList.remove('compact-left');
-			entry.container.classList.remove('compact-right');
+			entry.container.classList.remove('compact-left', 'compact-right');
 		}
 
 		// Update entries with compact related CSS classes as needed
-		for (const entry of entries) {
-			if (isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.compact) {
-				const location = mapIdToEntry.get(entry.priority.primary.id);
+		for (const entry of mapIdToVisibleEntry.values()) {
+			if (
+				isStatusbarEntryLocation(entry.priority.primary) && // entry references another entry as location
+				entry.priority.primary.compact						// entry wants to be compact
+			) {
+				const location = mapIdToVisibleEntry.get(entry.priority.primary.id);
 				if (location) {
 					if (entry.priority.primary.alignment === StatusbarAlignment.LEFT) {
 						location.container.classList.add('compact-left');
