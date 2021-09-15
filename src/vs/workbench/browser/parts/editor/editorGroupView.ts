@@ -935,9 +935,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const newIndexOfEditor = this.getIndexOfEditor(editor);
 			if (newIndexOfEditor !== oldIndexOfEditor) {
 				this.titleAreaControl.moveEditor(editor, oldIndexOfEditor, newIndexOfEditor);
-
-				// Event
-				this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor });
 			}
 
 			// Forward sticky state to title control
@@ -1316,9 +1313,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Forward to title area
 		this.titleAreaControl.moveEditor(editor, currentIndex, moveToIndex);
 		this.titleAreaControl.pinEditor(editor);
-
-		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor });
 	}
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: EditorGroupView, openOptions?: IEditorOpenOptions, internalOptions?: IInternalMoveCopyOptions): void {
