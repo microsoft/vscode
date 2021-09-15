@@ -2,6 +2,12 @@
 
 echo "Syncing openvscode-server with upstream"
 
+upstream_url="https://github.com/microsoft/vscode.git"
+upstream_branch=${1:-"upstream/main"}
+local_branch=${2:-"next"}
+only_sync=${3:-"false"}
+base_commit_msg="code web server initial commit"
+
 exit_script() {
 	reason=$1
 	echo "Update script ended unsucessfully"
@@ -19,13 +25,6 @@ else
 	LINUX_EXTRA_ARGS="--disable-dev-shm-usage --use-gl=swiftshader"
 fi
 
-cd $ROOT
-
-local_branch="web-server"
-upstream_url="https://github.com/microsoft/vscode.git"
-upstream_branch="upstream/main"
-base_commit_msg="code web server initial commit"
-
 # Checks is there's an upstream remote repository and if not
 # set it to $upstream_url
 check_upstream() {
@@ -33,7 +32,7 @@ check_upstream() {
 	if [[ $? -ne 0 ]]; then
 		echo "Upstream repository not configured"
 		echo "Setting upstream URL to ${upstream_url}"
-		git remote add upstream $upstream_url > /dev/null
+		git remote add upstream $upstream_url
 	fi
 }
 
@@ -48,11 +47,11 @@ get_base_commit() {
 
 # Fetch updates from upstream and rebase
 sync() {
-	echo "Fetching upstream..."
-	git fetch upstream > /dev/null
-	git checkout --quiet $local_branch > /dev/null
-	echo "Rebasing $local_branch branch over $upstream_branch branch from upstream"
-	git rebase --quiet --onto=$upstream_branch $(get_base_commit)^ $local_branch
+	echo "Shallow fetching upstream..."
+	git fetch upstream
+	git checkout $local_branch
+	echo "Rebasing $local_branch branch onto $upstream_branch from upstream"
+	git rebase --onto=$upstream_branch $(get_base_commit)^ $local_branch
 	if [[ $? -ne 0 ]]; then
 		echo "There are merge conflicts doing the rebase. Reverting changes"
 		git rebase --abort
@@ -61,17 +60,30 @@ sync() {
 	echo "$local_branch sucessfully updated"
 }
 
+cd $ROOT
+
 # Sync
 check_upstream
 sync
 
+if [[ "$only_sync" == "true" ]]; then
+	exit 0
+fi
+
 # Clean and build
 # git clean -dfx
 yarn && yarn server:init
+if [[ $? -ne 0 ]]; then
+	exit_script "There are some errors during compilation"
+fi
 
 # Configuration
 export NODE_ENV=development
 export VSCODE_DEV=1
 export VSCODE_CLI=1
 
-yarn smoketest --web --headless --electronArgs=$LINUX_EXTRA_ARGS
+# Run smoke tests
+yarn smoketest --web --headless --verbose --electronArgs=$LINUX_EXTRA_ARGS
+if [[ $? -ne 0 ]]; then
+	exit_script "Some smoke test are failing"
+fi
