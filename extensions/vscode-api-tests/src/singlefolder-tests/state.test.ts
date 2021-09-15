@@ -16,7 +16,7 @@ suite('vscode API - globalState / workspaceState', () => {
 		extensionContext = (global as any).testExtensionContext;
 	});
 
-	test.only('state', async () => {
+	test('state', async () => {
 		for (const state of [extensionContext.globalState, extensionContext.workspaceState]) {
 			let keys = state.keys();
 			assert.strictEqual(keys.length, 0);
