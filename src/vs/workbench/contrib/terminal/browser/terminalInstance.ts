@@ -1168,7 +1168,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
 			this._processManager.onDidChangeProperty(e => {
+				console.log('on did change prop', e);
 				if (e.type === ProcessPropertyType.Cwd) {
+					// TODO: Rename setTitle to refreshTabLabels
+					// TODO: We should change setTitle to not accept TitleEventSource?
+					// TODO: Introduce `_staticTitle?: string` title which will be used if it's set - this replaces what TitleEventSource.Api used to do
 					this._cwd = e.value;
 					this.setTitle(this.title, TitleEventSource.Api);
 				} else if (e.type === ProcessPropertyType.InitialCwd) {
@@ -1793,6 +1797,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		// Remove special characters that could mess with rendering
 		title = title.replace(/[\n\r\t]/g, '');
+		console.log('before customize title', title);
 		title = this._customizeTitle(title, eventSource);
 		this._title = title;
 		this._titleSource = eventSource;
@@ -1810,7 +1815,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return title;
 		}
 		const cwd = this._cwd || this._initialCwd || '';
-		const properties = {
+		const templateProperties = {
 			cwd,
 			cwdFolder: this.getCwdFolder(),
 			workspaceFolder: this._workspaceFolder,
@@ -1820,8 +1825,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
 			separator: { label: this._configHelper.config.tabs.separator }
 		};
-		title = template(this._configHelper.config.tabs.title, properties);
-		const description = template(this._configHelper.config.tabs.description, properties);
+		title = template(this._configHelper.config.tabs.title, templateProperties);
+		const description = template(this._configHelper.config.tabs.description, templateProperties);
 		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
 		if (!title || !titleChanged) {
 			return title;
@@ -1835,13 +1840,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!cwd ||
 			!this._capabilities.includes(ProcessCapability.CwdDetection) ||
 			this._workspaceContextService.getWorkspace().folders.length === 0 ||
-			(this._workspaceContextService.getWorkspace().folders.length === 1 && this._equalIgnoringSlashes(this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd), this._configHelper.config.cwd)) {
+			(
+				this._workspaceContextService.getWorkspace().folders.length <= 1 &&
+				this._equalIgnoringSlashes(this._workspaceContextService.getWorkspace().folders[0].uri.fsPath, cwd, this._configHelper.config.cwd)
+			)) {
 			return '';
 		}
 		return path.basename(cwd);
 	}
 
 	private _equalIgnoringSlashes(workspaceUri: string, cwd: string, configCwd?: string): boolean {
+		console.log('_equalIgnoringSlashes', ...arguments);
 		let paths = configCwd || workspaceUri;
 		let workspacePaths = paths.includes('/') ? paths.split('/') : paths.split('\\');
 		let cwdPaths = cwd.includes('/') ? cwd.split('/') : cwd.split('\\');
@@ -2276,3 +2285,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		`);
 	}
 });
+
+export function refreshLabel(labelTemplate: string, terminalProperties: { processName: string /* ... */ }, processProperties: IProcessPropertyMap, staticTitle: string | undefined): string {
+	return '';
+}
+
+// TODO: Fallback to process name for title only
+// title = refreshLabel || processProperties.processName
