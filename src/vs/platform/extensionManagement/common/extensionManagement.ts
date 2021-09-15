@@ -166,11 +166,16 @@ export function isTargetPlatformCompatible(extensionTargetPlatform: TargetPlatfo
 	}
 
 	// Fallback
-	switch (productTargetPlatform) {
-		case TargetPlatform.WIN32_X64: return extensionTargetPlatform === TargetPlatform.WIN32_IA32;
-		case TargetPlatform.WIN32_ARM64: return extensionTargetPlatform === TargetPlatform.WIN32_IA32;
-		default: return false;
+	const fallbackTargetPlatforms = getFallbackTargetPlarforms(productTargetPlatform);
+	return fallbackTargetPlatforms.includes(extensionTargetPlatform);
+}
+
+export function getFallbackTargetPlarforms(targetPlatform: TargetPlatform): TargetPlatform[] {
+	switch (targetPlatform) {
+		case TargetPlatform.WIN32_X64: return [TargetPlatform.WIN32_IA32];
+		case TargetPlatform.WIN32_ARM64: return [TargetPlatform.WIN32_IA32];
 	}
+	return [];
 }
 
 export interface IGalleryExtensionProperties {
