@@ -10,10 +10,6 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { NotebookEditor } from 'vscode';
 
-type ExtHostSelectKernelArgs = ControllerInfo | { notebookEditor: NotebookEditor } | ControllerInfo & { notebookEditor: NotebookEditor } | undefined;
-export type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
-type ControllerInfo = { id: string, extension: string };
-
 export class ExtHostInteractive implements ExtHostInteractiveShape {
 	constructor(
 		mainContext: IMainContext,
@@ -40,29 +36,6 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 			})
 		);
 		this._commands.registerApiCommand(openApiCommand);
-		const selectKernelApiCommand = new ApiCommand(
-			'notebook.selectKernel',
-			'_notebook.selectKernel',
-			'Trigger kernel picker for specified notebook editor widget',
-			[
-				new ApiCommandArgument<ExtHostSelectKernelArgs, SelectKernelReturnArgs>('options', 'Select kernel options', v => true, (v: ExtHostSelectKernelArgs) => {
-					if (v && 'notebookEditor' in v && 'id' in v) {
-						const notebookEditorId = this._extHostNotebooks.getIdByEditor(v.notebookEditor);
-						return {
-							id: v.id, extension: v.extension, notebookEditorId
-						};
-					} else if (v && 'notebookEditor' in v) {
-						const notebookEditorId = this._extHostNotebooks.getIdByEditor(v.notebookEditor);
-						if (notebookEditorId === undefined) {
-							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.document.uri.toString()}`);
-						}
-						return { notebookEditorId };
-					}
-					return v;
-				})
-			],
-			ApiCommandResult.Void);
-		this._commands.registerApiCommand(selectKernelApiCommand);
 	}
 
 	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents) {
