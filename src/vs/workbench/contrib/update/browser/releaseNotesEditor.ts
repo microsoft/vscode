@@ -22,14 +22,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asText, IRequestService } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class ReleaseNotesManager {
 

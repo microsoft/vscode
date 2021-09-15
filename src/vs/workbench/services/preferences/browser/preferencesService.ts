@@ -31,7 +31,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -359,10 +360,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor(preferencesEditorInput, validateSettingsEditorOptions(options), group);
 	}
 
-	public createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): IEditorInput {
+	public createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput {
 		const editableSettingsEditorInput = this.textEditorService.createTextEditor({ resource });
 		const defaultPreferencesEditorInput = this.instantiationService.createInstance(TextResourceEditorInput, this.getDefaultSettingsResource(configurationTarget), undefined, undefined, undefined, undefined);
-		return new SideBySideEditorInput(editableSettingsEditorInput.getName(), undefined, defaultPreferencesEditorInput, editableSettingsEditorInput);
+		return this.instantiationService.createInstance(SideBySideEditorInput, editableSettingsEditorInput.getName(), undefined, defaultPreferencesEditorInput, editableSettingsEditorInput);
 	}
 
 	public createSettings2EditorModel(): Settings2EditorModel {
@@ -403,7 +404,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultUserSettingsUriCounter++}/settings.json` });
 	}
 
-	private async getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<IEditorInput> {
+	private async getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): Promise<EditorInput> {
 		await this.createSettingsIfNotExists(target, resource);
 		return this.textEditorService.createTextEditor({ resource });
 	}

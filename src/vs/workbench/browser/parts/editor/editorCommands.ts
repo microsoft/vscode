@@ -5,9 +5,10 @@
 
 import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, GroupIdentifier, TextCompareEditorActiveContext, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, GroupIdentifier, TextCompareEditorActiveContext, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -677,7 +678,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
 
 	// Split editor (if it can be split)
-	let editorToCopy: IEditorInput | undefined;
+	let editorToCopy: EditorInput | undefined;
 	if (context && typeof context.editorIndex === 'number') {
 		editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
 	} else {
@@ -949,6 +950,7 @@ function registerSplitEditorInGroupCommands(): void {
 
 	async function splitEditorInGroup(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 		if (!editor) {
@@ -957,7 +959,7 @@ function registerSplitEditorInGroupCommands(): void {
 
 		await group.replaceEditors([{
 			editor,
-			replacement: new SideBySideEditorInput(undefined, undefined, editor, editor),
+			replacement: instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, editor, editor),
 			forceReplaceDirty: true
 		}]);
 	}
@@ -1323,7 +1325,7 @@ function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, co
 	return undefined;
 }
 
-function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor?: IEditorInput } {
+function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor?: EditorInput } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;

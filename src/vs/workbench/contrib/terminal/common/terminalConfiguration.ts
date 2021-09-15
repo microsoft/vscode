@@ -11,8 +11,9 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 const terminalDescriptors = '\n- ' + [
-	localize('cwd', "`\${cwd}`: the terminal's current working directory - on Windows, this will not dynamically update"),
-	localize('cwdFolder', "`\${cwdFolder}`: the terminal's current folder - on Windows, this will not dynamically update"),
+	localize('cwd', "`\${cwd}`: the terminal's current working directory"),
+	localize('cwdFolder', "`\${cwdFolder}`:  the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. This will not be displayed for Windows."),
+	localize('workspaceFolder', "`\${workspaceFolder}`:  the workpsace in which the terminal was launched"),
 	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
 	localize('process', "`\${process}`: the name of the terminal process"),
 	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
@@ -265,7 +266,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.TerminalTitleSeparator]: {
 			'type': 'string',
-			'default': isMacintosh ? ' — ' : ' - ',
+			'default': ' - ',
 			'markdownDescription': localize("terminal.integrated.tabs.separator", "Separator used by `terminal.integrated.title` and `terminal.integrated.description`.")
 		},
 		[TerminalSettingId.TerminalTitle]: {

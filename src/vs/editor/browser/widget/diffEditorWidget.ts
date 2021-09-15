@@ -19,7 +19,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffReview } from 'vs/editor/browser/widget/diffReview';
-import { IDiffEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures, stringSet as validateStringSetOption, boolean as validateBooleanOption } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, EditorLayoutInfo, EditorOption, EditorOptions, EditorFontLigatures, stringSet as validateStringSetOption, boolean as validateBooleanOption, ValidDiffEditorBaseOptions, clampedInt } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -207,16 +207,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _isVisible: boolean;
 	private _isHandlingScrollEvent: boolean;
 
-	private _ignoreTrimWhitespace: boolean;
-	private _originalIsEditable: boolean;
-	private _diffCodeLens: boolean;
-	private _diffWordWrap: 'off' | 'on' | 'inherit';
+	private _options: ValidDiffEditorBaseOptions;
 
-	private _renderSideBySide: boolean;
-	private _maxComputationTime: number;
-	private _renderIndicators: boolean;
-	private _enableSplitViewResizing: boolean;
-	private _renderOverviewRuler: boolean;
 	private _strategy!: DiffEditorWidgetStyle;
 
 	private readonly _updateDecorationsRunner: RunOnceScheduler;
@@ -261,33 +253,18 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._domElement = domElement;
 		options = options || {};
 
-		// renderSideBySide
-		this._renderSideBySide = true;
-		if (typeof options.renderSideBySide !== 'undefined') {
-			this._renderSideBySide = options.renderSideBySide;
-		}
-
-		// maxComputationTime
-		this._maxComputationTime = 5000;
-		if (typeof options.maxComputationTime !== 'undefined') {
-			this._maxComputationTime = options.maxComputationTime;
-		}
-
-		// ignoreTrimWhitespace
-		this._ignoreTrimWhitespace = true;
-		if (typeof options.ignoreTrimWhitespace !== 'undefined') {
-			this._ignoreTrimWhitespace = options.ignoreTrimWhitespace;
-		}
-
-		// renderIndicators
-		this._renderIndicators = true;
-		if (typeof options.renderIndicators !== 'undefined') {
-			this._renderIndicators = options.renderIndicators;
-		}
-
-		this._originalIsEditable = validateBooleanOption(options.originalEditable, false);
-		this._diffCodeLens = validateBooleanOption(options.diffCodeLens, false);
-		this._diffWordWrap = validateDiffWordWrap(options.diffWordWrap, 'inherit');
+		this._options = validateDiffEditorOptions(options, {
+			enableSplitViewResizing: true,
+			renderSideBySide: true,
+			maxComputationTime: 5000,
+			maxFileSize: 50,
+			ignoreTrimWhitespace: true,
+			renderIndicators: true,
+			originalEditable: false,
+			diffCodeLens: false,
+			renderOverviewRuler: true,
+			diffWordWrap: 'inherit'
+		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
 			this._contextKeyService.createKey('isInEmbeddedDiffEditor', options.isInEmbeddedEditor);
@@ -295,15 +272,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._contextKeyService.createKey('isInEmbeddedDiffEditor', false);
 		}
 
-		this._renderOverviewRuler = true;
-		if (typeof options.renderOverviewRuler !== 'undefined') {
-			this._renderOverviewRuler = Boolean(options.renderOverviewRuler);
-		}
-
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
 
 		this._containerDomElement = document.createElement('div');
-		this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._renderSideBySide);
+		this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._options.renderSideBySide);
 		this._containerDomElement.style.position = 'relative';
 		this._containerDomElement.style.height = '100%';
 		this._domElement.appendChild(this._containerDomElement);
@@ -321,7 +293,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._register(dom.addStandardDisposableListener(this._overviewDomElement, 'mousedown', (e) => {
 			this._modifiedEditor.delegateVerticalScrollbarMouseDown(e);
 		}));
-		if (this._renderOverviewRuler) {
+		if (this._options.renderOverviewRuler) {
 			this._containerDomElement.appendChild(this._overviewDomElement);
 		}
 
@@ -367,23 +339,17 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
 
-		// enableSplitViewResizing
-		this._enableSplitViewResizing = true;
-		if (typeof options.enableSplitViewResizing !== 'undefined') {
-			this._enableSplitViewResizing = options.enableSplitViewResizing;
-		}
-
-		if (this._renderSideBySide) {
-			this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._enableSplitViewResizing));
+		if (this._options.renderSideBySide) {
+			this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing));
 		} else {
-			this._setStrategy(new DiffEditorWidgetInline(this._createDataSource(), this._enableSplitViewResizing));
+			this._setStrategy(new DiffEditorWidgetInline(this._createDataSource(), this._options.enableSplitViewResizing));
 		}
 
 		this._register(themeService.onDidColorThemeChange(t => {
 			if (this._strategy && this._strategy.applyColors(t)) {
 				this._updateDecorationsRunner.schedule();
 			}
-			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._renderSideBySide);
+			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._options.renderSideBySide);
 		}));
 
 		const contributions: IDiffEditorContributionDescription[] = EditorExtensionsRegistry.getDiffEditorContributions();
@@ -399,19 +365,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public get ignoreTrimWhitespace(): boolean {
-		return this._ignoreTrimWhitespace;
-	}
-
-	public get renderSideBySide(): boolean {
-		return this._renderSideBySide;
+		return this._options.ignoreTrimWhitespace;
 	}
 
 	public get maxComputationTime(): number {
-		return this._maxComputationTime;
-	}
-
-	public get renderIndicators(): boolean {
-		return this._renderIndicators;
+		return this._options.maxComputationTime;
 	}
 
 	public getContentHeight(): number {
@@ -460,7 +418,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _recreateOverviewRulers(): void {
-		if (!this._renderOverviewRuler) {
+		if (!this._options.renderOverviewRuler) {
 			return;
 		}
 
@@ -638,7 +596,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._modifiedOverviewRuler.dispose();
 		}
 		this._overviewDomElement.removeChild(this._overviewViewportDomElement.domNode);
-		if (this._renderOverviewRuler) {
+		if (this._options.renderOverviewRuler) {
 			this._containerDomElement.removeChild(this._overviewDomElement);
 		}
 
@@ -691,73 +649,40 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._modifiedEditor;
 	}
 
-	public updateOptions(newOptions: Readonly<IDiffEditorOptions>): void {
+	public updateOptions(_newOptions: Readonly<IDiffEditorOptions>): void {
+		const newOptions = validateDiffEditorOptions(_newOptions, this._options);
+		const changed = changedDiffEditorOptions(this._options, newOptions);
+		this._options = newOptions;
 
-		// Handle side by side
-		let renderSideBySideChanged = false;
-		if (typeof newOptions.renderSideBySide !== 'undefined') {
-			if (this._renderSideBySide !== newOptions.renderSideBySide) {
-				this._renderSideBySide = newOptions.renderSideBySide;
-				renderSideBySideChanged = true;
-			}
-		}
-
-		if (typeof newOptions.maxComputationTime !== 'undefined') {
-			this._maxComputationTime = newOptions.maxComputationTime;
-			if (this._isVisible) {
-				this._beginUpdateDecorationsSoon();
-			}
-		}
-
-		let beginUpdateDecorations = false;
-
-		if (typeof newOptions.ignoreTrimWhitespace !== 'undefined') {
-			if (this._ignoreTrimWhitespace !== newOptions.ignoreTrimWhitespace) {
-				this._ignoreTrimWhitespace = newOptions.ignoreTrimWhitespace;
-				// Begin comparing
-				beginUpdateDecorations = true;
-			}
-		}
-
-		if (typeof newOptions.renderIndicators !== 'undefined') {
-			if (this._renderIndicators !== newOptions.renderIndicators) {
-				this._renderIndicators = newOptions.renderIndicators;
-				beginUpdateDecorations = true;
-			}
-		}
+		const beginUpdateDecorations = (changed.ignoreTrimWhitespace || changed.renderIndicators);
+		const beginUpdateDecorationsSoon = (this._isVisible && (changed.maxComputationTime || changed.maxFileSize));
 
 		if (beginUpdateDecorations) {
 			this._beginUpdateDecorations();
+		} else if (beginUpdateDecorationsSoon) {
+			this._beginUpdateDecorationsSoon();
 		}
 
-		this._originalIsEditable = validateBooleanOption(newOptions.originalEditable, this._originalIsEditable);
-		this._diffCodeLens = validateBooleanOption(newOptions.diffCodeLens, this._diffCodeLens);
-		this._diffWordWrap = validateDiffWordWrap(newOptions.diffWordWrap, this._diffWordWrap);
-
-		this._modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(newOptions));
-		this._originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions));
+		this._modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(_newOptions));
+		this._originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(_newOptions));
 
 		// enableSplitViewResizing
-		if (typeof newOptions.enableSplitViewResizing !== 'undefined') {
-			this._enableSplitViewResizing = newOptions.enableSplitViewResizing;
-		}
-		this._strategy.setEnableSplitViewResizing(this._enableSplitViewResizing);
+		this._strategy.setEnableSplitViewResizing(this._options.enableSplitViewResizing);
 
 		// renderSideBySide
-		if (renderSideBySideChanged) {
-			if (this._renderSideBySide) {
-				this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._enableSplitViewResizing));
+		if (changed.renderSideBySide) {
+			if (this._options.renderSideBySide) {
+				this._setStrategy(new DiffEditorWidgetSideBySide(this._createDataSource(), this._options.enableSplitViewResizing));
 			} else {
-				this._setStrategy(new DiffEditorWidgetInline(this._createDataSource(), this._enableSplitViewResizing));
+				this._setStrategy(new DiffEditorWidgetInline(this._createDataSource(), this._options.enableSplitViewResizing));
 			}
 			// Update class name
-			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._renderSideBySide);
+			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getColorTheme(), this._options.renderSideBySide);
 		}
 
 		// renderOverviewRuler
-		if (typeof newOptions.renderOverviewRuler !== 'undefined' && this._renderOverviewRuler !== newOptions.renderOverviewRuler) {
-			this._renderOverviewRuler = newOptions.renderOverviewRuler;
-			if (this._renderOverviewRuler) {
+		if (changed.renderOverviewRuler) {
+			if (this._options.renderOverviewRuler) {
 				this._containerDomElement.appendChild(this._overviewDomElement);
 			} else {
 				this._containerDomElement.removeChild(this._overviewDomElement);
@@ -992,7 +917,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	private _layoutOverviewRulers(): void {
-		if (!this._renderOverviewRuler) {
+		if (!this._options.renderOverviewRuler) {
 			return;
 		}
 
@@ -1064,9 +989,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// yet supported, so using tokens for now.
 		this._diffComputationToken++;
 		const currentToken = this._diffComputationToken;
-		this._setState(editorBrowser.DiffEditorState.ComputingDiff);
 
-		if (!this._editorWorkerService.canComputeDiff(currentOriginalModel.uri, currentModifiedModel.uri)) {
+		const diffLimit = this._options.maxFileSize * 1024 * 1024; // MB
+		const canSyncModelForDiff = (model: ITextModel): boolean => {
+			const bufferTextLength = model.getValueLength();
+			return (diffLimit === 0 || bufferTextLength <= diffLimit);
+		};
+
+		if (!canSyncModelForDiff(currentOriginalModel) || !canSyncModelForDiff(currentModifiedModel)) {
 			if (
 				!DiffEditorWidget._equals(currentOriginalModel.uri, this._lastOriginalWarning)
 				|| !DiffEditorWidget._equals(currentModifiedModel.uri, this._lastModifiedWarning)
@@ -1078,7 +1008,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			return;
 		}
 
-		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._ignoreTrimWhitespace, this._maxComputationTime).then((result) => {
+		this._setState(editorBrowser.DiffEditorState.ComputingDiff);
+		this._editorWorkerService.computeDiff(currentOriginalModel.uri, currentModifiedModel.uri, this._options.ignoreTrimWhitespace, this._options.maxComputationTime).then((result) => {
 			if (currentToken === this._diffComputationToken
 				&& currentOriginalModel === this._originalEditor.getModel()
 				&& currentModifiedModel === this._modifiedEditor.getModel()
@@ -1115,7 +1046,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		const foreignOriginal = this._originalEditorState.getForeignViewZones(this._originalEditor.getWhitespaces());
 		const foreignModified = this._modifiedEditorState.getForeignViewZones(this._modifiedEditor.getWhitespaces());
 
-		const diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._ignoreTrimWhitespace, this._renderIndicators, foreignOriginal, foreignModified);
+		const diffDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, this._options.ignoreTrimWhitespace, this._options.renderIndicators, foreignOriginal, foreignModified);
 
 		try {
 			this._currentlyChangingViewZones = true;
@@ -1134,7 +1065,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };
 		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
-		clonedOptions.codeLens = this._diffCodeLens;
+		clonedOptions.codeLens = this._options.diffCodeLens;
 		clonedOptions.fixedOverflowWidgets = true;
 		// clonedOptions.lineDecorationsWidth = '2ch';
 		// Clone minimap options before changing them
@@ -1145,16 +1076,16 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _adjustOptionsForLeftHandSide(options: Readonly<editorBrowser.IDiffEditorConstructionOptions>): editorBrowser.IEditorConstructionOptions {
 		const result = this._adjustOptionsForSubEditor(options);
-		if (!this._renderSideBySide) {
+		if (!this._options.renderSideBySide) {
 			// never wrap hidden editor
 			result.wordWrapOverride1 = 'off';
 		} else {
-			result.wordWrapOverride1 = this._diffWordWrap;
+			result.wordWrapOverride1 = this._options.diffWordWrap;
 		}
 		if (options.originalAriaLabel) {
 			result.ariaLabel = options.originalAriaLabel;
 		}
-		result.readOnly = !this._originalIsEditable;
+		result.readOnly = !this._options.originalEditable;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return {
 			...result,
@@ -1171,7 +1102,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			result.ariaLabel = options.modifiedAriaLabel;
 		}
 
-		result.wordWrapOverride1 = this._diffWordWrap;
+		result.wordWrapOverride1 = this._options.diffWordWrap;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
@@ -1210,7 +1141,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._overviewViewportDomElement.setHeight(30);
 
 		this._originalEditor.layout({ width: splitPoint, height: (height - reviewHeight) });
-		this._modifiedEditor.layout({ width: width - splitPoint - (this._renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0), height: (height - reviewHeight) });
+		this._modifiedEditor.layout({ width: width - splitPoint - (this._options.renderOverviewRuler ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0), height: (height - reviewHeight) });
 
 		if (this._originalOverviewRuler || this._modifiedOverviewRuler) {
 			this._layoutOverviewRulers();
@@ -1266,7 +1197,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 			getOptions: () => {
 				return {
-					renderOverviewRuler: this._renderOverviewRuler
+					renderOverviewRuler: this._options.renderOverviewRuler
 				};
 			},
 
@@ -2543,6 +2474,36 @@ function getViewRange(model: ITextModel, viewModel: IViewModel, startLineNumber:
 		startLineNumber, model.getLineMinColumn(startLineNumber),
 		endLineNumber, model.getLineMaxColumn(endLineNumber)
 	));
+}
+
+function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaults: ValidDiffEditorBaseOptions): ValidDiffEditorBaseOptions {
+	return {
+		enableSplitViewResizing: validateBooleanOption(options.enableSplitViewResizing, defaults.enableSplitViewResizing),
+		renderSideBySide: validateBooleanOption(options.renderSideBySide, defaults.renderSideBySide),
+		maxComputationTime: clampedInt(options.maxComputationTime, defaults.maxComputationTime, 0, Constants.MAX_SAFE_SMALL_INTEGER),
+		maxFileSize: clampedInt(options.maxFileSize, defaults.maxFileSize, 0, Constants.MAX_SAFE_SMALL_INTEGER),
+		ignoreTrimWhitespace: validateBooleanOption(options.ignoreTrimWhitespace, defaults.ignoreTrimWhitespace),
+		renderIndicators: validateBooleanOption(options.renderIndicators, defaults.renderIndicators),
+		originalEditable: validateBooleanOption(options.originalEditable, defaults.originalEditable),
+		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
+		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
+		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
+	};
+}
+
+function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEditorBaseOptions) {
+	return {
+		enableSplitViewResizing: (a.enableSplitViewResizing !== b.enableSplitViewResizing),
+		renderSideBySide: (a.renderSideBySide !== b.renderSideBySide),
+		maxComputationTime: (a.maxComputationTime !== b.maxComputationTime),
+		maxFileSize: (a.maxFileSize !== b.maxFileSize),
+		ignoreTrimWhitespace: (a.ignoreTrimWhitespace !== b.ignoreTrimWhitespace),
+		renderIndicators: (a.renderIndicators !== b.renderIndicators),
+		originalEditable: (a.originalEditable !== b.originalEditable),
+		diffCodeLens: (a.diffCodeLens !== b.diffCodeLens),
+		renderOverviewRuler: (a.renderOverviewRuler !== b.renderOverviewRuler),
+		diffWordWrap: (a.diffWordWrap !== b.diffWordWrap),
+	};
 }
 
 registerThemingParticipant((theme, collector) => {

@@ -43,9 +43,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, getTelemetryLevel, NullTelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { combinedAppender, getTelemetryLevel, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 

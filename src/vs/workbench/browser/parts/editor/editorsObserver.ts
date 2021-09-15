@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorInput, IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, GroupIdentifier, EditorExtensions, IEditorPartOptionsChangeEvent, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -38,7 +39,7 @@ export class EditorsObserver extends Disposable {
 
 	private static readonly STORAGE_KEY = 'editors.mru';
 
-	private readonly keyMap = new Map<GroupIdentifier, Map<IEditorInput, IEditorIdentifier>>();
+	private readonly keyMap = new Map<GroupIdentifier, Map<EditorInput, IEditorIdentifier>>();
 	private readonly mostRecentEditorsMap = new LinkedMap<IEditorIdentifier, IEditorIdentifier>();
 	private readonly editorsPerResourceCounter = new ResourceMap<Map<string /* typeId/editorId */, number /* counter */>>();
 
@@ -176,7 +177,7 @@ export class EditorsObserver extends Disposable {
 		}
 	}
 
-	private addMostRecentEditor(group: IEditorGroup, editor: IEditorInput, isActive: boolean, isNew: boolean): void {
+	private addMostRecentEditor(group: IEditorGroup, editor: EditorInput, isActive: boolean, isNew: boolean): void {
 		const key = this.ensureKey(group, editor);
 		const mostRecentEditor = this.mostRecentEditorsMap.first;
 
@@ -206,7 +207,7 @@ export class EditorsObserver extends Disposable {
 		this._onDidMostRecentlyActiveEditorsChange.fire();
 	}
 
-	private updateEditorResourcesMap(editor: IEditorInput, add: boolean): void {
+	private updateEditorResourcesMap(editor: EditorInput, add: boolean): void {
 
 		// Distill the editor resource and type id with support
 		// for side by side editor's primary side too.
@@ -258,7 +259,7 @@ export class EditorsObserver extends Disposable {
 		}
 	}
 
-	private removeMostRecentEditor(group: IEditorGroup, editor: IEditorInput): void {
+	private removeMostRecentEditor(group: IEditorGroup, editor: EditorInput): void {
 
 		// Update in resource map
 		this.updateEditorResourcesMap(editor, false);
@@ -281,7 +282,7 @@ export class EditorsObserver extends Disposable {
 		}
 	}
 
-	private findKey(group: IEditorGroup, editor: IEditorInput): IEditorIdentifier | undefined {
+	private findKey(group: IEditorGroup, editor: EditorInput): IEditorIdentifier | undefined {
 		const groupMap = this.keyMap.get(group.id);
 		if (!groupMap) {
 			return undefined;
@@ -290,7 +291,7 @@ export class EditorsObserver extends Disposable {
 		return groupMap.get(editor);
 	}
 
-	private ensureKey(group: IEditorGroup, editor: IEditorInput): IEditorIdentifier {
+	private ensureKey(group: IEditorGroup, editor: EditorInput): IEditorIdentifier {
 		let groupMap = this.keyMap.get(group.id);
 		if (!groupMap) {
 			groupMap = new Map();
@@ -367,7 +368,7 @@ export class EditorsObserver extends Disposable {
 
 		// Close editors until we reached the limit again
 		let editorsToCloseCount = mostRecentEditors.length - limit;
-		const mapGroupToEditorsToClose = new Map<GroupIdentifier, IEditorInput[]>();
+		const mapGroupToEditorsToClose = new Map<GroupIdentifier, EditorInput[]>();
 		for (const { groupId, editor } of leastRecentlyClosableEditors) {
 			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);
 			if (!editorsInGroupToClose) {
@@ -403,7 +404,7 @@ export class EditorsObserver extends Disposable {
 		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		const entries = [...this.mostRecentEditorsMap.values()];
-		const mapGroupToSerializableEditorsOfGroup = new Map<IEditorGroup, IEditorInput[]>();
+		const mapGroupToSerializableEditorsOfGroup = new Map<IEditorGroup, EditorInput[]>();
 
 		return {
 			entries: coalesce(entries.map(({ editor, groupId }) => {
