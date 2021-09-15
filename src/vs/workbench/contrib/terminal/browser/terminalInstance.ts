@@ -69,7 +69,7 @@ import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { isSafari } from 'vs/base/browser/browser';
-import { template } from 'vs/base/common/labels';
+import { ISeparator, template } from 'vs/base/common/labels';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -166,14 +166,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _capabilities: ProcessCapability[] = [];
 
-	private _workspaceFolder: string = '';
-
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
 	private _description: string | undefined = undefined;
 	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
 	private _processName: string | undefined = undefined;
 	private _sequence: string | undefined = undefined;
+	private _staticTitle: string | undefined = undefined;
+	private _workspaceFolder: string = '';
 
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
@@ -1781,7 +1781,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			case TitleEventSource.Api:
 				// If the title has not been set by the API or the rename command, unregister the handler that
 				// automatically updates the terminal name
-				this._processName = title;
+				this._staticTitle = title;
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
 				break;
@@ -1794,11 +1794,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._sequence = title;
 				}
 				break;
+			case TitleEventSource.Rename:
+				// If the title has not been set by the API or the rename command, unregister the handler that
+				// automatically updates the terminal name
+				this._staticTitle = title;
+				dispose(this._messageTitleDisposable);
+				this._messageTitleDisposable = undefined;
+				break;
 		}
-		// Remove special characters that could mess with rendering
-		title = title.replace(/[\n\r\t]/g, '');
-		console.log('before customize title', title);
-		title = this._customizeTitle(title, eventSource);
+
+		const cwd = this._cwd || this._initialCwd || '';
+		const templateProperties: ITerminalLabelTemplateProperties = {
+			cwd,
+			cwdFolder: '',
+			workspaceFolder: this._workspaceFolder,
+			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+			process: this._processName,
+			sequence: this._sequence,
+			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			separator: { label: this._configHelper.config.tabs.separator }
+		};
+		title = refreshLabel(this._configHelper.config.tabs.title, templateProperties, this._workspaceContextService, this._capabilities, this._configHelper.config.cwd, this._staticTitle);
+		const description = refreshLabel(this._configHelper.config.tabs.description, templateProperties, this._workspaceContextService, this._capabilities, this._configHelper.config.cwd);
+		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
+		if (!title || !titleChanged) {
+			return;
+		}
+		this._description = description;
 		this._title = title;
 		this._titleSource = eventSource;
 		this._setAriaLabel(this._xterm, this._instanceId, this._title);
@@ -1808,63 +1830,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._titleReadyComplete = undefined;
 		}
 		this._onTitleChanged.fire(this);
-	}
-
-	private _customizeTitle(title: string, eventSource: TitleEventSource): string {
-		if (eventSource === TitleEventSource.Api) {
-			return title;
-		}
-		const cwd = this._cwd || this._initialCwd || '';
-		const templateProperties = {
-			cwd,
-			cwdFolder: this.getCwdFolder(),
-			workspaceFolder: this._workspaceFolder,
-			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
-			process: this._processName,
-			sequence: this._sequence,
-			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-			separator: { label: this._configHelper.config.tabs.separator }
-		};
-		title = template(this._configHelper.config.tabs.title, templateProperties);
-		const description = template(this._configHelper.config.tabs.description, templateProperties);
-		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
-		if (!title || !titleChanged) {
-			return title;
-		}
-		this._description = description;
-		return title;
-	}
-
-	getCwdFolder(): string {
-		const cwd = this._cwd || this._initialCwd;
-		if (!cwd ||
-			!this._capabilities.includes(ProcessCapability.CwdDetection) ||
-			this._workspaceContextService.getWorkspace().folders.length === 0 ||
-			(
-				this._workspaceContextService.getWorkspace().folders.length <= 1 &&
-				this._equalIgnoringSlashes(this._workspaceContextService.getWorkspace().folders[0].uri.fsPath, cwd, this._configHelper.config.cwd)
-			)) {
-			return '';
-		}
-		return path.basename(cwd);
-	}
-
-	private _equalIgnoringSlashes(workspaceUri: string, cwd: string, configCwd?: string): boolean {
-		console.log('_equalIgnoringSlashes', ...arguments);
-		let paths = configCwd || workspaceUri;
-		let workspacePaths = paths.includes('/') ? paths.split('/') : paths.split('\\');
-		let cwdPaths = cwd.includes('/') ? cwd.split('/') : cwd.split('\\');
-		paths = paths === configCwd ? paths.slice(1) : paths.slice(4);
-		cwdPaths = cwdPaths.slice(1);
-		if (paths.length !== cwdPaths.length) {
-			return false;
-		}
-		for (let i = 0; i < cwdPaths.length; i++) {
-			if (workspacePaths[i] !== cwdPaths[i]) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	waitForTitle(): Promise<string> {
@@ -2033,7 +1998,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		}
 		if (title) {
-			this.setTitle(title, TitleEventSource.Api);
+			this.setTitle(title, TitleEventSource.Rename);
 		}
 	}
 
@@ -2286,9 +2251,35 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 });
 
-export function refreshLabel(labelTemplate: string, terminalProperties: { processName: string /* ... */ }, processProperties: IProcessPropertyMap, staticTitle: string | undefined): string {
-	return '';
+export function refreshLabel(
+	labelTemplate: string,
+	templateProperties: ITerminalLabelTemplateProperties,
+	workspaceContextService: IWorkspaceContextService,
+	capabilities: ProcessCapability[],
+	configCwd?: string,
+	staticTitle?: string): string {
+	if (staticTitle) {
+		return staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process || '';
+	}
+
+	if (!templateProperties.cwd || !capabilities.includes(ProcessCapability.CwdDetection) ||
+		(workspaceContextService.getWorkspace().folders.length <= 1 &&
+			(templateProperties.cwd === (configCwd || (workspaceContextService.getWorkspace().folders[0].uri.fsPath))))) {
+		templateProperties.cwdFolder = '';
+	} else if (templateProperties.cwd && typeof templateProperties.cwd === 'string') {
+		templateProperties.cwdFolder = path.basename(templateProperties.cwd);
+	}
+	//Remove special characters that could mess with rendering
+	return template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
 }
 
-// TODO: Fallback to process name for title only
-// title = refreshLabel || processProperties.processName
+export interface ITerminalLabelTemplateProperties {
+	cwd?: string | null | undefined;
+	cwdFolder?: string | null | undefined;
+	workspaceFolder?: string | null | undefined;
+	local?: string | null | undefined;
+	process?: string | null | undefined;
+	sequence?: string | null | undefined;
+	task?: string | null | undefined;
+	separator?: string | ISeparator | null | undefined;
+}
