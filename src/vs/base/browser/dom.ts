@@ -1153,11 +1153,11 @@ export function finalHandler<T extends DOMEvent>(fn: (event: T) => any): (event:
 	};
 }
 
-export function domContentLoaded(): Promise<any> {
-	return new Promise<any>(resolve => {
+export function domContentLoaded(): Promise<unknown> {
+	return new Promise<unknown>(resolve => {
 		const readyState = document.readyState;
 		if (readyState === 'complete' || (document && document.body !== null)) {
-			platform.setImmediate(resolve);
+			resolve(undefined);
 		} else {
 			window.addEventListener('DOMContentLoaded', resolve, false);
 		}
