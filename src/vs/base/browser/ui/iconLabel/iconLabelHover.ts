@@ -82,7 +82,7 @@ class UpdatableHoverWidget {
 	}
 
 	get isDisposed() {
-		return this._hoverWidget && this._hoverWidget.isDisposed;
+		return this._hoverWidget?.isDisposed;
 	}
 
 	dispose(): void {
