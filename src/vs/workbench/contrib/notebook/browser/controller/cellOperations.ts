@@ -576,7 +576,7 @@ export function computeCellLinesContents(cell: ICellViewModel, splitPoints: IPos
 export function insertCell(
 	modeService: IModeService,
 	editor: IActiveNotebookEditor,
-	cell: ICellViewModel | undefined,
+	index: number,
 	type: CellKind,
 	direction: 'above' | 'below' = 'above',
 	initialText: string = '',
@@ -588,7 +588,7 @@ export function insertCell(
 		return null;
 	}
 
-	const index = cell ? viewModel.getCellIndex(cell) : 0;
+	const cell = editor.cellAt(index);
 	const nextIndex = ui ? viewModel.getNextVisibleCellIndex(index) : index + 1;
 	let language;
 	if (type === CellKind.Code) {

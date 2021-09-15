@@ -45,11 +45,12 @@ abstract class InsertCellCommand extends NotebookAction {
 
 		const modeService = accessor.get(IModeService);
 		if (context.cell) {
-			newCell = insertCell(modeService, context.notebookEditor, context.cell, this.kind, this.direction, undefined, true);
+			const idx = context.notebookEditor.getCellIndex(context.cell);
+			newCell = insertCell(modeService, context.notebookEditor, idx, this.kind, this.direction, undefined, true);
 		} else {
 			const focusRange = context.notebookEditor.getFocus();
-			const next = focusRange.end - 1;
-			newCell = insertCell(modeService, context.notebookEditor, context.notebookEditor.cellAt(next), this.kind, this.direction, undefined, true);
+			const next = Math.max(focusRange.end - 1, 0);
+			newCell = insertCell(modeService, context.notebookEditor, next, this.kind, this.direction, undefined, true);
 		}
 
 		if (newCell) {
@@ -185,7 +186,7 @@ registerAction2(class InsertCodeCellAtTopAction extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const modeService = accessor.get(IModeService);
-		const newCell = insertCell(modeService, context.notebookEditor, undefined, CellKind.Code, 'above', undefined, true);
+		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
 
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -212,7 +213,7 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const modeService = accessor.get(IModeService);
-		const newCell = insertCell(modeService, context.notebookEditor, undefined, CellKind.Markup, 'above', undefined, true);
+		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
 
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');

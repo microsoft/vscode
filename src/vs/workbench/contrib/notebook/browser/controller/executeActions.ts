@@ -417,7 +417,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			if (nextCell) {
 				context.notebookEditor.focusNotebookCell(nextCell, 'container');
 			} else {
-				const newCell = insertCell(modeService, context.notebookEditor, context.cell, CellKind.Markup, 'below');
+				const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Markup, 'below');
 
 				if (newCell) {
 					context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -430,7 +430,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 			if (nextCell) {
 				context.notebookEditor.focusNotebookCell(nextCell, 'container');
 			} else {
-				const newCell = insertCell(modeService, context.notebookEditor, context.cell, CellKind.Code, 'below');
+				const newCell = insertCell(modeService, context.notebookEditor, idx, CellKind.Code, 'below');
 
 				if (newCell) {
 					context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -457,6 +457,7 @@ registerAction2(class ExecuteCellInsertBelow extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const idx = context.notebookEditor.getCellIndex(context.cell);
 		const modeService = accessor.get(IModeService);
 		const newFocusMode = context.cell.focusMode === CellFocusMode.Editor ? 'editor' : 'container';
 		const executionP = runCell(accessor, context);
