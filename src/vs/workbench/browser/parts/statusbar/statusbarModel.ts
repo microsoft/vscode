@@ -20,7 +20,7 @@ export interface IStatusbarEntryPriority {
 	 *
 	 * May not be unique across all entries.
 	 */
-	readonly primary: number | IStatusbarEntryRelativePriority;
+	readonly primary: number | IStatusbarEntryLocation;
 
 	/**
 	 * The secondary priority of the entry
@@ -32,25 +32,25 @@ export interface IStatusbarEntryPriority {
 	readonly secondary: number;
 }
 
-export interface IStatusbarEntryRelativePriority {
+export interface IStatusbarEntryLocation {
 
 	/**
 	 * The identifier of another status bar entry to
 	 * position relative to.
 	 */
-	reference: string;
+	id: string;
 
 	/**
-	 * The alignment of the status bar entry reltive
+	 * The alignment of the status bar entry relative
 	 * to the referenced entry.
 	 */
 	alignment: StatusbarAlignment;
 }
 
-function isStatusbarEntryRelativePriority(thing: unknown): thing is IStatusbarEntryRelativePriority {
-	const candidate = thing as IStatusbarEntryRelativePriority | undefined;
+function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
+	const candidate = thing as IStatusbarEntryLocation | undefined;
 
-	return typeof candidate?.reference === 'string' && typeof candidate.alignment === 'number';
+	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
 }
 
 export interface IStatusbarViewModelEntry {
@@ -166,7 +166,7 @@ export class StatusbarViewModel extends Disposable {
 
 			// Re-sort entries if this one was used
 			// as reference from other entries
-			if (this._entries.some(otherEntry => isStatusbarEntryRelativePriority(otherEntry.priority.primary) && otherEntry.priority.primary.reference === entry.id)) {
+			if (this._entries.some(otherEntry => isStatusbarEntryLocation(otherEntry.priority.primary) && otherEntry.priority.primary.id === entry.id)) {
 				this.sort();
 			}
 
@@ -312,10 +312,10 @@ export class StatusbarViewModel extends Disposable {
 			if (typeof entry.priority.primary === 'number') {
 				mapEntryWithNumberedPriorityToIndex.set(entry, i);
 			} else {
-				let entries = mapEntryWithRelativePriority.get(entry.priority.primary.reference);
+				let entries = mapEntryWithRelativePriority.get(entry.priority.primary.id);
 				if (!entries) {
 					entries = [];
-					mapEntryWithRelativePriority.set(entry.priority.primary.reference, entries);
+					mapEntryWithRelativePriority.set(entry.priority.primary.id, entries);
 				}
 				entries.push(entry);
 			}
@@ -353,7 +353,7 @@ export class StatusbarViewModel extends Disposable {
 
 		let sortedEntries: IStatusbarViewModelEntry[];
 
-		// Entries with relative priority: sort in accordingly
+		// Entries with location: sort in accordingly
 		if (mapEntryWithRelativePriority.size > 0) {
 			sortedEntries = [];
 
@@ -362,7 +362,7 @@ export class StatusbarViewModel extends Disposable {
 
 				// Fill relative entries to LEFT
 				if (relativeEntries) {
-					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryRelativePriority(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.LEFT));
+					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.LEFT));
 				}
 
 				// Fill referenced entry
@@ -370,7 +370,7 @@ export class StatusbarViewModel extends Disposable {
 
 				// Fill relative entries to RIGHT
 				if (relativeEntries) {
-					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryRelativePriority(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.RIGHT));
+					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.RIGHT));
 				}
 
 				// Delete from map to mark as handled

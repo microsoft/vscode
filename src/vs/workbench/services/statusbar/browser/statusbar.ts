@@ -9,7 +9,7 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IStatusbarEntryRelativePriority } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
+import { IStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -112,10 +112,9 @@ export interface IStatusbarService {
 	 *
 	 * @param id identifier of the entry is needed to allow users to hide entries via settings
 	 * @param alignment either LEFT or RIGHT side in the status bar
-	 * @param reference a reference to another entry to position relative to. The entry will be
-	 * positioned to the LEFT or RIGHT depending on the `alignment` property.
+	 * @param location a reference to another entry to position relative to
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, reference?: IStatusbarEntryRelativePriority): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, location?: IStatusbarEntryLocation): IStatusbarEntryAccessor;
 
 	/**
 	 * Return if an entry is visible or not.
