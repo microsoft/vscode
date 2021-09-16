@@ -19,20 +19,19 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { PanelRegistry, PanelDescriptor, Extensions as PanelExtensions, Panel } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Viewlet, ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -599,7 +598,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private registerPanel(viewContainer: ViewContainer): void {
 		const that = this;
-		class PaneContainerPanel extends Panel {
+		class PaneContainerPanel extends PaneComposite {
 			constructor(
 				@ITelemetryService telemetryService: ITelemetryService,
 				@IStorageService storageService: IStorageService,
@@ -619,7 +618,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				return that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Panel, viewPaneContainerDisposables, this.instantiationService);
 			}
 		}
-		Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
+		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Panels).registerViewlet(PaneCompositeDescriptor.create(
 			PaneContainerPanel,
 			viewContainer.id,
 			viewContainer.title,
@@ -630,15 +629,13 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private deregisterPanel(viewContainer: ViewContainer): void {
-		Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(viewContainer.id);
+		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Panels).deregisterViewlet(viewContainer.id);
 	}
 
 	private registerViewlet(viewContainer: ViewContainer): void {
 		const that = this;
-		class PaneContainerViewlet extends Viewlet {
+		class PaneContainerViewlet extends PaneComposite {
 			constructor(
-				@IConfigurationService configurationService: IConfigurationService,
-				@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 				@ITelemetryService telemetryService: ITelemetryService,
 				@IWorkspaceContextService contextService: IWorkspaceContextService,
 				@IStorageService storageService: IStorageService,
@@ -647,7 +644,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				@IContextMenuService contextMenuService: IContextMenuService,
 				@IExtensionService extensionService: IExtensionService,
 			) {
-				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, layoutService, configurationService);
+				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 			}
 
 			protected createViewPaneContainer(element: HTMLElement): ViewPaneContainer {
@@ -667,7 +664,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				return viewPaneContainer;
 			}
 		}
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
+		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets).registerViewlet(PaneCompositeDescriptor.create(
 			PaneContainerViewlet,
 			viewContainer.id,
 			viewContainer.title,
@@ -679,7 +676,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private deregisterViewlet(viewContainer: ViewContainer): void {
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
+		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
 	}
 }
 

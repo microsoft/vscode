@@ -8,10 +8,9 @@ import { localize } from 'vs/nls';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -27,7 +26,7 @@ import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbe
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, trackFocus, EventHelper } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, EventHelper, $ } from 'vs/base/browser/dom';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
@@ -38,6 +37,11 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { Extensions as ViewletExtensions, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/viewlet';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
 interface ICachedPanel {
 	id: string;
@@ -53,7 +57,7 @@ interface IPlaceholderViewContainer {
 	name?: string;
 }
 
-export class PanelPart extends CompositePart<Panel> implements IPanelService {
+export class PanelPart extends CompositePart<PaneComposite> implements IPanelService {
 
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
@@ -93,6 +97,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private compositeBar: CompositeBar;
 	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
 
+	private globalToolBar: ToolBar | undefined;
+
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	private blockOpeningPanel = false;
@@ -100,11 +106,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private extensionsRegistered = false;
 
-	private panelRegistry: PanelRegistry;
+	private panelRegistry: PaneCompositeRegistry;
 
 	private dndHandler: ICompositeDragAndDrop;
 
 	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
+
+	private globalActions: CompositeMenuActions;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -128,9 +136,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			keybindingService,
 			instantiationService,
 			themeService,
-			Registry.as<PanelRegistry>(PanelExtensions.Panels),
+			Registry.as<PaneCompositeRegistry>(ViewletExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
-			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
+			viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)!.id,
 			'panel',
 			'panel',
 			undefined,
@@ -138,7 +146,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			{ hasTitle: true }
 		);
 
-		this.panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
+		this.panelRegistry = Registry.as<PaneCompositeRegistry>(ViewletExtensions.Panels);
 
 		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
 			(id: string, focus?: boolean) => (this.openPanel(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
@@ -167,7 +175,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				]);
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
-			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
+			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)!.id,
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			dndHandler: this.dndHandler,
 			compositeSize: 0,
@@ -186,6 +194,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
 		this.panelFocusContextKey = PanelFocusContext.bindTo(contextKeyService);
+
+		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.PanelTitle, undefined, undefined));
 
 		this.registerListeners();
 		this.onDidRegisterPanels([...this.getPanels()]);
@@ -210,7 +220,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return result;
 	}
 
-	private onDidRegisterPanels(panels: PanelDescriptor[]): void {
+	private onDidRegisterPanels(panels: PaneCompositeDescriptor[]): void {
 		for (const panel of panels) {
 			const cachedPanel = this.getCachedPanels().filter(({ id }) => id === panel.id)[0];
 			const activePanel = this.getActivePanel();
@@ -273,7 +283,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		if (activeContainers.length) {
 			if (this.getActivePanel()?.getId() === panelId) {
-				const defaultPanelId = this.panelRegistry.getDefaultPanelId();
+				const defaultPanelId = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)!.id;
 				const containerToOpen = activeContainers.filter(c => c.id === defaultPanelId)[0] || activeContainers[0];
 				await this.openPanel(containerToOpen.id);
 			}
@@ -334,6 +344,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private registerListeners(): void {
 
+		// Global Panel Actions
+		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
+
 		// Panel registration
 		this._register(this.registry.onDidRegister(panel => this.onDidRegisterPanels([panel])));
 		this._register(this.registry.onDidDeregister(panel => this.onDidDeregisterPanel(panel.id)));
@@ -385,7 +398,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private onPanelOpen(panel: IPanel): void {
 		this.activePanelContextKey.set(panel.getId());
 
-		const foundPanel = this.panelRegistry.getPanel(panel.getId());
+		const foundPanel = this.panelRegistry.getViewlet(panel.getId());
 		if (foundPanel) {
 			this.compositeBar.addComposite(foundPanel);
 		}
@@ -393,7 +406,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		// Activate composite when opened
 		this.compositeBar.activateComposite(panel.getId());
 
-		const panelDescriptor = this.panelRegistry.getPanel(panel.getId());
+		const panelDescriptor = this.panelRegistry.getViewlet(panel.getId());
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
@@ -429,6 +442,33 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const focusTracker = this._register(trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.panelFocusContextKey.set(true)));
 		this._register(focusTracker.onDidBlur(() => this.panelFocusContextKey.set(false)));
+	}
+
+	override createTitleArea(parent: HTMLElement): HTMLElement {
+		const element = super.createTitleArea(parent);
+		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
+
+		// Global Actions Toolbar
+		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			orientation: ActionsOrientation.HORIZONTAL,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
+			toggleMenuTitle: localize('moreActions', "More Actions...")
+		}));
+
+		this.updateGlobalToolbarActions();
+
+		return element;
+	}
+
+	private updateGlobalToolbarActions(): void {
+		const primaryActions = this.globalActions.getPrimaryActions();
+		const secondaryActions = this.globalActions.getSecondaryActions();
+
+		if (this.globalToolBar) {
+			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		}
 	}
 
 	private createEmptyPanelMessage(): void {
@@ -487,7 +527,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	doOpenPanel(id: string, focus?: boolean): Panel | undefined {
+	doOpenPanel(id: string, focus?: boolean): PaneComposite | undefined {
 		if (this.blockOpeningPanel) {
 			return undefined; // Workaround against a potential race condition
 		}
@@ -502,10 +542,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus) as Panel;
+		return this.openComposite(id, focus) as PaneComposite;
 	}
 
-	async openPanel(id?: string, focus?: boolean): Promise<Panel | undefined> {
+	async openPanel(id?: string, focus?: boolean): Promise<PaneComposite | undefined> {
 		if (typeof id === 'string' && this.getPanel(id)) {
 			return this.doOpenPanel(id, focus);
 		}
@@ -524,11 +564,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	getPanel(panelId: string): IPanelIdentifier | undefined {
-		return this.panelRegistry.getPanel(panelId);
+		return this.panelRegistry.getViewlet(panelId);
 	}
 
-	getPanels(): readonly PanelDescriptor[] {
-		return this.panelRegistry.getPanels()
+	getPanels(): readonly PaneCompositeDescriptor[] {
+		return this.panelRegistry.getViewlets()
 			.sort((v1, v2) => {
 				if (typeof v1.order !== 'number') {
 					return 1;
@@ -542,7 +582,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			});
 	}
 
-	getPinnedPanels(): readonly PanelDescriptor[] {
+	getPinnedPanels(): readonly PaneCompositeDescriptor[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
 		return this.getPanels()
 			.filter(p => pinnedCompositeIds.includes(p.id))

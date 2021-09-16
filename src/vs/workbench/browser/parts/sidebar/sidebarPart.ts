@@ -7,10 +7,10 @@ import 'vs/css!./media/sidebarpart';
 import 'vs/workbench/browser/parts/sidebar/sidebarActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
-import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { PaneCompositeRegistry, Extensions as ViewletExtensions, PaneCompositeDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewlet, SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/viewlet';
+import { SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/viewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -32,8 +32,10 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
-export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
+export class SidebarPart extends CompositePart<PaneComposite> implements IViewletService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -67,15 +69,15 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	//#endregion
 
-	get onDidViewletRegister(): Event<ViewletDescriptor> { return <Event<ViewletDescriptor>>this.viewletRegistry.onDidRegister; }
+	get onDidViewletRegister(): Event<PaneCompositeDescriptor> { return <Event<PaneCompositeDescriptor>>this.viewletRegistry.onDidRegister; }
 
-	private _onDidViewletDeregister = this._register(new Emitter<ViewletDescriptor>());
+	private _onDidViewletDeregister = this._register(new Emitter<PaneCompositeDescriptor>());
 	readonly onDidViewletDeregister = this._onDidViewletDeregister.event;
 
-	get onDidViewletOpen(): Event<IViewlet> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IViewlet>compositeEvent.composite); }
-	get onDidViewletClose(): Event<IViewlet> { return this.onDidCompositeClose.event as Event<IViewlet>; }
+	get onDidViewletOpen(): Event<IPaneComposite> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
+	get onDidViewletClose(): Event<IPaneComposite> { return this.onDidCompositeClose.event as Event<IPaneComposite>; }
 
-	private readonly viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
+	private readonly viewletRegistry = Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets);
 
 	private readonly sideBarFocusContextKey = SidebarFocusContext.bindTo(this.contextKeyService);
 	private readonly activeViewletContextKey = ActiveViewletContext.bindTo(this.contextKeyService);
@@ -104,7 +106,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			keybindingService,
 			instantiationService,
 			themeService,
-			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
+			Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
 			viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)!.id,
 			'sideBar',
@@ -132,7 +134,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		}));
 
 		// Viewlet deregister
-		this._register(this.registry.onDidDeregister(async (viewletDescriptor: ViewletDescriptor) => {
+		this._register(this.registry.onDidDeregister(async (viewletDescriptor: PaneCompositeDescriptor) => {
 
 			const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Sidebar)
 				.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
@@ -214,8 +216,8 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 	// Viewlet service
 
-	getActiveViewlet(): IViewlet | undefined {
-		return <IViewlet>this.getActiveComposite();
+	getActiveViewlet(): IPaneComposite | undefined {
+		return <IPaneComposite>this.getActiveComposite();
 	}
 
 	getLastActiveViewletId(): string {
@@ -226,7 +228,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		this.hideActiveComposite();
 	}
 
-	async openViewlet(id: string | undefined, focus?: boolean): Promise<IViewlet | undefined> {
+	async openViewlet(id: string | undefined, focus?: boolean): Promise<IPaneComposite | undefined> {
 		if (typeof id === 'string' && this.getViewlet(id)) {
 			return this.doOpenViewlet(id, focus);
 		}
@@ -240,7 +242,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		return undefined;
 	}
 
-	getViewlets(): ViewletDescriptor[] {
+	getViewlets(): PaneCompositeDescriptor[] {
 		return this.viewletRegistry.getViewlets().sort((v1, v2) => {
 			if (typeof v1.order !== 'number') {
 				return -1;
@@ -254,11 +256,11 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		});
 	}
 
-	getViewlet(id: string): ViewletDescriptor {
+	getViewlet(id: string): PaneCompositeDescriptor {
 		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
 	}
 
-	private doOpenViewlet(id: string, focus?: boolean): Viewlet | undefined {
+	private doOpenViewlet(id: string, focus?: boolean): PaneComposite | undefined {
 		if (this.blockOpeningViewlet) {
 			return undefined; // Workaround against a potential race condition
 		}
@@ -273,7 +275,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			}
 		}
 
-		return this.openComposite(id, focus) as Viewlet;
+		return this.openComposite(id, focus) as PaneComposite;
 	}
 
 	protected override getTitleAreaDropDownAnchorAlignment(): AnchorAlignment {
@@ -281,7 +283,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-		const activeViewlet = this.getActiveViewlet() as Viewlet;
+		const activeViewlet = this.getActiveViewlet() as PaneComposite;
 		if (activeViewlet) {
 			const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
 			if (contextMenuActions.length) {

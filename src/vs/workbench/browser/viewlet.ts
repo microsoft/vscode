@@ -4,57 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewlet } from 'vs/workbench/common/viewlet';
 import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IConstructorSignature0, IInstantiationService, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConstructorSignature0, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
-export abstract class Viewlet extends PaneComposite implements IViewlet {
-
-	constructor(id: string,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
-		@IConfigurationService protected configurationService: IConfigurationService
-	) {
-		super(id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-	}
-}
-
 /**
- * A viewlet descriptor is a leightweight descriptor of a viewlet in the workbench.
+ * A Pane Composite descriptor is a leightweight descriptor of a Pane Composite in the workbench.
  */
-export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
+export class PaneCompositeDescriptor extends CompositeDescriptor<PaneComposite> {
 
 	static create<Services extends BrandedService[]>(
-		ctor: { new(...services: Services): Viewlet },
+		ctor: { new(...services: Services): PaneComposite },
 		id: string,
 		name: string,
 		cssClass?: string,
 		order?: number,
 		requestedIndex?: number,
 		iconUrl?: URI
-	): ViewletDescriptor {
+	): PaneCompositeDescriptor {
 
-		return new ViewletDescriptor(ctor as IConstructorSignature0<Viewlet>, id, name, cssClass, order, requestedIndex, iconUrl);
+		return new PaneCompositeDescriptor(ctor as IConstructorSignature0<PaneComposite>, id, name, cssClass, order, requestedIndex, iconUrl);
 	}
 
 	private constructor(
-		ctor: IConstructorSignature0<Viewlet>,
+		ctor: IConstructorSignature0<PaneComposite>,
 		id: string,
 		name: string,
 		cssClass?: string,
@@ -67,15 +41,16 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 }
 
 export const Extensions = {
-	Viewlets: 'workbench.contributions.viewlets'
+	Viewlets: 'workbench.contributions.viewlets',
+	Panels: 'workbench.contributions.panels'
 };
 
-export class ViewletRegistry extends CompositeRegistry<Viewlet> {
+export class PaneCompositeRegistry extends CompositeRegistry<PaneComposite> {
 
 	/**
 	 * Registers a viewlet to the platform.
 	 */
-	registerViewlet(descriptor: ViewletDescriptor): void {
+	registerViewlet(descriptor: PaneCompositeDescriptor): void {
 		super.registerComposite(descriptor);
 	}
 
@@ -89,16 +64,17 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	/**
 	 * Returns the viewlet descriptor for the given id or null if none.
 	 */
-	getViewlet(id: string): ViewletDescriptor {
-		return this.getComposite(id) as ViewletDescriptor;
+	getViewlet(id: string): PaneCompositeDescriptor {
+		return this.getComposite(id) as PaneCompositeDescriptor;
 	}
 
 	/**
 	 * Returns an array of registered viewlets known to the platform.
 	 */
-	getViewlets(): ViewletDescriptor[] {
-		return this.getComposites() as ViewletDescriptor[];
+	getViewlets(): PaneCompositeDescriptor[] {
+		return this.getComposites() as PaneCompositeDescriptor[];
 	}
 }
 
-Registry.add(Extensions.Viewlets, new ViewletRegistry());
+Registry.add(Extensions.Viewlets, new PaneCompositeRegistry());
+Registry.add(Extensions.Panels, new PaneCompositeRegistry());

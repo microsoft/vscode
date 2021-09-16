@@ -12,7 +12,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { PaneCompositeDescriptor } from 'vs/workbench/browser/viewlet';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -99,7 +99,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 	private doGetViewPickItems(): Array<IViewQuickPickItem> {
 		const viewEntries: Array<IViewQuickPickItem> = [];
 
-		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): IViewQuickPickItem[] => {
+		const getViewEntriesForViewlet = (viewlet: PaneCompositeDescriptor, viewContainer: ViewContainer): IViewQuickPickItem[] => {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			const result: IViewQuickPickItem[] = [];
 			for (const view of viewContainerModel.allViewDescriptors) {
@@ -176,7 +176,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		return viewEntries;
 	}
 
-	private includeViewContainer(container: ViewletDescriptor | IPanelIdentifier): boolean {
+	private includeViewContainer(container: PaneCompositeDescriptor | IPanelIdentifier): boolean {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(container.id);
 		if (viewContainer?.hideIfEmpty) {
 			return this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0;
