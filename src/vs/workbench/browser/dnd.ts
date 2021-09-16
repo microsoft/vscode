@@ -56,38 +56,33 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 	isExternal?: boolean;
 }
 
-export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Array<IDraggedResourceEditorInput> {
+export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEditorInput> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
-
-		// Check for window-to-window DND
-		if (!externalOnly) {
-
-			// Data Transfer: Code Editors
-			const rawEditorsData = e.dataTransfer.getData(CodeDataTransfers.EDITORS);
-			if (rawEditorsData) {
-				try {
-					editors.push(...parse(rawEditorsData));
-				} catch (error) {
-					// Invalid transfer
-				}
+		// Data Transfer: Code Editors
+		const rawEditorsData = e.dataTransfer.getData(CodeDataTransfers.EDITORS);
+		if (rawEditorsData) {
+			try {
+				editors.push(...parse(rawEditorsData));
+			} catch (error) {
+				// Invalid transfer
 			}
+		}
 
-			// Data Transfer: Resources
-			else {
-				try {
-					const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
-					if (rawResourcesData) {
-						const resourcesRaw: string[] = JSON.parse(rawResourcesData);
-						for (const resourceRaw of resourcesRaw) {
-							if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
-								editors.push({ resource: URI.parse(resourceRaw) });
-							}
+		// Data Transfer: Resources
+		else {
+			try {
+				const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
+				if (rawResourcesData) {
+					const resourcesRaw: string[] = JSON.parse(rawResourcesData);
+					for (const resourceRaw of resourcesRaw) {
+						if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
+							editors.push({ resource: URI.parse(resourceRaw) });
 						}
 					}
-				} catch (error) {
-					// Invalid transfer
 				}
+			} catch (error) {
+				// Invalid transfer
 			}
 		}
 
