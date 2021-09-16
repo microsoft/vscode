@@ -110,6 +110,8 @@ export class PtyService extends Disposable implements IPtyService {
 						id: persistentProcessId,
 						shellLaunchConfig: persistentProcess.shellLaunchConfig,
 						processDetails: await this._buildProcessDetails(persistentProcessId, persistentProcess),
+						processLaunchOptions: persistentProcess.processLaunchOptions,
+						unicodeVersion: persistentProcess.unicodeVersion,
 						replayEvent: await (persistentProcess as any)._serializer.generateReplayEvent(),
 						timestamp: Date.now()
 					});
@@ -143,13 +145,12 @@ export class PtyService extends Disposable implements IPtyService {
 					initialText: state.replayEvent.events[0].data + '\n\r\x1b[40;37;2m> ' + localize('terminal-session-restore', "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(), new Date(state.timestamp).toLocaleTimeString()) + '\x1b[K\x1b[0m\n\r'
 				},
 				state.processDetails.cwd,
-				// TODO: Set correct values
 				state.replayEvent.events[0].cols,
 				state.replayEvent.events[0].rows,
-				'11',
-				process.env,
-				process.env,
-				true,
+				state.unicodeVersion,
+				state.processLaunchOptions.env,
+				state.processLaunchOptions.executableEnv,
+				state.processLaunchOptions.windowsEnableConpty,
 				true,
 				state.processDetails.workspaceId,
 				state.processDetails.workspaceName,
@@ -194,7 +195,12 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onDidChangeHasChildProcesses) {
 			process.onDidChangeHasChildProcesses(event => this._onProcessDidChangeHasChildProcesses.fire({ id, event }));
 		}
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon);
+		const processLaunchOptions: IPersistentTerminalProcessLaunchOptions = {
+			env,
+			executableEnv,
+			windowsEnableConpty
+		};
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -383,6 +389,13 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 }
 
+
+interface IPersistentTerminalProcessLaunchOptions {
+	env: IProcessEnvironment;
+	executableEnv: IProcessEnvironment;
+	windowsEnableConpty: boolean;
+}
+
 export class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
@@ -448,7 +461,8 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number,
 		rows: number,
-		unicodeVersion: '6' | '11',
+		readonly processLaunchOptions: IPersistentTerminalProcessLaunchOptions,
+		public unicodeVersion: '6' | '11',
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
 		reviveBuffer: string | undefined,
@@ -571,6 +585,7 @@ export class PersistentTerminalProcess extends Disposable {
 		return this._terminalProcess.resize(cols, rows);
 	}
 	setUnicodeVersion(version: '6' | '11'): void {
+		this.unicodeVersion = version;
 		this._serializer.setUnicodeVersion?.(version);
 		// TODO: Pass in unicode version in ctor
 	}
@@ -763,6 +778,8 @@ export interface ISerializedTerminalState {
 	id: number;
 	shellLaunchConfig: IShellLaunchConfig;
 	processDetails: IProcessDetails;
+	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
+	unicodeVersion: '6' | '11';
 	replayEvent: IPtyHostProcessReplayEvent;
 	timestamp: number;
 }
