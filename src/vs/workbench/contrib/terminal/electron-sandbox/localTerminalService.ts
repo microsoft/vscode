@@ -221,8 +221,9 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
+
+		// Revive processes if needed
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
-		// TODO: Add revive to remote as well
 		if (serializedState) {
 			try {
 				await this._localPtyService.reviveTerminalProcesses(serializedState);
@@ -236,6 +237,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 				// no-op
 			}
 		}
+
 		return this._localPtyService.getTerminalLayoutInfo(layoutArgs);
 	}
 

@@ -310,6 +310,22 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
 		}
 
+		// Revive processes if needed
+		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+		if (serializedState) {
+			try {
+				await this._remoteTerminalChannel.reviveTerminalProcesses(serializedState);
+				// If reviving processes, send the terminal layout info back to the pty host as it
+				// will not have been persisted on application exit
+				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				if (layoutInfo) {
+					await this._remoteTerminalChannel.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+				}
+			} catch {
+				// no-op
+			}
+		}
+
 		return this._remoteTerminalChannel.getTerminalLayoutInfo();
 	}
 }
