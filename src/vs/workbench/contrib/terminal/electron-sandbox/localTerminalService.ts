@@ -145,7 +145,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	async persistTerminalState(): Promise<void> {
 		const ids = Array.from(this._ptys.keys());
 		const serialized = await this._localPtyService.serializeTerminalState(ids);
-		console.log('Store serialized state', serialized);
 		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -210,7 +209,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			workspaceId: this._getWorkspaceId(),
 			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
-		console.log('setTerminalLayoutInfo', args);
 		await this._localPtyService.setTerminalLayoutInfo(args);
 	}
 
@@ -227,7 +225,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			}
 		}
 		const i = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
-		console.log('getTerminalLayoutInfo', i);
 		return i;
 	}
 

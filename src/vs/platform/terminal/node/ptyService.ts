@@ -218,7 +218,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async attachToProcess(id: number): Promise<void> {
 		try {
-			// const persistentProcessId = this._revivedPtyIdMap.get(id)?.newId ?? id;
 			this._throwIfNoPty(id).attach();
 			this._logService.trace(`Persistent process reconnection "${id}"`);
 		} catch (e) {
@@ -693,11 +692,11 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm.resize(cols, rows);
 	}
 
-	async generateReplayEvent(normaBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent> {
+	async generateReplayEvent(normalBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent> {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
 		const options: ISerializeOptions = { scrollback: this._xterm.getOption('scrollback') };
-		if (normaBufferOnly) {
+		if (normalBufferOnly) {
 			options.excludeAltBuffer = true;
 			options.excludeModes = true;
 		}

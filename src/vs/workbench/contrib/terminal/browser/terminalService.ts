@@ -249,8 +249,7 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
-		// TODO: Pass persisting through
-		lifecycleService.onWillShutdown(e => this._onWillShutdown(e, true));
+		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
 		this._configurationService.onDidChangeConfiguration(async e => {
 			const platformKey = await this._getPlatformKey();
@@ -600,7 +599,7 @@ export class TerminalService implements ITerminalService {
 		return veto;
 	}
 
-	private _onWillShutdown(e: WillShutdownEvent, persistTerminalState: boolean): void {
+	private _onWillShutdown(e: WillShutdownEvent): void {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
@@ -627,6 +626,7 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _saveState(): void {
+		// Avoid saving state when shutting down as that would override process state to be revived
 		if (this._isShuttingDown) {
 			return;
 		}
