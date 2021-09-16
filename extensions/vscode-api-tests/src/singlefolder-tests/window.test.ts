@@ -351,24 +351,31 @@ suite('vscode API - window', () => {
 	test('Tabs - Ensure tabs getter is correct', async () => {
 		assert.ok(workspace.workspaceFolders);
 		const workspaceRoot = workspace.workspaceFolders[0].uri;
+		console.log('Hunting');
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openNotebookDocument(Uri.joinPath(workspaceRoot, 'test.ipynb'))
 		]);
+		console.log('Down');
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		console.log('The');
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+		console.log('Windows');
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+		console.log('Integration');
 		await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
 
 		const leftDiff = await createRandomFile();
 		const rightDiff = await createRandomFile();
+		console.log('Test');
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
 		const tabs = window.tabs;
 		assert.strictEqual(tabs.length, 5);
+		console.log('Timeout');
 
 		// All resources should match the text documents as they're the only tabs currently open
 		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
