@@ -42,11 +42,15 @@ function main() {
                     const modules = Object.keys(parsedJson);
                     const json = {
                         keys: {},
-                        messages: {}
+                        messages: {},
+                        bundles: {
+                            main: []
+                        }
                     };
                     for (const module of modules) {
                         json.messages[module] = parsedJson[module].messages;
                         json.keys[module] = parsedJson[module].keys;
+                        json.bundles.main.push(module);
                     }
                     parsedJson = json;
                     break;

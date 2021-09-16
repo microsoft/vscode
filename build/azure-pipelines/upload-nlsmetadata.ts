@@ -16,6 +16,12 @@ const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 
+interface NlsMetadata {
+	keys: { [module: string]: string },
+	messages: { [module: string]: string },
+	bundles: { [bundle: string]: string[] },
+}
+
 function main() {
 	return es.merge(
 		vfs.src('out-vscode-min/nls.metadata.json', { base: 'out-vscode-min' }),
@@ -52,13 +58,17 @@ function main() {
 						// put nls.metadata.json content in Core NlsMetadata format
 						const modules = Object.keys(parsedJson);
 
-						const json: { keys: { [module: string]: string }, messages: { [module: string]: string } } = {
+						const json: NlsMetadata = {
 							keys: {},
-							messages: {}
+							messages: {},
+							bundles: {
+								main: []
+							}
 						};
 						for (const module of modules) {
 							json.messages[module] = parsedJson[module].messages;
 							json.keys[module] = parsedJson[module].keys;
+							json.bundles.main.push(module);
 						}
 						parsedJson = json;
 						break;
