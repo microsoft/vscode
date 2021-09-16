@@ -18,25 +18,40 @@ function main() {
         fileName: 'combined.nls.metadata.json',
         edit: (parsedJson, file) => {
             let key;
-            console.log(file.path);
             if (file.base === 'out-vscode-min') {
-                key = 'vscode';
+                return { vscode: parsedJson };
             }
-            else {
-                if (file.relative.endsWith('package.nls.json')) {
-                    // put package.nls.json content in ExtensionNlsMetadata format
-                    const convertedJson = {
-                        messages: [],
-                        keys: []
+            // Handle extensions and follow the same structure as the Core nls file.
+            switch (file.basename) {
+                case 'package.nls.json':
+                    // put package.nls.json content in Core NlsMetadata format
+                    parsedJson = {
+                        messages: {
+                            'package.nls.json': Object.values(parsedJson)
+                        },
+                        keys: {
+                            'package.nls.json': Object.keys(parsedJson)
+                        }
                     };
-                    for (const key of Object.keys(parsedJson)) {
-                        convertedJson.keys.push(key);
-                        convertedJson.messages.push(parsedJson[key]);
+                    break;
+                case 'nls.metadata.header.json':
+                    parsedJson = { header: parsedJson };
+                    break;
+                case 'nls.metadata.json':
+                    // put nls.metadata.json content in Core NlsMetadata format
+                    const modules = Object.keys(parsedJson);
+                    const json = {
+                        keys: {},
+                        messages: {}
+                    };
+                    for (const module of modules) {
+                        json.messages[module] = parsedJson[module].messages;
+                        json.keys[module] = parsedJson[module].keys;
                     }
-                    parsedJson = { package: convertedJson };
-                }
-                key = 'vscode.' + file.relative.split('/')[0];
+                    parsedJson = json;
+                    break;
             }
+            key = 'vscode.' + file.relative.split('/')[0];
             return { [key]: parsedJson };
         },
     }))

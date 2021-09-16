@@ -28,26 +28,46 @@ function main() {
 		vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
 		.pipe(merge({
 			fileName: 'combined.nls.metadata.json',
-			edit: (parsedJson: any, file: any) => {
-				let key: string;
-				console.log(file.path);
+			edit: (parsedJson, file) => {
+				let key;
 				if (file.base === 'out-vscode-min') {
-					key = 'vscode';
-				} else {
-					if (file.relative.endsWith('package.nls.json')) {
-						// put package.nls.json content in ExtensionNlsMetadata format
-						const convertedJson: PackageNlsJson = {
-							messages: [],
-							keys: []
-						};
-						for (const key of Object.keys(parsedJson)) {
-							convertedJson.keys.push(key);
-							convertedJson.messages.push(parsedJson[key]);
-						}
-						parsedJson = { package: convertedJson };
-					}
-					key = 'vscode.' + file.relative.split('/')[0];
+					return { vscode: parsedJson };
 				}
+
+				// Handle extensions and follow the same structure as the Core nls file.
+				switch (file.basename) {
+					case 'package.nls.json':
+						// put package.nls.json content in Core NlsMetadata format
+						parsedJson = {
+							messages: {
+								'package.nls.json': Object.values(parsedJson)
+							},
+							keys: {
+								'package.nls.json': Object.keys(parsedJson)
+							}
+						};
+						break;
+
+					case 'nls.metadata.header.json':
+						parsedJson = { header: parsedJson };
+						break;
+
+					case 'nls.metadata.json':
+						// put nls.metadata.json content in Core NlsMetadata format
+						const modules = Object.keys(parsedJson);
+
+						const json: { keys: { [module: string]: string }, messages: { [module: string]: string } } = {
+							keys: {},
+							messages: {}
+						};
+						for (const module of modules) {
+							json.messages[module] = parsedJson[module].messages;
+							json.keys[module] = parsedJson[module].keys;
+						}
+						parsedJson = json;
+						break;
+				}
+				key = 'vscode.' + file.relative.split('/')[0];
 				return { [key]: parsedJson };
 			},
 		}))
