@@ -350,12 +350,17 @@ suite('vscode API - window', () => {
 	//#region Tabs API tests
 	test('Tabs - Ensure tabs getter is correct', async () => {
 		console.log('Hunting');
-		const [docA, docB, docC, notebookDoc] = await Promise.all([
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openNotebookDocument(await createRandomFile('', undefined, '.vsctestnb'))
-		]);
+		const docA = await workspace.openTextDocument(await createRandomFile());
+		const docB = await workspace.openTextDocument(await createRandomFile());
+		const docC = await workspace.openTextDocument(await createRandomFile());
+		console.log('All docs but notebook created');
+		const notebookDoc = await workspace.openNotebookDocument(await createRandomFile('', undefined, '.vsctestnb'));
+		// const [docA, docB, docC, notebookDoc] = await Promise.all([
+		// 	workspace.openTextDocument(await createRandomFile()),
+		// 	workspace.openTextDocument(await createRandomFile()),
+		// 	workspace.openTextDocument(await createRandomFile()),
+		// 	workspace.openNotebookDocument(await createRandomFile('', undefined, '.vsctestnb'))
+		// ]);
 		console.log('Down');
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
