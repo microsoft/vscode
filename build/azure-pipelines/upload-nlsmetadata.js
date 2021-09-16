@@ -19,7 +19,6 @@ function main() {
         edit: (parsedJson, file) => {
             let key;
             console.log(file.path);
-            console.log(file.dirname);
             if (file.base === 'out-vscode-min') {
                 key = 'vscode';
             }
@@ -29,6 +28,7 @@ function main() {
             return { [key]: parsedJson };
         },
     }))
+        .pipe(vfs.dest('./nlsMetadata'))
         .pipe(es.through(function (data) {
         console.log(data.base);
         console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=nls.metadata.json]${path.join(process.env['BUILD_SOURCESDIRECTORY'], data.path)}`);
