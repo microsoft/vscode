@@ -31,6 +31,9 @@ function main() {
                         },
                         keys: {
                             'package.nls.json': Object.keys(parsedJson)
+                        },
+                        bundles: {
+                            main: ['package.nls.json']
                         }
                     };
                     break;
