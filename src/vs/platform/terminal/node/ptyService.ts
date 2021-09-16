@@ -595,7 +595,7 @@ class XtermSerializer implements ITerminalSerializer {
 	async generateReplayEvent(): Promise<IPtyHostProcessReplayEvent> {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
-		const serialized = serialize.serialize(this._xterm.getOption('scrollback'));
+		const serialized = serialize.serialize({ scrollback: this._xterm.getOption('scrollback') });
 		return {
 			events: [
 				{
