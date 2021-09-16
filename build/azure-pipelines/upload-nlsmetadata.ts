@@ -17,16 +17,15 @@ const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 
 function main() {
-	const outvscode = `${process.env['BUILD_SOURCESDIRECTORY']}/out-vscode-min`;
-	const outext = `${process.env['BUILD_SOURCESDIRECTORY']}/.build/extensions`;
 	return es.merge(
-		vfs.src(`${outvscode}/nls.metadata.json`, { base: 'out-vscode-min' }),
-		vfs.src(`${outext}/**/nls.metadata.json`, { base: '.build/extensions' }))
+		vfs.src('out-vscode-min/nls.metadata.json', { base: 'out-vscode-min' }),
+		vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }))
 		.pipe(merge({
 			fileName: 'nls.metadata.json',
 			edit: (parsedJson: any, file: any) => {
 				let key: string;
-				console.log(JSON.stringify(file));
+				console.log(file.path);
+				console.log(file.dirname);
 				if (file.base === 'out-vscode-min') {
 					key = 'vscode';
 				} else {
