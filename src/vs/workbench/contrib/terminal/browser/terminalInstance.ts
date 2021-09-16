@@ -1185,7 +1185,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// ensure the resolved icon gets shown
 			if (!this._labelComputer) {
 				this._labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
-				this._labelComputer.onLabelChanged(e => {
+				this._labelComputer.onDidChangeLabel(e => {
 					this._title = e.title;
 					this._description = e.description;
 					this._onTitleChanged.fire(this);
@@ -2271,8 +2271,8 @@ export class TerminalLabelComputer extends Disposable {
 	get title(): string | undefined { return this._title; }
 	get description(): string | undefined { return this._description; }
 
-	private readonly _onLabelChanged = this._register(new Emitter<{ title: string, description: string }>());
-	readonly onLabelChanged = this._onLabelChanged.event;
+	private readonly _onDidChangeLabel = this._register(new Emitter<{ title: string, description: string }>());
+	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
 		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
@@ -2284,7 +2284,7 @@ export class TerminalLabelComputer extends Disposable {
 		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
 		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== this._instance.title || this._description !== this._instance.description) {
-			this._onLabelChanged.fire({ title: this._title, description: this._description });
+			this._onDidChangeLabel.fire({ title: this._title, description: this._description });
 		}
 	}
 
