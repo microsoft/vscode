@@ -6,6 +6,7 @@
 import { nbformat } from '@jupyterlab/coreutils';
 import { NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
 import { CellOutputMetadata } from './common';
+import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
 
@@ -14,8 +15,6 @@ enum CellOutputMimeTypes {
 	stderr = 'application/vnd.code.notebook.stderr',
 	stdout = 'application/vnd.code.notebook.stdout'
 }
-
-const textMimeTypes = ['text/plain', 'text/markdown', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
 
 export function createJupyterCellFromNotebookCell(
 	vscCell: NotebookCellData

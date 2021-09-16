@@ -37,6 +37,7 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	'application/javascript',
 	'text/html',
 	'image/svg+xml',
+	Mimes.latex,
 	Mimes.markdown,
 	'image/png',
 	'image/jpeg',
@@ -44,6 +45,7 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 ];
 
 export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
+	Mimes.latex,
 	Mimes.markdown,
 	'application/json',
 	Mimes.text,
@@ -567,6 +569,7 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/git', { alwaysSecure: true, supportedByCore: true }],
 	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
+	[Mimes.latex, { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.markdown, { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
