@@ -13,11 +13,14 @@ const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 function main() {
-    return es.merge(vfs.src('out-vscode-min/nls.metadata.json', { base: 'out-vscode-min' }), vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }))
+    const outvscode = `${process.env['BUILD_SOURCESDIRECTORY']}/out-vscode-min`;
+    const outext = `${process.env['BUILD_SOURCESDIRECTORY']}/.build/extensions`;
+    return es.merge(vfs.src(`${outvscode}/nls.metadata.json`, { base: 'out-vscode-min' }), vfs.src(`${outext}/**/nls.metadata.json`, { base: '.build/extensions' }))
         .pipe(merge({
         fileName: 'nls.metadata.json',
         edit: (parsedJson, file) => {
             let key;
+            console.log(JSON.stringify(file));
             if (file.base === 'out-vscode-min') {
                 key = 'vscode';
             }
