@@ -166,7 +166,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		const showHover = async () => {
 			if (hoverPreparation && (!hoverWidget || hoverWidget.isDisposed)) {
 				hoverWidget = new UpdatableHoverWidget(hoverDelegate, target, delay > 0);
-				hoverWidget.update(markdownTooltip);
+				await hoverWidget.update(markdownTooltip);
 			}
 			mouseMoveDomListener?.dispose();
 		};
@@ -190,7 +190,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		},
 		update: async newTooltip => {
 			markdownTooltip = newTooltip;
-			hoverWidget?.update(markdownTooltip);
+			await hoverWidget?.update(markdownTooltip);
 		},
 		dispose: () => {
 			mouseOverDomEmitter.dispose();
