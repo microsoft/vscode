@@ -11,7 +11,6 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class DynamicEditorGroupAutoLockConfiguration extends Disposable implements IWorkbenchContribution {
 
@@ -33,21 +32,12 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 	private configurationDisposable = this._register(new MutableDisposable());
 
 	constructor(
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IExtensionService extensionService: IExtensionService
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
 	) {
 		super();
 
-		// Defer setup of config registration until extensions are
-		// registered so that our first registration includes all
-		// of them.
-		// Related: 
-		(async () => {
-			await extensionService.whenInstalledExtensionsRegistered();
-
-			this.updateConfiguration();
-			this.registerListeners();
-		})();
+		this.updateConfiguration();
+		this.registerListeners();
 	}
 
 	private registerListeners(): void {
@@ -89,8 +79,10 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 		};
 
 		// Register configuration disposing any previous registration
-		this.configurationDisposable.dispose();
-		this.configurationRegistry.registerConfiguration(configurationNode);
-		this.configurationDisposable.value = toDisposable(() => this.configurationRegistry.deregisterConfigurations([configurationNode]));
+		this.configurationDisposable.value = (() => {
+			this.configurationRegistry.registerConfiguration(configurationNode);
+
+			return toDisposable(() => this.configurationRegistry.deregisterConfigurations([configurationNode]));
+		})();
 	}
 }
