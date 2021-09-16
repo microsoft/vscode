@@ -24,12 +24,12 @@ import { Mimes, guessMimeTypes } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { setImmediate } from 'vs/base/common/platform';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { disposableTimeout } from 'vs/base/common/async';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -181,7 +181,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.processedFileExtensions.push(fileExtension);
 
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-		setImmediate(() => this.promptRecommendations(uri, language, fileExtension));
+		this._register(disposableTimeout(() => this.promptRecommendations(uri, language, fileExtension), 0));
 	}
 
 	private async promptRecommendations(uri: URI, language: string, fileExtension: string): Promise<void> {
