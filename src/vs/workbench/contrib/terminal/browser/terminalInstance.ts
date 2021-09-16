@@ -170,7 +170,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _capabilities: ProcessCapability[] = [];
 	private _description?: string;
-	private _processName?: string;
+	private _processName: string = '';
 	private _sequence?: string;
 	private _staticTitle?: string;
 	private _workspaceFolder?: string;
@@ -223,7 +223,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
 
-	get processName(): string | undefined { return this._processName; }
+	get processName(): string { return this._processName; }
 	get sequence(): string | undefined { return this._sequence; }
 	get staticTitle(): string | undefined { return this._staticTitle; }
 	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
@@ -1780,10 +1780,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
-		if (!title) {
-			return;
+		title = (this._updateTitleProperties(title, eventSource) || this.processName);
+		const titleChanged = this._title !== title;
+		this._labelComputer?.refreshLabel();
+		this._title = title.replace(/[\n\r\t]/g, '');
+		this._setAriaLabel(this._xterm, this._instanceId, this._title);
+
+		if (this._titleReadyComplete) {
+			this._titleReadyComplete(title);
+			this._titleReadyComplete = undefined;
 		}
-		// TODO: should we change this to not accept TitleEventSource?
+		if (titleChanged) {
+			this._onTitleChanged.fire(this);
+		}
+	}
+
+	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
+		if (!title) {
+			return this._processName;
+		}
 		switch (eventSource) {
 			case TitleEventSource.Process:
 				if (this._processManager.os === OperatingSystem.Windows) {
@@ -1816,22 +1831,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				break;
 		}
-		let titleChanged = false;
-		this._labelComputer?.refreshLabel();
-		if (this._title !== title) {
-			titleChanged = true;
-		}
-		this._title = title.replace(/[\n\r\t]/g, '');
 		this._titleSource = eventSource;
-		this._setAriaLabel(this._xterm, this._instanceId, this._title);
-
-		if (this._titleReadyComplete) {
-			this._titleReadyComplete(title);
-			this._titleReadyComplete = undefined;
-		}
-		if (titleChanged) {
-			this._onTitleChanged.fire(this);
-		}
+		return title;
 	}
 
 	waitForTitle(): Promise<string> {

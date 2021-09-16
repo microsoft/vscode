@@ -22,7 +22,7 @@ function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalIns
 		shellLaunchConfig: {},
 		cwd: 'cwd',
 		initialCwd: undefined,
-		processName: undefined,
+		processName: '',
 		sequence: undefined,
 		workspaceFolder: undefined,
 		staticTitle: undefined,

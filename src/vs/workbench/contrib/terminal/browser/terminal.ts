@@ -401,7 +401,7 @@ export interface ITerminalInstance {
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 
-	readonly processName?: string;
+	readonly processName: string;
 	readonly sequence?: string;
 	readonly staticTitle?: string;
 	readonly workspaceFolder?: string;
