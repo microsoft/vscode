@@ -253,11 +253,14 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	private _getActiveEditorFromPanel(): IEditor | undefined {
 		const panel = this._panelService.getActivePanel();
-		if (panel instanceof BaseTextEditor && isCodeEditor(panel.getControl())) {
-			return panel.getControl();
-		} else {
-			return undefined;
+		if (panel instanceof BaseTextEditor) {
+			const control = panel.getControl();
+			if (isCodeEditor(control)) {
+				return control;
+			}
 		}
+
+		return undefined;
 	}
 
 	private _getActiveEditorFromEditorPart(): IEditor | undefined {

@@ -149,8 +149,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getName(): string {
-		const name = basename(this.labelService.getUriLabel(this.resource));
-		return this.decorateLabel(name);
+		return basename(this.labelService.getUriLabel(this.resource));
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
@@ -220,22 +219,25 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
+		const state = { readonly: this.hasCapability(EditorInputCapabilities.Readonly), orphaned: this.isOrphaned() };
+
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return this.decorateLabel(this.shortTitle);
+				return decorateFileEditorLabel(this.shortTitle, state);
 			case Verbosity.LONG:
-				return this.decorateLabel(this.longTitle);
+				return decorateFileEditorLabel(this.longTitle, state);
 			default:
 			case Verbosity.MEDIUM:
-				return this.decorateLabel(this.mediumTitle);
+				return decorateFileEditorLabel(this.mediumTitle, state);
 		}
 	}
 
-	private decorateLabel(label: string): string {
-		const readonly = this.hasCapability(EditorInputCapabilities.Readonly);
-		const orphaned = !!this._modelRef?.object.isOrphaned();
+	private isOrphaned(): boolean {
+		return !!this._modelRef?.object.isOrphaned();
+	}
 
-		return decorateFileEditorLabel(label, { orphaned, readonly });
+	override getLabelExtraClasses(): string[] {
+		return this.isOrphaned() ? ['strikethrough'] : [];
 	}
 
 	public override matches(other: EditorInput | IUntypedEditorInput): boolean {

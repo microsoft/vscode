@@ -45,9 +45,9 @@ export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
-export const TOGGLE_LOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalToggleEditorGroupLock';
-export const LOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalLockEditorGroup';
-export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalUnlockEditorGroup';
+export const TOGGLE_LOCK_GROUP_COMMAND_ID = 'workbench.action.toggleEditorGroupLock';
+export const LOCK_GROUP_COMMAND_ID = 'workbench.action.lockEditorGroup';
+export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.unlockEditorGroup';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
 

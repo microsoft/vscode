@@ -122,8 +122,8 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		super(resource, undefined, editorService, textFileService, labelService, fileService, editorResolverService);
 	}
 
-	override getName(skipDecorate?: boolean): string {
-		return this.name || super.getName(skipDecorate);
+	override getName(): string {
+		return this.name || super.getName();
 	}
 
 	setName(name: string): void {
