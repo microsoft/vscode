@@ -152,6 +152,7 @@
     "gulp-gunzip": "^1.0.0",
     "gulp-gzip": "^1.4.2",
     "gulp-json-editor": "^2.5.0",
+    "gulp-merge-json": "^2.1.1",
     "gulp-plumber": "^1.2.0",
     "gulp-postcss": "^9.0.0",
     "gulp-remote-retry-src": "^0.6.0",
