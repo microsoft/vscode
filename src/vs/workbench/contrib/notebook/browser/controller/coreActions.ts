@@ -22,7 +22,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { MarshalledId } from 'vs/base/common/marshalling';
 
 // Kernel Command
-export const SELECT_KERNEL_ID = 'notebook.selectKernel';
+export const SELECT_KERNEL_ID = '_notebook.selectKernel';
 export const NOTEBOOK_ACTIONS_CATEGORY = { value: localize('notebookActions.category', "Notebook"), original: 'Notebook' };
 
 export const CELL_TITLE_CELL_GROUP_ID = 'inline/cell';

@@ -5,7 +5,8 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, IEditorsChangeEvent } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -42,7 +43,7 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 }
 
 export interface IUntypedEditorReplacement {
-	readonly editor: IEditorInput;
+	readonly editor: EditorInput;
 	readonly replacement: IUntypedEditorInput;
 
 	/**
@@ -104,7 +105,7 @@ export interface IEditorService {
 	 * - editors moving
 	 * - groups moving (unless they are empty)
 	 */
-	readonly onDidEditorsChange: Event<void>;
+	readonly onDidEditorsChange: Event<IEditorsChangeEvent[]>;
 
 	/**
 	 * Emitted when an editor is closed.
@@ -124,7 +125,7 @@ export interface IEditorService {
 	 * located in the currently active editor group. It will be `undefined` if the active
 	 * editor group has no editors open.
 	 */
-	readonly activeEditor: IEditorInput | undefined;
+	readonly activeEditor: EditorInput | undefined;
 
 	/**
 	 * The currently active text editor control or `undefined` if there is currently no active
@@ -152,7 +153,7 @@ export interface IEditorService {
 	 * All editors that are currently visible. An editor is visible when it is opened in an
 	 * editor group and active in that group. Multiple editor groups can be opened at the same time.
 	 */
-	readonly visibleEditors: readonly IEditorInput[];
+	readonly visibleEditors: readonly EditorInput[];
 
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
@@ -166,7 +167,7 @@ export interface IEditorService {
 	 *
 	 * This includes active as well as inactive editors in each editor group.
 	 */
-	readonly editors: readonly IEditorInput[];
+	readonly editors: readonly EditorInput[];
 
 	/**
 	 * The total number of editors that are opened either inactive or active.
@@ -198,7 +199,7 @@ export interface IEditorService {
 	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
 	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Open editors in an editor group.
@@ -225,7 +226,7 @@ export interface IEditorService {
 	replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
-	 * @deprecated when using `IEditorInput`, please call `group.replaceEditors` directly.
+	 * @deprecated when using `EditorInput`, please call `group.replaceEditors` directly.
 	 */
 	replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
@@ -242,7 +243,7 @@ export interface IEditorService {
 	/**
 	 * Find out if the provided editor is visible in any editor group.
 	 */
-	isVisible(editor: IEditorInput): boolean;
+	isVisible(editor: EditorInput): boolean;
 
 	/**
 	 * This method will return an entry for each editor that reports
@@ -255,8 +256,8 @@ export interface IEditorService {
 	 */
 	findEditors(resource: URI): readonly IEditorIdentifier[];
 	findEditors(editor: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
-	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
-	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly EditorInput[];
+	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): EditorInput | undefined;
 
 	/**
 	 * Save the provided list of editors.

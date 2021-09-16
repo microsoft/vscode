@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -62,8 +62,8 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 	constructor(
 		protected readonly name: string | undefined,
 		protected readonly description: string | undefined,
-		readonly secondary: IEditorInput,
-		readonly primary: IEditorInput,
+		readonly secondary: EditorInput,
+		readonly primary: EditorInput,
 		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
@@ -147,7 +147,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return this.primary.isSaving();
 	}
 
-	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		const editor = await this.primary.save(group, options);
 		if (!editor || !this.hasIdenticalSides) {
 			return editor;
@@ -156,7 +156,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return new SideBySideEditorInput(this.name, this.description, editor, editor, this.editorService);
 	}
 
-	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		const editor = await this.primary.saveAs(group, options);
 		if (!editor || !this.hasIdenticalSides) {
 			return editor;
@@ -239,7 +239,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return undefined;
 	}
 
-	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (this === otherInput) {
 			return true;
 		}

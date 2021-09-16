@@ -20,7 +20,7 @@ export interface IRemoteTerminalProcessReplayEvent {
 export interface ITerminalSerializer {
 	handleData(data: string): void;
 	handleResize(cols: number, rows: number): void;
-	generateReplayEvent(): Promise<IPtyHostProcessReplayEvent>;
+	generateReplayEvent(normalBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent>;
 	setUnicodeVersion?(version: '6' | '11'): void;
 }
 

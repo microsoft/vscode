@@ -1372,7 +1372,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 		rowElement.appendChild(element);
 
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
-		valueElement.textContent = changedItem.key.data;
+		valueElement.textContent = item.keyDescription ? `${item.keyDescription} (${item.key.data})` : item.key.data;
 
 		// We add the tooltips here, because the method is not called by default
 		// for widgets in edit mode

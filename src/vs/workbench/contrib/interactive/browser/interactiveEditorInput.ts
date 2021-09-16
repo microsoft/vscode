@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -137,7 +137,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return this._inputModel;
 	}
 
-	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

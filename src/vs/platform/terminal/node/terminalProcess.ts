@@ -127,7 +127,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	constructor(
-		private readonly _shellLaunchConfig: IShellLaunchConfig,
+		readonly shellLaunchConfig: IShellLaunchConfig,
 		cwd: string,
 		cols: number,
 		rows: number,
@@ -142,7 +142,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		super();
 		let name: string;
 		if (isWindows) {
-			name = path.basename(this._shellLaunchConfig.executable || '');
+			name = path.basename(this.shellLaunchConfig.executable || '');
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
 			// color prompt as defined in the default ~/.bashrc file.
@@ -162,11 +162,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			rows,
 			useConpty,
 			// This option will force conpty to not redraw the whole viewport on launch
-			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
+			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
-			if (useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
+			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
 				this._delayedResizer = new DelayedResizer();
 				this._register(this._delayedResizer.onTrigger(dimensions => {
 					this._delayedResizer?.dispose();
@@ -195,7 +195,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		try {
-			await this.setupPtyProcess(this._shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -219,7 +219,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private async _validateExecutable(): Promise<undefined | ITerminalLaunchError> {
-		const slc = this._shellLaunchConfig;
+		const slc = this.shellLaunchConfig;
 		if (!slc.executable) {
 			throw new Error('IShellLaunchConfig.executable not set');
 		}

@@ -92,6 +92,7 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
+	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	PersistentSessionExperimentalSerializer = 'terminal.integrated.persistentSessionExperimentalSerializer',
@@ -264,6 +265,16 @@ export interface IPtyService {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	/**
+	 * Serializes and returns terminal state.
+	 * @param ids The persistent terminal IDs to serialize.
+	 */
+	serializeTerminalState(ids: number[]): Promise<string>;
+	/**
+	 * Revives a workspaces terminal processes, these can then be reconnected to using the normal
+	 * flow for restoring terminals after reloading.
+	 */
+	reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string): Promise<void>;
 	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
 }
 
