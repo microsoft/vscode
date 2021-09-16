@@ -358,20 +358,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 	let windowTitleDescription = localize('windowTitle', "Controls the window title based on the active editor. Variables are substituted based on the context:");
 	windowTitleDescription += '\n- ' + [
-		localize('activeEditorShort', "`\${activeEditorShort}`: the file name (e.g. myFile.txt)."),
-		localize('activeEditorMedium', "`\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
-		localize('activeEditorLong', "`\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
-		localize('activeFolderShort', "`\${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
-		localize('activeFolderMedium', "`\${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
-		localize('activeFolderLong', "`\${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
-		localize('folderName', "`\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
-		localize('folderPath', "`\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
-		localize('rootName', "`\${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
-		localize('rootPath', "`\${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
-		localize('appName', "`\${appName}`: e.g. VS Code."),
-		localize('remoteName', "`\${remoteName}`: e.g. SSH"),
-		localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
-		localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
+		localize('activeEditorShort', "`${activeEditorShort}`: the file name (e.g. myFile.txt)."),
+		localize('activeEditorMedium', "`${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
+		localize('activeEditorLong', "`${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
+		localize('activeFolderShort', "`${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
+		localize('activeFolderMedium', "`${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
+		localize('activeFolderLong', "`${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
+		localize('folderName', "`${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
+		localize('folderPath', "`${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
+		localize('rootName', "`${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
+		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
+		localize('appName', "`${appName}`: e.g. VS Code."),
+		localize('remoteName', "`${remoteName}`: e.g. SSH"),
+		localize('dirty', "`${dirty}`: a dirty indicator if the active editor is dirty."),
+		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 	registry.registerConfiguration({
