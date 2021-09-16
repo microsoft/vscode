@@ -356,7 +356,7 @@ suite('vscode API - window', () => {
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
-			workspace.openNotebookDocument(Uri.joinPath(workspaceRoot, 'test.ipynb'))
+			workspace.openNotebookDocument(await createRandomFile('', workspaceRoot, '.vsctestnb'))
 		]);
 		console.log('Down');
 
