@@ -2278,8 +2278,10 @@ const enum TerminalLabelType {
 }
 
 export class TerminalLabelComputer extends Disposable {
-	title?: string;
-	description?: string;
+	private _title: string = '';
+	private _description: string = '';
+	get title(): string | undefined { return this._title; }
+	get description(): string | undefined { return this._description; }
 
 	private readonly _onLabelChanged = this._register(new Emitter<{ title: string, description: string }>());
 	readonly onLabelChanged = this._onLabelChanged.event;
@@ -2291,10 +2293,10 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 	refreshLabel(): void {
-		this.title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
-		this.description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
-		if (this.title !== this._instance.title || this.description !== this._instance.description) {
-			this._onLabelChanged.fire({ title: this.title, description: this.description });
+		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
+		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
+		if (this._title !== this._instance.title || this._description !== this._instance.description) {
+			this._onLabelChanged.fire({ title: this._title, description: this._description });
 		}
 	}
 
@@ -2327,6 +2329,7 @@ export class TerminalLabelComputer extends Disposable {
 			templateProperties.cwdFolder = path.basename(templateProperties.cwd);
 		}
 		//Remove special characters that could mess with rendering
-		return template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
+		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
+		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
 	}
 }
