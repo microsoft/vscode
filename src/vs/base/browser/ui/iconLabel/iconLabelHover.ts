@@ -76,10 +76,11 @@ class UpdatableHoverWidget implements IDisposable {
 			}
 
 			// compute the content
-			const cancellationTokenSource = this._cancellationTokenSource = new CancellationTokenSource();
-			resolvedContent = await markdownTooltip.markdown(cancellationTokenSource.token);
+			this._cancellationTokenSource = new CancellationTokenSource();
+			const token = this._cancellationTokenSource.token;
+			resolvedContent = await markdownTooltip.markdown(token);
 
-			if (this.isDisposed || cancellationTokenSource !== this._cancellationTokenSource) {
+			if (this.isDisposed || token.isCancellationRequested) {
 				// either the widget has been closed in the meantime
 				// or there has been a new call to `update`
 				return;
@@ -112,13 +113,11 @@ class UpdatableHoverWidget implements IDisposable {
 
 	dispose(): void {
 		this._hoverWidget?.dispose();
-		if (this._cancellationTokenSource) {
-			this._cancellationTokenSource.dispose(true);
-			this._cancellationTokenSource = undefined;
-		}
+		this._cancellationTokenSource?.dispose(true);
+		this._cancellationTokenSource = undefined;
 	}
-
 }
+
 export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement): ICustomHover {
 	let hoverPreparation: IDisposable | undefined;
 
