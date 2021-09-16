@@ -899,8 +899,11 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			return FilterResult.Include;
 		}
 
-		return hasNodeInOrParentOfUri(this.collection, this.documentUri, element.test.item.extId)
-			? FilterResult.Include : FilterResult.Exclude;
+		if (hasNodeInOrParentOfUri(this.collection, this.documentUri, element.test.item.extId)) {
+			return FilterResult.Include;
+		}
+
+		return FilterResult.Inherit;
 	}
 
 	private testFilterText(element: TestItemTreeElement) {
