@@ -1783,8 +1783,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!title) {
 			return;
 		}
-		// TODO: We should change this to not accept TitleEventSource?
-		// TODO: Introduce `_staticTitle?: string` title which will be used if it's set - this replaces what TitleEventSource.Api used to do
+		// TODO: should we change this to not accept TitleEventSource?
 		switch (eventSource) {
 			case TitleEventSource.Process:
 				if (this._processManager.os === OperatingSystem.Windows) {

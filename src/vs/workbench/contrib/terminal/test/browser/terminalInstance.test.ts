@@ -36,7 +36,7 @@ const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
 const root2 = '/foo/root2';
 const ROOT_2 = fixPath(root2);
-suite.only('Workbench - TerminalInstance', () => {
+suite('Workbench - TerminalInstance', () => {
 	suite('refreshLabel', () => {
 		let configurationService: TestConfigurationService;
 		let terminalLabelComputer: TerminalLabelComputer;
