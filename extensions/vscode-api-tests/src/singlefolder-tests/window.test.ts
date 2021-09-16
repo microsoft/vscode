@@ -349,14 +349,12 @@ suite('vscode API - window', () => {
 
 	//#region Tabs API tests
 	test('Tabs - Ensure tabs getter is correct', async () => {
-		assert.ok(workspace.workspaceFolders);
-		const workspaceRoot = workspace.workspaceFolders[0].uri;
 		console.log('Hunting');
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
-			workspace.openNotebookDocument(await createRandomFile('', workspaceRoot, '.vsctestnb'))
+			workspace.openNotebookDocument(await createRandomFile('', undefined, '.vsctestnb'))
 		]);
 		console.log('Down');
 
