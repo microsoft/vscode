@@ -86,6 +86,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		return this._name;
 	}
 
+	public get tooltip(): vscode.MarkdownString | string | undefined {
+		return this._tooltip;
+	}
+
 	public get color(): string | ThemeColor | undefined {
 		return this._color;
 	}
@@ -112,7 +116,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.update();
 	}
 
-	public set tooltip(tooltip: string | undefined) {
+	public set tooltip(tooltip: vscode.MarkdownString | string | undefined) {
 		this._tooltip = tooltip;
 		this.update();
 	}
