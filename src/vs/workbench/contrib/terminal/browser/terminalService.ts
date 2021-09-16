@@ -584,7 +584,7 @@ export class TerminalService implements ITerminalService {
 		}
 		switch (this.configHelper.config.persistentSessionReviveProcess) {
 			case 'onExit': return reason === ShutdownReason.LOAD || reason === ShutdownReason.QUIT;
-			case 'onExitOrWindowClose': return reason !== ShutdownReason.RELOAD;
+			case 'onExitAndWindowClose': return reason !== ShutdownReason.RELOAD;
 			default: return false;
 		}
 	}

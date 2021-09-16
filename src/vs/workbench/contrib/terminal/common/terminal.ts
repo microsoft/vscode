@@ -209,7 +209,7 @@ export interface ITerminalConfiguration {
 	bellDuration: number;
 	defaultLocation: TerminalLocationString;
 	customGlyphs: boolean;
-	persistentSessionReviveProcess: 'onExit' | 'onExitOrWindowClose' | 'never';
+	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
