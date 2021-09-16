@@ -555,12 +555,10 @@ export class TerminalService implements ITerminalService {
 			return false;
 		}
 
-		// Persist terminal _buffer state_
-		if (this._configHelper.config.enablePersistentSessions && reason !== ShutdownReason.RELOAD) {
-			console.log('persist buffer, reason: ' + reason);
-			// TODO: Fine tune which reasons are supported - what is LOAD?
-			// TODO: This is called once per workspace?
-			// TODO: Either do this or confirm dialog?
+		// Persist terminal _buffer state_, note that even if this happens the dirty terminal prompt
+		// still shows as that cannot be revived
+		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
+		if (shouldReviveProcesses) {
 			await this._localTerminalService?.persistTerminalState();
 		}
 
@@ -579,6 +577,17 @@ export class TerminalService implements ITerminalService {
 		this._isShuttingDown = true;
 
 		return false;
+	}
+
+	private _shouldReviveProcesses(reason: ShutdownReason): boolean {
+		if (!this._configHelper.config.enablePersistentSessions) {
+			return false;
+		}
+		switch (this.configHelper.config.persistentSessionReviveProcess) {
+			case 'onExit': return reason === ShutdownReason.LOAD || reason === ShutdownReason.QUIT;
+			case 'onExitOrWindowClose': return reason !== ShutdownReason.RELOAD;
+			default: return false;
+		}
 	}
 
 	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
@@ -607,7 +616,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		// Clear terminal layout info only when not persisting
-		if (!persistTerminalState) {
+		if (!this._shouldReviveProcesses(e.reason)) {
 			this._localTerminalService?.setTerminalLayoutInfo(undefined);
 		}
 	}
