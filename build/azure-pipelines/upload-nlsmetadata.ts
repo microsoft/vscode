@@ -24,6 +24,7 @@ function main() {
 			fileName: 'nls.metadata.json',
 			edit: (parsedJson: any, file: any) => {
 				let key: string;
+				console.log(JSON.stringify(file));
 				if (file.base === 'out-vscode-min') {
 					key = 'vscode';
 				} else {
