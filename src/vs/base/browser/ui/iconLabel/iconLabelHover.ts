@@ -43,17 +43,14 @@ export interface ICustomHover extends IDisposable {
 }
 
 type HoverWidgetContent = IMarkdownString | string | HTMLElement | undefined;
-class UpdatableHoverWidget {
+class UpdatableHoverWidget implements IDisposable {
 
-	private _content: HoverWidgetContent;
 	private _hoverWidget: IHoverWidget | undefined;
 
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget, private fadeInAnimation: boolean) {
-
 	}
-	update(content: HoverWidgetContent): void {
-		this._content = content;
 
+	update(content: HoverWidgetContent): void {
 		let skipFadeInAnimation = !this.fadeInAnimation;
 
 		if (this._hoverWidget) {
@@ -75,10 +72,6 @@ class UpdatableHoverWidget {
 
 			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions);
 		}
-	}
-
-	get content(): HoverWidgetContent {
-		return this._content;
 	}
 
 	get isDisposed() {
