@@ -11,7 +11,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { Action } from 'vs/base/common/actions';
-import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { append, $, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -59,6 +58,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isWeb } from 'vs/base/common/platform';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
@@ -729,7 +729,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		}
 	}
 
-	private onViewletOpen(viewlet: IViewlet): void {
+	private onViewletOpen(viewlet: IPaneComposite): void {
 		if (!viewlet || viewlet.getId() === VIEWLET_ID) {
 			return;
 		}
