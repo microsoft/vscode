@@ -553,7 +553,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private onDidMoveEditor(event: EditorMoveEvent): void {
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor: event.editor, previousEditorIndex: event.index, editorIndex: event.target });
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor: event.editor, previousEditorIndex: event.index, editorIndex: event.newIndex });
 	}
 
 	private onDidOpenEditor({ editor, index }: EditorOpenEvent): void {

@@ -32,6 +32,7 @@ export interface EditorOpenEvent extends IEditorOpenEvent {
 export interface EditorMoveEvent extends IEditorMoveEvent {
 	readonly editor: EditorInput;
 	readonly index: number;
+	readonly newIndex: number;
 }
 
 export interface EditorIdentifier extends IEditorIdentifier {
@@ -485,7 +486,7 @@ export class EditorGroupModel extends Disposable {
 		this.editors.splice(toIndex, 0, editor);
 
 		// Event
-		this._onDidMoveEditor.fire({ editor, groupId: this.id, index, target: toIndex });
+		this._onDidMoveEditor.fire({ editor, groupId: this.id, index, newIndex: toIndex, target: this.id });
 
 		return editor;
 	}
