@@ -484,7 +484,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.PersistentSessionReviveProcess]: {
-			description: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shutdown (eg. on window or application close), this determines when the previous terminal session contents should be restored and processes recreated when the workspace is next opened."),
+			description: localize('terminal.integrated.persistentSessionReviveProcess', "When the terminal process must be shutdown (eg. on window or application close), this determines when the previous terminal session contents should be restored and processes recreated when the workspace is next opened. Restoring the current working directory depends on whether it is supported by the shell."),
 			type: 'string',
 			enum: ['onExit', 'onExitAndWindowClose', 'never'],
 			markdownEnumDescriptions: [
