@@ -54,7 +54,7 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { BrowserFileUpload, NativeFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
+import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
@@ -980,24 +980,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		try {
 
-			// External File DND (Import file)
+			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
-				// Native DND from Desktop
-				if (originalEvent.dataTransfer?.types.indexOf('Files') !== -1) {
-					if (isWeb) {
-						const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
-						await browserUpload.upload(target, originalEvent);
-					} else {
-						const nativeImport = this.instantiationService.createInstance(NativeFileImport);
-						await nativeImport.import(resolvedTarget, originalEvent);
-					}
+				// Native OS file DND into Web
+				if (originalEvent.dataTransfer?.types.indexOf('Files') !== -1 && isWeb) {
+					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
+					await browserUpload.upload(target, originalEvent);
 				}
 
-				// External FS-provided DND
-				else {
-					const nativeImport = this.instantiationService.createInstance(NativeFileImport);
-					await nativeImport.import(resolvedTarget, originalEvent);
-				}
+				// 2 Cases handled for import:
+				// FS-Provided file DND into Web/Desktop
+				// Native OS file DND into Desktop
+				const fileImport = this.instantiationService.createInstance(ExternalFileImport);
+				await fileImport.import(resolvedTarget, originalEvent);
 			}
 
 			// In-Explorer DND (Move/Copy file)

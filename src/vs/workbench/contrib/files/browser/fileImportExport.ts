@@ -378,9 +378,9 @@ export class BrowserFileUpload {
 
 //#endregion
 
-//#region Native File Import (drag and drop)
+//#region External File Import (drag and drop)
 
-export class NativeFileImport {
+export class ExternalFileImport {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
