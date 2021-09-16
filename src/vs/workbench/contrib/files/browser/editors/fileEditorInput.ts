@@ -161,8 +161,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}));
 	}
 
-	override getName(skipDecorate?: boolean): string {
-		return this.preferredName || super.getName(skipDecorate);
+	override getName(): string {
+		return this.preferredName || super.getName();
 	}
 
 	setPreferredName(name: string): void {
