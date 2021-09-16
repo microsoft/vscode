@@ -36,7 +36,7 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly commandMouseListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
 
-	private readonly hover = this._register(new MutableDisposable<ICustomHover>());
+	private hover: ICustomHover | undefined = undefined;
 
 	readonly labelContainer: HTMLElement;
 
@@ -101,11 +101,11 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			const hover = { markdown: entry.tooltip, markdownNotSupportedFallback: undefined };
-			if (this.hover.value) {
-				this.hover.value.update(hover);
+			const hoverContents = { markdown: entry.tooltip, markdownNotSupportedFallback: undefined };
+			if (this.hover) {
+				this.hover.update(hoverContents);
 			} else {
-				this.hover.value = setupCustomHover(this.hoverDelegate, this.container, hover);
+				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
 			}
 		}
 
@@ -115,7 +115,7 @@ export class StatusbarEntryItem extends Disposable {
 			this.commandKeyboardListener.clear();
 
 			const command = entry.command;
-			if (command && (command !== ShowTooltipCommand || this.hover.value) /* "Show Hover" is only valid when we have a hover */) {
+			if (command && (command !== ShowTooltipCommand || this.hover) /* "Show Hover" is only valid when we have a hover */) {
 				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
@@ -170,7 +170,7 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Custom command from us: Show tooltip
 		if (command === ShowTooltipCommand) {
-			this.hover.value?.show();
+			this.hover?.show();
 		}
 
 		// Any other command is going through command service

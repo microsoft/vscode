@@ -119,11 +119,7 @@ class UpdatableHoverWidget implements IDisposable {
 	}
 
 }
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement | undefined): ICustomHover | undefined {
-	if (!markdownTooltip) {
-		return undefined;
-	}
-
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement): ICustomHover {
 	let hoverPreparation: IDisposable | undefined;
 
 	let hoverWidget: UpdatableHoverWidget | undefined;
