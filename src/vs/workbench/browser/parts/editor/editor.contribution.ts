@@ -120,7 +120,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorGroupAutoLockConfiguration, LifecyclePhase.Eventually /* TODO@bpasero change to `READY` once https://github.com/microsoft/vscode/issues/133223 is fixed */);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorGroupAutoLockConfiguration, LifecyclePhase.Ready);
 
 registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);
 
