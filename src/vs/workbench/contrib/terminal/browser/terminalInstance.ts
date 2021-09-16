@@ -1815,13 +1815,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._sequence = title;
 				}
 				break;
-			case TitleEventSource.Rename:
-				// If the title has not been set by the API or the rename command, unregister the handler that
-				// automatically updates the terminal name
-				this._staticTitle = title;
-				dispose(this._messageTitleDisposable);
-				this._messageTitleDisposable = undefined;
-				break;
 		}
 		let titleChanged = false;
 		this._labelComputer?.refreshLabel();
@@ -2007,7 +2000,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		}
 		if (title) {
-			this.refreshTabLabels(title, TitleEventSource.Rename);
+			this.refreshTabLabels(title, TitleEventSource.Api);
 		}
 	}
 

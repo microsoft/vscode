@@ -146,9 +146,7 @@ export enum TitleEventSource {
 	/** From the VT sequence */
 	Sequence,
 	/** Config changed */
-	Config,
-	/** User initiated a rename */
-	Rename
+	Config
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
