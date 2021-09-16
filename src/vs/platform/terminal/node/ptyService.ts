@@ -16,7 +16,7 @@ import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanc
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
-import type { SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
+import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalSerializer, TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -140,7 +140,6 @@ export class PtyService extends Disposable implements IPtyService {
 				{
 					...state.shellLaunchConfig,
 					cwd: state.processDetails.cwd,
-					// TODO: Only serialize normal buffer and exclude modes
 					initialText: state.replayEvent.events[0].data + '\n\r\x1b[40;37;2m> ' + localize('terminal-session-restore', "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(), new Date(state.timestamp).toLocaleTimeString()) + '\x1b[K\x1b[0m\n\r'
 				},
 				state.processDetails.cwd,
@@ -515,6 +514,10 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
+	serializeNormalBuffer(): Promise<IPtyHostProcessReplayEvent> {
+		return this._serializer.generateReplayEvent(true);
+	}
+
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._terminalProcess.refreshProperty(type);
 	}
@@ -675,10 +678,15 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm.resize(cols, rows);
 	}
 
-	async generateReplayEvent(): Promise<IPtyHostProcessReplayEvent> {
+	async generateReplayEvent(normaBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent> {
 		const serialize = new (await this._getSerializeConstructor());
 		this._xterm.loadAddon(serialize);
-		const serialized = serialize.serialize({ scrollback: this._xterm.getOption('scrollback') });
+		const options: ISerializeOptions = { scrollback: this._xterm.getOption('scrollback') };
+		if (normaBufferOnly) {
+			options.excludeAltBuffer = true;
+			options.excludeModes = true;
+		}
+		const serialized = serialize.serialize(options);
 		return {
 			events: [
 				{
