@@ -9,7 +9,7 @@ import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
+import { ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -37,11 +37,11 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { Extensions as ViewletExtensions, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/viewlet';
+import { Extensions as ViewletExtensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { PaneComposite } from 'vs/workbench/browser/panecomposite';
+import { IComposite } from 'vs/workbench/common/composite';
 
 interface ICachedPanel {
 	id: string;
@@ -88,8 +88,8 @@ export class PanelPart extends CompositePart<PaneComposite> implements IPanelSer
 
 	//#endregion
 
-	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
-	readonly onDidPanelClose = this.onDidCompositeClose.event;
+	get onDidPanelOpen(): Event<{ panel: IPaneComposite, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite as IPaneComposite, focus: compositeOpen.focus })); }
+	readonly onDidPanelClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
@@ -395,7 +395,7 @@ export class PanelPart extends CompositePart<PaneComposite> implements IPanelSer
 		}
 	}
 
-	private onPanelOpen(panel: IPanel): void {
+	private onPanelOpen(panel: IComposite): void {
 		this.activePanelContextKey.set(panel.getId());
 
 		const foundPanel = this.panelRegistry.getViewlet(panel.getId());
@@ -421,7 +421,7 @@ export class PanelPart extends CompositePart<PaneComposite> implements IPanelSer
 		this.layoutEmptyMessage();
 	}
 
-	private onPanelClose(panel: IPanel): void {
+	private onPanelClose(panel: IComposite): void {
 		const id = panel.getId();
 
 		if (this.activePanelContextKey.get() === id) {
@@ -589,8 +589,8 @@ export class PanelPart extends CompositePart<PaneComposite> implements IPanelSer
 			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
 	}
 
-	getActivePanel(): IPanel | undefined {
-		return this.getActiveComposite();
+	getActivePanel(): IPaneComposite | undefined {
+		return <IPaneComposite>this.getActiveComposite();
 	}
 
 	getLastActivePanelId(): string {

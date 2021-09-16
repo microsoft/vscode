@@ -12,7 +12,7 @@ import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/viewlet';
+import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';

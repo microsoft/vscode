@@ -5,9 +5,8 @@
 
 import * as assert from 'assert';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { PaneCompositeDescriptor, Extensions, PaneCompositeRegistry } from 'vs/workbench/browser/viewlet';
+import { PaneCompositeDescriptor, Extensions, PaneCompositeRegistry, PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { isFunction } from 'vs/base/common/types';
-import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
 suite('Viewlets', () => {
 

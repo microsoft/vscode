@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { CustomTreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workbench/browser/viewlet';
+import { Extensions as ViewletExtensions, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';

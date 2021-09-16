@@ -60,13 +60,12 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { PaneCompositeDescriptor } from 'vs/workbench/browser/viewlet';
+import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPanel } from 'vs/workbench/common/panel';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
@@ -141,7 +140,6 @@ import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -621,14 +619,14 @@ export class TestViewletService implements IViewletService {
 export class TestPanelService implements IPanelService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean; }>().event;
-	onDidPanelClose = new Emitter<IPanel>().event;
+	onDidPanelOpen = new Emitter<{ panel: IPaneComposite, focus: boolean; }>().event;
+	onDidPanelClose = new Emitter<IPaneComposite>().event;
 
 	async openPanel(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
 	getPanel(id: string): any { return activeViewlet; }
 	getPanels() { return []; }
 	getPinnedPanels() { return []; }
-	getActivePanel(): IPanel { return activeViewlet; }
+	getActivePanel(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }

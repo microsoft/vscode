@@ -10,13 +10,13 @@ import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } 
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanel } from 'vs/workbench/common/panel';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IComposite } from 'vs/workbench/common/composite';
 
 abstract class BaseNavigationAction extends Action {
 
@@ -64,7 +64,7 @@ abstract class BaseNavigationAction extends Action {
 		}
 	}
 
-	private async navigateToPanel(): Promise<IPanel | boolean> {
+	private async navigateToPanel(): Promise<IComposite | boolean> {
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			return false;
 		}

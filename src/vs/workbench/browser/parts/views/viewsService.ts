@@ -24,14 +24,13 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as ViewletExtensions, PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
 export class ViewsService extends Disposable implements IViewsService {
 
