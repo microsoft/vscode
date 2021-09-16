@@ -2139,12 +2139,12 @@ suite('EditorGroupModel', () => {
 		group1.moveEditor(input1group1, 1);
 		assert.strictEqual(group1Events.moved[0].editor, input1group1);
 		assert.strictEqual(group1Events.moved[0].index, 0);
-		assert.strictEqual(group1Events.moved[0].target, 1);
+		assert.strictEqual(group1Events.moved[0].newIndex, 1);
 
 		group2.moveEditor(input1group2, 1);
 		assert.strictEqual(group2Events.moved[0].editor, input1group2);
 		assert.strictEqual(group2Events.moved[0].index, 0);
-		assert.strictEqual(group2Events.moved[0].target, 1);
+		assert.strictEqual(group2Events.moved[0].newIndex, 1);
 	});
 
 	test('onDidOpeneditor Event', () => {
