@@ -9,6 +9,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IActivityBarService = createDecorator<IActivityBarService>('activityBarService');
 
+export const IOutletBarService = createDecorator<IActivityBarService>('outletBarService');
+
 export interface IActivityBarService {
 	readonly _serviceBrand: undefined;
 

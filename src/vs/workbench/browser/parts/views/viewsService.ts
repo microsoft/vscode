@@ -7,7 +7,7 @@ import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ISecondViewletService, IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isString } from 'vs/base/common/types';
@@ -54,6 +54,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPanelService private readonly panelService: IPanelService,
 		@IViewletService private readonly viewletService: IViewletService,
+		@ISecondViewletService private readonly secondViewletService: IViewletService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
@@ -75,8 +76,10 @@ export class ViewsService extends Disposable implements IViewsService {
 		// View Container Visibility
 		this._register(this.viewletService.onDidViewletOpen(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: true, location: ViewContainerLocation.Sidebar })));
 		this._register(this.panelService.onDidPanelOpen(e => this._onDidChangeViewContainerVisibility.fire({ id: e.panel.getId(), visible: true, location: ViewContainerLocation.Panel })));
+		this._register(this.secondViewletService.onDidViewletOpen(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: true, location: ViewContainerLocation.ThirdPanel })));
 		this._register(this.viewletService.onDidViewletClose(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: false, location: ViewContainerLocation.Sidebar })));
 		this._register(this.panelService.onDidPanelClose(panel => this._onDidChangeViewContainerVisibility.fire({ id: panel.getId(), visible: false, location: ViewContainerLocation.Panel })));
+		this._register(this.secondViewletService.onDidViewletClose(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: false, location: ViewContainerLocation.ThirdPanel })));
 
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
@@ -164,6 +167,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			return this.viewletService.openViewlet(compositeId, focus);
 		} else if (location === ViewContainerLocation.Panel) {
 			return this.panelService.openPanel(compositeId, focus) as Promise<IPaneComposite>;
+		} else if (location === ViewContainerLocation.ThirdPanel) {
+			return this.secondViewletService.openViewlet(compositeId, focus);
 		}
 		return undefined;
 	}
@@ -173,6 +178,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			return this.viewletService.getViewlet(compositeId);
 		} else if (location === ViewContainerLocation.Panel) {
 			return this.panelService.getPanel(compositeId);
+		} else if (location === ViewContainerLocation.ThirdPanel) {
+			return this.secondViewletService.getViewlet(compositeId);
 		}
 
 		return undefined;
@@ -221,6 +228,9 @@ export class ViewsService extends Disposable implements IViewsService {
 				case ViewContainerLocation.Sidebar:
 					const viewlet = await this.viewletService.openViewlet(id, focus);
 					return viewlet || null;
+				case ViewContainerLocation.ThirdPanel:
+					const viewletInThirdPanel = await this.secondViewletService.openViewlet(id, focus);
+					return viewletInThirdPanel || null;
 			}
 		}
 		return null;
@@ -320,6 +330,11 @@ export class ViewsService extends Disposable implements IViewsService {
 			if (activeViewlet?.getId() === viewContainer.id) {
 				return activeViewlet.getViewPaneContainer() || null;
 			}
+		} else if (location === ViewContainerLocation.ThirdPanel) {
+			const activeViewlet = this.secondViewletService.getActiveViewlet();
+			if (activeViewlet?.getId() === viewContainer.id) {
+				return activeViewlet.getViewPaneContainer() || null;
+			}
 		} else if (location === ViewContainerLocation.Panel) {
 			const activePanel = this.panelService.getActivePanel();
 			if (activePanel?.getId() === viewContainer.id) {
@@ -402,6 +417,7 @@ export class ViewsService extends Disposable implements IViewsService {
 								viewsService.closeViewContainer(viewContainer.id);
 							}
 							break;
+						// TODO@wendellhu95: for third panel case
 					}
 				}
 			}));
@@ -559,8 +575,9 @@ export class ViewsService extends Disposable implements IViewsService {
 				this.registerPanel(viewContainer);
 				break;
 			case ViewContainerLocation.Sidebar:
+			case ViewContainerLocation.ThirdPanel:
 				if (viewContainer.ctorDescriptor) {
-					this.registerViewlet(viewContainer);
+					this.registerViewlet(viewContainer, viewContainerLocation);
 				}
 				break;
 		}
@@ -633,7 +650,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(viewContainer.id);
 	}
 
-	private registerViewlet(viewContainer: ViewContainer): void {
+	private registerViewlet(viewContainer: ViewContainer, location: ViewContainerLocation): void {
 		const that = this;
 		class PaneContainerViewlet extends Viewlet {
 			constructor(
@@ -667,7 +684,11 @@ export class ViewsService extends Disposable implements IViewsService {
 				return viewPaneContainer;
 			}
 		}
-		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
+
+		const registry = location === ViewContainerLocation.Sidebar
+			? Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
+			: Registry.as<ViewletRegistry>(ViewletExtensions.ThirdPanelViewlets);
+		registry.registerViewlet(ViewletDescriptor.create(
 			PaneContainerViewlet,
 			viewContainer.id,
 			viewContainer.title,

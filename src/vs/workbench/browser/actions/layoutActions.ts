@@ -16,7 +16,7 @@ import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext } from 'vs/workbench/common/editor';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
+import { SideBarVisibleContext, ThirdPanelVisibleContext } from 'vs/workbench/common/viewlet';
 import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -80,6 +80,46 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 }
 
 registerAction2(ToggleActivityBarVisibilityAction);
+
+// --- Toggle Outlet Bar
+
+export class ToggleOutletBarVisibilityAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleOutletBarVisibility';
+
+	private static readonly outletBarVisibleKey = 'workbench.outletBar.visible';
+
+	constructor() {
+		super({
+			id: ToggleOutletBarVisibilityAction.ID,
+			title: {
+				value: localize('toggleOutletBar', "Toggle Outlet Bar Visibility"),
+				mnemonicTitle: localize({ key: 'miShowOutletBar', comment: ['&& denotes a mnemonic'] }, "Show Outlet Bar"),
+				original: 'Toggle Outlet Bar Visibility'
+			},
+			category: CATEGORIES.View,
+			f1: true,
+			toggled: ContextKeyExpr.equals('config.workbench.outletBar.visible', true),
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 5
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const visibility = layoutService.isVisible(Parts.OUTLET_PART);
+		const newVisibilityValue = !visibility;
+
+		configurationService.updateValue(ToggleOutletBarVisibilityAction.outletBarVisibleKey, newVisibilityValue);
+	}
+}
+
+registerAction2(ToggleOutletBarVisibilityAction);
 
 // --- Toggle Centered Layout
 
@@ -305,6 +345,68 @@ MenuRegistry.appendMenuItems([{
 			id: ToggleSidebarVisibilityAction.ID,
 			title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar"),
 			toggled: SideBarVisibleContext
+		},
+		order: 1
+	}
+}]);
+
+// Toggle ThirdPanel Visibility
+
+export class ToggleThirdPanelAction extends Action2 {
+	static readonly ID = 'workbench.action.toggleThirdPanelVisibility';
+
+	constructor() {
+		super({
+			id: ToggleThirdPanelAction.ID,
+			title: { value: localize('toggleThirdPanel', "Toggle Third Panel Visibility"), original: 'Toggle Third Panel Visibility' },
+			category: CATEGORIES.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_B
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		layoutService.setThirdLayoutHidden(layoutService.isVisible(Parts.THIRD_PANEL_PART));
+	}
+}
+
+registerAction2(ToggleThirdPanelAction);
+
+MenuRegistry.appendMenuItems([{
+	id: MenuId.ViewContainerTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleThirdPanelAction.ID,
+			title: localize('compositePart.hideThirdPanel', "Hide Third Panel"),
+		},
+		when: ContextKeyExpr.and(ThirdPanelVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.ThirdPanel))),
+		order: 2
+	}
+}, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleThirdPanelAction.ID,
+			title: localize('compositePart.hideThirdPanel', "Hide Third Panel"),
+		},
+		when: ContextKeyExpr.and(ThirdPanelVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.ThirdPanel))),
+		order: 2
+	}
+}, {
+	id: MenuId.MenubarAppearanceMenu,
+	item: {
+		group: '2_workbench_layout',
+		command: {
+			id: ToggleThirdPanelAction.ID,
+			title: localize({ key: 'miShowThirdPanel', comment: ['&& denotes a mnemonic'] }, "Show Third Panel"),
+			toggled: ThirdPanelVisibleContext
 		},
 		order: 1
 	}

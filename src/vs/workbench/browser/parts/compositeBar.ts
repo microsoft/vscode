@@ -62,6 +62,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 					return;
 				}
 
+				// TODO: some error with third panel here
 				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before));
 			}
 		}
@@ -74,6 +75,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 				const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
 
+				// TODO: some error with third panel here
 				if (targetCompositeId) {
 					this.moveComposite(newContainer.id, targetCompositeId, before);
 				}
@@ -140,6 +142,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 export interface ICompositeBarOptions {
 
+	readonly showIndicator?: boolean;
 	readonly icon: boolean;
 	readonly orientation: ActionsOrientation;
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
@@ -148,6 +151,8 @@ export interface ICompositeBarOptions {
 	readonly dndHandler: ICompositeDragAndDrop;
 	readonly activityHoverOptions: IActivityHoverOptions;
 	readonly preventLoopNavigation?: boolean;
+
+	readonly openViewContainerEvenIfEmpty?: boolean;
 
 	getActivityAction: (compositeId: string) => ActivityAction;
 	getCompositePinnedAction: (compositeId: string) => IAction;
@@ -216,7 +221,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				const item = this.model.findItem(action.id);
 				return item && this.instantiationService.createInstance(
 					CompositeActionViewItem,
-					{ draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions },
+					{ draggable: true, showIndicator: this.options.showIndicator, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions },
 					action as ActivityAction,
 					item.pinnedAction,
 					compositeId => this.options.getContextMenuActionsForComposite(compositeId),
@@ -266,7 +271,12 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				if (visibleItems.length) {
 					const target = this.insertAtFront(actionBarDiv, e.eventData) ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 					this.options.dndHandler.drop(e.dragAndDropData, target.id, e.eventData, insertDropBefore);
+				} else if (this.options.openViewContainerEvenIfEmpty) {
+					this.options.dndHandler.drop(e.dragAndDropData, '', e.eventData, insertDropBefore);
+					console.log('should perform a move');
+					// this.options.dndHandler.drop(e.dragAndDropData, ,e.eventData, insertDropBefore);
 				}
+
 				insertDropBefore = this.updateFromDragging(parent, false, false);
 			}
 		}));
@@ -443,7 +453,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		if (before !== undefined) {
 			const fromIndex = this.model.items.findIndex(c => c.id === compositeId);
-			let toIndex = this.model.items.findIndex(c => c.id === toCompositeId);
+			let toIndex = toCompositeId === ''
+				? 0
+				: this.model.items.findIndex(c => c.id === toCompositeId);
 
 			if (fromIndex >= 0 && toIndex >= 0) {
 				if (!before && fromIndex > toIndex) {
