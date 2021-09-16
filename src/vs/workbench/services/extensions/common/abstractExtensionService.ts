@@ -490,7 +490,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected async _initialize(): Promise<void> {
 		perf.mark('code/willLoadExtensions');
 		this._startExtensionHosts(true, []);
-		await this._scanAndHandleExtensions();
+
+		const lock = await this._registryLock.acquire('_initialize');
+		try {
+			await this._scanAndHandleExtensions();
+		} finally {
+			lock.dispose();
+		}
+
 		this._releaseBarrier();
 		perf.mark('code/didLoadExtensions');
 		await this._handleExtensionTests();

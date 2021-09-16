@@ -17,7 +17,8 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -33,7 +34,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		group: GroupIdentifier | undefined,
 		options?: { readonly customClasses?: string, readonly oldResource?: URI },
-	): IEditorInput {
+	): EditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			// If it's an untitled file we must populate the untitledDocumentData
 			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
@@ -148,8 +149,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getName(): string {
-		const name = basename(this.labelService.getUriLabel(this.resource));
-		return this.decorateLabel(name);
+		return basename(this.labelService.getUriLabel(this.resource));
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
@@ -219,25 +219,28 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
+		const state = { readonly: this.hasCapability(EditorInputCapabilities.Readonly), orphaned: this.isOrphaned() };
+
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return this.decorateLabel(this.shortTitle);
+				return decorateFileEditorLabel(this.shortTitle, state);
 			case Verbosity.LONG:
-				return this.decorateLabel(this.longTitle);
+				return decorateFileEditorLabel(this.longTitle, state);
 			default:
 			case Verbosity.MEDIUM:
-				return this.decorateLabel(this.mediumTitle);
+				return decorateFileEditorLabel(this.mediumTitle, state);
 		}
 	}
 
-	private decorateLabel(label: string): string {
-		const readonly = this.hasCapability(EditorInputCapabilities.Readonly);
-		const orphaned = !!this._modelRef?.object.isOrphaned();
-
-		return decorateFileEditorLabel(label, { orphaned, readonly });
+	private isOrphaned(): boolean {
+		return !!this._modelRef?.object.isOrphaned();
 	}
 
-	public override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+	override getLabelExtraClasses(): string[] {
+		return this.isOrphaned() ? ['strikethrough'] : [];
+	}
+
+	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
 		}
@@ -246,7 +249,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			&& isEqual(this.resource, other.resource));
 	}
 
-	public override copy(): IEditorInput {
+	public override copy(): EditorInput {
 		return CustomEditorInput.create(this.instantiationService, this.resource, this.viewType, this.group, this.webview.options);
 	}
 
@@ -257,7 +260,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._modelRef.object.isDirty();
 	}
 
-	public override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -274,7 +277,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this;
 	}
 
-	public override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -328,7 +331,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	public override async rename(group: GroupIdentifier, newResource: URI): Promise<{ editor: IEditorInput } | undefined> {
+	public override async rename(group: GroupIdentifier, newResource: URI): Promise<{ editor: EditorInput } | undefined> {
 		// See if we can keep using the same custom editor provider
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(newResource)) {
@@ -339,7 +342,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return isEditorInputWithOptionsAndGroup(resolvedEditor) ? { editor: resolvedEditor.editor } : undefined;
 	}
 
-	private doMove(group: GroupIdentifier, newResource: URI): IEditorInput {
+	private doMove(group: GroupIdentifier, newResource: URI): EditorInput {
 		if (!this._moveHandler) {
 			return CustomEditorInput.create(this.instantiationService, newResource, this.viewType, group, { oldResource: this.resource });
 		}

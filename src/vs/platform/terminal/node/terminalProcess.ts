@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProperty, TerminalPropertyType, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -77,12 +77,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly id = 0;
 	readonly shouldPersist = false;
 
-	private _properties: {
-		cwd: string;
-		initialCwd: string
+	private _properties: IProcessPropertyMap = {
+		cwd: '',
+		initialCwd: ''
 	};
 	private static _lastKillOrStart = 0;
-
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
 	private _closeTimeout: any;
@@ -98,6 +97,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
+	private _capabilities: ProcessCapability[] = [];
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
@@ -105,6 +105,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
 	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
+
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
@@ -118,7 +120,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<ITerminalProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
@@ -147,10 +149,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			name = 'xterm-256color';
 		}
 		this._initialCwd = cwd;
-		this._properties = {
-			cwd: this._initialCwd,
-			initialCwd: this._initialCwd
-		};
+		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
+		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
+
 		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
@@ -181,6 +182,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
 			});
+		} else {
+			this.capabilities.push(ProcessCapability.CwdDetection);
 		}
 	}
 
@@ -211,7 +214,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				return { message: localize('launchFail.cwdDoesNotExist', "Starting directory (cwd) \"{0}\" does not exist", this._initialCwd.toString()) };
 			}
 		}
-		this._onDidChangeProperty.fire({ type: TerminalPropertyType.InitialCwd, value: this._initialCwd });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });
 		return undefined;
 	}
 
@@ -348,7 +351,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, capabilities: this.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {
@@ -395,6 +398,19 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	async processBinary(data: string): Promise<void> {
 		this.input(data, true);
+	}
+
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		if (type === ProcessPropertyType.Cwd) {
+			const newCwd = await this.getCwd();
+			if (newCwd !== this._properties.cwd) {
+				this._properties.cwd = newCwd;
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
+			}
+			return newCwd;
+		} else {
+			return this.getInitialCwd();
+		}
 	}
 
 	private _startWrite(): void {
@@ -503,12 +519,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					this._logService.trace('IPty#pid');
 					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 						if (!error && stdout !== '') {
-							const newCwd = stdout.substring(stdout.indexOf('/'), stdout.length - 1);
-							if (this._properties.cwd !== newCwd) {
-								this._properties.cwd = newCwd;
-								this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
-								resolve(newCwd);
-							}
+							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 						} else {
 							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
 							resolve(this._initialCwd);
@@ -524,12 +535,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 			this._logService.trace('IPty#pid');
 			try {
-				const newCwd = await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
-				if (newCwd !== this._properties.cwd) {
-					this._properties.cwd = newCwd;
-					this._onDidChangeProperty.fire({ type: TerminalPropertyType.Cwd, value: this._properties.cwd });
-				}
-				return this._properties.cwd;
+				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
 			} catch (error) {
 				return this._initialCwd;
 			}

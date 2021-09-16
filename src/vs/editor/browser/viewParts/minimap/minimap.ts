@@ -491,6 +491,7 @@ export interface IMinimapModel {
 	getLineCount(): number;
 	getRealLineCount(): number;
 	getLineContent(lineNumber: number): string;
+	getLineMaxColumn(lineNumber: number): number;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[];
 	getSelections(): Selection[];
 	getMinimapDecorationsInViewport(startLineNumber: number, endLineNumber: number): ViewModelDecoration[];
@@ -951,6 +952,13 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		return this._context.model.getLineContent(lineNumber);
 	}
 
+	public getLineMaxColumn(lineNumber: number): number {
+		if (this._samplingState) {
+			return this._context.model.getLineMaxColumn(this._samplingState.minimapLines[lineNumber - 1]);
+		}
+		return this._context.model.getLineMaxColumn(lineNumber);
+	}
+
 	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): (ViewLineData | null)[] {
 		if (this._samplingState) {
 			let result: (ViewLineData | null)[] = [];
@@ -1378,7 +1386,10 @@ class InnerMinimap extends Disposable {
 		if (this._renderDecorations) {
 			this._renderDecorations = false;
 			const selections = this._model.getSelections();
+			selections.sort(Range.compareRangesUsingStarts);
+
 			const decorations = this._model.getMinimapDecorationsInViewport(layout.startLineNumber, layout.endLineNumber);
+			decorations.sort((a, b) => (a.options.zIndex || 0) - (b.options.zIndex || 0));
 
 			const { canvasInnerWidth, canvasInnerHeight } = this._model.options;
 			const lineHeight = this._model.options.minimapLineHeight;
@@ -1388,44 +1399,197 @@ class InnerMinimap extends Disposable {
 
 			canvasContext.clearRect(0, 0, canvasInnerWidth, canvasInnerHeight);
 
-			const lineOffsetMap = new Map<number, number[]>();
-			for (let i = 0; i < selections.length; i++) {
-				const selection = selections[i];
+			// We first need to render line highlights and then render decorations on top of those.
+			// But we need to pick a single color for each line, and use that as a line highlight.
+			// This needs to be the color of the decoration with the highest `zIndex`, but priority
+			// is given to the selection.
 
-				for (let line = selection.startLineNumber; line <= selection.endLineNumber; line++) {
-					this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
-				}
+			const highlightedLines = new ContiguousLineMap<boolean>(layout.startLineNumber, layout.endLineNumber, false);
+			this._renderSelectionLineHighlights(canvasContext, selections, highlightedLines, layout, lineHeight);
+			this._renderDecorationsLineHighlights(canvasContext, decorations, highlightedLines, layout, lineHeight);
+
+			const lineOffsetMap = new ContiguousLineMap<number[] | null>(layout.startLineNumber, layout.endLineNumber, null);
+			this._renderSelectionsHighlights(canvasContext, selections, lineOffsetMap, layout, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+			this._renderDecorationsHighlights(canvasContext, decorations, lineOffsetMap, layout, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+		}
+	}
+
+	private _renderSelectionLineHighlights(
+		canvasContext: CanvasRenderingContext2D,
+		selections: Selection[],
+		highlightedLines: ContiguousLineMap<boolean>,
+		layout: MinimapLayout,
+		lineHeight: number
+	): void {
+		if (!this._selectionColor || this._selectionColor.isTransparent()) {
+			return;
+		}
+
+		canvasContext.fillStyle = this._selectionColor.transparent(0.5).toString();
+
+		let y1 = 0;
+		let y2 = 0;
+
+		for (const selection of selections) {
+			const startLineNumber = Math.max(layout.startLineNumber, selection.startLineNumber);
+			const endLineNumber = Math.min(layout.endLineNumber, selection.endLineNumber);
+			if (startLineNumber > endLineNumber) {
+				// entirely outside minimap's viewport
+				continue;
 			}
 
-			// Loop over decorations, ignoring those that don't have the minimap property set and rendering rectangles for each line the decoration spans
-			for (let i = 0; i < decorations.length; i++) {
-				const decoration = decorations[i];
+			for (let line = startLineNumber; line <= endLineNumber; line++) {
+				highlightedLines.set(line, true);
+			}
 
-				if (!decoration.options.minimap) {
+			const yy1 = (startLineNumber - layout.startLineNumber) * lineHeight;
+			const yy2 = (endLineNumber - layout.startLineNumber) * lineHeight + lineHeight;
+
+			if (y2 >= yy1) {
+				// merge into previous
+				y2 = yy2;
+			} else {
+				if (y2 > y1) {
+					// flush
+					canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y1, canvasContext.canvas.width, y2 - y1);
+				}
+				y1 = yy1;
+				y2 = yy2;
+			}
+		}
+
+		if (y2 > y1) {
+			// flush
+			canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y1, canvasContext.canvas.width, y2 - y1);
+		}
+	}
+
+	private _renderDecorationsLineHighlights(
+		canvasContext: CanvasRenderingContext2D,
+		decorations: ViewModelDecoration[],
+		highlightedLines: ContiguousLineMap<boolean>,
+		layout: MinimapLayout,
+		lineHeight: number
+	): void {
+
+		const highlightColors = new Map<string, string>();
+
+		// Loop backwards to hit first decorations with higher `zIndex`
+		for (let i = decorations.length - 1; i >= 0; i--) {
+			const decoration = decorations[i];
+
+			const minimapOptions = <ModelDecorationMinimapOptions | null | undefined>decoration.options.minimap;
+			if (!minimapOptions || minimapOptions.position !== MinimapPosition.Inline) {
+				continue;
+			}
+
+			const startLineNumber = Math.max(layout.startLineNumber, decoration.range.startLineNumber);
+			const endLineNumber = Math.min(layout.endLineNumber, decoration.range.endLineNumber);
+			if (startLineNumber > endLineNumber) {
+				// entirely outside minimap's viewport
+				continue;
+			}
+
+			const decorationColor = minimapOptions.getColor(this._theme);
+			if (!decorationColor || decorationColor.isTransparent()) {
+				continue;
+			}
+
+			let highlightColor = highlightColors.get(decorationColor.toString());
+			if (!highlightColor) {
+				highlightColor = decorationColor.transparent(0.5).toString();
+				highlightColors.set(decorationColor.toString(), highlightColor);
+			}
+
+			canvasContext.fillStyle = highlightColor;
+			for (let line = startLineNumber; line <= endLineNumber; line++) {
+				if (highlightedLines.has(line)) {
 					continue;
 				}
+				highlightedLines.set(line, true);
+				const y = (startLineNumber - layout.startLineNumber) * lineHeight;
+				canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y, canvasContext.canvas.width, lineHeight);
+			}
+		}
+	}
 
-				const decorationColor = (<ModelDecorationMinimapOptions>decoration.options.minimap).getColor(this._theme);
-				for (let line = decoration.range.startLineNumber; line <= decoration.range.endLineNumber; line++) {
-					switch (decoration.options.minimap.position) {
+	private _renderSelectionsHighlights(
+		canvasContext: CanvasRenderingContext2D,
+		selections: Selection[],
+		lineOffsetMap: ContiguousLineMap<number[] | null>,
+		layout: MinimapLayout,
+		lineHeight: number,
+		tabSize: number,
+		characterWidth: number,
+		canvasInnerWidth: number
+	): void {
+		if (!this._selectionColor || this._selectionColor.isTransparent()) {
+			return;
+		}
+		for (const selection of selections) {
+			const startLineNumber = Math.max(layout.startLineNumber, selection.startLineNumber);
+			const endLineNumber = Math.min(layout.endLineNumber, selection.endLineNumber);
+			if (startLineNumber > endLineNumber) {
+				// entirely outside minimap's viewport
+				continue;
+			}
 
-						case MinimapPosition.Inline:
-							this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth);
-							continue;
+			for (let line = startLineNumber; line <= endLineNumber; line++) {
+				this.renderDecorationOnLine(canvasContext, lineOffsetMap, selection, this._selectionColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+			}
+		}
+	}
 
-						case MinimapPosition.Gutter:
-							const y = (line - layout.startLineNumber) * lineHeight;
-							const x = 2;
-							this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, lineHeight);
-							continue;
-					}
+	private _renderDecorationsHighlights(
+		canvasContext: CanvasRenderingContext2D,
+		decorations: ViewModelDecoration[],
+		lineOffsetMap: ContiguousLineMap<number[] | null>,
+		layout: MinimapLayout,
+		lineHeight: number,
+		tabSize: number,
+		characterWidth: number,
+		canvasInnerWidth: number
+	): void {
+		// Loop forwards to hit first decorations with lower `zIndex`
+		for (const decoration of decorations) {
+
+			const minimapOptions = <ModelDecorationMinimapOptions | null | undefined>decoration.options.minimap;
+			if (!minimapOptions) {
+				continue;
+			}
+
+			const startLineNumber = Math.max(layout.startLineNumber, decoration.range.startLineNumber);
+			const endLineNumber = Math.min(layout.endLineNumber, decoration.range.endLineNumber);
+			if (startLineNumber > endLineNumber) {
+				// entirely outside minimap's viewport
+				continue;
+			}
+
+			const decorationColor = minimapOptions.getColor(this._theme);
+			if (!decorationColor || decorationColor.isTransparent()) {
+				continue;
+			}
+
+			for (let line = startLineNumber; line <= endLineNumber; line++) {
+				switch (minimapOptions.position) {
+
+					case MinimapPosition.Inline:
+						this.renderDecorationOnLine(canvasContext, lineOffsetMap, decoration.range, decorationColor, layout, line, lineHeight, lineHeight, tabSize, characterWidth, canvasInnerWidth);
+						continue;
+
+					case MinimapPosition.Gutter:
+						const y = (line - layout.startLineNumber) * lineHeight;
+						const x = 2;
+						this.renderDecoration(canvasContext, decorationColor, x, y, GUTTER_DECORATION_WIDTH, lineHeight);
+						continue;
 				}
 			}
 		}
 	}
 
-	private renderDecorationOnLine(canvasContext: CanvasRenderingContext2D,
-		lineOffsetMap: Map<number, number[]>,
+	private renderDecorationOnLine(
+		canvasContext: CanvasRenderingContext2D,
+		lineOffsetMap: ContiguousLineMap<number[] | null>,
 		decorationRange: Range,
 		decorationColor: Color | undefined,
 		layout: MinimapLayout,
@@ -1433,7 +1597,9 @@ class InnerMinimap extends Disposable {
 		height: number,
 		lineHeight: number,
 		tabSize: number,
-		charWidth: number): void {
+		charWidth: number,
+		canvasInnerWidth: number
+	): void {
 		const y = (lineNumber - layout.startLineNumber) * lineHeight;
 
 		// Skip rendering the line if it's vertically outside our viewport
@@ -1441,12 +1607,41 @@ class InnerMinimap extends Disposable {
 			return;
 		}
 
+		const { startLineNumber, endLineNumber } = decorationRange;
+		const startColumn = (startLineNumber === lineNumber ? decorationRange.startColumn : 1);
+		const endColumn = (endLineNumber === lineNumber ? decorationRange.endColumn : this._model.getLineMaxColumn(lineNumber));
+
+		const x1 = this.getXOffsetForPosition(lineOffsetMap, lineNumber, startColumn, tabSize, charWidth, canvasInnerWidth);
+		const x2 = this.getXOffsetForPosition(lineOffsetMap, lineNumber, endColumn, tabSize, charWidth, canvasInnerWidth);
+
+		this.renderDecoration(canvasContext, decorationColor, x1, y, x2 - x1, height);
+	}
+
+	private getXOffsetForPosition(
+		lineOffsetMap: ContiguousLineMap<number[] | null>,
+		lineNumber: number,
+		column: number,
+		tabSize: number,
+		charWidth: number,
+		canvasInnerWidth: number
+	): number {
+		if (column === 1) {
+			return MINIMAP_GUTTER_WIDTH;
+		}
+
+		const minimumXOffset = (column - 1) * charWidth;
+		if (minimumXOffset >= canvasInnerWidth) {
+			// there is no need to look at actual characters,
+			// as this column is certainly after the minimap width
+			return canvasInnerWidth;
+		}
+
 		// Cache line offset data so that it is only read once per line
 		let lineIndexToXOffset = lineOffsetMap.get(lineNumber);
-		const isFirstDecorationForLine = !lineIndexToXOffset;
 		if (!lineIndexToXOffset) {
 			const lineData = this._model.getLineContent(lineNumber);
 			lineIndexToXOffset = [MINIMAP_GUTTER_WIDTH];
+			let prevx = MINIMAP_GUTTER_WIDTH;
 			for (let i = 1; i < lineData.length + 1; i++) {
 				const charCode = lineData.charCodeAt(i - 1);
 				const dx = charCode === CharCode.Tab
@@ -1455,33 +1650,25 @@ class InnerMinimap extends Disposable {
 						? 2 * charWidth
 						: charWidth;
 
-				lineIndexToXOffset[i] = lineIndexToXOffset[i - 1] + dx;
+				const x = prevx + dx;
+				if (x >= canvasInnerWidth) {
+					// no need to keep on going, as we've hit the canvas width
+					lineIndexToXOffset[i] = canvasInnerWidth;
+					break;
+				}
+
+				lineIndexToXOffset[i] = x;
+				prevx = x;
 			}
 
 			lineOffsetMap.set(lineNumber, lineIndexToXOffset);
 		}
 
-		const { startColumn, endColumn, startLineNumber, endLineNumber } = decorationRange;
-		const x = startLineNumber === lineNumber ? lineIndexToXOffset[startColumn - 1] : MINIMAP_GUTTER_WIDTH;
-
-		const endColumnForLine = endLineNumber > lineNumber ? lineIndexToXOffset.length - 1 : endColumn - 1;
-
-		if (endColumnForLine > 0) {
-			// If the decoration starts at the last character of the column and spans over it, ensure it has a width
-			const width = lineIndexToXOffset[endColumnForLine] - x || 2;
-
-			this.renderDecoration(canvasContext, decorationColor, x, y, width, height);
+		if (column - 1 < lineIndexToXOffset.length) {
+			return lineIndexToXOffset[column - 1];
 		}
-
-		if (isFirstDecorationForLine) {
-			this.renderLineHighlight(canvasContext, decorationColor, y, height);
-		}
-
-	}
-
-	private renderLineHighlight(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, y: number, height: number): void {
-		canvasContext.fillStyle = decorationColor && decorationColor.transparent(0.5).toString() || '';
-		canvasContext.fillRect(MINIMAP_GUTTER_WIDTH, y, canvasContext.canvas.width, height);
+		// goes over the canvas width
+		return canvasInnerWidth;
 	}
 
 	private renderDecoration(canvasContext: CanvasRenderingContext2D, decorationColor: Color | undefined, x: number, y: number, width: number, height: number) {
@@ -1731,6 +1918,42 @@ class InnerMinimap extends Disposable {
 				}
 			}
 		}
+	}
+}
+
+class ContiguousLineMap<T> {
+
+	private readonly _startLineNumber: number;
+	private readonly _endLineNumber: number;
+	private readonly _defaultValue: T;
+	private readonly _values: T[];
+
+	constructor(startLineNumber: number, endLineNumber: number, defaultValue: T) {
+		this._startLineNumber = startLineNumber;
+		this._endLineNumber = endLineNumber;
+		this._defaultValue = defaultValue;
+		this._values = [];
+		for (let i = 0, count = this._endLineNumber - this._startLineNumber + 1; i < count; i++) {
+			this._values[i] = defaultValue;
+		}
+	}
+
+	public has(lineNumber: number): boolean {
+		return (this.get(lineNumber) !== this._defaultValue);
+	}
+
+	public set(lineNumber: number, value: T): void {
+		if (lineNumber < this._startLineNumber || lineNumber > this._endLineNumber) {
+			return;
+		}
+		this._values[lineNumber - this._startLineNumber] = value;
+	}
+
+	public get(lineNumber: number): T {
+		if (lineNumber < this._startLineNumber || lineNumber > this._endLineNumber) {
+			return this._defaultValue;
+		}
+		return this._values[lineNumber - this._startLineNumber];
 	}
 }
 

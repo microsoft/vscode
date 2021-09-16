@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroupModel, ISerializedEditorGroupModel, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, CloseDirection, EditorsOrder, IResourceDiffEditorInput, IResourceSideBySideEditorInput, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -48,7 +48,7 @@ suite('EditorGroupModel', () => {
 
 	function closeAllEditors(group: EditorGroupModel): void {
 		for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
-			group.closeEditor(editor, false);
+			group.closeEditor(editor, undefined, false);
 		}
 	}
 
@@ -750,7 +750,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(events.activated[0], input1);
 
 		let index = group.indexOf(input1);
-		let event = group.closeEditor(input1);
+		let event = group.closeEditor(input1, EditorCloseContext.UNPIN);
 		assert.strictEqual(event?.editor, input1);
 		assert.strictEqual(event?.index, index);
 		assert.strictEqual(group.count, 0);
@@ -758,7 +758,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.activeEditor, null);
 		assert.strictEqual(events.closed[0].editor, input1);
 		assert.strictEqual(events.closed[0].index, 0);
-		assert.strictEqual(events.closed[0].replaced, false);
+		assert.strictEqual(events.closed[0].context === EditorCloseContext.UNPIN, true);
 
 		// Active && Preview
 		const input2 = input();
@@ -780,7 +780,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.activeEditor, null);
 		assert.strictEqual(events.closed[1].editor, input2);
 		assert.strictEqual(events.closed[1].index, 0);
-		assert.strictEqual(events.closed[1].replaced, false);
+		assert.strictEqual(events.closed[1].context === EditorCloseContext.REPLACE, false);
 
 		event = group.closeEditor(input2);
 		assert.ok(!event);
@@ -1023,8 +1023,8 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(events.opened[2], input3);
 		assert.strictEqual(events.closed[0].editor, input1);
 		assert.strictEqual(events.closed[1].editor, input2);
-		assert.strictEqual(events.closed[0].replaced, true);
-		assert.strictEqual(events.closed[1].replaced, true);
+		assert.strictEqual(events.closed[0].context === EditorCloseContext.REPLACE, true);
+		assert.strictEqual(events.closed[1].context === EditorCloseContext.REPLACE, true);
 
 		const mru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
 		assert.strictEqual(mru[0], input3);

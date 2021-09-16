@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, IEditorInput, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TestFileEditorInput, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -37,7 +37,7 @@ suite('SideBySideEditorInput', () => {
 			return { resource: this.resource, options: { override: this.typeId } };
 		}
 
-		override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 			if (super.matches(otherInput)) {
 				return true;
 			}
@@ -64,6 +64,8 @@ suite('SideBySideEditorInput', () => {
 		});
 
 		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', input, otherInput);
+		assert.strictEqual(sideBySideInput.getName(), 'name');
+		assert.strictEqual(sideBySideInput.getDescription(), 'description');
 
 		assert.ok(isSideBySideEditorInput(sideBySideInput));
 		assert.ok(!isSideBySideEditorInput(input));
@@ -75,6 +77,12 @@ suite('SideBySideEditorInput', () => {
 
 		sideBySideInput.dispose();
 		assert.strictEqual(counter, 0);
+
+		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input);
+		assert.strictEqual(sideBySideInputSame.getName(), input.getName());
+		assert.strictEqual(sideBySideInputSame.getDescription(), input.getDescription());
+		assert.strictEqual(sideBySideInputSame.getTitle(), input.getTitle());
+		assert.strictEqual(sideBySideInputSame.resource?.toString(), input.resource?.toString());
 	});
 
 	test('events dispatching', () => {

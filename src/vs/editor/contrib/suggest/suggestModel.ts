@@ -97,17 +97,21 @@ export const enum State {
 	Auto = 2
 }
 
-function shouldPreventQuickSuggest(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+function isSuggestPreviewEnabled(editor: ICodeEditor): boolean {
+	return editor.getOption(EditorOption.suggest).preview;
+}
+
+function shouldPreventQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
 	return (
 		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions'))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions') ?? isSuggestPreviewEnabled(editor))
 	);
 }
 
-function shouldPreventSuggestOnTriggerCharacters(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+function shouldPreventSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
 	return (
 		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters'))
+		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters') ?? isSuggestPreviewEnabled(editor))
 	);
 }
 
@@ -231,7 +235,7 @@ export class SuggestModel implements IDisposable {
 
 		const checkTriggerCharacter = (text?: string) => {
 
-			if (shouldPreventSuggestOnTriggerCharacters(this._contextKeyService, this._configurationService)) {
+			if (shouldPreventSuggestOnTriggerCharacters(this._editor, this._contextKeyService, this._configurationService)) {
 				return;
 			}
 
@@ -378,7 +382,7 @@ export class SuggestModel implements IDisposable {
 					}
 				}
 
-				if (shouldPreventQuickSuggest(this._contextKeyService, this._configurationService)) {
+				if (shouldPreventQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
 					// do not trigger quick suggestions if inline suggestions are shown
 					return;
 				}

@@ -50,6 +50,7 @@ import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workben
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -179,6 +180,7 @@ export class TerminalService implements ITerminalService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -259,11 +261,10 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration(TerminalSettingId.TerminalTitle) ||
 				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator) ||
 				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
-				for (const instance of this.instances) {
-					instance.setTitle(instance.title, TitleEventSource.Config);
-				}
+				this._updateTitles();
 			}
 		});
+		workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateTitles());
 
 		// Register a resource formatter for terminal URIs
 		labelService.registerFormatter({
@@ -316,6 +317,12 @@ export class TerminalService implements ITerminalService {
 
 	getOffProcessTerminalService(): IOffProcessTerminalService | undefined {
 		return this._primaryOffProcessTerminalService;
+	}
+
+	private _updateTitles(): void {
+		for (const instance of this.instances) {
+			instance.setTitle(instance.title, TitleEventSource.Config);
+		}
 	}
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
