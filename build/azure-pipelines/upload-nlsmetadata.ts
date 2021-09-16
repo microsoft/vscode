@@ -16,10 +16,16 @@ const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 
+interface PackageNlsJson {
+	messages: string[];
+	keys: Array<string | { key: string }>;
+}
+
 function main() {
 	return es.merge(
 		vfs.src('out-vscode-min/nls.metadata.json', { base: 'out-vscode-min' }),
-		vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }))
+		vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }),
+		vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
 		.pipe(merge({
 			fileName: 'combined.nls.metadata.json',
 			edit: (parsedJson: any, file: any) => {
@@ -28,7 +34,19 @@ function main() {
 				if (file.base === 'out-vscode-min') {
 					key = 'vscode';
 				} else {
-					key = file.relative.split('/')[0];
+					if (file.relative.endsWith('package.nls.json')) {
+						// put package.nls.json content in ExtensionNlsMetadata format
+						const convertedJson: PackageNlsJson = {
+							messages: [],
+							keys: []
+						};
+						for (const key of Object.keys(parsedJson)) {
+							convertedJson.keys.push(key);
+							convertedJson.messages.push(parsedJson[key]);
+						}
+						parsedJson = { package: parsedJson };
+					}
+					key = 'vscode.' + file.relative.split('/')[0];
 				}
 				return { [key]: parsedJson };
 			},
