@@ -27,6 +27,7 @@ import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { Emitter } from 'vs/base/common/event';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern,
@@ -41,6 +42,10 @@ type RegisteredEditors = Array<RegisteredEditor>;
 
 export class EditorResolverService extends Disposable implements IEditorResolverService {
 	readonly _serviceBrand: undefined;
+
+	// Events
+	private readonly _onDidChangeEditorRegistrations = this._register(new Emitter<void>());
+	readonly onDidChangeEditorRegistrations = this._onDidChangeEditorRegistrations.event;
 
 	// Constants
 	private static readonly configureDefaultID = 'promptOpenWith.configureDefault';
@@ -249,7 +254,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			createUntitledEditorInput,
 			createDiffEditorInput
 		});
-		return toDisposable(() => remove());
+		this._onDidChangeEditorRegistrations.fire();
+		return toDisposable(() => {
+			remove();
+			this._onDidChangeEditorRegistrations.fire();
+		});
 	}
 
 	getAssociationsForResource(resource: URI): EditorAssociations {
@@ -333,12 +342,19 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	public getEditorIds(resource: URI): string[] {
-		const editors = this.findMatchingEditors(resource);
-		if (editors.find(e => e.editorInfo.priority === RegisteredEditorPriority.exclusive)) {
-			return [];
+	public getEditors(resource?: URI): RegisteredEditorInfo[] {
+
+		// By resource
+		if (URI.isUri(resource)) {
+			const editors = this.findMatchingEditors(resource);
+			if (editors.find(e => e.editorInfo.priority === RegisteredEditorPriority.exclusive)) {
+				return [];
+			}
+			return editors.map(editor => editor.editorInfo);
 		}
-		return editors.map(editor => editor.editorInfo.id);
+
+		// All
+		return distinct(this._registeredEditors.map(editor => editor.editorInfo), editor => editor.id);
 	}
 
 	/**
