@@ -4920,6 +4920,17 @@ gulp-json-editor@^2.5.0:
     plugin-error "^1.0.1"
     through2 "^3.0.0"
 
+gulp-merge-json@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/gulp-merge-json/-/gulp-merge-json-2.1.1.tgz#cfb1d066467577545b8c1c289a278e6ef4b4e0de"
+  integrity sha512-VhvAlcf+dcCb94j/2yDPWxJ3X7x4P/Xwcrv1dhjYuRgvADwFJmaQwl4zbuq+GDZvzMacbVncWtEdsETpUSkhYw==
+  dependencies:
+    json5 "^2.1.3"
+    lodash.mergewith "^4.6.1"
+    plugin-error "^1.0.1"
+    through "^2.3.8"
+    vinyl "^2.1.0"
+
 gulp-plumber@^1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/gulp-plumber/-/gulp-plumber-1.2.0.tgz#18ea03912c9ee483f8a5499973b5954cd90f6ad8"
@@ -6154,6 +6165,13 @@ json5@^2.1.2:
   dependencies:
     minimist "^1.2.5"
 
+json5@^2.1.3:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/json5/-/json5-2.2.0.tgz#2dfefe720c6ba525d9ebd909950f0515316c89a3"
+  integrity sha512-f+8cldu7X/y7RAJurMEJmdoKXGB/X550w2Nr3tTbezL6RwEE/iMcm+tZnXeoZtKuOq6ft8+CqzEkrIgx1fPoQA==
+  dependencies:
+    minimist "^1.2.5"
+
 jsonfile@^4.0.0:
   version "4.0.0"
   resolved "https://registry.yarnpkg.com/jsonfile/-/jsonfile-4.0.0.tgz#8771aae0799b64076b76640fca058f9c10e33ecb"
@@ -6393,6 +6411,11 @@ lodash.memoize@^4.1.2:
   version "4.1.2"
   resolved "https://registry.yarnpkg.com/lodash.memoize/-/lodash.memoize-4.1.2.tgz#bcc6c49a42a2840ed997f323eada5ecd182e0bfe"
   integrity sha1-vMbEmkKihA7Zl/Mj6tpezRguC/4=
+
+lodash.mergewith@^4.6.1:
+  version "4.6.2"
+  resolved "https://registry.yarnpkg.com/lodash.mergewith/-/lodash.mergewith-4.6.2.tgz#617121f89ac55f59047c7aec1ccd6654c6590f55"
+  integrity sha512-GK3g5RPZWTRSeLSpgP8Xhra+pnjBC56q9FZYe1d5RN3TJ35dbkGy3YqBSMbyCrlbi+CM9Z3Jk5yTL7RCsqboyQ==
 
 lodash.some@^4.2.2:
   version "4.6.0"
