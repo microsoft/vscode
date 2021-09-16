@@ -1907,22 +1907,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region non-error test output https://github.com/microsoft/vscode/issues/129201
-	interface TestRun {
-		/**
-		 * Appends raw output from the test runner. On the user's request, the
-		 * output will be displayed in a terminal. ANSI escape sequences,
-		 * such as colors and text styles, are supported.
-		 *
-		 * @param output Output text to append.
-		 * @param location Indicate that the output was logged at the given
-		 * location.
-		 * @param test Test item to associate the output with.
-		 */
-		appendOutput(output: string, location?: Location, test?: TestItem): void;
-	}
-	//#endregion
-
 	//#region proposed test APIs https://github.com/microsoft/vscode/issues/107467
 	export namespace tests {
 		/**
