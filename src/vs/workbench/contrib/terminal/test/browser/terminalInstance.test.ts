@@ -36,7 +36,7 @@ const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
 const root2 = '/foo/root2';
 const ROOT_2 = fixPath(root2);
-const emptyRoot = '/foo/';
+const emptyRoot = '/foo';
 const ROOT_EMPTY = fixPath(emptyRoot);
 suite('Workbench - TerminalInstance', () => {
 	suite('refreshLabel', () => {
@@ -183,8 +183,7 @@ suite('Workbench - TerminalInstance', () => {
 				strictEqual(terminalLabelComputer.description, 'root2');
 			}
 		});
-		//TODO:
-		test.skip('should hide cwdFolder in empty workspaces when cwd matches the workspace\'s default cwd ($HOME or $HOMEDRIVE$HOMEPATH)', async () => {
+		test('should hide cwdFolder in empty workspaces when cwd matches the workspace\'s default cwd ($HOME or $HOMEDRIVE$HOMEPATH)', async () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } }, cwd: ROOT_1 } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
 			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_EMPTY }), emptyContextService);
