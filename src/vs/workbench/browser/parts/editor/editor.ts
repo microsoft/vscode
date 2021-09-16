@@ -204,6 +204,11 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	 * used to optimize how error toasts are appearing if any.
 	 */
 	fromError?: boolean;
+
+	/**
+	 * A hint that the editor is closed because it moves to another group.
+	 */
+	fromMove?: boolean;
 }
 
 export interface IInternalMoveCopyOptions extends IInternalEditorTitleControlOptions {

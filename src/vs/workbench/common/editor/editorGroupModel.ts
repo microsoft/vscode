@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, IEditorMoveEvent, IEditorOpenEvent } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, IEditorMoveEvent, IEditorOpenEvent, EditorCloseContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -384,7 +384,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	private replaceEditor(toReplace: EditorInput, replaceWith: EditorInput, replaceIndex: number, openNext = true): void {
-		const event = this.doCloseEditor(toReplace, openNext, true); // optimization to prevent multiple setActive() in one call
+		const event = this.doCloseEditor(toReplace, EditorCloseContext.REPLACE, openNext); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
 		// firing the close event can trigger a dispose on the same editor that is now being added.
@@ -396,8 +396,8 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	closeEditor(candidate: EditorInput, openNext = true): EditorCloseEvent | undefined {
-		const event = this.doCloseEditor(candidate, openNext, false);
+	closeEditor(candidate: EditorInput, context = EditorCloseContext.UNKNOWN, openNext = true): EditorCloseEvent | undefined {
+		const event = this.doCloseEditor(candidate, context, openNext);
 
 		if (event) {
 			this._onDidCloseEditor.fire(event);
@@ -408,7 +408,7 @@ export class EditorGroupModel extends Disposable {
 		return undefined;
 	}
 
-	private doCloseEditor(candidate: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | undefined {
+	private doCloseEditor(candidate: EditorInput, context: EditorCloseContext, openNext: boolean): EditorCloseEvent | undefined {
 		const index = this.indexOf(candidate);
 		if (index === -1) {
 			return undefined; // not found
@@ -451,7 +451,7 @@ export class EditorGroupModel extends Disposable {
 		this.splice(index, true);
 
 		// Event
-		return { editor, replaced, sticky, index, groupId: this.id };
+		return { editor, sticky, index, groupId: this.id, context };
 	}
 
 	moveEditor(candidate: EditorInput, toIndex: number): EditorInput | undefined {
@@ -571,7 +571,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Close old preview editor if any
 		if (oldPreview) {
-			this.closeEditor(oldPreview);
+			this.closeEditor(oldPreview, EditorCloseContext.UNPIN);
 		}
 	}
 

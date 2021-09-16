@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -716,9 +716,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // blocked
 		}
 
-		const { editor, replaced } = event;
-		if (replaced) {
-			return; // ignore if editor was replaced
+		const { editor, context } = event;
+		if (context === EditorCloseContext.REPLACE || context === EditorCloseContext.MOVE) {
+			return; // ignore if editor was replaced or moved
 		}
 
 		const untypedEditor = editor.toUntyped();

@@ -730,8 +730,35 @@ export interface IEditorCommandsContext {
 	editorIndex?: number;
 }
 
+/**
+ * More information around why an editor was closed in the model.
+ */
+export enum EditorCloseContext {
+
+	/**
+	 * No specific context for closing (e.g. explicit user gesture).
+	 */
+	UNKNOWN,
+
+	/**
+	 * The editor closed because it was in preview mode and got replaced.
+	 */
+	REPLACE,
+
+	/**
+	 * The editor closed as a result of moving it to another group.
+	 */
+	MOVE,
+
+	/**
+	 * The editor closed because another editor turned into preview
+	 * and this used to be the preview editor before.
+	 */
+	UNPIN
+}
+
 export interface IEditorCloseEvent extends IEditorIdentifier {
-	replaced: boolean;
+	context: EditorCloseContext;
 	index: number;
 	sticky: boolean;
 }

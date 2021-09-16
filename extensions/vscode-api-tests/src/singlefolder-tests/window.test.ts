@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { join } from 'path';
-import { CancellationTokenSource, commands, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, Uri, ViewColumn, window, workspace } from 'vscode';
+import { CancellationTokenSource, commands, MarkdownString, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, Uri, ViewColumn, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
@@ -715,6 +715,10 @@ suite('vscode API - window', () => {
 		assert.strictEqual(statusBarEntryWithoutId.name, undefined);
 		statusBarEntryWithoutId.name = 'Test Name';
 		assert.strictEqual(statusBarEntryWithoutId.name, 'Test Name');
+		statusBarEntryWithoutId.tooltip = 'Tooltip';
+		assert.strictEqual(statusBarEntryWithoutId.tooltip, 'Tooltip');
+		statusBarEntryWithoutId.tooltip = new MarkdownString('**bold**');
+		assert.strictEqual(statusBarEntryWithoutId.tooltip.value, '**bold**');
 
 		const statusBarEntryWithId = window.createStatusBarItem('testId', StatusBarAlignment.Right, 200);
 		assert.strictEqual(statusBarEntryWithId.alignment, StatusBarAlignment.Right);

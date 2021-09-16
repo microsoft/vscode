@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel, EditorMoveEvent, EditorOpenEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor } from 'vs/workbench/common/editor';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -1340,7 +1340,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
-			this.doCloseEditor(editor, false /* do not focus next one behind if any */, internalOptions);
+			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, fromMove: true });
 		}
 	}
 
@@ -1420,7 +1420,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Closing inactive editor is just a model update
 		else {
-			index = this.doCloseInactiveEditor(editor);
+			index = this.doCloseInactiveEditor(editor, internalOptions);
 		}
 
 		// Forward to title control unless skipped via internal options
@@ -1456,7 +1456,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model
 		let index: number | undefined = undefined;
 		if (editorToClose) {
-			index = this.model.closeEditor(editorToClose)?.index;
+			index = this.model.closeEditor(editorToClose, internalOptions?.fromMove ? EditorCloseContext.MOVE : undefined)?.index;
 		}
 
 		// Open next active if there are more to show
@@ -1523,10 +1523,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return isAncestor(activeElement, target);
 	}
 
-	private doCloseInactiveEditor(editor: EditorInput): number | undefined {
+	private doCloseInactiveEditor(editor: EditorInput, internalOptions?: IInternalEditorCloseOptions): number | undefined {
 
 		// Update model
-		return this.model.closeEditor(editor)?.index;
+		return this.model.closeEditor(editor, internalOptions?.fromMove ? EditorCloseContext.MOVE : undefined)?.index;
 	}
 
 	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {
