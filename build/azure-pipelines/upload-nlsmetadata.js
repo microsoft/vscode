@@ -25,15 +25,17 @@ function main() {
             switch (file.basename) {
                 case 'package.nls.json':
                     // put package.nls.json content in Core NlsMetadata format
+                    // language packs use the key "package" to specify that
+                    // translations are for the package.json file
                     parsedJson = {
                         messages: {
-                            'package.nls.json': Object.values(parsedJson)
+                            package: Object.values(parsedJson)
                         },
                         keys: {
-                            'package.nls.json': Object.keys(parsedJson)
+                            package: Object.keys(parsedJson)
                         },
                         bundles: {
-                            main: ['package.nls.json']
+                            main: ['package']
                         }
                     };
                     break;
