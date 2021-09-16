@@ -348,32 +348,29 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	test.skip('Tabs - Ensure tabs getter is correct', async () => {
-		assert.ok(workspace.workspaceFolders);
-		const workspaceRoot = workspace.workspaceFolders[0].uri;
-		const [docA, docB, docC, notebookDoc] = await Promise.all([
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openNotebookDocument(Uri.joinPath(workspaceRoot, 'test.ipynb'))
-		]);
+	test('Tabs - Ensure tabs getter is correct', async () => {
+		const docA = await workspace.openTextDocument(await createRandomFile());
+		const docB = await workspace.openTextDocument(await createRandomFile());
+		const docC = await workspace.openTextDocument(await createRandomFile());
+		// Add back actual notebook doc once stuck promise is figured out
+		//const notebookDoc = await workspace.openNotebookDocument(await createRandomFile('', undefined, '.vsctestnb'));
+		const notebookDoc = await workspace.openTextDocument(await createRandomFile());
+		// const [docA, docB, docC, notebookDoc] = await Promise.all([
+		// 	workspace.openTextDocument(await createRandomFile()),
+		// 	workspace.openTextDocument(await createRandomFile()),
+		// 	workspace.openTextDocument(await createRandomFile()),
+		// 	workspace.openNotebookDocument(await createRandomFile('', undefined, '.vsctestnb'))
+		// ]);
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
-		await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
+		//await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
 
 		const leftDiff = await createRandomFile();
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
-
-		// Wait for the tab change event to fire
-		await new Promise<void>((resolve) => {
-			const dispsable = window.onDidChangeTabs(() => {
-				dispsable.dispose();
-				resolve();
-			});
-		});
 
 		const tabs = window.tabs;
 		assert.strictEqual(tabs.length, 5);
@@ -393,16 +390,8 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
 	});
 
-	test.skip('Tabs - ensure active tab is correct', async () => {
+	test('Tabs - ensure active tab is correct', async () => {
 
-		function createActiveTabListenerPromise(): Promise<void> {
-			return new Promise<void>((resolve) => {
-				const dispsable = window.onDidChangeActiveTab(() => {
-					dispsable.dispose();
-					resolve();
-				});
-			});
-		}
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -410,24 +399,20 @@ suite('vscode API - window', () => {
 		]);
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
-		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docA.uri.toString());
 
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
-		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docB.uri.toString());
 
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
-		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docC.uri.toString());
 
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
-		await createActiveTabListenerPromise();
 
 		assert.ok(!window.activeTab);
 
