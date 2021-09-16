@@ -548,20 +548,28 @@ export class TerminalService implements ITerminalService {
 		return this._defaultProfileName;
 	}
 
-	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	private async _onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 		if (this.instances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
 		}
 
-		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (!shouldPersistTerminals) {
+		// Persist terminal _buffer state_, note that even if this happens the dirty terminal prompt
+		// still shows as that cannot be revived
+		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
+		if (shouldReviveProcesses) {
+			await this._localTerminalService?.persistTerminalState();
+		}
+
+		// Persist terminal _processes_
+		const shouldPersistProcesses = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
+		if (!shouldPersistProcesses) {
 			const hasDirtyInstances = (
 				(this.configHelper.config.confirmOnExit === 'always' && this.instances.length > 0) ||
 				(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
 			);
 			if (hasDirtyInstances) {
-				return this._onBeforeShutdownAsync();
+				return this._onBeforeShutdownAsync(reason);
 			}
 		}
 
@@ -570,12 +578,24 @@ export class TerminalService implements ITerminalService {
 		return false;
 	}
 
-	private async _onBeforeShutdownAsync(): Promise<boolean> {
+	private _shouldReviveProcesses(reason: ShutdownReason): boolean {
+		if (!this._configHelper.config.enablePersistentSessions) {
+			return false;
+		}
+		switch (this.configHelper.config.persistentSessionReviveProcess) {
+			case 'onExit': return reason === ShutdownReason.LOAD || reason === ShutdownReason.QUIT;
+			case 'onExitOrWindowClose': return reason !== ShutdownReason.RELOAD;
+			default: return false;
+		}
+	}
+
+	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
 		// veto if configured to show confirmation and the user chose not to exit
 		const veto = await this._showTerminalCloseConfirmation();
 		if (!veto) {
 			this._isShuttingDown = true;
 		}
+
 		return veto;
 	}
 
@@ -583,14 +603,21 @@ export class TerminalService implements ITerminalService {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
-			this.instances.forEach(instance => instance.detachFromProcess());
+			for (const instance of this.instances) {
+				instance.detachFromProcess();
+			}
 			return;
 		}
 
 		// Force dispose of all terminal instances
-		this.instances.forEach(instance => instance.dispose(true));
+		for (const instance of this.instances) {
+			instance.dispose();
+		}
 
-		this._localTerminalService?.setTerminalLayoutInfo(undefined);
+		// Clear terminal layout info only when not persisting
+		if (!this._shouldReviveProcesses(e.reason)) {
+			this._localTerminalService?.setTerminalLayoutInfo(undefined);
+		}
 	}
 
 	getFindState(): FindReplaceState {
@@ -599,6 +626,10 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _saveState(): void {
+		// Avoid saving state when shutting down as that would override process state to be revived
+		if (this._isShuttingDown) {
+			return;
+		}
 		if (!this.configHelper.config.enablePersistentSessions) {
 			return;
 		}

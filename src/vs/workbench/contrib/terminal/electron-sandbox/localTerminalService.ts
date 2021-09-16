@@ -14,11 +14,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
@@ -47,6 +49,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService notificationService: INotificationService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IHistoryService historyService: IHistoryService,
 	) {
@@ -139,6 +142,12 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
+	async persistTerminalState(): Promise<void> {
+		const ids = Array.from(this._ptys.keys());
+		const serialized = await this._localPtyService.serializeTerminalState(ids);
+		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
 		await this._localPtyService.updateTitle(id, title, titleSource);
 	}
@@ -207,7 +216,16 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
-		return await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+		if (serializedState) {
+			try {
+				await this._localPtyService.reviveTerminalProcesses(layoutArgs, serializedState);
+			} catch {
+				// no-op
+			}
+		}
+		const i = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+		return i;
 	}
 
 	private _getWorkspaceId(): string {

@@ -269,6 +269,14 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
+	async serializeTerminalState(ids: number[]): Promise<string> {
+		return this._proxy.serializeTerminalState(ids);
+	}
+
+	async reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string) {
+		return this._proxy.reviveTerminalProcesses(args, state);
+	}
+
 	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._proxy.refreshProperty(id, property);
 	}
@@ -284,9 +292,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _disposePtyHost(): void {
-		if (this._proxy.shutdownAll) {
-			this._proxy.shutdownAll();
-		}
+		this._proxy.shutdownAll?.();
 		this._client.dispose();
 	}
 
