@@ -502,7 +502,7 @@ export class ExplorerView extends ViewPane {
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
-			const overrides = resource ? this.editorResolverService.getEditorIds(resource) : [];
+			const overrides = resource ? this.editorResolverService.getEditors(resource).map(editor => editor.id) : [];
 			this.availableEditorIdsContext.set(overrides.join(','));
 		} else {
 			this.availableEditorIdsContext.reset();
