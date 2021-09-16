@@ -174,6 +174,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _sequence?: string;
 	private _staticTitle?: string;
 	private _workspaceFolder?: string;
+	private _labelComputer?: TerminalLabelComputer;
 
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
@@ -330,7 +331,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// When a custom pty is used set the name immediately so it gets passed over to the exthost
 		// and is available when Pseudoterminal.open fires.
 		if (this.shellLaunchConfig.customPtyImplementation) {
-			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+			this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
 		this.statusList = this._instantiationService.createInstance(TerminalStatusList);
@@ -349,7 +350,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Re-establish the title after reconnect
 			if (this.shellLaunchConfig.attachPersistentProcess) {
-				this.setTitle(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
+				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
 			}
 		});
 
@@ -379,7 +380,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
 			}
+			if (
+				e.affectsConfiguration(TerminalSettingId.TerminalTitle) ||
+				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator) ||
+				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
+				this._labelComputer?.refreshLabel();
+			}
 		}));
+		this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel());
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -1175,29 +1183,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._capabilities = e.capabilities;
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
+			if (!this._labelComputer) {
+				this._labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
+				this._labelComputer.onLabelChanged(e => {
+					this._title = e.title;
+					this._description = e.description;
+					this._onTitleChanged.fire(this);
+				});
+			}
 			this._processManager.onDidChangeProperty(e => {
-				console.log('on did change prop', e);
 				if (e.type === ProcessPropertyType.Cwd) {
-					// TODO: Rename setTitle to refreshTabLabels
-					// TODO: We should change setTitle to not accept TitleEventSource?
-					// TODO: Introduce `_staticTitle?: string` title which will be used if it's set - this replaces what TitleEventSource.Api used to do
 					this._cwd = e.value;
-					this.setTitle(this.title, TitleEventSource.Api);
+					this._labelComputer?.refreshLabel();
 				} else if (e.type === ProcessPropertyType.InitialCwd) {
 					this._initialCwd = e.value;
 					this._cwd = this._initialCwd;
-					this.setTitle(this.title, TitleEventSource.Api);
+					this.refreshTabLabels(this.title, TitleEventSource.Api);
 				}
 			});
 			if (this._shellLaunchConfig.name) {
-				this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Only listen for process title changes when a name is not provided
 				if (this._configHelper.config.tabs.title.includes('${sequence}') || this._configHelper.config.tabs.description.includes('${sequence}')) {
 					// Set the title to the first event if the sequence hasn't set it yet
 					Event.once(this._processManager.onProcessTitle)(e => {
 						if (!this._title) {
-							this.setTitle(e, TitleEventSource.Sequence);
+							this.refreshTabLabels(e, TitleEventSource.Sequence);
 						}
 					});
 					// Listen to xterm.js' sequence title change event, trigger this async to ensure
@@ -1208,8 +1220,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						});
 					});
 				} else {
-					this.setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
-					this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', TitleEventSource.Process));
+					this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
+					this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.refreshTabLabels(title ? title : '', TitleEventSource.Process));
 				}
 			}
 		});
@@ -1480,7 +1492,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onTitleChange(title: string): void {
 		if (this.isTitleSetByProcess) {
-			this.setTitle(title, TitleEventSource.Sequence);
+			this.refreshTabLabels(title, TitleEventSource.Sequence);
 		}
 	}
 
@@ -1767,10 +1779,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	setTitle(title: string | undefined, eventSource: TitleEventSource): void {
+	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
 		if (!title) {
 			return;
 		}
+		// TODO: We should change this to not accept TitleEventSource?
+		// TODO: Introduce `_staticTitle?: string` title which will be used if it's set - this replaces what TitleEventSource.Api used to do
 		switch (eventSource) {
 			case TitleEventSource.Process:
 				if (this._processManager.os === OperatingSystem.Windows) {
@@ -1810,14 +1824,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._messageTitleDisposable = undefined;
 				break;
 		}
-		const labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
-		labelComputer.onLabelChanged(e => {
-			this._title = e.title;
-			this._description = e.description;
-			// this._onTitleChanged.fire(this);
-		});
-		this._title = labelComputer.title;
-		this._description = labelComputer.description;
+		let titleChanged = false;
+		this._labelComputer?.refreshLabel();
+		if (this._title !== title) {
+			titleChanged = true;
+		}
+		this._title = title.replace(/[\n\r\t]/g, '');
 		this._titleSource = eventSource;
 		this._setAriaLabel(this._xterm, this._instanceId, this._title);
 
@@ -1825,7 +1837,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._titleReadyComplete(title);
 			this._titleReadyComplete = undefined;
 		}
-		this._onTitleChanged.fire(this);
+		if (titleChanged) {
+			this._onTitleChanged.fire(this);
+		}
 	}
 
 	waitForTitle(): Promise<string> {
@@ -1994,7 +2008,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		}
 		if (title) {
-			this.setTitle(title, TitleEventSource.Rename);
+			this.refreshTabLabels(title, TitleEventSource.Rename);
 		}
 	}
 
@@ -2263,10 +2277,11 @@ const enum TerminalLabelType {
 	Description = 'description'
 }
 
-class TerminalLabelComputer extends Disposable {
-	title: string;
-	description: string;
-	private readonly _onLabelChanged = new Emitter<{ title: string, description: string }>();
+export class TerminalLabelComputer extends Disposable {
+	title?: string;
+	description?: string;
+
+	private readonly _onLabelChanged = this._register(new Emitter<{ title: string, description: string }>());
 	readonly onLabelChanged = this._onLabelChanged.event;
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
@@ -2274,8 +2289,10 @@ class TerminalLabelComputer extends Disposable {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
-		this.title = this.computeLabel(_configHelper.config.tabs.title, TerminalLabelType.Title);
-		this.description = this.computeLabel(_configHelper.config.tabs.description, TerminalLabelType.Description);
+	}
+	refreshLabel(): void {
+		this.title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
+		this.description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
 		if (this.title !== this._instance.title || this.description !== this._instance.description) {
 			this._onLabelChanged.fire({ title: this.title, description: this.description });
 		}
@@ -2295,6 +2312,9 @@ class TerminalLabelComputer extends Disposable {
 			task: this._instance.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
 			separator: { label: this._configHelper.config.tabs.separator }
 		};
+		if (!labelTemplate) {
+			return '';
+		}
 		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process || '';
 		}

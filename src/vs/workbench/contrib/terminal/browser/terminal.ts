@@ -732,9 +732,9 @@ export interface ITerminalInstance {
 	relaunch(): void;
 
 	/**
-	 * Sets the title of the terminal instance.
+	 * Sets the title and description of the terminal instance's label.
 	 */
-	setTitle(title: string, eventSource: TitleEventSource): void;
+	refreshTabLabels(title: string, eventSource: TitleEventSource): void;
 
 	waitForTitle(): Promise<string>;
 

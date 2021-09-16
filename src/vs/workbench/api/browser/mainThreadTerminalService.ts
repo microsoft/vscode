@@ -308,7 +308,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// event.
 		const instance = this._terminalService.getInstanceFromId(terminalId);
 		if (instance) {
-			instance.setTitle(title, TitleEventSource.Api);
+			instance.refreshTabLabels(title, TitleEventSource.Api);
 		}
 	}
 
