@@ -656,10 +656,7 @@ export interface IEditorOptions {
  */
 export const MINIMAP_GUTTER_WIDTH = 8;
 
-/**
- * Configuration options for the diff editor.
- */
-export interface IDiffEditorOptions extends IEditorOptions {
+export interface IDiffEditorBaseOptions {
 	/**
 	 * Allow the user to resize the diff editor split view.
 	 * Defaults to true.
@@ -675,6 +672,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to 5000.
 	 */
 	maxComputationTime?: number;
+	/**
+	 * Maximum supported file size in MB.
+	 * Defaults to 50.
+	 */
+	maxFileSize?: number;
 	/**
 	 * Compute the diff by ignoring leading/trailing whitespace
 	 * Defaults to true.
@@ -696,11 +698,6 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	diffCodeLens?: boolean;
 	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
-	 */
-	isInEmbeddedEditor?: boolean;
-	/**
 	 * Is the diff editor should render overview ruler
 	 * Defaults to true
 	 */
@@ -709,15 +706,18 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
-	/**
-	 * Aria label for original editor.
-	 */
-	originalAriaLabel?: string;
-	/**
-	 * Aria label for modified editor.
-	 */
-	modifiedAriaLabel?: string;
 }
+
+/**
+ * Configuration options for the diff editor.
+ */
+export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
+}
+
+/**
+ * @internal
+ */
+export type ValidDiffEditorBaseOptions = Readonly<Required<IDiffEditorBaseOptions>>;
 
 //#endregion
 
@@ -921,19 +921,26 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 	}
 }
 
+/**
+ * @internal
+ */
+export function clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
+	if (typeof value === 'undefined') {
+		return defaultValue;
+	}
+	let r = parseInt(value, 10);
+	if (isNaN(r)) {
+		return defaultValue;
+	}
+	r = Math.max(minimum, r);
+	r = Math.min(maximum, r);
+	return r | 0;
+}
+
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 
 	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
-		if (typeof value === 'undefined') {
-			return defaultValue;
-		}
-		let r = parseInt(value, 10);
-		if (isNaN(r)) {
-			return defaultValue;
-		}
-		r = Math.max(minimum, r);
-		r = Math.min(maximum, r);
-		return r | 0;
+		return clampedInt(value, defaultValue, minimum, maximum);
 	}
 
 	public readonly minimum: number;

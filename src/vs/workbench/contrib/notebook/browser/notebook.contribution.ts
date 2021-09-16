@@ -24,7 +24,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInput, IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { isCompositeNotebookEditorInput, NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -129,7 +130,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 		return true;
 	}
 
-	serialize(input: IEditorInput): string {
+	serialize(input: EditorInput): string {
 		assertType(input instanceof NotebookDiffEditorInput);
 		return JSON.stringify({
 			resource: input.resource,
@@ -156,7 +157,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 		return input;
 	}
 
-	static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+	static canResolveBackup(editorInput: EditorInput, backupResource: URI): boolean {
 		return false;
 	}
 
@@ -166,7 +167,7 @@ class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
-	serialize(input: IEditorInput): string {
+	serialize(input: EditorInput): string {
 		assertType(input instanceof NotebookEditorInput);
 		const data: SerializedNotebookEditorData = {
 			resource: input.resource,

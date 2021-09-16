@@ -277,7 +277,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorCanSplitInGroup.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 
 			const activeEditorResource = activeEditorPane.input.resource;
-			const editors = activeEditorResource ? this.editorResolverService.getEditorIds(activeEditorResource) : [];
+			const editors = activeEditorResource ? this.editorResolverService.getEditors(activeEditorResource).map(editor => editor.id) : [];
 			this.activeEditorAvailableEditorIds.set(editors.join(','));
 		} else {
 			this.activeEditorContext.reset();

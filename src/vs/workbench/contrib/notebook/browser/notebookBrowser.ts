@@ -54,6 +54,7 @@ export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEdit
 export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
 export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
 export const NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE = new RawContextKey<boolean>('notebookBreakpointMargin', false);
+export const NOTEBOOK_CELL_TOOLBAR_LOCATION = new RawContextKey<'left' | 'right' | 'hidden'>('notebookCellToolbarLocation', 'left');
 
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookType', undefined);
@@ -462,11 +463,6 @@ export interface INotebookEditor {
 	 * Fetch the output renderers for notebook outputs.
 	 */
 	getOutputRenderer(): OutputRenderer;
-
-	/**
-	 * Insert a new cell around `cell`
-	 */
-	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string, ui?: boolean): CellViewModel | null;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).

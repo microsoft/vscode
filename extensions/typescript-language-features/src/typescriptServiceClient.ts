@@ -681,7 +681,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			default:
 				{
-					return this.inMemoryResourcePrefix + resource.toString(true);
+					return this.inMemoryResourcePrefix + '/' + resource.scheme + resource.path;
 				}
 		}
 	}
@@ -743,6 +743,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case fileSchemes.file:
 			case fileSchemes.untitled:
 			case fileSchemes.vscodeNotebookCell:
+			case fileSchemes.memFs:
+			case fileSchemes.vscodeVfs:
 				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
 						return root.uri.fsPath;

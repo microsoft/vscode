@@ -30,7 +30,8 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, IEditorInput, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext, EditorsOrder, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, EditorInputCapabilities, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext, EditorsOrder, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, EditorInputCapabilities, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -312,7 +313,7 @@ export abstract class TitleControl extends Themable {
 		}));
 	}
 
-	protected doFillResourceDataTransfers(editors: readonly IEditorInput[], e: DragEvent): boolean {
+	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
 		if (editors.length) {
 			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.group.id })), e);
 
@@ -322,7 +323,7 @@ export abstract class TitleControl extends Themable {
 		return false;
 	}
 
-	protected onContextMenu(editor: IEditorInput, e: Event, node: HTMLElement): void {
+	protected onContextMenu(editor: EditorInput, e: Event, node: HTMLElement): void {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
@@ -384,29 +385,29 @@ export abstract class TitleControl extends Themable {
 		return keybinding ? withNullAsUndefined(keybinding.getLabel()) : undefined;
 	}
 
-	abstract openEditor(editor: IEditorInput): void;
+	abstract openEditor(editor: EditorInput): void;
 
-	abstract openEditors(editors: IEditorInput[]): void;
+	abstract openEditors(editors: EditorInput[]): void;
 
-	abstract closeEditor(editor: IEditorInput, index: number | undefined): void;
+	abstract closeEditor(editor: EditorInput, index: number | undefined): void;
 
-	abstract closeEditors(editors: IEditorInput[]): void;
+	abstract closeEditors(editors: EditorInput[]): void;
 
-	abstract moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void;
+	abstract moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void;
 
-	abstract pinEditor(editor: IEditorInput): void;
+	abstract pinEditor(editor: EditorInput): void;
 
-	abstract stickEditor(editor: IEditorInput): void;
+	abstract stickEditor(editor: EditorInput): void;
 
-	abstract unstickEditor(editor: IEditorInput): void;
+	abstract unstickEditor(editor: EditorInput): void;
 
 	abstract setActive(isActive: boolean): void;
 
-	abstract updateEditorLabel(editor: IEditorInput): void;
+	abstract updateEditorLabel(editor: EditorInput): void;
 
-	abstract updateEditorCapabilities(editor: IEditorInput): void;
+	abstract updateEditorCapabilities(editor: EditorInput): void;
 
-	abstract updateEditorDirty(editor: IEditorInput): void;
+	abstract updateEditorDirty(editor: EditorInput): void;
 
 	abstract updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
 

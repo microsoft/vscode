@@ -5,7 +5,7 @@
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IDiffEditor, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -203,7 +203,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 /**
  * The options to create a diff editor.
  */
-export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
 	/**
 	 * Initial theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
@@ -493,7 +493,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	constructor(
 		domElement: HTMLElement,
-		_options: Readonly<IDiffEditorConstructionOptions> | undefined,
+		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
 		toDispose: IDisposable,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,

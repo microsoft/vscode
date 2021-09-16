@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -27,19 +27,19 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 	override get capabilities(): EditorInputCapabilities {
 
 		// Use primary capabilities as main capabilities...
-		let capabilities = this._primary.capabilities;
+		let capabilities = this.primary.capabilities;
 
 		// ...with the exception of `CanSplitInGroup` which
 		// is only relevant to single editors.
 		capabilities &= ~EditorInputCapabilities.CanSplitInGroup;
 
 		// Trust: should be considered for both sides
-		if (this._secondary.hasCapability(EditorInputCapabilities.RequiresTrust)) {
+		if (this.secondary.hasCapability(EditorInputCapabilities.RequiresTrust)) {
 			capabilities |= EditorInputCapabilities.RequiresTrust;
 		}
 
 		// Singleton: should be considered for both sides
-		if (this._secondary.hasCapability(EditorInputCapabilities.Singleton)) {
+		if (this.secondary.hasCapability(EditorInputCapabilities.Singleton)) {
 			capabilities |= EditorInputCapabilities.Singleton;
 		}
 
@@ -47,22 +47,23 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 	}
 
 	get resource(): URI | undefined {
-		return undefined; // use `EditorResourceAccessor` to obtain one side's resource
+		if (this.hasIdenticalSides) {
+			// pretend to be just primary side when being asked for a resource
+			// in case both sides are the same. this can help when components
+			// want to identify this input among others (e.g. in history).
+			return this.primary.resource;
+		}
+
+		return undefined;
 	}
 
-	get primary(): IEditorInput {
-		return this._primary;
-	}
-
-	get secondary(): IEditorInput {
-		return this._secondary;
-	}
+	private hasIdenticalSides = this.primary.matches(this.secondary);
 
 	constructor(
 		protected readonly name: string | undefined,
 		protected readonly description: string | undefined,
-		private readonly _secondary: IEditorInput,
-		private readonly _primary: IEditorInput,
+		readonly secondary: EditorInput,
+		readonly primary: EditorInput,
 		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
@@ -73,15 +74,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 	private registerListeners(): void {
 
 		// When the primary or secondary input gets disposed, dispose this diff editor input
-		const onceSecondaryDisposed = Event.once(this.secondary.onWillDispose);
-		this._register(onceSecondaryDisposed(() => {
-			if (!this.isDisposed()) {
-				this.dispose();
-			}
-		}));
-
-		const oncePrimaryDisposed = Event.once(this.primary.onWillDispose);
-		this._register(oncePrimaryDisposed(() => {
+		this._register(Event.once(Event.any(this.primary.onWillDispose, this.secondary.onWillDispose))(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
@@ -98,14 +91,46 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 
 	override getName(): string {
 		if (!this.name) {
-			return localize('sideBySideLabels', "{0} - {1}", this._secondary.getName(), this._primary.getName());
+			if (this.hasIdenticalSides) {
+				return this.primary.getName(); // keep name concise when same editor is opened side by side
+			}
+
+			return localize('sideBySideLabels', "{0} - {1}", this.secondary.getName(), this.primary.getName());
 		}
 
 		return this.name;
 	}
 
-	override getDescription(): string | undefined {
+	override getLabelExtraClasses(): string[] {
+		if (this.hasIdenticalSides) {
+			return this.primary.getLabelExtraClasses();
+		}
+
+		return super.getLabelExtraClasses();
+	}
+
+	override getDescription(verbosity?: Verbosity): string | undefined {
+		if (this.hasIdenticalSides) {
+			return this.primary.getDescription(verbosity);
+		}
+
 		return this.description;
+	}
+
+	override getTitle(verbosity?: Verbosity): string {
+		if (this.hasIdenticalSides) {
+			return this.primary.getTitle(verbosity) ?? this.getName();
+		}
+
+		return super.getTitle(verbosity);
+	}
+
+	override getAriaLabel(): string {
+		if (this.hasIdenticalSides) {
+			return this.primary.getAriaLabel();
+		}
+
+		return super.getAriaLabel();
 	}
 
 	override getTelemetryDescriptor(): { [key: string]: unknown } {
@@ -122,16 +147,67 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return this.primary.isSaving();
 	}
 
-	override save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		return this.primary.save(group, options);
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+		const editor = await this.primary.save(group, options);
+		if (!editor || !this.hasIdenticalSides) {
+			return editor;
+		}
+
+		return new SideBySideEditorInput(this.name, this.description, editor, editor, this.editorService);
 	}
 
-	override saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		return this.primary.saveAs(group, options);
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+		const editor = await this.primary.saveAs(group, options);
+		if (!editor || !this.hasIdenticalSides) {
+			return editor;
+		}
+
+		return new SideBySideEditorInput(this.name, this.description, editor, editor, this.editorService);
 	}
 
 	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.primary.revert(group, options);
+	}
+
+	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
+		if (!this.hasIdenticalSides) {
+			return; // currently only enabled when both sides are identical
+		}
+
+		// Forward rename to primary side
+		const renameResult = await this.primary.rename(group, target);
+		if (!renameResult) {
+			return undefined;
+		}
+
+		// Build a side-by-side result from the rename result
+
+		if (isEditorInput(renameResult.editor)) {
+			return {
+				editor: new SideBySideEditorInput(this.name, this.description, renameResult.editor, renameResult.editor, this.editorService),
+				options: {
+					...renameResult.options,
+					viewState: findViewStateForEditor(this, group, this.editorService)
+				}
+			};
+		}
+
+		if (isResourceEditorInput(renameResult.editor)) {
+			return {
+				editor: {
+					label: this.name,
+					description: this.description,
+					primary: renameResult.editor,
+					secondary: renameResult.editor,
+					options: {
+						...renameResult.options,
+						viewState: findViewStateForEditor(this, group, this.editorService)
+					}
+				}
+			};
+		}
+
+		return undefined;
 	}
 
 	override toUntyped(options?: { preserveViewState: GroupIdentifier }): IResourceSideBySideEditorInput | undefined {
@@ -163,7 +239,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return undefined;
 	}
 
-	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (this === otherInput) {
 			return true;
 		}

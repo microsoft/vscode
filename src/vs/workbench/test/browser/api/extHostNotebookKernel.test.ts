@@ -37,6 +37,7 @@ suite('NotebookKernel', function () {
 	let extHostDocuments: ExtHostDocuments;
 	let extHostNotebooks: ExtHostNotebookController;
 	let extHostNotebookDocuments: ExtHostNotebookDocuments;
+	let extHostCommands: ExtHostCommands;
 
 	const notebookUri = URI.parse('test:///notebook.file');
 	const kernelData = new Map<number, INotebookKernelDto2>();
@@ -84,7 +85,8 @@ suite('NotebookKernel', function () {
 				return URI.from({ scheme: 'test', path: generateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
+		extHostCommands = new ExtHostCommands(rpcProtocol, new NullLogService());
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
 
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
 
@@ -130,6 +132,7 @@ suite('NotebookKernel', function () {
 			rpcProtocol,
 			new class extends mock<IExtHostInitDataService>() { },
 			extHostNotebooks,
+			extHostCommands,
 			new NullLogService()
 		);
 	});

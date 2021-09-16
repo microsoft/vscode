@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
@@ -127,6 +128,11 @@ export interface IEditorResolverService {
 	updateUserAssociations(globPattern: string, editorID: string): void;
 
 	/**
+	 * Emitted when an editor is registered or unregistered.
+	 */
+	readonly onDidChangeEditorRegistrations: Event<void>;
+
+	/**
 	 * Registers a specific editor.
 	 * @param globPattern The glob pattern for this registration
 	 * @param editorInfo Information about the registration
@@ -155,7 +161,12 @@ export interface IEditorResolverService {
 	 * @param resource The resource
 	 * @returns A list of editor ids
 	 */
-	getEditorIds(resource: URI): string[];
+	getEditors(resource: URI): RegisteredEditorInfo[];
+
+	/**
+	 * A set of all the editors that are registered to the editor resolver.
+	 */
+	getEditors(): RegisteredEditorInfo[];
 }
 
 //#endregion

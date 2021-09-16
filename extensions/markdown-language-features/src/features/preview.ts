@@ -355,7 +355,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}
 
-		vscode.workspace.openTextDocument(this._resource)
+		await vscode.workspace.openTextDocument(this._resource)
 			.then(vscode.window.showTextDocument)
 			.then(undefined, () => {
 				vscode.window.showErrorMessage(localize('preview.clickOpenFailed', 'Could not open {0}', this._resource.toString()));

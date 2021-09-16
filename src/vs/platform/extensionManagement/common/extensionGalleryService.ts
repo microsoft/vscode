@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { DefaultIconPath, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DefaultIconPath, getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IReportedExtension, isIExtensionIdentifier, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
@@ -24,8 +24,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { asJson, asText, IRequestService, isSuccess } from 'vs/platform/request/common/request';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryService, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { getTelemetryConfiguration, getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
 
@@ -39,7 +39,7 @@ interface IRawGalleryExtensionProperty {
 	readonly value: string;
 }
 
-interface IRawGalleryExtensionVersion {
+export interface IRawGalleryExtensionVersion {
 	readonly version: string;
 	readonly lastUpdated: string;
 	readonly assetUri: string;
@@ -266,7 +266,7 @@ function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): [string
 function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset | null {
 	if (version.properties) {
 		const results = version.properties.filter(p => p.key === AssetType.Repository);
-		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\\w.]+))(:(//)?)([\\w.@\:/\\-~]+)(.git)(/)?');
+		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\\w.]+))(:(//)?)([\\w.@:/\\-~]+)(.git)(/)?');
 
 		const uri = results.filter(r => gitRegExp.test(r.value))[0];
 		return uri ? { uri: uri.value, fallbackUri: uri.value } : null;
@@ -343,10 +343,35 @@ function getAllTargetPlatforms(rawGalleryExtension: IRawGalleryExtension): Targe
 	return allTargetPlatforms;
 }
 
-function toExtensionWithLatestVersion(galleryExtension: IRawGalleryExtension, index: number, query: Query, querySource?: string): IGalleryExtension {
+export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], preferredTargetPlatform: TargetPlatform): IRawGalleryExtensionVersion[] {
+	/* It is expected that versions from Marketplace are sorted by version. So we are just sorting by preferred targetPlatform */
+	const fallbackTargetPlatforms = getFallbackTargetPlarforms(preferredTargetPlatform);
+	for (let index = 0; index < versions.length; index++) {
+		const version = versions[index];
+		if (version.version === versions[index - 1]?.version) {
+			let insertionIndex = index;
+			const versionTargetPlatform = getTargetPlatformForExtensionVersion(version);
+			/* put it at the beginning */
+			if (versionTargetPlatform === preferredTargetPlatform) {
+				while (insertionIndex > 0 && versions[insertionIndex - 1].version === version.version) { insertionIndex--; }
+			}
+			/* put it after version with preferred targetPlatform or at the beginning */
+			else if (fallbackTargetPlatforms.includes(versionTargetPlatform)) {
+				while (insertionIndex > 0 && versions[insertionIndex - 1].version === version.version && getTargetPlatformForExtensionVersion(versions[insertionIndex - 1]) !== preferredTargetPlatform) { insertionIndex--; }
+			}
+			if (insertionIndex !== index) {
+				versions.splice(index, 1);
+				versions.splice(insertionIndex, 0, version);
+			}
+		}
+	}
+	return versions;
+}
+
+function toExtensionWithLatestVersion(galleryExtension: IRawGalleryExtension, index: number, query: Query, querySource: string | undefined, targetPlatform: TargetPlatform): IGalleryExtension {
 	const allTargetPlatforms = getAllTargetPlatforms(galleryExtension);
 	let latestVersion = galleryExtension.versions[0];
-	latestVersion = galleryExtension.versions.find(version => version.version === latestVersion.version && isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(version), allTargetPlatforms, CURRENT_TARGET_PLATFORM)) || latestVersion;
+	latestVersion = galleryExtension.versions.find(version => version.version === latestVersion.version && isTargetPlatformCompatible(getTargetPlatformForExtensionVersion(version), allTargetPlatforms, targetPlatform)) || latestVersion;
 	return toExtension(galleryExtension, latestVersion, allTargetPlatforms, index, query, querySource);
 }
 
@@ -454,7 +479,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			query = query.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties, Flags.IncludeLatestVersionOnly);
 		}
 
-		const { galleryExtensions } = await this.queryGallery(query, CancellationToken.None);
+		const { galleryExtensions } = await this.queryGallery(query, CURRENT_TARGET_PLATFORM, CancellationToken.None);
 		for (let index = 0; index < galleryExtensions.length; index++) {
 			const galleryExtension = galleryExtensions[index];
 			if (!galleryExtension.versions.length) {
@@ -468,7 +493,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					result.push(toExtension(galleryExtension, versionAsset, getAllTargetPlatforms(galleryExtension), index, query));
 				}
 			} else {
-				result.push(toExtensionWithLatestVersion(galleryExtension, index, query));
+				result.push(toExtensionWithLatestVersion(galleryExtension, index, query, undefined, CURRENT_TARGET_PLATFORM));
 			}
 		}
 
@@ -497,7 +522,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			query = query.withFilter(FilterType.ExtensionName, id);
 		}
 
-		const { galleryExtensions } = await this.queryGallery(query, CancellationToken.None);
+		const { galleryExtensions } = await this.queryGallery(query, targetPlatform, CancellationToken.None);
 		const [rawExtension] = galleryExtensions;
 		if (!rawExtension || !rawExtension.versions.length) {
 			return null;
@@ -611,21 +636,21 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			query = query.withSortOrder(options.sortOrder);
 		}
 
-		const { galleryExtensions, total } = await this.queryGallery(query, token);
-		const extensions = galleryExtensions.map((e, index) => toExtensionWithLatestVersion(e, index, query, options.source));
+		const { galleryExtensions, total } = await this.queryGallery(query, CURRENT_TARGET_PLATFORM, token);
+		const extensions = galleryExtensions.map((e, index) => toExtensionWithLatestVersion(e, index, query, options.source, CURRENT_TARGET_PLATFORM));
 		const getPage = async (pageIndex: number, ct: CancellationToken) => {
 			if (ct.isCancellationRequested) {
 				throw canceled();
 			}
 			const nextPageQuery = query.withPage(pageIndex + 1);
-			const { galleryExtensions } = await this.queryGallery(nextPageQuery, ct);
-			return galleryExtensions.map((e, index) => toExtensionWithLatestVersion(e, index, nextPageQuery, options.source));
+			const { galleryExtensions } = await this.queryGallery(nextPageQuery, CURRENT_TARGET_PLATFORM, ct);
+			return galleryExtensions.map((e, index) => toExtensionWithLatestVersion(e, index, nextPageQuery, options.source, CURRENT_TARGET_PLATFORM));
 		};
 
 		return { firstPage: extensions, total, pageSize: query.pageSize, getPage } as IPager<IGalleryExtension>;
 	}
 
-	private async queryGallery(query: Query, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+	private async queryGallery(query: Query, targetPlatform: TargetPlatform, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
 		if (!this.isEnabled()) {
 			throw new Error('No extension gallery service configured.');
 		}
@@ -664,6 +689,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			if (result) {
 				const r = result.results[0];
 				const galleryExtensions = r.extensions;
+				galleryExtensions.forEach(e => sortExtensionVersions(e.versions, targetPlatform));
 				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
 				total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
 
@@ -793,7 +819,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			query = query.withFilter(FilterType.ExtensionName, extension.identifier.id);
 		}
 
-		const { galleryExtensions } = await this.queryGallery(query, CancellationToken.None);
+		const { galleryExtensions } = await this.queryGallery(query, targetPlatform, CancellationToken.None);
 		if (!galleryExtensions.length) {
 			return [];
 		}
@@ -806,8 +832,8 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const result: IGalleryExtensionVersion[] = [];
 		for (const version of galleryExtensions[0].versions) {
 			try {
-				if (await this.isRawExtensionVersionCompatible(version, allTargetPlatforms, targetPlatform)) {
-					result.push({ version: version!.version, date: version!.lastUpdated });
+				if (result[result.length - 1]?.version !== version.version && await this.isRawExtensionVersionCompatible(version, allTargetPlatforms, targetPlatform)) {
+					result.push({ version: version.version, date: version.lastUpdated });
 				}
 			} catch (error) { /* Ignore error and skip version */ }
 		}
@@ -933,7 +959,7 @@ export async function resolveMarketplaceHeaders(version: string, productService:
 		'User-Agent': `VSCode ${version}`
 	};
 	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
-	if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.USER && configurationService.getValue('telemetry.enableTelemetry') === true) {
+	if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.USER && getTelemetryConfiguration(configurationService) === TelemetryConfiguration.ON) {
 		headers['X-Market-User-Id'] = uuid;
 	}
 	return headers;

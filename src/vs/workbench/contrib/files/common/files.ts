@@ -5,7 +5,8 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -213,7 +214,7 @@ export class OpenEditor implements IEditorIdentifier {
 	private id: number;
 	private static COUNTER = 0;
 
-	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
+	constructor(private _editor: EditorInput, private _group: IEditorGroup) {
 		this.id = OpenEditor.COUNTER++;
 	}
 

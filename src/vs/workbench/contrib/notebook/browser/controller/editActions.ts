@@ -231,7 +231,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
-			title: localize('clearAllCellsOutputs', 'Clear Outputs'),
+			title: localize('clearAllCellsOutputs', 'Clear Outputs of All Cells'),
 			precondition: NOTEBOOK_HAS_OUTPUTS,
 			menu: [
 				{
