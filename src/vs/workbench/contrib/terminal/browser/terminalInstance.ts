@@ -1780,7 +1780,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
-		title = (this._updateTitleProperties(title, eventSource) || this.processName);
+		title = this._updateTitleProperties(title, eventSource);
 		const titleChanged = this._title !== title;
 		this._labelComputer?.refreshLabel();
 		this._title = title.replace(/[\n\r\t]/g, '');
