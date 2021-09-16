@@ -35,9 +35,8 @@ function main() {
 		}))
 		.pipe(vfs.dest('./nlsMetadata'))
 		.pipe(es.through(function (data: Vinyl) {
-			console.log(data.base);
-			console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=nls.metadata.json]${path.join(process.env['BUILD_SOURCESDIRECTORY']!, data.path)}`);
-			this.emit('data', vfs.src(data.path, { base: data.base }));
+			console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=nls.metadata.json]${data.path}`);
+			this.emit('data', data);
 		}))
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
