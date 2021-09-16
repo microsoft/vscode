@@ -418,7 +418,9 @@ export class ExternalFileImport {
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Check for dropped external files to be folders
-		const files = coalesce(extractEditorsDropData(source).filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
+		const candidateFiles = extractEditorsDropData(source).filter(editor => URI.isUri(editor.resource));
+		await Promise.all(candidateFiles.map(editor => { return editor.resource ? this.fileService.activateProvider(editor.resource.scheme) : Promise.resolve(); }));
+		const files = coalesce(candidateFiles.filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
 		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
 
 		if (token.isCancellationRequested) {
