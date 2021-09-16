@@ -125,7 +125,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return JSON.stringify(serialized);
 	}
 
-	async reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string) {
+	async reviveTerminalProcesses(state: string) {
 		const parsedUnknown = JSON.parse(state);
 		if (!('version' in parsedUnknown) || !('state' in parsedUnknown) || !Array.isArray(parsedUnknown.state)) {
 			this._logService.warn('Could not revive serialized processes, wrong format', parsedUnknown);

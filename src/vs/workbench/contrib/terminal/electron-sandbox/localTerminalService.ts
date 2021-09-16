@@ -166,11 +166,13 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
+			console.log(`Try attach ` + id);
 			await this._localPtyService.attachToProcess(id);
 			const pty = this._instantiationService.createInstance(LocalPty, id, true);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
+			console.log(`Couldn't attach to process ${e.message}`);
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
 		}
 		return undefined;
@@ -210,6 +212,9 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
 		await this._localPtyService.setTerminalLayoutInfo(args);
+		// Store in the storage service as well to be used when reviving processes as normally this
+		// is stored in memory on the pty host
+		this._storageService.store(TerminalStorageKeys.TerminalLayoutInfo, JSON.stringify(args), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
@@ -217,15 +222,21 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			workspaceId: this._getWorkspaceId()
 		};
 		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+		// TODO: Add revive to remote as well
 		if (serializedState) {
 			try {
-				await this._localPtyService.reviveTerminalProcesses(layoutArgs, serializedState);
+				await this._localPtyService.reviveTerminalProcesses(serializedState);
+				// If reviving processes, send the terminal layout info back to the pty host as it
+				// will not have been persisted on application exit
+				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				if (layoutInfo) {
+					await this._localPtyService.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+				}
 			} catch {
 				// no-op
 			}
 		}
-		const i = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
-		return i;
+		return this._localPtyService.getTerminalLayoutInfo(layoutArgs);
 	}
 
 	private _getWorkspaceId(): string {

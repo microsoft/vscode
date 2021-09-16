@@ -272,7 +272,7 @@ export interface IPtyService {
 	 * Revives a workspaces terminal processes, these can then be reconnected to using the normal
 	 * flow for restoring terminals after reloading.
 	 */
-	reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string): Promise<void>;
+	reviveTerminalProcesses(state: string): Promise<void>;
 	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
 }
 

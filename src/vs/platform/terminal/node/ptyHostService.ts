@@ -273,8 +273,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.serializeTerminalState(ids);
 	}
 
-	async reviveTerminalProcesses(args: IGetTerminalLayoutInfoArgs, state: string) {
-		return this._proxy.reviveTerminalProcesses(args, state);
+	async reviveTerminalProcesses(state: string) {
+		return this._proxy.reviveTerminalProcesses(state);
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
