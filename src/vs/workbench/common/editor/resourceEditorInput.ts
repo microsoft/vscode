@@ -183,15 +183,15 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 
 export function decorateFileEditorLabel(label: string, state: { orphaned: boolean, readonly: boolean }): string {
 	if (state.orphaned && state.readonly) {
-		return localize('orphanedReadonlyFile', "{0} • Deleted, Read Only", label);
+		return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
 	}
 
 	if (state.orphaned) {
-		return localize('orphanedFile', "{0} • Deleted", label);
+		return localize('orphanedFile', "{0} (deleted)", label);
 	}
 
 	if (state.readonly) {
-		return localize('readonlyFile', "{0} • Read Only", label);
+		return localize('readonlyFile', "{0} (read-only)", label);
 	}
 
 	return label;
