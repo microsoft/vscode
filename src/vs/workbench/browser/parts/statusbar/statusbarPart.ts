@@ -29,7 +29,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { hash } from 'vs/base/common/hash';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { CONTEXT_STATUS_BAR_FOCUSED, HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
 import { IStatusbarEntryPriority, IStatusbarEntryLocation, IStatusbarViewModelEntry, StatusbarViewModel, isStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
@@ -67,11 +67,33 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
-	private readonly hoverDelegate: IHoverDelegate = {
-		showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
-		delay: this.configurationService.getValue<number>('workbench.hover.delay'),
-		placement: 'element'
-	};
+	private readonly hoverDelegate = new class implements IHoverDelegate {
+
+		private lastHoverHideTime = 0;
+
+		readonly placement = 'element';
+
+		get delay() {
+			if (Date.now() - this.lastHoverHideTime < 200) {
+				return 0; // show instantly when a hover was recently shown
+			}
+
+			return this.configurationService.getValue<number>('workbench.hover.delay');
+		}
+
+		constructor(
+			private readonly configurationService: IConfigurationService,
+			private readonly hoverService: IHoverService
+		) { }
+
+		showHover(options: IHoverDelegateOptions): IHoverWidget | undefined {
+			return this.hoverService.showHover(options);
+		}
+
+		onDidHideHover(): void {
+			this.lastHoverHideTime = Date.now();
+		}
+	}(this.configurationService, this.hoverService);
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
