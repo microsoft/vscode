@@ -33,7 +33,7 @@ function main() {
                         convertedJson.keys.push(key);
                         convertedJson.messages.push(parsedJson[key]);
                     }
-                    parsedJson = { package: parsedJson };
+                    parsedJson = { package: convertedJson };
                 }
                 key = 'vscode.' + file.relative.split('/')[0];
             }
