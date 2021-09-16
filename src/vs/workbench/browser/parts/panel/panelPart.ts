@@ -398,7 +398,7 @@ export class PanelPart extends CompositePart<PaneComposite> implements IPanelSer
 	private onPanelOpen(panel: IComposite): void {
 		this.activePanelContextKey.set(panel.getId());
 
-		const foundPanel = this.panelRegistry.getViewlet(panel.getId());
+		const foundPanel = this.panelRegistry.getPaneComposite(panel.getId());
 		if (foundPanel) {
 			this.compositeBar.addComposite(foundPanel);
 		}
@@ -406,7 +406,7 @@ export class PanelPart extends CompositePart<PaneComposite> implements IPanelSer
 		// Activate composite when opened
 		this.compositeBar.activateComposite(panel.getId());
 
-		const panelDescriptor = this.panelRegistry.getViewlet(panel.getId());
+		const panelDescriptor = this.panelRegistry.getPaneComposite(panel.getId());
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
@@ -564,11 +564,11 @@ export class PanelPart extends CompositePart<PaneComposite> implements IPanelSer
 	}
 
 	getPanel(panelId: string): IPanelIdentifier | undefined {
-		return this.panelRegistry.getViewlet(panelId);
+		return this.panelRegistry.getPaneComposite(panelId);
 	}
 
 	getPanels(): readonly PaneCompositeDescriptor[] {
-		return this.panelRegistry.getViewlets()
+		return this.panelRegistry.getPaneComposites()
 			.sort((v1, v2) => {
 				if (typeof v1.order !== 'number') {
 					return 1;

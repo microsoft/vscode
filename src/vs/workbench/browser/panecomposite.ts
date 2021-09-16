@@ -179,28 +179,28 @@ export class PaneCompositeRegistry extends CompositeRegistry<PaneComposite> {
 	/**
 	 * Registers a viewlet to the platform.
 	 */
-	registerViewlet(descriptor: PaneCompositeDescriptor): void {
+	registerPaneComposite(descriptor: PaneCompositeDescriptor): void {
 		super.registerComposite(descriptor);
 	}
 
 	/**
 	 * Deregisters a viewlet to the platform.
 	 */
-	deregisterViewlet(id: string): void {
+	deregisterPaneComposite(id: string): void {
 		super.deregisterComposite(id);
 	}
 
 	/**
 	 * Returns the viewlet descriptor for the given id or null if none.
 	 */
-	getViewlet(id: string): PaneCompositeDescriptor {
+	getPaneComposite(id: string): PaneCompositeDescriptor {
 		return this.getComposite(id) as PaneCompositeDescriptor;
 	}
 
 	/**
 	 * Returns an array of registered viewlets known to the platform.
 	 */
-	getViewlets(): PaneCompositeDescriptor[] {
+	getPaneComposites(): PaneCompositeDescriptor[] {
 		return this.getComposites() as PaneCompositeDescriptor[];
 	}
 }

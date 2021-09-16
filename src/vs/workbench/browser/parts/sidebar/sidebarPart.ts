@@ -242,7 +242,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 	}
 
 	getViewlets(): PaneCompositeDescriptor[] {
-		return this.viewletRegistry.getViewlets().sort((v1, v2) => {
+		return this.viewletRegistry.getPaneComposites().sort((v1, v2) => {
 			if (typeof v1.order !== 'number') {
 				return -1;
 			}

@@ -24,7 +24,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as ViewletExtensions, PaneComposite } from 'vs/workbench/browser/panecomposite';
+import { PaneCompositeDescriptor, PaneCompositeRegistry, Extensions as PaneCompositeExtensions, PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { URI } from 'vs/base/common/uri';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
@@ -108,7 +108,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onDidChangeContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>): void {
 		for (const { container, location } of removed) {
-			this.deregisterViewletOrPanel(container, location);
+			this.deregisterPaneComposite(container, location);
 		}
 		for (const { container, location } of added) {
 			this.onDidRegisterViewContainer(container, location);
@@ -116,7 +116,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
-		this.registerViewletOrPanel(viewContainer, viewContainerLocation);
+		this.registerPaneComposite(viewContainer, viewContainerLocation);
 		const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 		this.onViewDescriptorsAdded(viewContainerModel.allViewDescriptors, viewContainer);
 		this._register(viewContainerModel.onDidChangeAllViewDescriptors(({ added, removed }) => {
@@ -127,8 +127,8 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
-		this.deregisterViewletOrPanel(viewContainer, from);
-		this.registerViewletOrPanel(viewContainer, to);
+		this.deregisterPaneComposite(viewContainer, from);
+		this.registerPaneComposite(viewContainer, to);
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
@@ -551,30 +551,52 @@ export class ViewsService extends Disposable implements IViewsService {
 		});
 	}
 
-	private registerViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
-		switch (viewContainerLocation) {
-			case ViewContainerLocation.Panel:
-				this.registerPanel(viewContainer);
-				break;
-			case ViewContainerLocation.Sidebar:
-				if (viewContainer.ctorDescriptor) {
-					this.registerViewlet(viewContainer);
+	private registerPaneComposite(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
+		const that = this;
+		class PaneContainer extends PaneComposite {
+			constructor(
+				@ITelemetryService telemetryService: ITelemetryService,
+				@IWorkspaceContextService contextService: IWorkspaceContextService,
+				@IStorageService storageService: IStorageService,
+				@IInstantiationService instantiationService: IInstantiationService,
+				@IThemeService themeService: IThemeService,
+				@IContextMenuService contextMenuService: IContextMenuService,
+				@IExtensionService extensionService: IExtensionService,
+			) {
+				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+			}
+
+			protected createViewPaneContainer(element: HTMLElement): ViewPaneContainer {
+				const viewPaneContainerDisposables = this._register(new DisposableStore());
+
+				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
+				const viewPaneContainer = that.createViewPaneContainer(element, viewContainer, viewContainerLocation, viewPaneContainerDisposables, this.instantiationService);
+
+				// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
+				if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
+					viewPaneContainerDisposables.add(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
+						// Update title area since there is no better way to update secondary actions
+						this.updateTitleArea();
+					}));
 				}
-				break;
+
+				return viewPaneContainer;
+			}
 		}
+
+		Registry.as<PaneCompositeRegistry>(getPaneCompositeExtension(viewContainerLocation)).registerPaneComposite(PaneCompositeDescriptor.create(
+			PaneContainer,
+			viewContainer.id,
+			viewContainer.title,
+			isString(viewContainer.icon) ? viewContainer.icon : undefined,
+			viewContainer.order,
+			viewContainer.requestedIndex,
+			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
+		));
 	}
 
-	private deregisterViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
-		switch (viewContainerLocation) {
-			case ViewContainerLocation.Panel:
-				this.deregisterPanel(viewContainer);
-				break;
-			case ViewContainerLocation.Sidebar:
-				if (viewContainer.ctorDescriptor) {
-					this.deregisterViewlet(viewContainer);
-				}
-				break;
-		}
+	private deregisterPaneComposite(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
+		Registry.as<PaneCompositeRegistry>(getPaneCompositeExtension(viewContainerLocation)).deregisterPaneComposite(viewContainer.id);
 	}
 
 	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
@@ -594,88 +616,15 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		return viewPaneContainer;
 	}
+}
 
-	private registerPanel(viewContainer: ViewContainer): void {
-		const that = this;
-		class PaneContainerPanel extends PaneComposite {
-			constructor(
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IStorageService storageService: IStorageService,
-				@IInstantiationService instantiationService: IInstantiationService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService,
-				@IWorkspaceContextService contextService: IWorkspaceContextService,
-			) {
-				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-			}
-
-			protected createViewPaneContainer(element: HTMLElement): ViewPaneContainer {
-				const viewPaneContainerDisposables = this._register(new DisposableStore());
-
-				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				return that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Panel, viewPaneContainerDisposables, this.instantiationService);
-			}
-		}
-		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Panels).registerViewlet(PaneCompositeDescriptor.create(
-			PaneContainerPanel,
-			viewContainer.id,
-			viewContainer.title,
-			undefined,
-			viewContainer.order,
-			viewContainer.requestedIndex,
-		));
-	}
-
-	private deregisterPanel(viewContainer: ViewContainer): void {
-		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Panels).deregisterViewlet(viewContainer.id);
-	}
-
-	private registerViewlet(viewContainer: ViewContainer): void {
-		const that = this;
-		class PaneContainerViewlet extends PaneComposite {
-			constructor(
-				@ITelemetryService telemetryService: ITelemetryService,
-				@IWorkspaceContextService contextService: IWorkspaceContextService,
-				@IStorageService storageService: IStorageService,
-				@IInstantiationService instantiationService: IInstantiationService,
-				@IThemeService themeService: IThemeService,
-				@IContextMenuService contextMenuService: IContextMenuService,
-				@IExtensionService extensionService: IExtensionService,
-			) {
-				super(viewContainer.id, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
-			}
-
-			protected createViewPaneContainer(element: HTMLElement): ViewPaneContainer {
-				const viewPaneContainerDisposables = this._register(new DisposableStore());
-
-				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				const viewPaneContainer = that.createViewPaneContainer(element, viewContainer, ViewContainerLocation.Sidebar, viewPaneContainerDisposables, this.instantiationService);
-
-				// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
-				if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
-					viewPaneContainerDisposables.add(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
-						// Update title area since there is no better way to update secondary actions
-						this.updateTitleArea();
-					}));
-				}
-
-				return viewPaneContainer;
-			}
-		}
-		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets).registerViewlet(PaneCompositeDescriptor.create(
-			PaneContainerViewlet,
-			viewContainer.id,
-			viewContainer.title,
-			isString(viewContainer.icon) ? viewContainer.icon : undefined,
-			viewContainer.order,
-			viewContainer.requestedIndex,
-			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
-		));
-	}
-
-	private deregisterViewlet(viewContainer: ViewContainer): void {
-		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
+function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation): string {
+	switch (viewContainerLocation) {
+		case ViewContainerLocation.Panel:
+			return PaneCompositeExtensions.Panels;
+		case ViewContainerLocation.Sidebar:
+		default:
+			return PaneCompositeExtensions.Viewlets;
 	}
 }
 

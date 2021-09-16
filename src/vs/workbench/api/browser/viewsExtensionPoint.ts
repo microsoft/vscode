@@ -390,7 +390,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private deregisterCustomViewContainer(viewContainer: ViewContainer): void {
 		this.viewContainersRegistry.deregisterViewContainer(viewContainer);
-		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
+		Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets).deregisterPaneComposite(viewContainer.id);
 	}
 
 	private handleAndRegisterCustomViews() {

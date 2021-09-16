@@ -42,15 +42,15 @@ suite('Viewlets', () => {
 	});
 
 	test('Viewlet extension point and registration', function () {
-		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerViewlet));
-		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getViewlet));
-		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getViewlets));
+		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerPaneComposite));
+		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposite));
+		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites));
 
-		let oldCount = Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getViewlets().length;
+		let oldCount = Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites().length;
 		let d = PaneCompositeDescriptor.create(TestViewlet, 'reg-test-id', 'name');
-		Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerViewlet(d);
+		Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerPaneComposite(d);
 
-		assert(d === Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getViewlet('reg-test-id'));
-		assert.strictEqual(oldCount + 1, Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getViewlets().length);
+		assert(d === Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposite('reg-test-id'));
+		assert.strictEqual(oldCount + 1, Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites().length);
 	});
 });
