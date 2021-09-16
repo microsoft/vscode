@@ -15,7 +15,7 @@ const commit = util.getVersion(root);
 function main() {
     return es.merge(vfs.src('out-vscode-min/nls.metadata.json', { base: 'out-vscode-min' }), vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }))
         .pipe(merge({
-        fileName: 'nls.metadata.json',
+        fileName: 'combined.nls.metadata.json',
         edit: (parsedJson, file) => {
             let key;
             console.log(file.path);
@@ -30,8 +30,9 @@ function main() {
         },
     }))
         .pipe(es.through(function (data) {
-        console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=nls.metadata.json]${data.path}`);
-        this.emit('data', data);
+        console.log(data.base);
+        console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=nls.metadata.json]${path.join(process.env['BUILD_SOURCESDIRECTORY'], data.path)}`);
+        this.emit('data', vfs.src(data.path, { base: data.base }));
     }))
         .pipe(azure.upload({
         account: process.env.AZURE_STORAGE_ACCOUNT,
