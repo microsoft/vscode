@@ -29,6 +29,8 @@ export class Explorer extends Viewlet {
 	}
 
 	async openFile(fileName: string): Promise<any> {
+		await this.code.waitForElement(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
+		await new Promise(c => setTimeout(c, 500));
 		await this.code.waitAndDoubleClick(`div[class="monaco-icon-label file-icon ${fileName}-name-file-icon ${this.getExtensionSelector(fileName)} explorer-item"]`);
 		await this.editors.waitForEditorFocus(fileName);
 	}
