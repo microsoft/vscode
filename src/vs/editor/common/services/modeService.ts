@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const IModeService = createDecorator<IModeService>('modeService');
 
@@ -40,7 +41,7 @@ export interface IModeService {
 	getExtensions(alias: string): string[];
 	getFilenames(alias: string): string[];
 	getMimeForMode(modeId: string): string | null;
-	getIconForMode(modeId: string): string | null;
+	getIconForMode(modeId: string): ThemeIcon | null;
 	getLanguageName(modeId: string): string | null;
 	getModeIdForLanguageName(alias: string): string | null;
 	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;

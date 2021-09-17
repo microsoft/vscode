@@ -12,6 +12,7 @@ import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
 import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 class LanguageSelection implements ILanguageSelection {
 
@@ -96,7 +97,7 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 		return this._registry.getMimeForMode(modeId);
 	}
 
-	public getIconForMode(modeId: string): string | null {
+	public getIconForMode(modeId: string): ThemeIcon | null {
 		return this._registry.getIconForMode(modeId);
 	}
 

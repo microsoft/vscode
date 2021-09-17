@@ -386,8 +386,8 @@ class FileIconThemeLoader {
 		}
 
 		for (let languageId in selectorByModeIdForMissingLanguages) {
-			const iconName = modeService.getIconForMode(languageId);
-			const contribution = getIconRegistry().getIcon(iconName!);
+			const themeIcon = modeService.getIconForMode(languageId);
+			const contribution = getIconRegistry().getIcon(themeIcon!.id!);
 			if (contribution) {
 				let definition: IconDefaults | null = contribution.defaults;
 				while (ThemeIcon.isThemeIcon(definition)) {

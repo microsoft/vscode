@@ -15,6 +15,7 @@ import { NULL_LANGUAGE_IDENTIFIER, NULL_MODE_ID } from 'vs/editor/common/modes/n
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -26,7 +27,7 @@ export interface IResolvedLanguage {
 	extensions: string[];
 	filenames: string[];
 	configurationFiles: URI[];
-	icons: string[];
+	icons: ThemeIcon[];
 }
 
 export class LanguagesRegistry extends Disposable {
@@ -231,7 +232,7 @@ export class LanguagesRegistry extends Disposable {
 		}
 
 		if (lang.icon) {
-			resolvedLanguage.icons.push(lang.icon);
+			resolvedLanguage.icons.push({ id: lang.icon });
 		}
 	}
 
@@ -281,7 +282,7 @@ export class LanguagesRegistry extends Disposable {
 		return (language.mimetypes[0] || null);
 	}
 
-	public getIconForMode(modeId: string): string | null {
+	public getIconForMode(modeId: string): ThemeIcon | null {
 		if (!hasOwnProperty.call(this._languages, modeId)) {
 			return null;
 		}
