@@ -417,10 +417,12 @@ export class ExternalFileImport {
 
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
+		// Activate all providers for the resources dropped
+		const candidateFiles = coalesce(extractEditorsDropData(source).map(editor => editor.resource));
+		await Promise.all(candidateFiles.map(resource => this.fileService.activateProvider(resource.scheme)));
+
 		// Check for dropped external files to be folders
-		const candidateFiles = extractEditorsDropData(source).filter(editor => URI.isUri(editor.resource));
-		await Promise.all(candidateFiles.map(editor => { return editor.resource ? this.fileService.activateProvider(editor.resource.scheme) : Promise.resolve(); }));
-		const files = coalesce(candidateFiles.filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
+		const files = coalesce(candidateFiles.filter(resource => this.fileService.canHandleResource(resource)));
 		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
 
 		if (token.isCancellationRequested) {
