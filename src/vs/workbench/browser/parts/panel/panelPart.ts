@@ -95,8 +95,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> {
 	private compositeBar: CompositeBar;
 	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
 
-	private globalToolBar: ToolBar | undefined;
-
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	private blockOpeningPanel = false;
@@ -109,8 +107,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> {
 	private dndHandler: ICompositeDragAndDrop;
 
 	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
-
-	private globalActions: CompositeMenuActions;
 
 	constructor(
 		private readonly partId: Parts,
@@ -141,7 +137,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> {
 			themeService,
 			Registry.as<PaneCompositeRegistry>(panelRegistryId),
 			activePanelSettingsKey,
-			viewDescriptorService.getDefaultViewContainer(viewContainerLocation)!.id,
+			viewDescriptorService.getDefaultViewContainer(viewContainerLocation)?.id || '',
 			'panel',
 			'panel',
 			undefined,
@@ -197,8 +193,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> {
 
 		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
 		this.panelFocusContextKey = PanelFocusContext.bindTo(contextKeyService);
-
-		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.PanelTitle, undefined, undefined));
 
 		this.registerListeners();
 		this.onDidRegisterPanels([...this.getPanels()]);
@@ -347,9 +341,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> {
 
 	private registerListeners(): void {
 
-		// Global Panel Actions
-		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
-
 		// Panel registration
 		this._register(this.registry.onDidRegister(panel => this.onDidRegisterPanels([panel])));
 		this._register(this.registry.onDidDeregister(panel => this.onDidDeregisterPanel(panel.id)));
@@ -445,33 +436,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> {
 		const focusTracker = this._register(trackFocus(parent));
 		this._register(focusTracker.onDidFocus(() => this.panelFocusContextKey.set(true)));
 		this._register(focusTracker.onDidBlur(() => this.panelFocusContextKey.set(false)));
-	}
-
-	override createTitleArea(parent: HTMLElement): HTMLElement {
-		const element = super.createTitleArea(parent);
-		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
-
-		// Global Actions Toolbar
-		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
-			actionViewItemProvider: action => this.actionViewItemProvider(action),
-			orientation: ActionsOrientation.HORIZONTAL,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
-			toggleMenuTitle: localize('moreActions', "More Actions...")
-		}));
-
-		this.updateGlobalToolbarActions();
-
-		return element;
-	}
-
-	private updateGlobalToolbarActions(): void {
-		const primaryActions = this.globalActions.getPrimaryActions();
-		const secondaryActions = this.globalActions.getSecondaryActions();
-
-		if (this.globalToolBar) {
-			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
-		}
 	}
 
 	private createEmptyPanelMessage(): void {
@@ -853,6 +817,9 @@ export class PanelPart extends BasePanelPart {
 	protected pinnedPanelsKey = 'workbench.panel.pinnedPanels';
 	protected placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
 
+	private globalToolBar: ToolBar | undefined;
+	private globalActions: CompositeMenuActions;
+
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
@@ -884,6 +851,37 @@ export class PanelPart extends BasePanelPart {
 			contextKeyService,
 			extensionService,
 		);
+
+		// Global Panel Actions
+		this.globalActions = this._register(this.instantiationService.createInstance(CompositeMenuActions, MenuId.PanelTitle, undefined, undefined));
+		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
+	}
+
+	override createTitleArea(parent: HTMLElement): HTMLElement {
+		const element = super.createTitleArea(parent);
+		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
+
+		// Global Actions Toolbar
+		this.globalToolBar = this._register(new ToolBar(globalTitleActionsContainer, this.contextMenuService, {
+			actionViewItemProvider: action => this.actionViewItemProvider(action),
+			orientation: ActionsOrientation.HORIZONTAL,
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
+			toggleMenuTitle: localize('moreActions', "More Actions...")
+		}));
+
+		this.updateGlobalToolbarActions();
+
+		return element;
+	}
+
+	private updateGlobalToolbarActions(): void {
+		const primaryActions = this.globalActions.getPrimaryActions();
+		const secondaryActions = this.globalActions.getSecondaryActions();
+
+		if (this.globalToolBar) {
+			this.globalToolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		}
 	}
 
 	toJSON(): object {
