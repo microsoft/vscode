@@ -1781,12 +1781,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
 		title = this._updateTitleProperties(title, eventSource);
+		const titleChanged = title !== this._title;
+		this._title = title;
 		this._labelComputer?.refreshLabel();
 		this._setAriaLabel(this._xterm, this._instanceId, this._title);
 
 		if (this._titleReadyComplete) {
 			this._titleReadyComplete(title);
 			this._titleReadyComplete = undefined;
+		}
+
+		if (titleChanged) {
+			this._onTitleChanged.fire(this);
 		}
 	}
 
