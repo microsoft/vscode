@@ -9,7 +9,7 @@ import { CommandManager } from '../commands/commandManager';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
 import { Disposable } from '../utils/dispose';
-import * as languageModeIds from '../utils/languageModeIds';
+import { jsTsLanguageModes, isSupportedLanguageMode } from '../utils/languageModeIds';
 import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigForFile, openProjectConfigOrPromptToCreate, ProjectType } from '../utils/tsconfig';
 
 const localize = nls.loadMessageBundle();
@@ -59,12 +59,7 @@ export class ProjectStatus extends Disposable {
 	) {
 		super();
 
-		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.projectStatus', [
-			languageModeIds.javascript,
-			languageModeIds.javascriptreact,
-			languageModeIds.typescript,
-			languageModeIds.typescriptreact,
-		]));
+		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.projectStatus', jsTsLanguageModes));
 		this._statusItem.name = localize('statusItem.name', "Project config");
 		this._statusItem.text = 'TSConfig';
 
@@ -101,7 +96,7 @@ export class ProjectStatus extends Disposable {
 		}
 
 		const doc = editor.document;
-		if (languageModeIds.isSupportedLanguageMode(doc)) {
+		if (isSupportedLanguageMode(doc)) {
 			const file = this._client.toOpenedFilePath(doc, { suppressAlertOnFailure: true });
 			if (file) {
 				if (!this._ready) {

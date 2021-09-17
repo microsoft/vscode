@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
-import * as languageModeIds from '../utils/languageModeIds';
+import { jsTsLanguageModes } from '../utils/languageModeIds';
 
 const localize = nls.loadMessageBundle();
 
@@ -20,12 +20,7 @@ export class CapabilitiesStatus extends Disposable {
 	) {
 		super();
 
-		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.capabilities', [
-			languageModeIds.javascript,
-			languageModeIds.javascriptreact,
-			languageModeIds.typescript,
-			languageModeIds.typescriptreact,
-		]));
+		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.capabilities', jsTsLanguageModes));
 
 		this._statusItem.name = localize('capabilitiesStatus.name', "IntelliSense IntelliSense Status");
 

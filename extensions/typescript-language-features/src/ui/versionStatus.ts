@@ -6,10 +6,10 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SelectTypeScriptVersionCommand } from '../commands/selectTypeScriptVersion';
+import { TypeScriptVersion } from '../tsServer/versionProvider';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
-import * as languageModeIds from '../utils/languageModeIds';
-import { TypeScriptVersion } from '../tsServer/versionProvider';
+import { jsTsLanguageModes } from '../utils/languageModeIds';
 
 const localize = nls.loadMessageBundle();
 
@@ -22,12 +22,7 @@ export class VersionStatus extends Disposable {
 	) {
 		super();
 
-		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.version', [
-			languageModeIds.javascript,
-			languageModeIds.javascriptreact,
-			languageModeIds.typescript,
-			languageModeIds.typescriptreact,
-		]));
+		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.version', jsTsLanguageModes));
 
 		this._statusItem.name = localize('versionStatus.name', "TypeScript Version");
 		this._statusItem.detail = localize('versionStatus.detail', "TypeScript Version");
