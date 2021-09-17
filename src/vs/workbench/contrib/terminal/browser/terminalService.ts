@@ -276,11 +276,12 @@ export class TerminalService implements ITerminalService {
 		this._connectionState = TerminalConnectionState.Connecting;
 
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
-		let initPromise: Promise<any> = isPersistentRemote
-			? this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals()
-			: enableTerminalReconnection
-				? this._localTerminalsInitPromise = this._reconnectToLocalTerminals()
-				: Promise.resolve();
+
+		if (isPersistentRemote) {
+			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
+		} else if (enableTerminalReconnection) {
+			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+		}
 		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
 			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
@@ -296,8 +297,6 @@ export class TerminalService implements ITerminalService {
 				}
 			}
 		});
-
-		initPromise.then(() => this._setConnected());
 
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
 		// default terminal before launching the first terminal. This isn't expected to ever take
@@ -376,7 +375,7 @@ export class TerminalService implements ITerminalService {
 	private async _reconnectToRemoteTerminals(): Promise<void> {
 		const layoutInfo = await this._remoteTerminalService.getTerminalLayoutInfo();
 		this._remoteTerminalService.reduceConnectionGraceTime();
-		const reconnectCounter = this._recreateTerminalGroups(layoutInfo);
+		const reconnectCounter = await this._recreateTerminalGroups(layoutInfo);
 		/* __GDPR__
 			"terminalReconnection" : {
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
@@ -397,7 +396,7 @@ export class TerminalService implements ITerminalService {
 		}
 		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
-			this._recreateTerminalGroups(layoutInfo);
+			await this._recreateTerminalGroups(layoutInfo);
 		}
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
@@ -685,10 +684,12 @@ export class TerminalService implements ITerminalService {
 	async initializeTerminals(): Promise<void> {
 		if (this._remoteTerminalsInitPromise) {
 			await this._remoteTerminalsInitPromise;
+			this._setConnected();
 		} else if (this._localTerminalsInitPromise) {
 			await this._localTerminalsInitPromise;
+			this._setConnected();
 		}
-		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
+		if (this._terminalGroupService.groups.length === 0) {
 			this.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
