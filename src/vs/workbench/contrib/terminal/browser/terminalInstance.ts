@@ -1245,7 +1245,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._initialDataEvents?.push(ev.data);
 			this._onData.fire(ev.data);
 		});
-		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e, true));
+		this._processManager.onProcessOverrideDimensions(e => this.setOverrideDimensions(e, true));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onProcessDidChangeHasChildProcesses(e => this._onDidChangeHasChildProcesses.fire(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
@@ -1855,7 +1855,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._titleReadyPromise;
 	}
 
-	setDimensions(dimensions: ITerminalDimensionsOverride | undefined, immediate: boolean = false): void {
+	setOverrideDimensions(dimensions: ITerminalDimensionsOverride | undefined, immediate: boolean = false): void {
 		if (this._dimensionsOverride && this._dimensionsOverride.forceExactSize && !dimensions && this._rows === 0 && this._cols === 0) {
 			// this terminal never had a real size => keep the last dimensions override exact size
 			this._cols = this._dimensionsOverride.cols;
@@ -1871,9 +1871,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async setFixedDimensions(): Promise<void> {
 		const cols = await this._quickInputService.input({
-			// TODO: nls
-			title: 'Set Fixed Dimensions: Column',
-			placeHolder: 'Enter a number or leave empty size automatically',
+			title: nls.localize('setTerminalDimensionsColumn', "Set Fixed Dimensions: Column"),
+			placeHolder: 'Enter a number or leave empty for automatic width',
 			validateInput: async (text) => text.length > 0 && !text.match(/^\d+$/) ? { content: 'Enter a number or leave empty size automatically', severity: Severity.Error } : undefined
 		});
 		if (cols === undefined) {
@@ -1881,9 +1880,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._fixedCols = this._parseFixedDimension(cols);
 		const rows = await this._quickInputService.input({
-			// TODO: nls
-			title: 'Set Fixed Dimensions: Row',
-			placeHolder: 'Enter a number or leave empty size automatically',
+			title: nls.localize('setTerminalDimensionsRow', "Set Fixed Dimensions: Row"),
+			placeHolder: 'Enter a number or leave empty for automatic height',
 			validateInput: async (text) => text.length > 0 && !text.match(/^\d+$/) ? { content: 'Enter a number or leave empty size automatically', severity: Severity.Error } : undefined
 		});
 		if (rows === undefined) {
@@ -1902,6 +1900,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error(`Could not parse dimension "${value}"`);
 		}
 		return parsed;
+	}
+
+	async wrapLines(): Promise<void> {
+		if (!this._xterm) {
+			return;
+		}
+		// TODO: only relevant lines - scrollback or viewport?
+		let maxCols = 0;
+		for (let i = 0; i < this._xterm.buffer.active.length; i++) {
+			maxCols = Math.max(maxCols, this._xterm.buffer.active.getLine(i)?.length || 0);
+		}
+		this._fixedCols = maxCols;
+		this._resize();
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {

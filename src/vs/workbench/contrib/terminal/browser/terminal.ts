@@ -740,10 +740,15 @@ export interface ITerminalInstance {
 
 	waitForTitle(): Promise<string>;
 
-	// TODO: Clarify name
-	setDimensions(dimensions: ITerminalDimensions): void;
+	/**
+	 * Sets the terminal instance's dimensions to the values provided via the onDidOverrideDimensions event,
+	 * which allows overriding the the regular dimensions (fit to the size of the panel).
+	 */
+	setOverrideDimensions(dimensions: ITerminalDimensions): void;
 
-	// TODO: Doc
+	/**
+	 * Sets the terminal instance's dimensions to the values provided via quick input.
+	 */
 	setFixedDimensions(): Promise<void>;
 
 	addDisposable(disposable: IDisposable): void;
