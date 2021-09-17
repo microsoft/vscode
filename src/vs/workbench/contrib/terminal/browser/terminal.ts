@@ -751,6 +751,11 @@ export interface ITerminalInstance {
 	 */
 	setFixedDimensions(): Promise<void>;
 
+	/**
+	 * Toggles terminal line wrapping.
+	 */
+	toggleWrapping(): Promise<void>;
+
 	addDisposable(disposable: IDisposable): void;
 
 	toggleEscapeSequenceLogging(): void;

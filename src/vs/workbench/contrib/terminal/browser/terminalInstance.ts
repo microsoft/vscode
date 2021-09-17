@@ -147,6 +147,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
+	private _hasWrappedLines: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
@@ -1902,17 +1903,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return parsed;
 	}
 
-	async wrapLines(): Promise<void> {
+	async toggleWrapping(): Promise<void> {
 		if (!this._xterm) {
 			return;
 		}
-		// TODO: only relevant lines - scrollback or viewport?
-		let maxCols = 0;
-		for (let i = 0; i < this._xterm.buffer.active.length; i++) {
-			maxCols = Math.max(maxCols, this._xterm.buffer.active.getLine(i)?.length || 0);
+		if (!this._hasWrappedLines) {
+			// TODO: only relevant lines - scrollback or viewport?
+			let maxCols = 0;
+			for (let i = 0; i < this._xterm.buffer.active.length; i++) {
+				maxCols = Math.max(maxCols, this._xterm.buffer.active.getLine(i)?.length || 0);
+			}
+			this._fixedCols = maxCols;
+			await this._resize();
+			this._hasWrappedLines = true;
+		} else {
+			this._fixedCols = undefined;
+			this._fixedRows = undefined;
+			await this._resize();
+			this._hasWrappedLines = false;
 		}
-		this._fixedCols = maxCols;
-		this._resize();
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
