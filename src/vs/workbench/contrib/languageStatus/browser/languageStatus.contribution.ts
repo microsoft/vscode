@@ -157,7 +157,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		} else {
 			const [first] = model.combined;
-			let text: string = '$(info)';
+			let text: string = '$(check-all)';
 			if (first.severity === Severity.Error) {
 				text = '$(error)';
 			} else if (first.severity === Severity.Warning) {
