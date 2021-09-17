@@ -5859,6 +5859,11 @@ declare module 'vscode' {
 		readonly exitStatus: TerminalExitStatus | undefined;
 
 		/**
+		 * The current state of the {@link Terminal}.
+		 */
+		readonly state: TerminalState;
+
+		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
 		 * (shell) of the terminal.
 		 *
@@ -5885,6 +5890,27 @@ declare module 'vscode' {
 		 * Dispose and free associated resources.
 		 */
 		dispose(): void;
+	}
+
+	/**
+	 * Represents the state of a {@link Terminal}.
+	 */
+	export interface TerminalState {
+		/**
+		 * Whether the {@link Terminal} has been interacted with. Interaction means that the
+		 * terminal has sent data to the process which depending on the terminal's _mode_. By
+		 * default input is sent when a key is pressed or when a command or extension sends text,
+		 * but based on the terminal's mode it can also happen on:
+		 *
+		 * - a pointer click event
+		 * - a pointer scroll event
+		 * - a pointer move event
+		 * - terminal focus in/out
+		 *
+		 * For more information on events that can send data see "DEC Private Mode Set (DECSET)" on
+		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+		 */
+		readonly isInteractedWith: boolean;
 	}
 
 	/**
@@ -8661,6 +8687,11 @@ declare module 'vscode' {
 		 * An {@link Event} which fires when a terminal is disposed.
 		 */
 		export const onDidCloseTerminal: Event<Terminal>;
+
+		/**
+		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
+		 */
+		export const onDidChangeTerminalState: Event<Terminal>;
 
 		/**
 		 * Represents the current window's state.
