@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event, Emitter, AsyncEmitter, IWaitUntil, EventBufferer, EventMultiplexer, PauseableEmitter, Relay, DebounceEmitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 namespace Samples {
 
@@ -272,6 +272,29 @@ suite('Event', function () {
 
 		assert.strictEqual(callCount, 1);
 		assert.strictEqual(sum, 3);
+	});
+
+	test('Microtask Emitter', (done) => {
+		let count = 0;
+		assert.strictEqual(count, 0);
+		const emitter = new MicrotaskEmitter<void>();
+		const listener = emitter.event(() => {
+			count++;
+		});
+		emitter.fire();
+		assert.strictEqual(count, 0);
+		emitter.fire();
+		assert.strictEqual(count, 0);
+		// Should wait until the event loop ends and therefore be the last thing called
+		setTimeout(() => {
+			assert.strictEqual(count, 3);
+			done();
+		}, 0);
+		queueMicrotask(() => {
+			assert.strictEqual(count, 2);
+			count++;
+			listener.dispose();
+		});
 	});
 
 	test('Emitter - In Order Delivery', function () {

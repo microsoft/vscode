@@ -5,10 +5,11 @@
 
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICellViewModel, INotebookEditor, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SELECTED, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_VIEW_TYPE, INotebookEditorDelegate, NOTEBOOK_CELL_TOOLBAR_LOCATION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class NotebookEditorContextKeys {
 
@@ -18,7 +19,9 @@ export class NotebookEditorContextKeys {
 	private readonly _someCellRunning: IContextKey<boolean>;
 	private readonly _hasOutputs: IContextKey<boolean>;
 	private readonly _useConsolidatedOutputButton: IContextKey<boolean>;
-	private _viewType!: IContextKey<string>;
+	private readonly _viewType!: IContextKey<string>;
+	private readonly _missingKernelExtension: IContextKey<boolean>;
+	private readonly _cellToolbarLocation: IContextKey<'left' | 'right' | 'hidden'>;
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _viewModelDisposables = new DisposableStore();
@@ -26,9 +29,10 @@ export class NotebookEditorContextKeys {
 	private readonly _cellOutputsListeners: IDisposable[] = [];
 
 	constructor(
-		private readonly _editor: INotebookEditor,
+		private readonly _editor: INotebookEditorDelegate,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
 		this._notebookKernelSelected = NOTEBOOK_KERNEL_SELECTED.bindTo(contextKeyService);
@@ -37,6 +41,8 @@ export class NotebookEditorContextKeys {
 		this._useConsolidatedOutputButton = NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON.bindTo(contextKeyService);
 		this._hasOutputs = NOTEBOOK_HAS_OUTPUTS.bindTo(contextKeyService);
 		this._viewType = NOTEBOOK_VIEW_TYPE.bindTo(contextKeyService);
+		this._missingKernelExtension = NOTEBOOK_MISSING_KERNEL_EXTENSION.bindTo(contextKeyService);
+		this._cellToolbarLocation = NOTEBOOK_CELL_TOOLBAR_LOCATION.bindTo(contextKeyService);
 
 		this._handleDidChangeModel();
 		this._updateForNotebookOptions();
@@ -44,9 +50,8 @@ export class NotebookEditorContextKeys {
 		this._disposables.add(_editor.onDidChangeModel(this._handleDidChangeModel, this));
 		this._disposables.add(_notebookKernelService.onDidAddKernel(this._updateKernelContext, this));
 		this._disposables.add(_notebookKernelService.onDidChangeSelectedNotebooks(this._updateKernelContext, this));
-		this._disposables.add(_editor.notebookOptions.onDidChangeOptions(() => {
-			this._updateForNotebookOptions();
-		}));
+		this._disposables.add(_editor.notebookOptions.onDidChangeOptions(this._updateForNotebookOptions, this));
+		this._disposables.add(_extensionService.onDidChangeExtensions(this._updateForInstalledExtension, this));
 	}
 
 	dispose(): void {
@@ -65,6 +70,7 @@ export class NotebookEditorContextKeys {
 	private _handleDidChangeModel(): void {
 
 		this._updateKernelContext();
+		this._updateForNotebookOptions();
 
 		this._viewModelDisposables.clear();
 		dispose(this._cellStateListeners);
@@ -95,8 +101,8 @@ export class NotebookEditorContextKeys {
 		const recomputeOutputsExistence = () => {
 			let hasOutputs = false;
 			if (this._editor.hasModel()) {
-				for (let i = 0; i < this._editor.viewModel.viewCells.length; i++) {
-					if (this._editor.viewModel.viewCells[i].outputsViewModels.length > 0) {
+				for (let i = 0; i < this._editor.getLength(); i++) {
+					if (this._editor.cellAt(i).outputsViewModels.length > 0) {
 						hasOutputs = true;
 						break;
 					}
@@ -112,14 +118,16 @@ export class NotebookEditorContextKeys {
 			});
 		};
 
-		for (const cell of this._editor.viewModel.viewCells) {
+		for (let i = 0; i < this._editor.getLength(); i++) {
+			const cell = this._editor.cellAt(i);
 			this._cellStateListeners.push(addCellStateListener(cell));
 			this._cellOutputsListeners.push(addCellOutputsListener(cell));
 		}
 
 		recomputeOutputsExistence();
+		this._updateForInstalledExtension();
 
-		this._viewModelDisposables.add(this._editor.viewModel.onDidChangeViewCells(e => {
+		this._viewModelDisposables.add(this._editor.onDidChangeViewCells(e => {
 			e.splices.reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCellStates = this._cellStateListeners.splice(start, deleted, ...newCells.map(addCellStateListener));
@@ -128,7 +136,18 @@ export class NotebookEditorContextKeys {
 				dispose(deletedCellOutputStates);
 			});
 		}));
-		this._viewType.set(this._editor.viewModel.viewType);
+		this._viewType.set(this._editor.textModel.viewType);
+	}
+
+	private async _updateForInstalledExtension(): Promise<void> {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const viewType = this._editor.textModel.viewType;
+		const kernelExtensionId = KERNEL_EXTENSIONS.get(viewType);
+		this._missingKernelExtension.set(
+			!!kernelExtensionId && !(await this._extensionService.getExtension(kernelExtensionId)));
 	}
 
 	private _updateKernelContext(): void {
@@ -147,5 +166,6 @@ export class NotebookEditorContextKeys {
 	private _updateForNotebookOptions(): void {
 		const layout = this._editor.notebookOptions.getLayoutConfiguration();
 		this._useConsolidatedOutputButton.set(layout.consolidatedOutputButton);
+		this._cellToolbarLocation.set(this._editor.notebookOptions.computeCellToolbarLocation(this._editor.textModel?.viewType));
 	}
 }

@@ -334,10 +334,19 @@
 	flex: 1;
 }
 
+.extension-editor > .body > .content > .details.narrow > .readme-container {
+	margin: inherit;
+	max-width: inherit;
+}
+
 .extension-editor > .body > .content > .details > .additional-details-container {
 	width: 25%;
-	min-width: 250px;
+	min-width: 175px;
 	height: 100%;
+}
+
+.extension-editor > .body > .content > .details.narrow > .additional-details-container {
+	display: none;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container > .monaco-scrollable-element {

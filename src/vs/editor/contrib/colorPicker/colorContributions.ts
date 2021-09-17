@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 // import color detector contribution
-import 'vs/editor/contrib/colorPicker/colorDetector';
-
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import 'vs/editor/contrib/colorPicker/colorDetector';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+
 
 export class ColorContribution extends Disposable implements IEditorContribution {
 

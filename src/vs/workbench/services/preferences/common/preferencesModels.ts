@@ -197,6 +197,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				}],
 				title: modelGroup.title,
 				titleRange: modelGroup.titleRange,
+				order: modelGroup.order,
 				extensionInfo: modelGroup.extensionInfo
 			};
 		}
@@ -566,7 +567,7 @@ export class DefaultSettings extends Disposable {
 			if (!settingsGroup) {
 				settingsGroup = result.find(g => g.title === title && g.extensionInfo?.id === config.extensionInfo?.id);
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, range: nullRange, extensionInfo: config.extensionInfo };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, order: config.order ?? 0, range: nullRange, extensionInfo: config.extensionInfo };
 					result.push(settingsGroup);
 				}
 			} else {
@@ -575,7 +576,7 @@ export class DefaultSettings extends Disposable {
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, range: nullRange, extensionInfo: config.extensionInfo };
+				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, order: config.order ?? 0, range: nullRange, extensionInfo: config.extensionInfo };
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = [];
@@ -612,7 +613,11 @@ export class DefaultSettings extends Disposable {
 			const prop = settingsObject[key];
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				const description = (prop.description || prop.markdownDescription || '').split('\n');
+				let description = (prop.description || prop.markdownDescription || '');
+				if (typeof description !== 'string') {
+					description = '';
+				}
+				const descriptionLines = description.split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
 				let listItemType: string | undefined;
 				if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type) {
@@ -628,10 +633,12 @@ export class DefaultSettings extends Disposable {
 				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
 
 				let enumToUse = prop.enum;
-				let enumDescriptions = prop.enumDescriptions || prop.markdownEnumDescriptions;
+				let enumDescriptions = prop.enumDescriptions ?? prop.markdownEnumDescriptions;
+				let enumDescriptionsAreMarkdown = !prop.enumDescriptions;
 				if (listItemType === 'enum' && !isArray(prop.items)) {
 					enumToUse = prop.items!.enum;
-					enumDescriptions = prop.items!.enumDescriptions || prop.items!.markdownEnumDescriptions;
+					enumDescriptions = prop.items!.enumDescriptions ?? prop.items!.markdownEnumDescriptions;
+					enumDescriptionsAreMarkdown = enumDescriptionsAreMarkdown && !prop.items!.enumDescriptions;
 				}
 
 				let allKeysAreBoolean = false;
@@ -644,7 +651,7 @@ export class DefaultSettings extends Disposable {
 				result.push({
 					key,
 					value,
-					description,
+					description: descriptionLines,
 					descriptionIsMarkdown: !prop.description,
 					range: nullRange,
 					keyRange: nullRange,
@@ -659,7 +666,7 @@ export class DefaultSettings extends Disposable {
 					objectAdditionalProperties,
 					enum: enumToUse,
 					enumDescriptions: enumDescriptions,
-					enumDescriptionsAreMarkdown: !enumDescriptions,
+					enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
 					uniqueItems: prop.uniqueItems,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,

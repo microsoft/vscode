@@ -214,6 +214,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 
 	setOnlySearchInOpenEditors(value: boolean) {
 		this.useSearchInEditorsBox.checked = value;
+		this._onChangeSearchInEditorsBoxEmitter.fire();
 	}
 
 	protected override getSubcontrolsWidth(): number {

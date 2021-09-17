@@ -5,11 +5,11 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
-import { Command, CommandManager } from '../commands/commandManager';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -29,7 +29,7 @@ class OrganizeImportsCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute(file: string, sortOnly = false): Promise<boolean> {
+	public async execute(file: string, sortOnly = false): Promise<any> {
 		/* __GDPR__
 			"organizeImports.execute" : {
 				"${include}": [
@@ -50,11 +50,13 @@ class OrganizeImportsCommand implements Command {
 		};
 		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
 		if (response.type !== 'response' || !response.body) {
-			return false;
+			return;
 		}
 
-		const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
-		return vscode.workspace.applyEdit(edits);
+		if (response.body.length) {
+			const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+			return vscode.workspace.applyEdit(edits);
+		}
 	}
 }
 

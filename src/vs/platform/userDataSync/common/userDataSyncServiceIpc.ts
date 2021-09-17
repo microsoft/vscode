@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IUserDataSyncService, IManualSyncTask, IUserDataManifest, SyncStatus, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, SyncResource, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isArray } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSyncService, SyncResource, SyncStatus, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
 
 type ManualSyncTaskEvent<T> = { manualSyncTaskId: string, data: T };
 

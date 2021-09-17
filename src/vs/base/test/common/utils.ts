@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable, IDisposableTracker, setDisposableTracker } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
-import { IDisposableTracker, setDisposableTracker, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 
 export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
 
@@ -124,9 +124,12 @@ export function ensureNoDisposablesAreLeakedInTestSuite() {
 		setDisposableTracker(tracker);
 	});
 
-	teardown(() => {
+	teardown(function (this: import('mocha').Context) {
 		setDisposableTracker(null);
-		tracker!.ensureNoLeakingDisposables();
+
+		if (this.currentTest?.state !== 'failed') {
+			tracker!.ensureNoLeakingDisposables();
+		}
 	});
 }
 

@@ -5,18 +5,18 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { IResourceDiffEditorInput, isSideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IResourceSideBySideEditorInput, isResourceSideBySideEditorInput, isSideBySideEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TestFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFileEditorInput, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('SideBySideEditorInput', () => {
 
 	class MyEditorInput extends EditorInput {
-		readonly resource = undefined;
 
-		override get typeId(): string { return 'myEditorInput'; }
-		override resolve(): any { return null; }
+		constructor(public resource: URI | undefined = undefined) {
+			super();
+		}
 
 		fireCapabilitiesChangeEvent(): void {
 			this._onDidChangeCapabilities.fire();
@@ -29,13 +29,69 @@ suite('SideBySideEditorInput', () => {
 		fireLabelChangeEvent(): void {
 			this._onDidChangeLabel.fire();
 		}
+
+		override get typeId(): string { return 'myEditorInput'; }
+		override resolve(): any { return null; }
+
+		override toUntyped() {
+			return { resource: this.resource, options: { override: this.typeId } };
+		}
+
+		override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+			if (super.matches(otherInput)) {
+				return true;
+			}
+
+			const resource = EditorResourceAccessor.getCanonicalUri(otherInput);
+			return resource?.toString() === this.resource?.toString();
+		}
 	}
 
+	test('basics', () => {
+		const instantiationService = workbenchInstantiationService();
+
+		let counter = 0;
+		const input = new MyEditorInput(URI.file('/fake'));
+		input.onWillDispose(() => {
+			assert(true);
+			counter++;
+		});
+
+		const otherInput = new MyEditorInput(URI.file('/fake2'));
+		otherInput.onWillDispose(() => {
+			assert(true);
+			counter++;
+		});
+
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', input, otherInput);
+		assert.strictEqual(sideBySideInput.getName(), 'name');
+		assert.strictEqual(sideBySideInput.getDescription(), 'description');
+
+		assert.ok(isSideBySideEditorInput(sideBySideInput));
+		assert.ok(!isSideBySideEditorInput(input));
+
+		assert.strictEqual(sideBySideInput.secondary, input);
+		assert.strictEqual(sideBySideInput.primary, otherInput);
+		assert(sideBySideInput.matches(sideBySideInput));
+		assert(!sideBySideInput.matches(otherInput));
+
+		sideBySideInput.dispose();
+		assert.strictEqual(counter, 0);
+
+		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input, input);
+		assert.strictEqual(sideBySideInputSame.getName(), input.getName());
+		assert.strictEqual(sideBySideInputSame.getDescription(), input.getDescription());
+		assert.strictEqual(sideBySideInputSame.getTitle(), input.getTitle());
+		assert.strictEqual(sideBySideInputSame.resource?.toString(), input.resource?.toString());
+	});
+
 	test('events dispatching', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		let input = new MyEditorInput();
 		let otherInput = new MyEditorInput();
 
-		const sideBySideInut = new SideBySideEditorInput('name', 'description', otherInput, input);
+		const sideBySideInut = instantiationService.createInstance(SideBySideEditorInput, 'name', 'description', otherInput, input);
 
 		assert.ok(isSideBySideEditorInput(sideBySideInut));
 
@@ -60,32 +116,44 @@ suite('SideBySideEditorInput', () => {
 
 		input.fireLabelChangeEvent();
 		otherInput.fireLabelChangeEvent();
-		assert.strictEqual(labelChangeCounter, 1);
+		assert.strictEqual(labelChangeCounter, 2);
 	});
 
-	// TODO@lramos15 enable when https://github.com/microsoft/vscode/issues/127131 lands
-	test.skip('untyped matches', () => {
+	test('toUntyped', () => {
+		const instantiationService = workbenchInstantiationService();
+
+		const primaryInput = new MyEditorInput(URI.file('/fake'));
+		const secondaryInput = new MyEditorInput(URI.file('/fake2'));
+
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput);
+
+		const untypedSideBySideInput = sideBySideInput.toUntyped();
+		assert.ok(isResourceSideBySideEditorInput(untypedSideBySideInput));
+	});
+
+	test('untyped matches', () => {
+		const instantiationService = workbenchInstantiationService();
+
 		const primaryInput = new TestFileEditorInput(URI.file('/fake'), 'primaryId');
 		const secondaryInput = new TestFileEditorInput(URI.file('/fake2'), 'secondaryId');
-		const sideBySideInput = new SideBySideEditorInput('Side By Side Test', undefined, secondaryInput, primaryInput);
+		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, 'Side By Side Test', undefined, secondaryInput, primaryInput);
 
 		const primaryUntypedInput = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
 		const secondaryUntypedInput = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped: IResourceDiffEditorInput = { original: secondaryUntypedInput, modified: primaryUntypedInput };
+		const sideBySideUntyped: IResourceSideBySideEditorInput = { primary: primaryUntypedInput, secondary: secondaryUntypedInput };
 
 		assert.ok(sideBySideInput.matches(sideBySideUntyped));
 
 		const primaryUntypedInput2 = { resource: URI.file('/fake'), options: { override: 'primaryIdWrong' } };
 		const secondaryUntypedInput2 = { resource: URI.file('/fake2'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped2: IResourceDiffEditorInput = { original: secondaryUntypedInput2, modified: primaryUntypedInput2 };
+		const sideBySideUntyped2: IResourceSideBySideEditorInput = { primary: primaryUntypedInput2, secondary: secondaryUntypedInput2 };
 
 		assert.ok(!sideBySideInput.matches(sideBySideUntyped2));
 
 		const primaryUntypedInput3 = { resource: URI.file('/fake'), options: { override: 'primaryId' } };
 		const secondaryUntypedInput3 = { resource: URI.file('/fake2Wrong'), options: { override: 'secondaryId' } };
-		const sideBySideUntyped3: IResourceDiffEditorInput = { original: secondaryUntypedInput3, modified: primaryUntypedInput3 };
+		const sideBySideUntyped3: IResourceSideBySideEditorInput = { primary: primaryUntypedInput3, secondary: secondaryUntypedInput3 };
 
 		assert.ok(!sideBySideInput.matches(sideBySideUntyped3));
 	});
-
 });

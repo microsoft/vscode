@@ -4,27 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Constants } from 'vs/base/common/uint';
-import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
-
-class FloatHorizontalRange {
-	_floatHorizontalRangeBrand: void = undefined;
-
-	public readonly left: number;
-	public readonly width: number;
-
-	constructor(left: number, width: number) {
-		this.left = left;
-		this.width = width;
-	}
-
-	public toString(): string {
-		return `[${this.left},${this.width}]`;
-	}
-
-	public static compare(a: FloatHorizontalRange, b: FloatHorizontalRange): number {
-		return a.left - b.left;
-	}
-}
+import { FloatHorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 export class RangeUtil {
 
@@ -63,38 +43,33 @@ export class RangeUtil {
 		}
 	}
 
-	private static _mergeAdjacentRanges(ranges: FloatHorizontalRange[]): HorizontalRange[] {
+	private static _mergeAdjacentRanges(ranges: FloatHorizontalRange[]): FloatHorizontalRange[] {
 		if (ranges.length === 1) {
 			// There is nothing to merge
-			return [new HorizontalRange(ranges[0].left, ranges[0].width)];
+			return ranges;
 		}
 
 		ranges.sort(FloatHorizontalRange.compare);
 
-		let result: HorizontalRange[] = [], resultLen = 0;
-		let prevLeft = ranges[0].left;
-		let prevWidth = ranges[0].width;
+		let result: FloatHorizontalRange[] = [], resultLen = 0;
+		let prev = ranges[0];
 
 		for (let i = 1, len = ranges.length; i < len; i++) {
 			const range = ranges[i];
-			const myLeft = range.left;
-			const myWidth = range.width;
-
-			if (prevLeft + prevWidth + 0.9 /* account for browser's rounding errors*/ >= myLeft) {
-				prevWidth = Math.max(prevWidth, myLeft + myWidth - prevLeft);
+			if (prev.left + prev.width + 0.9 /* account for browser's rounding errors*/ >= range.left) {
+				prev.width = Math.max(prev.width, range.left + range.width - prev.left);
 			} else {
-				result[resultLen++] = new HorizontalRange(prevLeft, prevWidth);
-				prevLeft = myLeft;
-				prevWidth = myWidth;
+				result[resultLen++] = prev;
+				prev = range;
 			}
 		}
 
-		result[resultLen++] = new HorizontalRange(prevLeft, prevWidth);
+		result[resultLen++] = prev;
 
 		return result;
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects: DOMRectList | null, clientRectDeltaLeft: number): HorizontalRange[] | null {
+	private static _createHorizontalRangesFromClientRects(clientRects: DOMRectList | null, clientRectDeltaLeft: number): FloatHorizontalRange[] | null {
 		if (!clientRects || clientRects.length === 0) {
 			return null;
 		}
@@ -111,7 +86,7 @@ export class RangeUtil {
 		return this._mergeAdjacentRanges(result);
 	}
 
-	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): HorizontalRange[] | null {
+	public static readHorizontalRanges(domNode: HTMLElement, startChildIndex: number, startOffset: number, endChildIndex: number, endOffset: number, clientRectDeltaLeft: number, endNode: HTMLElement): FloatHorizontalRange[] | null {
 		// Panic check
 		const min = 0;
 		const max = domNode.children.length - 1;

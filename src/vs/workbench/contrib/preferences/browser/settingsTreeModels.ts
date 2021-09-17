@@ -429,9 +429,9 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeGroupElement(tocEntry: ITOCEntry<ISetting>, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
-
 		const depth = parent ? this.getDepth(parent) + 1 : 0;
 		const element = new SettingsTreeGroupElement(tocEntry.id, undefined, tocEntry.label, depth, false);
+		element.parent = parent;
 
 		const children: SettingsTreeGroupChild[] = [];
 		if (tocEntry.settings) {
@@ -597,7 +597,7 @@ function isObjectSetting({
 	}
 
 	// object additional properties allow it to have any shape
-	if (objectAdditionalProperties === true) {
+	if (objectAdditionalProperties === true || objectAdditionalProperties === undefined) {
 		return false;
 	}
 

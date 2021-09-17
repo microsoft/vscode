@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource, RecommendationSourceToString } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationHandle, INotificationService, IPromptChoice, IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -22,7 +22,6 @@ import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementServ
 import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 
@@ -111,8 +110,6 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly tasExperimentService: ITASExperimentService | undefined;
-
 	// Ignored Important Recommendations
 	get ignoredRecommendations(): string[] {
 		return distinct([...(<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendationStorageKey, StorageScope.GLOBAL, '[]')))].map(i => i.toLowerCase()));
@@ -138,10 +135,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
-	) {
-		this.tasExperimentService = tasExperimentService;
-	}
+	) { }
 
 	hasToIgnoreRecommendationNotifications(): boolean {
 		const config = this.configurationService.getValue<{ ignoreRecommendations: boolean, showRecommendationsOnlyOnDemand?: boolean }>('extensions');
@@ -232,10 +226,6 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		const extensions = await this.getInstallableExtensions(extensionIds);
 		if (!extensions.length) {
 			return RecommendationsNotificationResult.Ignored;
-		}
-
-		if (this.tasExperimentService && extensionIds.indexOf('ms-vscode-remote.remote-wsl') !== -1) {
-			await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 		}
 
 		this.recommendedExtensions = distinct([...this.recommendedExtensions, ...extensionIds]);

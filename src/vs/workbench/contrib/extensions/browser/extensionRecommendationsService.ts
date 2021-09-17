@@ -91,6 +91,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		// activate all recommendations
 		await Promise.all([
 			this.workspaceRecommendations.activate(),
+			this.configBasedRecommendations.activate(),
 			this.fileBasedRecommendations.activate(),
 			this.experimentalRecommendations.activate(),
 			this.keymapRecommendations.activate(),

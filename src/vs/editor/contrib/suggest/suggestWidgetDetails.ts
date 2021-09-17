@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
-import { CompletionItem } from './suggest';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
+import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CompletionItem } from './suggest';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);

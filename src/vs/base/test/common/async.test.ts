@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 suite('Async', () => {
 
@@ -740,15 +740,24 @@ suite('Async', () => {
 	});
 
 	test('IntervalCounter', async () => {
-		const counter = new async.IntervalCounter(10);
+		let now = Date.now();
+
+		const counter = new async.IntervalCounter(5);
+
+		let ellapsed = Date.now() - now;
+		if (ellapsed > 4) {
+			return; // flaky (https://github.com/microsoft/vscode/issues/114028)
+		}
+
 		assert.strictEqual(counter.increment(), 1);
 		assert.strictEqual(counter.increment(), 2);
 		assert.strictEqual(counter.increment(), 3);
 
-		const now = Date.now();
-		await async.timeout(20);
-		if (Date.now() - now < 11) {
-			return; // Firefox in Playwright seems to have a flaky timeout implementation (https://github.com/microsoft/vscode/issues/114028)
+		now = Date.now();
+		await async.timeout(10);
+		ellapsed = Date.now() - now;
+		if (ellapsed < 5) {
+			return; // flaky (https://github.com/microsoft/vscode/issues/114028)
 		}
 
 		assert.strictEqual(counter.increment(), 1);

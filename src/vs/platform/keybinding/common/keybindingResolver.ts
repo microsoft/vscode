@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IResolveResult {
@@ -190,35 +190,7 @@ export class KeybindingResolver {
 			return false;
 		}
 
-		return this._implies(a, b);
-	}
-
-	/**
-	 * Returns true if it is provable `p` implies `q`.
-	 */
-	private static _implies(p: ContextKeyExpression, q: ContextKeyExpression): boolean {
-		const notP = p.negate();
-
-		const terminals = (node: ContextKeyExpression) => {
-			if (node.type === ContextKeyExprType.Or) {
-				return node.expr;
-			}
-			return [node];
-		};
-
-		let expr = terminals(notP).concat(terminals(q));
-		for (let i = 0; i < expr.length; i++) {
-			const a = expr[i];
-			const notA = a.negate();
-			for (let j = i + 1; j < expr.length; j++) {
-				const b = expr[j];
-				if (notA.equals(b)) {
-					return true;
-				}
-			}
-		}
-
-		return false;
+		return implies(a, b);
 	}
 
 	public getDefaultBoundCommands(): Map<string, boolean> {

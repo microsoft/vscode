@@ -185,7 +185,6 @@
 			"name": "Attach to VS Code",
 			"browserAttachLocation": "workspace",
 			"port": 9222,
-			"trace": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
@@ -198,7 +197,6 @@
 			"type": "pwa-chrome",
 			"request": "launch",
 			"name": "Launch VS Code Internal",
-			"trace": true,
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -219,6 +217,10 @@
 			"runtimeArgs": [
 				"--inspect=5875",
 				"--no-cached-data",
+				// for breakpoint freeze: https://github.com/microsoft/vscode/issues/122225#issuecomment-885377304
+				"--js-flags=\"--regexp_interpret_all\"",
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
+				"--disable-features=CalculateNativeWinOcclusion",
 			],
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
@@ -245,15 +247,17 @@
 			}
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
 			"name": "Main Process",
+			"attachSimplePort": 5875,
 			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
 			},
 			"runtimeArgs": [
-				"--no-cached-data"
+				"--inspect-brk=5875",
+				"--no-cached-data",
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"

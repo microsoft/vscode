@@ -16,35 +16,35 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import type { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: SELECT_KERNEL_ID,
+			id: '_notebook.selectKernel',
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
-			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
+			// precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
 			f1: true,
 			menu: [{
 				id: MenuId.EditorTitle,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_VIEW_TYPE.isEqualTo('jupyter-notebook')),
+					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_MISSING_KERNEL_EXTENSION),
 					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 				),
 				group: 'navigation',
@@ -52,7 +52,7 @@ registerAction2(class extends Action2 {
 			}, {
 				id: MenuId.NotebookToolbar,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_VIEW_TYPE.isEqualTo('jupyter-notebook')),
+					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_MISSING_KERNEL_EXTENSION),
 					ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 				),
 				group: 'status',
@@ -78,6 +78,9 @@ registerAction2(class extends Action2 {
 								},
 								'extension': {
 									'type': 'string'
+								},
+								'notebookEditorId': {
+									'type': 'string'
 								}
 							}
 						}
@@ -87,7 +90,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: { id: string, extension: string, ui?: boolean, notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
+	async run(accessor: ServicesAccessor, context?: SelectKernelReturnArgs | { ui?: boolean, notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -95,27 +98,45 @@ registerAction2(class extends Action2 {
 		const logService = accessor.get(ILogService);
 		const viewletService = accessor.get(IViewletService);
 
-		const editor = context?.notebookEditor ?? getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		let editor;
+		if (context !== undefined) {
+			if ('notebookEditorId' in context) {
+				const editorId = context.notebookEditorId;
+				const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
+					const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
+					return notebookEditor?.getId() === editorId;
+				});
+				editor = getNotebookEditorFromEditorPane(matchingEditor);
+			} else if ('notebookEditor' in context) {
+				editor = context?.notebookEditor;
+			} else {
+				editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+			}
+		}
+
 		if (!editor || !editor.hasModel()) {
 			return false;
 		}
+		let controllerId = context && 'id' in context ? context.id : undefined;
+		let extensionId = context && 'extension' in context ? context.extension : undefined;
 
-		if (context && (typeof context.id !== 'string' || typeof context.extension !== 'string')) {
+		if (controllerId && (typeof controllerId !== 'string' || typeof extensionId !== 'string')) {
 			// validate context: id & extension MUST be strings
-			context = undefined;
+			controllerId = undefined;
+			extensionId = undefined;
 		}
 
 		const notebook = editor.textModel;
 		const { selected, all } = notebookKernelService.getMatchingKernel(notebook);
 
-		if (selected && context && selected.id === context.id && ExtensionIdentifier.equals(selected.extension, context.extension)) {
+		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
 			// current kernel is wanted kernel -> done
 			return true;
 		}
 
 		let newKernel: INotebookKernel | undefined;
-		if (context) {
-			const wantedId = `${context.extension}/${context.id}`;
+		if (controllerId) {
+			const wantedId = `${extensionId}/${controllerId}`;
 			for (let candidate of all) {
 				if (candidate.id === wantedId) {
 					newKernel = candidate;
@@ -152,7 +173,7 @@ registerAction2(class extends Action2 {
 				}
 				{ return res; }
 			});
-			if (!picks.length) {
+			if (!all.length && KERNEL_EXTENSIONS.get(notebook.viewType)) {
 				picks.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
@@ -172,7 +193,7 @@ registerAction2(class extends Action2 {
 
 			if (pick) {
 				if (pick.id === 'install') {
-					await this._showJupyterExtension(viewletService);
+					await this._showKernelExtension(viewletService, notebook.viewType);
 				} else if ('kernel' in pick) {
 					newKernel = pick.kernel;
 				}
@@ -186,10 +207,13 @@ registerAction2(class extends Action2 {
 		return false;
 	}
 
-	private async _showJupyterExtension(viewletService: IViewletService) {
-		const viewlet = await viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search('@id:ms-toolsai.jupyter');
+	private async _showKernelExtension(viewletService: IViewletService, viewType: string) {
+		const extId = KERNEL_EXTENSIONS.get(viewType);
+		if (extId) {
+			const viewlet = await viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+			const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+			view?.search(`@id:${extId}`);
+		}
 	}
 });
 
@@ -321,7 +345,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
 					command: SELECT_KERNEL_ID,
 				},
-				'notebook.selectKernel',
+				'_notebook.selectKernel',
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -339,7 +363,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 					command: SELECT_KERNEL_ID,
 					backgroundColor: { id: 'statusBarItem.prominentBackground' }
 				},
-				'notebook.selectKernel',
+				'_notebook.selectKernel',
 				StatusbarAlignment.RIGHT,
 				10
 			));
@@ -375,13 +399,12 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 
 	private _show(editor: INotebookEditor) {
-		const vm = editor.viewModel;
-		if (!vm) {
+		if (!editor.hasModel()) {
 			this._accessor.clear();
 			return;
 		}
 
-		const newText = this._getSelectionsText(editor, vm);
+		const newText = this._getSelectionsText(editor);
 		if (!newText) {
 			this._accessor.clear();
 			return;
@@ -400,15 +423,19 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 		}
 	}
 
-	private _getSelectionsText(editor: INotebookEditor, vm: NotebookViewModel): string | undefined {
+	private _getSelectionsText(editor: INotebookEditor): string | undefined {
+		if (!editor.hasModel()) {
+			return undefined;
+		}
+
 		const activeCell = editor.getActiveCell();
 		if (!activeCell) {
 			return undefined;
 		}
 
-		const idxFocused = vm.getCellIndex(activeCell) + 1;
-		const numSelected = vm.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
-		const totalCells = vm.getCells().length;
+		const idxFocused = editor.getCellIndex(activeCell) + 1;
+		const numSelected = editor.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
+		const totalCells = editor.getLength();
 		return numSelected > 1 ?
 			nls.localize('notebook.multiActiveCellIndicator', "Cell {0} ({1} selected)", idxFocused, numSelected) :
 			nls.localize('notebook.singleActiveCellIndicator', "Cell {0} of {1}", idxFocused, totalCells);

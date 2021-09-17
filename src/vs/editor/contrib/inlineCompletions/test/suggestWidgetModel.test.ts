@@ -3,30 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SuggestWidgetAdapterModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetAdapterModel';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { timeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mock } from 'vs/base/test/common/mock';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { Range } from 'vs/editor/common/core/range';
+import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
+import { SuggestWidgetPreviewModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetPreviewModel';
+import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
+import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { mock } from 'vs/base/test/common/mock';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
-import { IMenuService, IMenu } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/modes';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { TestCodeEditorCreationOptions, ITestCodeEditor, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { Event } from 'vs/base/common/event';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import assert = require('assert');
-import { GhostTextContext } from 'vs/editor/contrib/inlineCompletions/test/utils';
-import { Range } from 'vs/editor/common/core/range';
-import { runWithFakedTimers } from 'vs/editor/contrib/inlineCompletions/test/timeTravelScheduler';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 
 suite('Suggest Widget Model', () => {
 	test('Active', async () => {
@@ -69,11 +74,11 @@ suite('Suggest Widget Model', () => {
 				const suggestController = (editor.getContribution(SuggestController.ID) as SuggestController);
 				suggestController.triggerSuggest();
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h[ello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'h', 'h[ello]']);
 
 				context.keyboardType('.');
 				await timeout(1000);
-				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.[hello]']);
+				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello', 'hello.', 'hello.[hello]']);
 
 				suggestController.cancelSuggestWidget();
 
@@ -81,6 +86,19 @@ suite('Suggest Widget Model', () => {
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['hello.']);
 			}
 		);
+	});
+
+	test('minimizeInlineCompletion', async () => {
+		const model = createTextModel('fun');
+		const result = minimizeInlineCompletion(model, { range: new Range(1, 1, 1, 4), text: 'function' })!;
+
+		assert.deepStrictEqual({
+			range: result.range.toString(),
+			text: result.text
+		}, {
+			range: '[1,4 -> 1,4]',
+			text: 'ction'
+		});
 	});
 });
 
@@ -107,7 +125,7 @@ const provider: CompletionItemProvider = {
 async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	text: string,
 	options: TestCodeEditorCreationOptions & { provider?: CompletionItemProvider, fakeClock?: boolean, serviceCollection?: never },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetAdapterModel, context: GhostTextContext }) => Promise<void>
+	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: SuggestWidgetPreviewModel, context: GhostTextContext }) => Promise<void>
 ): Promise<void> {
 	await runWithFakedTimers({ useFakeTimers: options.fakeClock }, async () => {
 		const disposableStore = new DisposableStore();
@@ -134,7 +152,9 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 							override dispose() { }
 						};
 					}
-				}]
+				}],
+				[ILabelService, new class extends mock<ILabelService>() { }],
+				[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 			);
 
 			if (options.provider) {
@@ -145,7 +165,8 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
 				editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 				editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
-				const model = instantiationService.createInstance(SuggestWidgetAdapterModel, editor);
+				const cache = disposableStore.add(new SharedInlineCompletionCache());
+				const model = instantiationService.createInstance(SuggestWidgetPreviewModel, editor, cache);
 				const context = new GhostTextContext(model, editor);
 				await callback({ editor, editorViewModel, model, context });
 				model.dispose();

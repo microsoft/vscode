@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { Disposable, IDisposable, combinedDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
@@ -668,7 +668,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 export class PauseableEmitter<T> extends Emitter<T> {
 
 	private _isPaused = 0;
-	private _eventQueue = new LinkedList<T>();
+	protected _eventQueue = new LinkedList<T>();
 	private _mergeFn?: (input: T[]) => T;
 
 	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {
@@ -729,6 +729,33 @@ export class DebounceEmitter<T> extends PauseableEmitter<T> {
 			}, this._delay);
 		}
 		super.fire(event);
+	}
+}
+
+/**
+ * An emitter which queue all events and then process them at the
+ * end of the event loop.
+ */
+export class MicrotaskEmitter<T> extends Emitter<T> {
+	private _queuedEvents: T[] = [];
+	private _mergeFn?: (input: T[]) => T;
+
+	constructor(options?: EmitterOptions & { merge?: (input: T[]) => T }) {
+		super(options);
+		this._mergeFn = options?.merge;
+	}
+	override fire(event: T): void {
+		this._queuedEvents.push(event);
+		if (this._queuedEvents.length === 1) {
+			queueMicrotask(() => {
+				if (this._mergeFn) {
+					super.fire(this._mergeFn(this._queuedEvents));
+				} else {
+					this._queuedEvents.forEach(e => super.fire(e));
+				}
+				this._queuedEvents = [];
+			});
+		}
 	}
 }
 

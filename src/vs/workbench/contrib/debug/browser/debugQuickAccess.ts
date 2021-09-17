@@ -35,6 +35,10 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 
 	protected async _getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+		if (!this.debugService.getAdapterManager().hasDebuggers()) {
+			return [];
+		}
+
 		picks.push({ type: 'separator', label: 'launch.json' });
 
 		const configManager = this.debugService.getConfigurationManager();
@@ -68,7 +72,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					accept: async () => {
 						await configManager.selectConfiguration(config.launch, config.name);
 						try {
-							await this.debugService.startDebugging(config.launch);
+							await this.debugService.startDebugging(config.launch, undefined, { startedByUser: true });
 						} catch (error) {
 							this.notificationService.error(error);
 						}
@@ -99,7 +103,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 						try {
 							const { launch, getConfig } = configManager.selectedConfiguration;
 							const config = await getConfig();
-							await this.debugService.startDebugging(launch, config);
+							await this.debugService.startDebugging(launch, config, { startedByUser: true });
 						} catch (error) {
 							this.notificationService.error(error);
 						}
@@ -117,7 +121,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					if (pick) {
 						// Use the type of the provider, not of the config since config sometimes have subtypes (for example "node-terminal")
 						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
-						this.debugService.startDebugging(pick.launch, pick.config);
+						this.debugService.startDebugging(pick.launch, pick.config, { startedByUser: true });
 					}
 				}
 			});

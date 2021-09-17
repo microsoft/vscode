@@ -11,8 +11,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {

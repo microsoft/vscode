@@ -131,7 +131,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private async _activate(link: string) {
 		// Normalize the link and remove any leading ./ or ../ since quick access doesn't understand
 		// that format
-		link = normalize(link).replace(/^(\.+\/)+/, '');
+		link = normalize(link).replace(/^(\.+[\\/])+/, '');
 
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
@@ -142,17 +142,31 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			}
 		});
 
+		const sanitizedLink = link.replace(/:\d+(:\d+)?$/, '');
 		const results = await this._searchService.fileSearch(
 			this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
-				filePattern: link,
+				// Remove optional :row:col from the link as openEditor supports it
+				filePattern: sanitizedLink,
 				maxResults: 2
 			})
 		);
 
 		// If there was exactly one match, open it
 		if (results.results.length === 1) {
-			const match = results.results[0];
-			await this._editorService.openEditor({ resource: match.resource, options: { pinned: true } });
+			const match = link.match(/:(\d+)?(:(\d+))?$/);
+			const startLineNumber = match?.[1];
+			const startColumn = match?.[3];
+			await this._editorService.openEditor({
+				resource: results.results[0].resource,
+				options: {
+					pinned: true,
+					revealIfOpened: true,
+					selection: startLineNumber ? {
+						startLineNumber: parseInt(startLineNumber),
+						startColumn: startColumn ? parseInt(startColumn) : 0
+					} : undefined
+				}
+			});
 			return;
 		}
 

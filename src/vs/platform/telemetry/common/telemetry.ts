@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 
 export const ITelemetryService = createDecorator<ITelemetryService>('telemetryService');
 
@@ -73,3 +73,20 @@ export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 export const machineIdKey = 'telemetry.machineId';
+
+// Configuration Keys
+export const TELEMETRY_SECTION_ID = 'telemetry';
+export const TELEMETRY_SETTING_ID = 'telemetry.telemetryLevel';
+export const TELEMETRY_OLD_SETTING_ID = 'telemetry.enableTelemetry';
+
+export const enum TelemetryLevel {
+	NONE = 0,
+	LOG = 1,
+	USER = 2
+}
+
+export const enum TelemetryConfiguration {
+	OFF = 'off',
+	ERROR = 'error',
+	ON = 'on'
+}

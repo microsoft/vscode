@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./checkbox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { IAction } from 'vs/base/common/actions';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IAction } from 'vs/base/common/actions';
+import 'vs/css!./checkbox';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;
@@ -173,7 +173,7 @@ export class Checkbox extends Widget {
 	}
 
 	width(): number {
-		return 2 /*marginleft*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
+		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
 	style(styles: ICheckboxStyles): void {

@@ -36,10 +36,10 @@ suite('Workbench - Test Result Storage', () => {
 		if (addMessage) {
 			t.appendMessage(new TestId(['ctrlId', 'id-a']).toString(), 't', {
 				message: addMessage,
-				actualOutput: undefined,
-				expectedOutput: undefined,
+				actual: undefined,
+				expected: undefined,
 				location: undefined,
-				severity: 0,
+				type: 0,
 			});
 		}
 		t.markComplete();

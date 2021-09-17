@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, dispose, IDisposable, markAsSingleton, MultiDisposeError, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from 'vs/base/test/common/utils';
-import { Emitter } from 'vs/base/common/event';
 
 class Disposable implements IDisposable {
 	isDisposed = false;

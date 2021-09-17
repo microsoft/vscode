@@ -537,6 +537,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: 5000,
 			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
 		},
+		'diffEditor.maxFileSize': {
+			type: 'number',
+			default: 50,
+			description: nls.localize('maxFileSize', "Maximum file size in MB for which to compute diffs. Use 0 for no limit.")
+		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',
 			default: true,

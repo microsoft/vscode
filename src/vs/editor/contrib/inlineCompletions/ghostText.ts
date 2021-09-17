@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 
 export class GhostText {
 	public static equals(a: GhostText | undefined, b: GhostText | undefined): boolean {
@@ -28,9 +28,9 @@ export class GhostText {
 			this.parts.every((part, index) => part.equals(other.parts[index]));
 	}
 
-	render(text: string, debug: boolean = false): string {
+	render(documentText: string, debug: boolean = false): string {
 		const l = this.lineNumber;
-		return applyEdits(text,
+		return applyEdits(documentText,
 			[
 				...this.parts.map(p => ({
 					range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column },
@@ -38,6 +38,23 @@ export class GhostText {
 				})),
 			]
 		);
+	}
+
+	renderForScreenReader(lineText: string): string {
+		if (this.parts.length === 0) {
+			return '';
+		}
+		const lastPart = this.parts[this.parts.length - 1];
+
+		const cappedLineText = lineText.substr(0, lastPart.column - 1);
+		const text = applyEdits(cappedLineText,
+			this.parts.map(p => ({
+				range: { startLineNumber: 1, endLineNumber: 1, startColumn: p.column, endColumn: p.column },
+				text: p.lines.join('\n')
+			}))
+		);
+
+		return text.substring(this.parts[0].column - 1);
 	}
 }
 
@@ -83,6 +100,10 @@ export class GhostTextPart {
 	constructor(
 		readonly column: number,
 		readonly lines: readonly string[],
+		/**
+		 * Indicates if this part is a preview of an inline suggestion when a suggestion is previewed.
+		*/
+		readonly preview: boolean,
 	) {
 	}
 

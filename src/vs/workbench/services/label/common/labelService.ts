@@ -143,7 +143,15 @@ export class LabelService extends Disposable implements ILabelService {
 			formatting = { ...formatting, separator: options.separator };
 		}
 
-		return this.doGetUriLabel(resource, formatting, options);
+		const label = this.doGetUriLabel(resource, formatting, options);
+
+		// Without formatting we still need to support the separator
+		// as provided in options (https://github.com/microsoft/vscode/issues/130019)
+		if (!formatting && options.separator) {
+			return label.replace(sepRegexp, options.separator);
+		}
+
+		return label;
 	}
 
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {

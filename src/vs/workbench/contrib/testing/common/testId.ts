@@ -49,6 +49,13 @@ export class TestId {
 	}
 
 	/**
+	 * Cheaply ets whether the ID refers to the root .
+	 */
+	public static isRoot(idString: string) {
+		return !idString.includes(TestIdPathParts.Delimiter);
+	}
+
+	/**
 	 * Creates a test ID from a serialized TestId instance.
 	 */
 	public static fromString(idString: string) {
@@ -67,6 +74,25 @@ export class TestId {
 	 */
 	public static joinToString(base: string | TestId, b: string) {
 		return base.toString() + TestIdPathParts.Delimiter + b;
+	}
+
+	/**
+	 * Compares the position of the two ID strings.
+	 */
+	public static compare(a: string, b: string) {
+		if (a === b) {
+			return TestPosition.IsSame;
+		}
+
+		if (b.startsWith(a + TestIdPathParts.Delimiter)) {
+			return TestPosition.IsChild;
+		}
+
+		if (a.startsWith(b + TestIdPathParts.Delimiter)) {
+			return TestPosition.IsParent;
+		}
+
+		return TestPosition.Disconnected;
 	}
 
 	constructor(
@@ -111,20 +137,19 @@ export class TestId {
 	 * including the current item.
 	 */
 	public *idsFromRoot() {
-		let built = this.path[0];
-		yield built;
-
-		for (let i = 1; i < this.viewEnd; i++) {
-			built += TestIdPathParts.Delimiter;
-			built += this.path[i];
-			yield built;
+		for (let i = 1; i <= this.viewEnd; i++) {
+			yield new TestId(this.path, i);
 		}
 	}
 
 	/**
 	 * Compares the other test ID with this one.
 	 */
-	public compare(other: TestId) {
+	public compare(other: TestId | string) {
+		if (typeof other === 'string') {
+			return TestId.compare(this.toString(), other);
+		}
+
 		for (let i = 0; i < other.viewEnd && i < this.viewEnd; i++) {
 			if (other.path[i] !== this.path[i]) {
 				return TestPosition.Disconnected;

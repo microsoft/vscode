@@ -31,8 +31,7 @@ export class TerminalInputSerializer implements IEditorSerializer {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
 		terminalInstance.resource = URI.parse(terminalInstance.resource);
-		const editor = this._terminalEditorService.getOrCreateEditorInput(terminalInstance);
-		return editor;
+		return this._terminalEditorService.reviveInput(terminalInstance);
 	}
 
 	private _toJson(instance: ITerminalInstance): SerializedTerminalEditorInput {
@@ -44,7 +43,8 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			cwd: '',
 			icon: instance.icon,
 			color: instance.color,
-			resource: instance.resource.toString()
+			resource: instance.resource.toString(),
+			hasChildProcesses: instance.hasChildProcesses
 		};
 	}
 }
@@ -57,6 +57,7 @@ interface TerminalEditorInputObject {
 	readonly cwd: string;
 	readonly icon: TerminalIcon | undefined;
 	readonly color: string | undefined;
+	readonly hasChildProcesses?: boolean;
 }
 
 export interface SerializedTerminalEditorInput extends TerminalEditorInputObject {

@@ -81,10 +81,6 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		super.dispose();
 	}
 
-	public canComputeDiff(original: URI, modified: URI): boolean {
-		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
-	}
-
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
 		return this._workerManager.withWorker().then(client => client.computeDiff(original, modified, ignoreTrimWhitespace, maxComputationTime));
 	}
@@ -301,12 +297,12 @@ class EditorModelManager extends Disposable {
 		super.dispose();
 	}
 
-	public ensureSyncedResources(resources: URI[]): void {
+	public ensureSyncedResources(resources: URI[], forceLargeModels: boolean): void {
 		for (const resource of resources) {
 			let resourceStr = resource.toString();
 
 			if (!this._syncedModels[resourceStr]) {
-				this._beginModelSync(resource);
+				this._beginModelSync(resource, forceLargeModels);
 			}
 			if (this._syncedModels[resourceStr]) {
 				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
@@ -330,12 +326,12 @@ class EditorModelManager extends Disposable {
 		}
 	}
 
-	private _beginModelSync(resource: URI): void {
+	private _beginModelSync(resource: URI, forceLargeModels: boolean): void {
 		let model = this._modelService.getModel(resource);
 		if (!model) {
 			return;
 		}
-		if (model.isTooLargeForSyncing()) {
+		if (!forceLargeModels && model.isTooLargeForSyncing()) {
 			return;
 		}
 
@@ -388,11 +384,15 @@ class SynchronousWorkerClient<T extends IDisposable> implements IWorkerClient<T>
 	}
 }
 
+export interface IEditorWorkerClient {
+	fhr(method: string, args: any[]): Promise<any>;
+}
+
 export class EditorWorkerHost {
 
-	private readonly _workerClient: EditorWorkerClient;
+	private readonly _workerClient: IEditorWorkerClient;
 
-	constructor(workerClient: EditorWorkerClient) {
+	constructor(workerClient: IEditorWorkerClient) {
 		this._workerClient = workerClient;
 	}
 
@@ -402,12 +402,12 @@ export class EditorWorkerHost {
 	}
 }
 
-export class EditorWorkerClient extends Disposable {
+export class EditorWorkerClient extends Disposable implements IEditorWorkerClient {
 
 	private readonly _modelService: IModelService;
 	private readonly _keepIdleModels: boolean;
-	private _worker: IWorkerClient<EditorSimpleWorker> | null;
-	private readonly _workerFactory: DefaultWorkerFactory;
+	protected _worker: IWorkerClient<EditorSimpleWorker> | null;
+	protected readonly _workerFactory: DefaultWorkerFactory;
 	private _modelManager: EditorModelManager | null;
 	private _disposed = false;
 
@@ -456,18 +456,18 @@ export class EditorWorkerClient extends Disposable {
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<EditorSimpleWorker> {
+	protected async _withSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<EditorSimpleWorker> {
 		if (this._disposed) {
 			return Promise.reject(canceled());
 		}
 		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
+			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources, forceLargeModels);
 			return proxy;
 		});
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
-		return this._withSyncedResources([original, modified]).then(proxy => {
+		return this._withSyncedResources([original, modified], /* forceLargeModels */true).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace, maxComputationTime);
 		});
 	}

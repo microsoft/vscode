@@ -16,8 +16,8 @@ import { ConfigurationScope, EditPresentationTypes, IConfigurationExtensionInfo 
 import { EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export enum SettingValueType {
@@ -42,6 +42,7 @@ export interface ISettingsGroup {
 	range: IRange;
 	title: string;
 	titleRange: IRange;
+	order: number;
 	sections: ISettingsSection[];
 	extensionInfo?: IConfigurationExtensionInfo;
 }
@@ -176,6 +177,11 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	focusSearch?: boolean;
 }
 
+export interface IOpenSettingsOptions extends ISettingsEditorOptions {
+	jsonEditor?: boolean;
+	openToSide?: boolean;
+}
+
 export function validateSettingsEditorOptions(options: ISettingsEditorOptions): ISettingsEditorOptions {
 	return {
 		// Inherit provided options
@@ -204,20 +210,20 @@ export interface IPreferencesService {
 	getFolderSettingsResource(resource: URI): URI | null;
 
 	createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null>;
-	resolveModel(uri: URI): Promise<ITextModel | null>;
+	resolveModel(uri: URI): ITextModel | null;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;
-	openSettings(jsonEditor: boolean | undefined, query: string | undefined): Promise<IEditorPane | undefined>;
-	openGlobalSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	openRemoteSettings(): Promise<IEditorPane | undefined>;
-	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
+	openSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openUserSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openRemoteSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openWorkspaceSettings(options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
+	openFolderSettings(options: IOpenSettingsOptions & { folderUri: IOpenSettingsOptions['folderUri'] }): Promise<IEditorPane | undefined>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
 
-	createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): IEditorInput;
+	createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput;
 }
 
 export interface KeybindingMatch {

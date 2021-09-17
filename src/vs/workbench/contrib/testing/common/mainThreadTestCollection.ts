@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, ITestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
 
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
@@ -45,7 +45,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
 	public readonly onDidRetireTest = this.retireTestEmitter.event;
 
-	constructor(private readonly expandActual: (src: ITestIdWithSrc, levels: number) => Promise<void>) {
+	constructor(private readonly expandActual: (id: string, levels: number) => Promise<void>) {
 		super();
 	}
 
@@ -64,7 +64,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 			return existing.prom;
 		}
 
-		const prom = this.expandActual({ controllerId: test.controllerId, testId: test.item.extId }, levels);
+		const prom = this.expandActual(test.item.extId, levels);
 		const record = { doneLvl: existing ? existing.doneLvl : -1, pendingLvl: levels, prom };
 		this.expandPromises.set(test, record);
 

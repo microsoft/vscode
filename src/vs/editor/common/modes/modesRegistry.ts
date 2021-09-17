@@ -83,6 +83,7 @@ LanguageConfigurationRegistry.register(PLAINTEXT_LANGUAGE_IDENTIFIER, {
 		{ open: '\'', close: '\'' },
 		{ open: '`', close: '`' },
 	],
+	colorizedBracketPairs: [],
 	folding: {
 		offSide: true
 	}

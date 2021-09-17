@@ -14,8 +14,10 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * The working copy backup tracker deals with:
@@ -33,7 +35,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		private readonly lifecycleService: ILifecycleService,
 		protected readonly filesConfigurationService: IFilesConfigurationService,
 		private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		protected readonly editorService: IEditorService
+		protected readonly editorService: IEditorService,
+		private readonly editorGroupService: IEditorGroupsService
 	) {
 		super();
 
@@ -234,8 +237,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 		// Figure out already opened editors for backups vs
 		// non-opened.
-		const openedEditorsForBackups = new Set<IEditorInput>();
-		const nonOpenedEditorsForBackups = new Set<IEditorInput>();
+		const openedEditorsForBackups = new Set<EditorInput>();
+		const nonOpenedEditorsForBackups = new Set<EditorInput>();
 
 		// Ensure each backup that can be handled has an
 		// associated editor.
@@ -269,7 +272,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// Ensure editors are opened for each backup without editor
 		// in the background without stealing focus
 		if (nonOpenedEditorsForBackups.size > 0) {
-			await this.editorService.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
+			await this.editorGroupService.activeGroup.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
 				editor: nonOpenedEditorForBackup,
 				options: {
 					pinned: true,

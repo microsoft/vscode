@@ -41,7 +41,7 @@ suite('PreferencesService', () => {
 	});
 
 	test('options are preserved when calling openEditor', async () => {
-		testObject.openSettings(false, 'test query');
+		testObject.openSettings({ jsonEditor: false, query: 'test query' });
 		const options = editorService.lastOpenEditorOptions as ISettingsEditorOptions;
 		assert.strictEqual(options.focusSearch, true);
 		assert.strictEqual(options.override, EditorResolution.DISABLED);

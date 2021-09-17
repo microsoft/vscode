@@ -46,7 +46,7 @@ body.web {
 }
 
 .monaco-workbench.web {
-	touch-action: initial; /* reenable touch events on workbench */
+	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

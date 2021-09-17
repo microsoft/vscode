@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -25,9 +24,12 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 		@IWebExtensionsScannerService private readonly webExtensionsScannerService: IWebExtensionsScannerService,
-		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(extensionGalleryService, telemetryService, logService);
+	}
+
+	async getTargetPlatform(): Promise<TargetPlatform> {
+		return TargetPlatform.WEB;
 	}
 
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
@@ -41,21 +43,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 			extensions.push(...userExtensions);
 		}
 		return Promise.all(extensions.map(e => toLocalExtension(e)));
-	}
-
-	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
-		const compatibleExtension = await this.galleryService.getCompatibleExtension(gallery);
-		if (!compatibleExtension) {
-			return false;
-		}
-		const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
-		if (!manifest) {
-			return false;
-		}
-		if (!this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
-			return false;
-		}
-		return true;
 	}
 
 	async install(location: URI, options: InstallOptions = {}): Promise<ILocalExtension> {

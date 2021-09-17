@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
-import { RequestService as NodeRequestService, IRawRequestFunction } from 'vs/platform/request/node/requestService';
 import { net } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IRawRequestFunction, RequestService as NodeRequestService } from 'vs/platform/request/node/requestService';
 
 function getRawRequest(options: IRequestOptions): IRawRequestFunction {
 	return net.request as any as IRawRequestFunction;

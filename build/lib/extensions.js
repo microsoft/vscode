@@ -21,6 +21,8 @@ const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const buffer = require('gulp-buffer');
 const jsoncParser = require("jsonc-parser");
+const dependencies_1 = require("./dependencies");
+const _ = require("underscore");
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -216,11 +218,27 @@ const webBuiltInExtensions = productJson.webBuiltInExtensions || [];
  * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
  */
 function isWebExtension(manifest) {
+    if (Boolean(manifest.browser)) {
+        return true;
+    }
+    if (Boolean(manifest.main)) {
+        return false;
+    }
+    // neither browser nor main
     if (typeof manifest.extensionKind !== 'undefined') {
         const extensionKind = Array.isArray(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
-        return (extensionKind.indexOf('web') >= 0);
+        if (extensionKind.indexOf('web') >= 0) {
+            return true;
+        }
     }
-    return (!Boolean(manifest.main) || Boolean(manifest.browser));
+    if (typeof manifest.contributes !== 'undefined') {
+        for (const id of ['debuggers', 'terminal', 'typescriptServerPlugins']) {
+            if (manifest.contributes.hasOwnProperty(id)) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 function packageLocalExtensionsStream(forWeb) {
     const localExtensionsDescriptions = (glob.sync('extensions/*/package.json')
@@ -242,8 +260,10 @@ function packageLocalExtensionsStream(forWeb) {
         result = localExtensionsStream;
     }
     else {
-        // also include shared node modules
-        result = es.merge(localExtensionsStream, gulp.src('extensions/node_modules/**', { base: '.' }));
+        // also include shared production node modules
+        const productionDependencies = (0, dependencies_1.getProductionDependencies)('extensions/');
+        const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+        result = es.merge(localExtensionsStream, gulp.src(dependenciesSrc, { base: '.' }));
     }
     return (result
         .pipe(util2.setExecutableBit(['**/*.sh'])));

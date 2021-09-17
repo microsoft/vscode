@@ -7,16 +7,16 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { OpenDocumentLinkCommand, resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
 import { Logger } from '../logger';
+import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
+import * as path from '../util/path';
 import { WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
+import { urlToUri } from '../util/url';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider, MarkdownContentProviderOutput } from './previewContentProvider';
-import { MarkdownEngine } from '../markdownEngine';
-import { urlToUri } from '../util/url';
-import * as path from '../util/path';
 
 const localize = nls.loadMessageBundle();
 
@@ -355,7 +355,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}
 
-		vscode.workspace.openTextDocument(this._resource)
+		await vscode.workspace.openTextDocument(this._resource)
 			.then(vscode.window.showTextDocument)
 			.then(undefined, () => {
 				vscode.window.showErrorMessage(localize('preview.clickOpenFailed', 'Could not open {0}', this._resource.toString()));
@@ -406,6 +406,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private getWebviewOptions(): vscode.WebviewOptions {
 		return {
 			enableScripts: true,
+			enableForms: false,
 			localResourceRoots: this.getLocalResourceRoots()
 		};
 	}

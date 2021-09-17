@@ -1343,6 +1343,14 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.supportThemeIcons = value;
 	}
 
+	get supportHtml(): boolean | undefined {
+		return this.#delegate.supportHtml;
+	}
+
+	set supportHtml(value: boolean | undefined) {
+		this.#delegate.supportHtml = value;
+	}
+
 	appendText(value: string): vscode.MarkdownString {
 		this.#delegate.appendText(value);
 		return this;
@@ -1357,8 +1365,6 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.appendCodeblock(language ?? '', value);
 		return this;
 	}
-
-
 }
 
 @es5ClassCompat
@@ -1735,6 +1741,11 @@ export class TerminalLink implements vscode.TerminalLink {
 	}
 }
 
+export enum TerminalLocation {
+	Panel = 1,
+	Editor = 2,
+}
+
 export class TerminalProfile implements vscode.TerminalProfile {
 	constructor(
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
@@ -1764,6 +1775,7 @@ export enum TaskPanelKind {
 @es5ClassCompat
 export class TaskGroup implements vscode.TaskGroup {
 
+	isDefault?: boolean;
 	private _id: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
@@ -1789,11 +1801,11 @@ export class TaskGroup implements vscode.TaskGroup {
 		}
 	}
 
-	constructor(id: string, _label: string) {
+	constructor(id: string, public readonly label: string) {
 		if (typeof id !== 'string') {
 			throw illegalArgument('name');
 		}
-		if (typeof _label !== 'string') {
+		if (typeof label !== 'string') {
 			throw illegalArgument('name');
 		}
 		this._id = id;
@@ -2910,9 +2922,7 @@ export class FileDecoration {
 	badge?: string;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
-	priority?: number;
 	propagate?: boolean;
-
 
 	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
 		this.badge = badge;
@@ -3106,7 +3116,7 @@ export class NotebookCellOutputItem {
 	) {
 		const mimeNormalized = normalizeMimeType(mime, true);
 		if (!mimeNormalized) {
-			throw new Error('INVALID mime type, must not be empty or falsy: ' + mime);
+			throw new Error(`INVALID mime type: ${mime}. Must be in the format "type/subtype[;optionalparameter]"`);
 		}
 		this.mime = mimeNormalized;
 	}
@@ -3301,13 +3311,6 @@ export enum TestResultState {
 	Errored = 6
 }
 
-export enum TestMessageSeverity {
-	Error = 0,
-	Warning = 1,
-	Information = 2,
-	Hint = 3
-}
-
 export enum TestRunProfileKind {
 	Run = 1,
 	Debug = 2,
@@ -3327,6 +3330,7 @@ export class TestRunRequest implements vscode.TestRunRequest {
 export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
+	public location?: vscode.Location;
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
@@ -3336,6 +3340,11 @@ export class TestMessage implements vscode.TestMessage {
 	}
 
 	constructor(public message: string | vscode.MarkdownString) { }
+}
+
+@es5ClassCompat
+export class TestTag implements vscode.TestTag {
+	constructor(public readonly id: string) { }
 }
 
 //#endregion

@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join, basename } from 'vs/base/common/path';
 import { watch } from 'fs';
-import { isMacintosh } from 'vs/base/common/platform';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isEqualOrParent } from 'vs/base/common/extpath';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { basename, join } from 'vs/base/common/path';
+import { isMacintosh } from 'vs/base/common/platform';
 import { Promises } from 'vs/base/node/pfs';
 
 export function watchFile(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
@@ -21,6 +23,17 @@ export function watchFolder(path: string, onChange: (type: 'added' | 'changed' |
 export const CHANGE_BUFFER_DELAY = 100;
 
 function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
+
+	// macOS: watching samba shares can crash VSCode so we do
+	// a simple check for the file path pointing to /Volumes
+	// (https://github.com/microsoft/vscode/issues/106879)
+	// TODO@electron this needs a revisit when the crash is
+	// fixed or mitigated upstream.
+	if (isMacintosh && isEqualOrParent(file.path, '/Volumes/')) {
+		onError(`Refusing to watch ${file.path} for changes using fs.watch() for possibly being a network share where watching is unreliable and unstable.`);
+		return Disposable.None;
+	}
+
 	const originalFileName = basename(file.path);
 	const mapPathToStatDisposable = new Map<string, IDisposable>();
 
@@ -188,5 +201,64 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 		disposed = true;
 
 		watcherDisposables = dispose(watcherDisposables);
+	});
+}
+
+/**
+ * Watch the provided `path` for changes and return
+ * the data in chunks of `Uint8Array` for further use.
+ */
+export async function watchFileContents(path: string, onData: (chunk: Uint8Array) => void, token: CancellationToken, bufferSize = 512): Promise<void> {
+	const handle = await Promises.open(path, 'r');
+	const buffer = Buffer.allocUnsafe(bufferSize);
+
+	const cts = new CancellationTokenSource(token);
+
+	let error: Error | undefined = undefined;
+	let isReading = false;
+
+	const watcher = watchFile(path, async type => {
+		if (type === 'changed') {
+
+			if (isReading) {
+				return; // return early if we are already reading the output
+			}
+
+			isReading = true;
+
+			try {
+				// Consume the new contents of the file until finished
+				// everytime there is a change event signalling a change
+				while (!cts.token.isCancellationRequested) {
+					const { bytesRead } = await Promises.read(handle, buffer, 0, bufferSize, null);
+					if (!bytesRead || cts.token.isCancellationRequested) {
+						break;
+					}
+
+					onData(buffer.slice(0, bytesRead));
+				}
+			} catch (err) {
+				error = new Error(err);
+				cts.dispose(true);
+			} finally {
+				isReading = false;
+			}
+		}
+	}, err => {
+		error = new Error(err);
+		cts.dispose(true);
+	});
+
+	return new Promise<void>((resolve, reject) => {
+		cts.token.onCancellationRequested(async () => {
+			watcher.dispose();
+			await Promises.close(handle);
+
+			if (error) {
+				reject(error);
+			} else {
+				resolve();
+			}
+		});
 	});
 }

@@ -33,38 +33,8 @@
 	],
 	"builtInExtensions": [
 		{
-			"name": "ms-vscode.node-debug",
-			"version": "1.44.30",
-			"repo": "https://github.com/microsoft/vscode-node-debug",
-			"metadata": {
-				"id": "b6ded8fb-a0a0-4c1c-acbd-ab2a3bc995a6",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		},
-		{
-			"name": "ms-vscode.node-debug2",
-			"version": "1.42.9",
-			"repo": "https://github.com/microsoft/vscode-node-debug2",
-			"metadata": {
-				"id": "36d19e17-7569-4841-a001-947eb18602b2",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		},
-		{
 			"name": "ms-vscode.references-view",
-			"version": "0.0.80",
+			"version": "0.0.81",
 			"repo": "https://github.com/microsoft/vscode-references-view",
 			"metadata": {
 				"id": "dc489f46-520d-4556-ae85-1f9eab3c412d",
@@ -79,7 +49,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.13",
+			"version": "1.0.15",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -94,7 +64,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.58.2",
+			"version": "1.60.2",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",

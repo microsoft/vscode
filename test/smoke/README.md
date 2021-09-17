@@ -27,7 +27,7 @@ example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.
 # Build (Web - read instructions below)
 yarn smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
-# Remote (Electron)
+# Remote (Electron - Must be run on distro)
 yarn smoketest --build <path to latest version> --remote
 ```
 
@@ -63,6 +63,8 @@ xattr -d com.apple.quarantine <path to server with web folder zip>
 - `-f PATTERN` (alias `-g PATTERN`) filters the tests to be run. You can also use pretty much any mocha argument;
 - `--screenshots SCREENSHOT_DIR` captures screenshots when tests fail.
 
+**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
+
 ### Develop
 
 ```bash
@@ -70,11 +72,17 @@ cd test/smoke
 yarn watch
 ```
 
+## Troubleshooting
+
+### Error: Could not get a unique tmp filename, max tries reached
+
+On Windows, check for the folder `C:\Users\<username>\AppData\Local\Temp\t`. If this folder exists, the `tmp` module can't run properly, resulting in the error above. In this case, delete the `t` folder.
+
 ## Pitfalls
 
 - Beware of workbench **state**. The tests within a single suite will share the same state.
 
-- Beware of **singletons**. This evil can, and will, manifest itself under the form of FS paths, TCP ports, IPC handles. Whenever writing a test, or setting up more smoke test architecture, make sure it can run simultaneously with any other tests and even itself.	All test suites should be able to run many times in parallel.
+- Beware of **singletons**. This evil can, and will, manifest itself under the form of FS paths, TCP ports, IPC handles. Whenever writing a test, or setting up more smoke test architecture, make sure it can run simultaneously with any other tests and even itself. All test suites should be able to run many times in parallel.
 
 - Beware of **focus**. **Never** depend on DOM elements having focus using `.focused` classes or `:focus` pseudo-classes, since they will lose that state as soon as another window appears on top of the running VS Code window. A safe approach which avoids this problem is to use the `waitForActiveElement` API. Many tests use this whenever they need to wait for a specific element to _have focus_.
 

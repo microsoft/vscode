@@ -97,11 +97,8 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'webworker', // extensions run in a webworker context
 		resolve: {
-			mainFields: ['module', 'main'],
+			mainFields: ['browser', 'module', 'main'],
 			extensions: ['.ts', '.js'], // support ts-files and js-files
-			alias: {
-				'vscode-extension-telemetry': path.resolve(__dirname, '../build/polyfills/vscode-extension-telemetry.js')
-			},
 			fallback: {
 				'path': require.resolve('path-browserify'),
 				'util': require.resolve('util')
@@ -116,10 +113,10 @@ function withBrowserDefaults(/**@type WebpackConfig*/extConfig, /** @type Additi
 					// * enable sources maps for end-to-end source maps
 					loader: 'ts-loader',
 					options: {
-						configFile: additionalOptions.configFile,
 						compilerOptions: {
 							'sourceMap': true,
-						}
+						},
+						...(additionalOptions ? {} : { configFile: additionalOptions.configFile })
 					}
 				}]
 			}]

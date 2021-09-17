@@ -283,7 +283,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'noWorkspaceHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"You have not yet added a folder to the workspace.\n[Add Folder](command:{0})", AddRootFolderAction.ID),
+		"You have not yet added a folder to the workspace.\n[Open Folder](command:{0})", AddRootFolderAction.ID),
 	when: ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsIOSContext.toNegated()),
 	group: ViewContentGroups.Open,
 	order: 1

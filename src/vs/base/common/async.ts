@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, } from 'vs/base/common/errors';
-import { Emitter, Event, } from 'vs/base/common/event';
-import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { canceled } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -759,6 +759,81 @@ export class RunOnceScheduler {
 	}
 }
 
+/**
+ * Same as `RunOnceScheduler`, but doesn't count the time spent in sleep mode.
+ * > **NOTE**: Only offers 1s resolution.
+ *
+ * When calling `setTimeout` with 3hrs, and putting the computer immediately to sleep
+ * for 8hrs, `setTimeout` will fire **as soon as the computer wakes from sleep**. But
+ * this scheduler will execute 3hrs **after waking the computer from sleep**.
+ */
+export class ProcessTimeRunOnceScheduler {
+
+	private runner: (() => void) | null;
+	private timeout: number;
+
+	private counter: number;
+	private intervalToken: any;
+	private intervalHandler: () => void;
+
+	constructor(runner: () => void, delay: number) {
+		if (delay % 1000 !== 0) {
+			console.warn(`ProcessTimeRunOnceScheduler resolution is 1s, ${delay}ms is not a multiple of 1000ms.`);
+		}
+		this.runner = runner;
+		this.timeout = delay;
+		this.counter = 0;
+		this.intervalToken = -1;
+		this.intervalHandler = this.onInterval.bind(this);
+	}
+
+	dispose(): void {
+		this.cancel();
+		this.runner = null;
+	}
+
+	cancel(): void {
+		if (this.isScheduled()) {
+			clearInterval(this.intervalToken);
+			this.intervalToken = -1;
+		}
+	}
+
+	/**
+	 * Cancel previous runner (if any) & schedule a new runner.
+	 */
+	schedule(delay = this.timeout): void {
+		if (delay % 1000 !== 0) {
+			console.warn(`ProcessTimeRunOnceScheduler resolution is 1s, ${delay}ms is not a multiple of 1000ms.`);
+		}
+		this.cancel();
+		this.counter = Math.ceil(delay / 1000);
+		this.intervalToken = setInterval(this.intervalHandler, 1000);
+	}
+
+	/**
+	 * Returns true if scheduled.
+	 */
+	isScheduled(): boolean {
+		return this.intervalToken !== -1;
+	}
+
+	private onInterval() {
+		this.counter--;
+		if (this.counter > 0) {
+			// still need to wait
+			return;
+		}
+
+		// time elapsed
+		clearInterval(this.intervalToken);
+		this.intervalToken = -1;
+		if (this.runner) {
+			this.runner();
+		}
+	}
+}
+
 export class RunOnceWorker<T> extends RunOnceScheduler {
 	private units: T[] = [];
 
@@ -976,6 +1051,10 @@ export class IdleValue<T> {
 			throw this._error;
 		}
 		return this._value!;
+	}
+
+	get isInitialized(): boolean {
+		return this._didRun;
 	}
 }
 

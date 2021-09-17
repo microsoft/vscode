@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
-import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain, IpcMainEvent } from 'electron';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { BrowserWindow, Event as ElectronEvent, ipcMain, IpcMainEvent, MessagePortMain } from 'electron';
 import { Barrier } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { FileAccess } from 'vs/base/common/network';
-import { browserCodeLoadingCacheStrategy, IProcessEnvironment } from 'vs/base/common/platform';
-import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
-import { WindowError } from 'vs/platform/windows/electron-main/windows';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+import { assertIsDefined } from 'vs/base/common/types';
+import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { WindowError } from 'vs/platform/windows/electron-main/windows';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -166,7 +166,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
-				v8CacheOptions: browserCodeLoadingCacheStrategy,
+				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				nodeIntegration: true,
 				contextIsolation: false,
 				enableWebSQL: false,

@@ -9,7 +9,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -45,7 +45,7 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 		}
 	}
 
-	private getUserDataEditorInputSource(editorInput: IEditorInput | undefined): string | undefined {
+	private getUserDataEditorInputSource(editorInput: EditorInput | undefined): string | undefined {
 		if (!editorInput) {
 			return undefined;
 		}

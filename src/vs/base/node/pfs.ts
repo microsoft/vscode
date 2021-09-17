@@ -6,14 +6,14 @@
 import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
-import { join } from 'vs/base/common/path';
 import { ResourceQueue } from 'vs/base/common/async';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
-import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
+import { join } from 'vs/base/common/path';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 
 //#region rimraf
 
@@ -33,7 +33,7 @@ export enum RimRafMode {
 }
 
 /**
- * Allows to delete the provied path (either file or folder) recursively
+ * Allows to delete the provided path (either file or folder) recursively
  * with the options:
  * - `UNLINK`: direct removal from disk
  * - `MOVE`: faster variant that first moves the target to temp dir and then
@@ -176,7 +176,7 @@ function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDir
 }
 
 /**
- * A convinience method to read all children of a path that
+ * A convenience method to read all children of a path that
  * are directories.
  */
 async function readDirsInDir(dirPath: string): Promise<string[]> {

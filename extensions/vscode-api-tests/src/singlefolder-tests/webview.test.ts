@@ -17,7 +17,8 @@ function workspaceFile(...segments: string[]) {
 
 const testDocument = workspaceFile('bower.json');
 
-suite('vscode API - webview', () => {
+// Disable webview tests on web
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
@@ -239,7 +240,7 @@ suite('vscode API - webview', () => {
 	});
 
 
-	test.skip('webviews should only be able to load resources from workspace by default', async () => {
+	test('webviews should only be able to load resources from workspace by default', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
 			viewColumn: vscode.ViewColumn.One
 		}, {
@@ -254,7 +255,8 @@ suite('vscode API - webview', () => {
 					img.addEventListener('load', () => {
 						vscode.postMessage({ value: true });
 					});
-					img.addEventListener('error', () => {
+					img.addEventListener('error', (e) => {
+						console.log(e);
 						vscode.postMessage({ value: false });
 					});
 					img.src = message.data.src;
@@ -269,6 +271,7 @@ suite('vscode API - webview', () => {
 
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
+			console.log(imagePath);
 			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual(response.value, true);
 		}
@@ -324,7 +327,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => {
+	test('webviews using hard-coded old style vscode-resource uri should work', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [workspaceFile('sub')]

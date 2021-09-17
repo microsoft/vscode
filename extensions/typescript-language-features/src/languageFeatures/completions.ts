@@ -89,7 +89,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
 		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext);
-		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
 		this.insertText = isSnippet && tsEntry.insertText ? new vscode.SnippetString(tsEntry.insertText) : tsEntry.insertText;
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
@@ -119,7 +119,11 @@ class MyCompletionItem extends vscode.CompletionItem {
 				if (!this.filterText) {
 					this.filterText = this.textLabel;
 				}
-				this.label += '?';
+				if (typeof this.label === 'string') {
+					this.label += '?';
+				} else {
+					this.label.label += '?';
+				}
 			}
 			if (kindModifiers.has(PConst.KindModifiers.deprecated)) {
 				this.tags = [vscode.CompletionItemTag.Deprecated];
@@ -489,7 +493,11 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 	}
 
-	private static getCommitCharacters(context: CompletionContext): string[] | undefined {
+	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
+		if (entry.kind === PConst.Kind.warning) { // Ambient JS word based suggestion
+			return undefined;
+		}
+
 		if (context.isNewIdentifierLocation || !context.isInValidCommitCharacterContext) {
 			return undefined;
 		}
@@ -685,7 +693,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
 			triggerCharacter: this.getTsTriggerCharacter(context),
-			// @ts-expect-error
 			triggerKind: typeConverters.CompletionTriggerKind.toProtocolCompletionTriggerKind(context.triggerKind),
 		};
 

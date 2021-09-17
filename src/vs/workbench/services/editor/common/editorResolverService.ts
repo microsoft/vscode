@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
@@ -102,11 +103,13 @@ export type RegisteredEditorInfo = {
 	priority: RegisteredEditorPriority;
 };
 
-export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+type EditorInputFactoryResult = IEditorInputWithOptions | Promise<IEditorInputWithOptions>;
 
-export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
+
+export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => EditorInputFactoryResult;
 
 export interface IEditorResolverService {
 	readonly _serviceBrand: undefined;
@@ -123,6 +126,11 @@ export interface IEditorResolverService {
 	 * @param editorID The ID of the editor to make a user default
 	 */
 	updateUserAssociations(globPattern: string, editorID: string): void;
+
+	/**
+	 * Emitted when an editor is registered or unregistered.
+	 */
+	readonly onDidChangeEditorRegistrations: Event<void>;
 
 	/**
 	 * Registers a specific editor.
@@ -153,7 +161,12 @@ export interface IEditorResolverService {
 	 * @param resource The resource
 	 * @returns A list of editor ids
 	 */
-	getEditorIds(resource: URI): string[];
+	getEditors(resource: URI): RegisteredEditorInfo[];
+
+	/**
+	 * A set of all the editors that are registered to the editor resolver.
+	 */
+	getEditors(): RegisteredEditorInfo[];
 }
 
 //#endregion

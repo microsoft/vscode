@@ -35,17 +35,17 @@
 .extension-list-item > .icon-container .extension-badge {
 	position: absolute;
 	bottom: 5px;
+}
+
+.extension-list-item > .icon-container .extension-badge.extension-remote-badge {
 	width: 22px;
 	height: 22px;
 	line-height: 22px;
 	border-radius: 20px;
+	right: 5px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-}
-
-.extension-list-item > .icon-container .extension-badge.extension-remote-badge {
-	right: 5px;
 }
 
 .extension-list-item > .icon-container .extension-remote-badge .codicon {
@@ -181,4 +181,17 @@
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
 	min-width: 0;
+}
+
+.extension-list-item .monaco-action-bar .action-label.icon {
+	padding: 1px 2px;
+}
+
+.hc-black .extension-list-item .monaco-action-bar .action-label.icon {
+	padding: 0px 2px;
+}
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
+.extension-list-item .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
+	margin-left: 6px;
 }

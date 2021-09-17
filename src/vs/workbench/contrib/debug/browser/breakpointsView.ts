@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IContextKeyService, ContextKeyEqualsExpr, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Gesture } from 'vs/base/browser/touch';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
@@ -164,7 +164,8 @@ export class BreakpointsView extends ViewPane {
 			}
 			if (e.element instanceof InstructionBreakpoint) {
 				const disassemblyView = await this.editorService.openEditor(DisassemblyViewInput.instance);
-				(disassemblyView as DisassemblyView).goToAddress(e.element.instructionReference);
+				// Focus on double click
+				(disassemblyView as DisassemblyView).goToAddress(e.element.instructionReference, e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2);
 			}
 			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && e.element instanceof FunctionBreakpoint && e.element !== this.inputBoxData?.breakpoint) {
 				// double click
@@ -1027,7 +1028,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	if (debugActive && !breakpoint.verified) {
 		return {
 			icon: breakpointIcon.unverified,
-			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakopint', "Unverified Breakpoint")),
+			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakpoint', "Unverified Breakpoint")),
 		};
 	}
 
@@ -1141,7 +1142,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyEqualsExpr.create('view', BREAKPOINTS_VIEW_ID)
+				when: ContextKeyExpr.equals('view', BREAKPOINTS_VIEW_ID)
 			}, {
 				id: MenuId.MenubarNewBreakpointMenu,
 				group: '1_breakpoints',
@@ -1168,7 +1169,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 20,
-				when: ContextKeyEqualsExpr.create('view', BREAKPOINTS_VIEW_ID)
+				when: ContextKeyExpr.equals('view', BREAKPOINTS_VIEW_ID)
 			}
 		});
 	}
@@ -1228,7 +1229,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 30,
-				when: ContextKeyEqualsExpr.create('view', BREAKPOINTS_VIEW_ID)
+				when: ContextKeyExpr.equals('view', BREAKPOINTS_VIEW_ID)
 			}, {
 				id: MenuId.DebugBreakpointsContext,
 				group: '3_modification',

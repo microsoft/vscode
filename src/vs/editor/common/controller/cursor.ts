@@ -15,7 +15,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { RawContentChangedType, ModelRawContentChangedEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/view/viewEvents';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
@@ -328,31 +328,48 @@ export class CursorsController extends Disposable {
 		this.revealPrimary(eventsCollector, 'restoreState', true, editorCommon.ScrollType.Immediate);
 	}
 
-	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent): void {
-
-		this._knownModelVersionId = e.versionId;
-		if (this._isHandling) {
-			return;
-		}
-
-		const hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
-		this._prevEditOperationType = EditOperationType.Other;
-
-		if (hadFlushEvent) {
-			// a model.setValue() was called
-			this._cursors.dispose();
-			this._cursors = new CursorCollection(this.context);
-			this._validateAutoClosedActions();
-			this._emitStateChangedIfNecessary(eventsCollector, 'model', CursorChangeReason.ContentFlush, null, false);
+	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
+		if (e instanceof ModelInjectedTextChangedEvent) {
+			// If injected texts change, the view positions of all cursors need to be updated.
+			if (this._isHandling) {
+				// The view positions will be updated when handling finishes
+				return;
+			}
+			// setStates might remove markers, which could trigger a decoration change.
+			// If there are injected text decorations for that line, `onModelContentChanged` is emitted again
+			// and an endless recursion happens.
+			// _isHandling prevents that.
+			this._isHandling = true;
+			try {
+				this.setStates(eventsCollector, 'modelChange', CursorChangeReason.NotSet, this.getCursorStates());
+			} finally {
+				this._isHandling = false;
+			}
 		} else {
-			if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
-				const cursorState = CursorState.fromModelSelections(e.resultingSelection);
-				if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
-					this._revealPrimaryCursor(eventsCollector, 'modelChange', VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
-				}
+			this._knownModelVersionId = e.versionId;
+			if (this._isHandling) {
+				return;
+			}
+
+			const hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
+			this._prevEditOperationType = EditOperationType.Other;
+
+			if (hadFlushEvent) {
+				// a model.setValue() was called
+				this._cursors.dispose();
+				this._cursors = new CursorCollection(this.context);
+				this._validateAutoClosedActions();
+				this._emitStateChangedIfNecessary(eventsCollector, 'model', CursorChangeReason.ContentFlush, null, false);
 			} else {
-				const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-				this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+				if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
+					const cursorState = CursorState.fromModelSelections(e.resultingSelection);
+					if (this.setStates(eventsCollector, 'modelChange', e.isUndoing ? CursorChangeReason.Undo : e.isRedoing ? CursorChangeReason.Redo : CursorChangeReason.RecoverFromMarkers, cursorState)) {
+						this._revealPrimaryCursor(eventsCollector, 'modelChange', VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+					}
+				} else {
+					const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
+					this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+				}
 			}
 		}
 	}

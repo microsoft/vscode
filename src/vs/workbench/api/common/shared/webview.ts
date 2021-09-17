@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CharCode } from 'vs/base/common/charCode';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import type * as vscode from 'vscode';
@@ -57,9 +58,27 @@ export function asWebviewUri(
 
 	return URI.from({
 		scheme: Schemas.https,
-		authority: `${resource.scheme}+${resource.authority}.${webviewRootResourceAuthority}`,
+		authority: `${resource.scheme}+${encodeAuthority(resource.authority)}.${webviewRootResourceAuthority}`,
 		path: resource.path,
 		fragment: resource.fragment,
 		query: resource.query,
 	});
+}
+
+function encodeAuthority(authority: string): string {
+	return authority.replace(/./g, char => {
+		const code = char.charCodeAt(0);
+		if (
+			(code >= CharCode.a && code <= CharCode.z)
+			|| (code >= CharCode.A && code <= CharCode.Z)
+			|| (code >= CharCode.Digit0 && code <= CharCode.Digit9)
+		) {
+			return char;
+		}
+		return '-' + code.toString(16).padStart(4, '0');
+	});
+}
+
+export function decodeAuthority(authority: string) {
+	return authority.replace(/-([0-9a-f]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
 }

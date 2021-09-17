@@ -21,12 +21,12 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorExtensions, EditorsOrder, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { CellEditType, CellKind, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -50,6 +50,8 @@ import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { peekViewBorder /*, peekViewEditorBackground, peekViewResultsBackground */ } from 'vs/editor/contrib/peekView/peekView';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -104,7 +106,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 											outputId: output.outputId,
 											outputs: output.outputs.map(ot => ({
 												mime: ot.mime,
-												data: Uint8Array.from(ot.data)
+												data: ot.data
 											}))
 										}))
 										: [],
@@ -145,7 +147,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 								outputId: output.outputId,
 								outputs: output.outputs.map(ot => ({
 									mime: ot.mime,
-									data: Array.from(ot.data)
+									data: ot.data
 								}))
 							};
 						}),
@@ -164,7 +166,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		};
 		this._register(notebookService.registerNotebookController('interactive', {
 			id: new ExtensionIdentifier('interactive.builtin'),
-			location: URI.parse('interactive://test')
+			location: undefined
 		}, controller));
 
 		const info = notebookService.getContributedNotebookType('interactive');
@@ -259,7 +261,7 @@ registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'interactive.open',
+			id: '_interactive.open',
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
 			f1: false,
 			category: 'Interactive',
@@ -304,7 +306,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, showOptions?: number | { viewColumn?: number, preserveFocus?: boolean }, resource?: URI, id?: string, title?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
+	async run(accessor: ServicesAccessor, showOptions?: number | { viewColumn?: number, preserveFocus?: boolean }, resource?: URI, id?: string, title?: string): Promise<{ notebookUri: URI, inputUri: URI; notebookEditorId?: string }> {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const historyService = accessor.get(IInteractiveHistoryService);
@@ -321,10 +323,13 @@ registerAction2(class extends Action2 {
 			if (editors.length) {
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
-				await editorService.openEditor(editorInput, editorOptions, currentGroup);
+				const editor = await editorService.openEditor(editorInput, editorOptions, currentGroup);
+				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
 				return {
 					notebookUri: editorInput.resource!,
-					inputUri: editorInput.inputResource
+					inputUri: editorInput.inputResource,
+					notebookEditorId: editorControl?.notebookEditor?.getId()
 				};
 			}
 		}
@@ -356,9 +361,10 @@ registerAction2(class extends Action2 {
 
 		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri, title);
 		historyService.clearHistory(notebookUri);
-		await editorService.openEditor(editorInput, { ...editorOptions, pinned: true }, group);
+		const editorPane = await editorService.openEditor(editorInput, editorOptions, group);
+		const editorControl = editorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
 		// Extensions must retain references to these URIs to manipulate the interactive editor
-		return { notebookUri, inputUri };
+		return { notebookUri, inputUri, notebookEditorId: editorControl?.notebookEditor?.getId() };
 	}
 });
 
@@ -402,6 +408,11 @@ registerAction2(class extends Action2 {
 			if (notebookDocument && textModel) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
+
+				if (isFalsyOrWhitespace(value)) {
+					return;
+				}
+
 				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
 
@@ -425,7 +436,33 @@ registerAction2(class extends Action2 {
 
 				// reveal the cell into view first
 				editorControl.notebookEditor.revealCellRangeInView({ start: index, end: index + 1 });
-				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.viewModel!.getCells({ start: index, end: index + 1 }));
+				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
+			}
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.input.clear',
+			title: { value: localize('interactive.input.clear', "Clear the interactive window input editor contents"), original: 'Clear the interactive window input editor contents' },
+			category: 'Interactive',
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			const notebookDocument = editorControl.notebookEditor.textModel;
+			const textModel = editorControl.codeEditor.getModel();
+			const range = editorControl.codeEditor.getModel()?.getFullModelRange();
+
+			if (notebookDocument && textModel && range) {
+				editorControl.codeEditor.executeEdits('', [EditOperation.replace(range, null)]);
 			}
 		}
 	}

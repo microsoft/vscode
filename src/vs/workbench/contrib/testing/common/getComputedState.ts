@@ -36,8 +36,12 @@ export const getComputedState = <T>(accessor: IComputedStateAccessor<T>, node: T
 	let computed = accessor.getCurrentComputedState(node);
 	if (computed === undefined || force) {
 		computed = accessor.getOwnState(node) ?? TestResultState.Unset;
+
 		for (const child of accessor.getChildren(node)) {
-			computed = maxPriority(computed, getComputedState(accessor, child));
+			const childComputed = getComputedState(accessor, child);
+			// If all children are skipped, make the current state skipped too if unset (#131537)
+			computed = childComputed === TestResultState.Skipped && computed === TestResultState.Unset
+				? TestResultState.Skipped : maxPriority(computed, childComputed);
 		}
 
 		accessor.setComputedState(node, computed);
@@ -114,13 +118,13 @@ export const refreshComputedState = <T>(
 
 	if (isDurationAccessor(accessor)) {
 		for (const parent of Iterable.concat(Iterable.single(node), accessor.getParents(node))) {
-			const oldDuration = accessor.getCurrentComputedDuration(node);
-			const newDuration = getComputedDuration(accessor, node, true);
+			const oldDuration = accessor.getCurrentComputedDuration(parent);
+			const newDuration = getComputedDuration(accessor, parent, true);
 			if (oldDuration === newDuration) {
 				break;
 			}
 
-			accessor.setComputedDuration(parent, newState);
+			accessor.setComputedDuration(parent, newDuration);
 			toUpdate.add(parent);
 		}
 	}

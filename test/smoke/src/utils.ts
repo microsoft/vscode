@@ -32,7 +32,7 @@ export function beforeSuite(opts: minimist.ParsedArgs, optionsTransform?: (opts:
 		const userDataDir = options.userDataDir.concat(`-${userDataPathSuffix}`);
 
 		const app = new Application({ ...options, userDataDir });
-		await app!.start(opts.web ? false : undefined);
+		await app.start();
 		this.app = app;
 
 		if (opts.log) {
@@ -48,11 +48,23 @@ export function afterSuite(opts: minimist.ParsedArgs) {
 
 		if (this.currentTest?.state === 'failed' && opts.screenshots) {
 			const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
-			await app.captureScreenshot(name);
+			try {
+				await app.captureScreenshot(name);
+			} catch (error) {
+				// ignore
+			}
 		}
 
 		if (app) {
 			await app.stop();
 		}
+	});
+}
+
+export function timeout(i: number) {
+	return new Promise<void>(resolve => {
+		setTimeout(() => {
+			resolve();
+		}, i);
 	});
 }

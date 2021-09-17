@@ -64,7 +64,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 					onUninstallExtension: new Emitter<IExtensionIdentifier>().event,
 					onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
-				}
+				},
 			}, null, null));
 		const workbenchExtensionManagementService = instantiationService.get(IWorkbenchExtensionManagementService) || instantiationService.stub(IWorkbenchExtensionManagementService, instantiationService.createInstance(ExtensionManagementService));
 		const workspaceTrustManagementService = instantiationService.get(IWorkspaceTrustManagementService) || instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
@@ -128,7 +128,7 @@ suite('ExtensionEnablementService Test', () => {
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
 				getInstalled: () => Promise.resolve(installed)
-			}
+			},
 		}, null, null));
 		instantiationService.stub(IWorkbenchExtensionManagementService, instantiationService.createInstance(ExtensionManagementService));
 		testObject = new TestExtensionEnablementService(instantiationService);
@@ -689,7 +689,7 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		testObject = new TestExtensionEnablementService(instantiationService);
-		assert.strictEqual(testObject.canChangeEnablement(localWorkspaceExtension), true);
+		assert.strictEqual(testObject.canChangeEnablement(localWorkspaceExtension), false);
 	});
 
 	test('test canChangeEnablement return true for local ui extension', () => {
@@ -735,7 +735,7 @@ suite('ExtensionEnablementService Test', () => {
 		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
-		assert.strictEqual(testObject.canChangeEnablement(localWorkspaceExtension), true);
+		assert.strictEqual(testObject.canChangeEnablement(localWorkspaceExtension), false);
 	});
 
 	test('test canChangeEnablement return true for remote workspace extension', () => {
@@ -920,7 +920,7 @@ function anExtensionManagementServer(authority: string, instantiationService: Te
 	return {
 		id: authority,
 		label: authority,
-		extensionManagementService: instantiationService.get(IExtensionManagementService)
+		extensionManagementService: instantiationService.get(IExtensionManagementService),
 	};
 }
 

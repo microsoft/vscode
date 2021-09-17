@@ -24,6 +24,7 @@ export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	isBuiltin: false,
 });
 
+export type WebWorkerExtHostConfigValue = boolean | 'auto';
 export const webWorkerExtHostConfig = 'extensions.webWorker';
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
@@ -35,10 +36,18 @@ export interface IMessage {
 	extensionPointId: string;
 }
 
+export const enum ExtensionRunningLocation {
+	None,
+	LocalProcess,
+	LocalWebWorker,
+	Remote
+}
+
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
+	runningLocation: ExtensionRunningLocation;
 }
 
 export class MissingExtensionDependency {
@@ -91,9 +100,18 @@ export const enum ExtensionHostKind {
 	Remote
 }
 
+export function extensionHostKindToString(kind: ExtensionHostKind): string {
+	switch (kind) {
+		case ExtensionHostKind.LocalProcess: return 'LocalProcess';
+		case ExtensionHostKind.LocalWebWorker: return 'LocalWebWorker';
+		case ExtensionHostKind.Remote: return 'Remote';
+	}
+}
+
 export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
 	readonly remoteAuthority: string | null;
+	readonly lazyStart: boolean;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;

@@ -10,14 +10,15 @@ import { Delayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
@@ -38,13 +39,14 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID } from 'vs/workbench/contrib/searchEditor/browser/constants';
+import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID, SearchEditorInputTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import type { SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -57,13 +59,15 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
+import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
-export class SearchEditor extends BaseTextEditor {
+export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 	static readonly ID: string = SearchEditorID;
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
@@ -220,6 +224,15 @@ export class SearchEditor extends BaseTextEditor {
 		}
 	}
 
+	private _getContributions(): IEditorContributionDescription[] {
+		const skipContributions = [UnusualLineTerminatorsDetector.ID];
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+	}
+
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: this._getContributions() });
+	}
+
 	private registerEditorListeners() {
 		this.searchResultEditor = super.getControl() as CodeEditorWidget;
 		this.searchResultEditor.onMouseUp(e => {
@@ -239,8 +252,6 @@ export class SearchEditor extends BaseTextEditor {
 			}
 		});
 
-		this._register(this.onDidBlur(() => this.saveViewState()));
-
 		this._register(this.searchResultEditor.onDidChangeModelContent(() => this.getInput()?.setDirty(true)));
 	}
 
@@ -249,7 +260,7 @@ export class SearchEditor extends BaseTextEditor {
 	}
 
 	override focus() {
-		const viewState = this.loadViewState();
+		const viewState = this.loadEditorViewState(this.getInput());
 		if (viewState && viewState.focused === 'editor') {
 			this.searchResultEditor.focus();
 		} else {
@@ -487,7 +498,7 @@ export class SearchEditor extends BaseTextEditor {
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchEditor',
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			maxResults: 10000,
+			maxResults: withNullAsUndefined(this.searchConfig.maxResults),
 			disregardIgnoreFiles: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			excludePattern: config.filesToExclude,
@@ -621,8 +632,6 @@ export class SearchEditor extends BaseTextEditor {
 	}
 
 	override async setInput(newInput: SearchEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		this.saveViewState();
-
 		await super.setInput(newInput, options, context, token);
 		if (token.isCancellationRequested) {
 			return;
@@ -646,7 +655,7 @@ export class SearchEditor extends BaseTextEditor {
 			}
 		}));
 
-		this.restoreViewState();
+		this.restoreViewState(context);
 
 		if (!options?.preserveFocus) {
 			this.focus();
@@ -679,38 +688,30 @@ export class SearchEditor extends BaseTextEditor {
 		this.reLayout();
 	}
 
-	override saveState() {
-		this.saveViewState();
-		super.saveState();
+	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
+		if (input.typeId === SearchEditorInputTypeId) {
+			return (input as SearchEditorInput).modelUri;
+		}
+
+		return undefined;
 	}
 
-	private saveViewState() {
-		const resource = this.getInput()?.modelUri;
-		if (resource) { this.saveTextEditorViewState(resource); }
-	}
-
-	protected override retrieveTextEditorViewState(resource: URI): SearchEditorViewState | null {
+	protected override computeEditorViewState(resource: URI): SearchEditorViewState | undefined {
 		const control = this.getControl();
 		const editorViewState = control.saveViewState();
-		if (!editorViewState) { return null; }
-		if (resource.toString() !== this.getInput()?.modelUri.toString()) { return null; }
+		if (!editorViewState) { return undefined; }
+		if (resource.toString() !== this.getInput()?.modelUri.toString()) { return undefined; }
 
 		return { ...editorViewState, focused: this.searchResultEditor.hasWidgetFocus() ? 'editor' : 'input' };
 	}
 
-	private loadViewState() {
-		const resource = assertIsDefined(this.getInput()?.modelUri);
-		return this.loadTextEditorViewState(resource) as SearchEditorViewState;
+	protected tracksEditorViewState(input: EditorInput): boolean {
+		return input.typeId === SearchEditorInputTypeId;
 	}
 
-	private restoreViewState() {
-		const viewState = this.loadViewState();
+	private restoreViewState(context: IEditorOpenContext) {
+		const viewState = this.loadEditorViewState(this.getInput(), context);
 		if (viewState) { this.searchResultEditor.restoreViewState(viewState); }
-	}
-
-	override clearInput() {
-		this.saveViewState();
-		super.clearInput();
 	}
 
 	getAriaLabel() {

@@ -5,7 +5,6 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -24,7 +23,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
@@ -60,6 +59,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const $ = DOM.$;
 
@@ -145,12 +146,6 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			schema
 		}));
 
-	const additionalValueEnums = getEnumOptionsFromSchema(
-		typeof objectAdditionalProperties === 'boolean'
-			? {}
-			: objectAdditionalProperties ?? {}
-	);
-
 	const wellDefinedKeyEnumOptions = Object.entries(objectProperties ?? {}).map(
 		([key, schema]) => ({ value: key, description: schema.description })
 	);
@@ -167,15 +162,14 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					},
 					value: {
 						type: 'boolean',
-						data: data[key],
-						description: objectProperties[key].description
+						data: data[key]
 					},
+					keyDescription: objectProperties[key].description,
 					removable: false
 				} as IObjectDataItem;
 			}
 
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
-
 			return {
 				key: {
 					type: 'enum',
@@ -187,6 +181,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: data[key],
 					options: valueEnumOptions,
 				},
+				keyDescription: objectProperties[key].description,
 				removable: isUndefinedOrNull(defaultValue),
 			} as IObjectDataItem;
 		}
@@ -201,9 +196,16 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: data[key],
 					options: valueEnumOptions,
 				},
+				keyDescription: schema.description,
 				removable: true,
 			} as IObjectDataItem;
 		}
+
+		const additionalValueEnums = getEnumOptionsFromSchema(
+			typeof objectAdditionalProperties === 'boolean'
+				? {}
+				: objectAdditionalProperties ?? {}
+		);
 
 		return {
 			key: { type: 'string', data: key },
@@ -212,9 +214,10 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				data: data[key],
 				options: additionalValueEnums,
 			},
+			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
 			removable: true,
 		} as IObjectDataItem;
-	});
+	}).filter(item => !isUndefinedOrNull(item.value.data));
 }
 
 function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
@@ -356,27 +359,69 @@ export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], tar
 	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
 }
 
-export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {
-	const settingsGroupToEntry = (group: ISettingsGroup) => {
+export async function resolveExtensionsSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
+	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
+	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
+		if (!extGroupTree.has(extensionId)) {
+			const rootEntry = {
+				id: extensionId,
+				label: extensionName,
+				children: []
+			};
+			extGroupTree.set(extensionId, rootEntry);
+		}
+		extGroupTree.get(extensionId)!.children!.push(childEntry);
+	};
+	const processGroupEntry = async (group: ISettingsGroup) => {
 		const flatSettings = arrays.flatten(
 			group.sections.map(section => section.settings));
 
-		return {
+		const extensionId = group.extensionInfo!.id;
+		const extension = await extensionService.getExtension(extensionId);
+		const extensionName = extension!.displayName ?? extension!.name;
+
+		const childEntry = {
 			id: group.id,
 			label: group.title,
+			order: group.order,
 			settings: flatSettings
 		};
+		addEntryToTree(extensionId, extensionName, childEntry);
 	};
 
-	const extGroups = groups
+	const processPromises = groups
 		.sort((a, b) => a.title.localeCompare(b.title))
-		.map(g => settingsGroupToEntry(g));
+		.map(g => processGroupEntry(g));
 
-	return {
-		id: 'extensions',
-		label: localize('extensions', "Extensions"),
-		children: extGroups
-	};
+	return Promise.all(processPromises).then(() => {
+		const extGroups: ITOCEntry<ISetting>[] = [];
+		for (const value of extGroupTree.values()) {
+			if (value.children!.length === 1) {
+				// push a flattened setting
+				extGroups.push({
+					id: value.id,
+					label: value.children![0].label,
+					settings: value.children![0].settings
+				});
+			} else {
+				value.children!.sort((a, b) => {
+					if (a.order !== undefined && b.order !== undefined) {
+						return a.order - b.order;
+					} else {
+						// leave things as-is
+						return 0;
+					}
+				});
+				extGroups.push(value);
+			}
+		}
+
+		return {
+			id: 'extensions',
+			label: localize('extensions', "Extensions"),
+			children: extGroups
+		};
+	});
 }
 
 function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry<ISetting> {
@@ -512,9 +557,10 @@ interface ISettingExcludeItemTemplate extends ISettingItemTemplate<void> {
 	excludeWidget: ListSettingWidget;
 }
 
-interface ISettingObjectItemTemplate extends ISettingItemTemplate<void> {
+interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
 	objectDropdownWidget?: ObjectSettingDropdownWidget,
 	objectCheckboxWidget?: ObjectSettingCheckboxWidget;
+	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
@@ -626,6 +672,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
+	private readonly markdownRenderer: MarkdownRenderer;
+
 	constructor(
 		private readonly settingActions: IAction[],
 		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
@@ -639,6 +687,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@IConfigurationService protected readonly _configService: IConfigurationService,
 	) {
 		super();
+
+		this.markdownRenderer = this._register(_instantiationService.createInstance(MarkdownRenderer, {}));
 
 		this.ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), this._configService);
 		this._register(this._configService.onDidChangeConfiguration(e => {
@@ -769,8 +819,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.descriptionElement.innerText = '';
 		if (element.setting.descriptionIsMarkdown) {
 			const disposables = new DisposableStore();
-			template.toDispose.add(disposables);
-			const renderedDescription = this.renderSettingMarkdown(element, element.description, disposables);
+			template.elementDisposables.add(disposables);
+			const renderedDescription = this.renderSettingMarkdown(element, template.containerElement, element.description, disposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
@@ -814,7 +864,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			const disposables = new DisposableStore();
 			template.elementDisposables.add(disposables);
 			template.deprecationWarningElement.innerText = '';
-			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, element.setting.deprecationMessage!, template.elementDisposables));
+			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, template.containerElement, element.setting.deprecationMessage!, template.elementDisposables));
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
@@ -844,11 +894,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}
 	}
 
-	private renderSettingMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
+	private renderSettingMarkdown(element: SettingsTreeSettingElement, container: HTMLElement, text: string, disposeables: DisposableStore): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
-		const renderedMarkdown = renderMarkdown({ value: text, isTrusted: true }, {
+		const renderedMarkdown = this.markdownRenderer.render({ value: text, isTrusted: true }, {
 			actionHandler: {
 				callback: (content: string) => {
 					if (content.startsWith('#')) {
@@ -861,13 +911,20 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 						this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
 					}
 				},
-				disposeables
-			}
+				disposables: disposeables
+			},
+			asyncRenderCallback: () => {
+				const height = container.clientHeight;
+				if (height) {
+					this._onDidChangeSettingHeight.fire({ element, height });
+				}
+			},
 		});
+		disposeables.add(renderedMarkdown);
 
-		renderedMarkdown.classList.add('setting-item-markdown');
-		cleanRenderedMarkdown(renderedMarkdown);
-		return renderedMarkdown;
+		renderedMarkdown.element.classList.add('setting-item-markdown');
+		cleanRenderedMarkdown(renderedMarkdown.element);
+		return renderedMarkdown.element;
 	}
 
 	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: any) => void): void;
@@ -1123,6 +1180,10 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		});
 		template.context = dataElement;
 
+		template.elementDisposables.add(toDisposable(() => {
+			template.listWidget.cancelEdit();
+		}));
+
 		template.onChange = (v) => {
 			onChange(v);
 			renderArrayValidations(dataElement, template, v, false);
@@ -1138,8 +1199,13 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 		widget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.add(widget);
 
+		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
+		const validationErrorMessageElement = $('.setting-item-validation-message');
+		descriptionElement.after(validationErrorMessageElement);
+
 		const template: ISettingObjectItemTemplate = {
-			...common
+			...common,
+			validationErrorMessageElement
 		};
 		if (widget instanceof ObjectSettingCheckboxWidget) {
 			template.objectCheckboxWidget = widget;
@@ -1149,7 +1215,9 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.add(widget.onDidChangeList(e => this.onDidChangeObject(template, e)));
+		common.toDispose.add(widget.onDidChangeList(e => {
+			this.onDidChangeObject(template, e);
+		}));
 
 		return template;
 	}
@@ -1208,16 +1276,16 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				}
 			});
 
-			this._onDidChangeSetting.fire({
-				key: template.context.setting.key,
-				value: Object.keys(newValue).length === 0 ? undefined : newValue,
-				type: template.context.valueType
-			});
+			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
 
 			if (template.objectCheckboxWidget) {
 				template.objectCheckboxWidget.setValue(newItems);
 			} else {
 				template.objectDropdownWidget!.setValue(newItems);
+			}
+
+			if (template.onChange) {
+				template.onChange(newObject);
 			}
 		}
 	}
@@ -1236,7 +1304,7 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		return this.renderTemplateWithWidget(common, widget);
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties } = dataElement.setting;
 
@@ -1253,6 +1321,16 @@ export class SettingObjectRenderer extends AbstractSettingObjectRenderer impleme
 		});
 
 		template.context = dataElement;
+
+		template.elementDisposables.add(toDisposable(() => {
+			template.objectDropdownWidget!.cancelEdit();
+		}));
+
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			onChange(v);
+			renderArrayValidations(dataElement, template, v, false);
+		};
+		renderArrayValidations(dataElement, template, dataElement.value, true);
 	}
 }
 
@@ -1276,7 +1354,7 @@ export class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer imp
 		}
 	}
 
-	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: string) => void): void {
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
 		const { key } = dataElement.setting;
 
@@ -1285,6 +1363,9 @@ export class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer imp
 		});
 
 		template.context = dataElement;
+		template.onChange = (v: Record<string, unknown> | undefined) => {
+			onChange(v);
+		};
 	}
 }
 
@@ -1315,13 +1396,11 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalItem.value.data) {
-				if (e.originalItem.value.data.toString() in template.context.defaultValue) {
-					// delete a default by overriding it
-					newValue[e.originalItem.value.data.toString()] = false;
-				} else {
-					delete newValue[e.originalItem.value.data.toString()];
-				}
+			if (e.originalItem.value.data.toString() in template.context.defaultValue) {
+				// delete a default by overriding it
+				newValue[e.originalItem.value.data.toString()] = false;
+			} else {
+				delete newValue[e.originalItem.value.data.toString()];
 			}
 
 			// then add the new or updated entry, if present
@@ -1361,6 +1440,9 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 		const value = getExcludeDisplayValue(dataElement);
 		template.excludeWidget.setValue(value);
 		template.context = dataElement;
+		template.elementDisposables.add(toDisposable(() => {
+			template.excludeWidget.cancelEdit();
+		}));
 	}
 }
 
@@ -1519,47 +1601,60 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingEnumItemTemplate, onChange: (value: string) => void): void {
-		const enumItemLabels = dataElement.setting.enumItemLabels;
-		const enumDescriptions = dataElement.setting.enumDescriptions;
+		// Make shallow copies here so that we don't modify the actual dataElement later
+		const enumItemLabels = dataElement.setting.enumItemLabels ? [...dataElement.setting.enumItemLabels] : [];
+		const enumDescriptions = dataElement.setting.enumDescriptions ? [...dataElement.setting.enumDescriptions] : [];
+		const settingEnum = [...dataElement.setting.enum!];
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
 		const disposables = new DisposableStore();
 		template.toDispose.add(disposables);
 
-		if (!dataElement.setting.enum!.includes(dataElement.defaultValue)) {
-			dataElement.setting.enum!.unshift(dataElement.defaultValue ?? '');
+		let createdDefault = false;
+		if (!settingEnum.includes(dataElement.defaultValue)) {
+			// Add a new potentially blank default setting
+			settingEnum.unshift(dataElement.defaultValue);
+			enumDescriptions.unshift('');
+			enumItemLabels.unshift('');
+			createdDefault = true;
 		}
 
-		const displayOptions = dataElement.setting.enum!
+		const displayOptions = settingEnum
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => {
-				const description = (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
+				const description = (enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
 				return <ISelectOptionItem>{
-					text: enumItemLabels && enumItemLabels[index] ? enumItemLabels[index] : data,
-					detail: enumItemLabels && enumItemLabels[index] ? data : '',
+					text: enumItemLabels[index] ? enumItemLabels[index] : data,
+					detail: enumItemLabels[index] ? data : '',
 					description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
 					descriptionMarkdownActionHandler: {
 						callback: (content) => {
 							this._openerService.open(content).catch(onUnexpectedError);
 						},
-						disposeables: disposables
+						disposables: disposables
 					},
-					decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
+					decoratorRight: (data === dataElement.defaultValue || createdDefault && index === 0 ? localize('settings.Default', "default") : '')
 				};
 			});
 
 		template.selectBox.setOptions(displayOptions);
 
-		let idx = dataElement.setting.enum!.indexOf(dataElement.value);
+		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
-			idx = dataElement.setting.enum!.indexOf(dataElement.defaultValue);
+			idx = 0;
 		}
 
 		template.onChange = undefined;
 		template.selectBox.select(idx);
-		template.onChange = idx => onChange(dataElement.setting.enum![idx]);
+		template.onChange = (idx) => {
+			if (createdDefault && idx === 0) {
+				onChange(dataElement.defaultValue);
+			} else {
+				onChange(settingEnum[idx]);
+			}
+		};
 
 		template.enumDescriptionElement.innerText = '';
 	}
@@ -1893,8 +1988,8 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 
 function renderArrayValidations(
 	dataElement: SettingsTreeSettingElement,
-	template: ISettingListItemTemplate,
-	value: string[] | undefined,
+	template: ISettingListItemTemplate | ISettingObjectItemTemplate,
+	value: string[] | Record<string, unknown> | undefined,
 	calledOnStartup: boolean
 ) {
 	template.containerElement.classList.add('invalid-input');

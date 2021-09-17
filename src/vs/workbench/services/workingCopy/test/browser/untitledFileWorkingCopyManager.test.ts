@@ -34,9 +34,9 @@ suite('UntitledFileWorkingCopyManager', () => {
 			new TestUntitledFileWorkingCopyModelFactory(),
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-			accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService
+			accessor.environmentService, accessor.dialogService, accessor.decorationsService
 		);
 	});
 
@@ -275,9 +275,9 @@ suite('UntitledFileWorkingCopyManager', () => {
 				new TestUntitledFileWorkingCopyModelFactory(),
 				accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-				accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService
 			);
 
 			const untitled1OriginalType = await manager.untitled.resolve();
@@ -297,9 +297,9 @@ suite('UntitledFileWorkingCopyManager', () => {
 				new TestUntitledFileWorkingCopyModelFactory(),
 				accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-				accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService
 			);
 
 			const result = await manager.untitled.resolve();

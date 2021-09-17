@@ -75,7 +75,7 @@ export interface IEditorOptions {
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
-	 * Otherwise, if it is a truey, line numbers will be rendered normally (equivalent of using an identity function).
+	 * Otherwise, if it is a truthy, line numbers will be rendered normally (equivalent of using an identity function).
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to `on`.
 	 */
@@ -656,10 +656,7 @@ export interface IEditorOptions {
  */
 export const MINIMAP_GUTTER_WIDTH = 8;
 
-/**
- * Configuration options for the diff editor.
- */
-export interface IDiffEditorOptions extends IEditorOptions {
+export interface IDiffEditorBaseOptions {
 	/**
 	 * Allow the user to resize the diff editor split view.
 	 * Defaults to true.
@@ -675,6 +672,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to 5000.
 	 */
 	maxComputationTime?: number;
+	/**
+	 * Maximum supported file size in MB.
+	 * Defaults to 50.
+	 */
+	maxFileSize?: number;
 	/**
 	 * Compute the diff by ignoring leading/trailing whitespace
 	 * Defaults to true.
@@ -696,11 +698,6 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	diffCodeLens?: boolean;
 	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
-	 */
-	isInEmbeddedEditor?: boolean;
-	/**
 	 * Is the diff editor should render overview ruler
 	 * Defaults to true
 	 */
@@ -709,15 +706,18 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
-	/**
-	 * Aria label for original editor.
-	 */
-	originalAriaLabel?: string;
-	/**
-	 * Aria label for modifed editor.
-	 */
-	modifiedAriaLabel?: string;
 }
+
+/**
+ * Configuration options for the diff editor.
+ */
+export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
+}
+
+/**
+ * @internal
+ */
+export type ValidDiffEditorBaseOptions = Readonly<Required<IDiffEditorBaseOptions>>;
 
 //#endregion
 
@@ -921,19 +921,26 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 	}
 }
 
+/**
+ * @internal
+ */
+export function clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
+	if (typeof value === 'undefined') {
+		return defaultValue;
+	}
+	let r = parseInt(value, 10);
+	if (isNaN(r)) {
+		return defaultValue;
+	}
+	r = Math.max(minimum, r);
+	r = Math.min(maximum, r);
+	return r | 0;
+}
+
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 
 	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
-		if (typeof value === 'undefined') {
-			return defaultValue;
-		}
-		let r = parseInt(value, 10);
-		if (isNaN(r)) {
-			return defaultValue;
-		}
-		r = Math.max(minimum, r);
-		r = Math.min(maximum, r);
-		return r | 0;
+		return clampedInt(value, defaultValue, minimum, maximum);
 	}
 
 	public readonly minimum: number;
@@ -1361,7 +1368,7 @@ export interface IEditorFindOptions {
 	/**
 	 * Controls if we seed search string in the Find Widget with editor selection.
 	 */
-	seedSearchStringFromSelection?: boolean;
+	seedSearchStringFromSelection?: 'never' | 'always' | 'selection';
 	/**
 	 * Controls if Find in Selection flag is turned on in the editor.
 	 */
@@ -1388,7 +1395,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 	constructor() {
 		const defaults: EditorFindOptions = {
 			cursorMoveOnType: true,
-			seedSearchStringFromSelection: true,
+			seedSearchStringFromSelection: 'always',
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
 			addExtraSpaceOnTop: true,
@@ -1403,8 +1410,14 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					description: nls.localize('find.cursorMoveOnType', "Controls whether the cursor should jump to find matches while typing.")
 				},
 				'editor.find.seedSearchStringFromSelection': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['never', 'always', 'selection'],
 					default: defaults.seedSearchStringFromSelection,
+					enumDescriptions: [
+						nls.localize('editor.find.seedSearchStringFromSelection.never', 'Never seed search string from the editor selection.'),
+						nls.localize('editor.find.seedSearchStringFromSelection.always', 'Always seed search string from the editor selection, including word at cursor position.'),
+						nls.localize('editor.find.seedSearchStringFromSelection.selection', 'Only seed search string from the editor selection.')
+					],
 					description: nls.localize('find.seedSearchStringFromSelection', "Controls whether the search string in the Find Widget is seeded from the editor selection.")
 				},
 				'editor.find.autoFindInSelection': {
@@ -1412,11 +1425,11 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
 					enumDescriptions: [
-						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default).'),
-						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically.'),
-						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in Selection automatically (default).'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in Selection automatically.'),
+						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in Selection automatically when multiple lines of content are selected.')
 					],
-					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on find in selection automatically.")
+					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on Find in Selection automatically.")
 				},
 				'editor.find.globalFindClipboard': {
 					type: 'boolean',
@@ -1446,7 +1459,9 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		const input = _input as IEditorFindOptions;
 		return {
 			cursorMoveOnType: boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
-			seedSearchStringFromSelection: boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
+			seedSearchStringFromSelection: typeof _input.seedSearchStringFromSelection === 'boolean'
+				? (_input.seedSearchStringFromSelection ? 'always' : 'never')
+				: stringSet<'never' | 'always' | 'selection'>(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection, ['never', 'always', 'selection']),
 			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
 				? (_input.autoFindInSelection ? 'always' : 'never')
 				: stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
@@ -2459,7 +2474,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorI
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
-					description: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
+					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
 			}
 		);
@@ -3225,7 +3240,7 @@ export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptio
 class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, InternalInlineSuggestOptions> {
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
-			enabled: false,
+			enabled: true,
 			mode: 'subwordSmart'
 		};
 
@@ -3236,18 +3251,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
-				},
-				'editor.inlineSuggest.mode': {
-					type: 'string',
-					enum: ['prefix', 'subword', 'subwordSmart'],
-					enumDescriptions: [
-						nls.localize('inlineSuggest.mode.prefix', "Only render an inline suggestion if the replace text is a prefix of the insert text."),
-						nls.localize('inlineSuggest.mode.subword', "Only render an inline suggestion if the replace text is a subword of the insert text."),
-						nls.localize('inlineSuggest.mode.subwordSmart', "Only render an inline suggestion if the replace text is a subword of the insert text, but the subword must start after the cursor."),
-					],
-					default: defaults.mode,
-					description: nls.localize('inlineSuggest.mode', "Controls which mode to use for rendering inline suggestions.")
-				},
+				}
 			}
 		);
 	}
@@ -3260,6 +3264,51 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
+		};
+	}
+}
+
+//#endregion
+
+//#region bracketPairColorization
+
+export interface IBracketPairColorizationOptions {
+	/**
+	 * Enable or disable bracket pair colorization.
+	*/
+	enabled?: boolean;
+}
+
+export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
+
+/**
+ * Configuration options for inline suggestions
+ */
+class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, InternalBracketPairColorizationOptions> {
+	constructor() {
+		const defaults: InternalBracketPairColorizationOptions = {
+			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled
+		};
+
+		super(
+			EditorOption.bracketPairColorization, 'bracketPairColorization', defaults,
+			{
+				'editor.bracketPairColorization.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use 'workbench.colorCustomizations' to override the bracket highlight colors.")
+				}
+			}
+		);
+	}
+
+	public validate(_input: any): InternalBracketPairColorizationOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IBracketPairColorizationOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
 		};
 	}
 }
@@ -3518,17 +3567,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.preview,
 					description: nls.localize('suggest.preview', "Controls whether to preview the suggestion outcome in the editor.")
-				},
-				'editor.suggest.previewMode': {
-					type: 'string',
-					enum: ['prefix', 'subword', 'subwordSmart'],
-					enumDescriptions: [
-						nls.localize('suggest.previewMode.prefix', "Only render a preview if the replace text is a prefix of the insert text."),
-						nls.localize('suggest.previewMode.subword', "Only render a preview if the replace text is a subword of the insert text."),
-						nls.localize('suggest.previewMode.subwordSmart', "Render a preview if the replace text is a subword of the insert text, or if it is a prefix of the insert text."),
-					],
-					default: defaults.previewMode,
-					description: nls.localize('suggest.previewMode', "Controls which mode to use for rendering the suggest preview.")
 				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
@@ -3888,7 +3926,8 @@ export const EDITOR_MODEL_DEFAULTS = {
 	insertSpaces: true,
 	detectIndentation: true,
 	trimAutoWhitespace: true,
-	largeFileOptimizations: true
+	largeFileOptimizations: true,
+	bracketPairColorizationOptions: { enabled: false }
 };
 
 /**
@@ -3914,6 +3953,7 @@ export const enum EditorOption {
 	autoIndent,
 	automaticLayout,
 	autoSurround,
+	bracketPairColorization,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -4164,6 +4204,7 @@ export const EditorOptions = {
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
+	bracketPairColorization: register(new BracketPairColorization()),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
 		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
@@ -4287,7 +4328,7 @@ export const EditorOptions = {
 	)),
 	foldingImportsByDefault: register(new EditorBooleanOption(
 		EditorOption.foldingImportsByDefault, 'foldingImportsByDefault', false,
-		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor should auto collapse folded ranges or not.") }
+		{ description: nls.localize('foldingImportsByDefault', "Controls whether the editor automatically collapses import ranges.") }
 	)),
 	unfoldOnClickAfterEndOfLine: register(new EditorBooleanOption(
 		EditorOption.unfoldOnClickAfterEndOfLine, 'unfoldOnClickAfterEndOfLine', false,

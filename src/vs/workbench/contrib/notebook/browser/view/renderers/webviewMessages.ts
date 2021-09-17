@@ -46,6 +46,11 @@ export interface IOutputBlurMessage extends BaseToWebviewMessage {
 	readonly id: string;
 }
 
+export interface IScrollToRevealMessage extends BaseToWebviewMessage {
+	readonly type: 'scroll-to-reveal';
+	readonly scrollTop: number;
+}
+
 export interface IWheelMessage extends BaseToWebviewMessage {
 	readonly type: 'did-scroll-wheel';
 	readonly payload: any;
@@ -165,10 +170,13 @@ export interface IOutputRequestDto {
 	readonly outputId: string;
 }
 
+export type ICreationContent =
+	| { type: RenderOutputType.Html; htmlContent: string; }
+	| { type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
+
 export interface ICreationRequestMessage {
 	readonly type: 'html';
-	readonly content: { type: RenderOutputType.Html; htmlContent: string; } |
-	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
+	readonly content: ICreationContent;
 	readonly cellId: string;
 	readonly outputId: string;
 	cellTop: number;
@@ -326,12 +334,18 @@ export interface INotebookOptionsMessage {
 	readonly options: PreloadOptions;
 }
 
+export interface INotebookUpdateWorkspaceTrust {
+	readonly type: 'updateWorkspaceTrust';
+	readonly isTrusted: boolean;
+}
+
 export type FromWebviewMessage = WebviewIntialized |
 	IDimensionMessage |
 	IMouseEnterMessage |
 	IMouseLeaveMessage |
 	IOutputFocusMessage |
 	IOutputBlurMessage |
+	IScrollToRevealMessage |
 	IWheelMessage |
 	IScrollAckMessage |
 	IBlurOutputMessage |
@@ -373,6 +387,7 @@ export type ToWebviewMessage = IClearMessage |
 	IUpdateSelectedMarkupCellsMessage |
 	IInitializeMarkupCells |
 	INotebookStylesMessage |
-	INotebookOptionsMessage;
+	INotebookOptionsMessage |
+	INotebookUpdateWorkspaceTrust;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

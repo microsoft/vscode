@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { ExtensionService as BrowserExtensionService } from 'vs/workbench/services/extensions/browser/extensionService';
-import { ExtensionRunningLocation, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('BrowserExtensionService', () => {
 	test('pickRunningLocation', () => {

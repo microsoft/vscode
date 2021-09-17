@@ -400,6 +400,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 					return this.hoverService.showHover({
 						...options,
 						hoverPosition: this.options.position(),
+						forcePosition: true,
 						additionalClasses: ['extension-hover']
 					});
 				},
@@ -417,15 +418,25 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
 		markdown.appendText(`\n`);
 
+		if (this.extension.description) {
+			markdown.appendMarkdown(`${this.extension.description}`);
+			markdown.appendText(`\n`);
+		}
+
 		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
 		const reloadRequiredMessage = this.reloadAction.enabled ? this.reloadAction.tooltip : '';
+		const recommendationMessage = this.getRecommendationMessage(this.extension);
 
-		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage) {
+		if (extensionRuntimeStatus || extensionStatus || reloadRequiredMessage || recommendationMessage) {
+
+			markdown.appendMarkdown(`---`);
+			markdown.appendText(`\n`);
+
 			if (extensionRuntimeStatus) {
 				if (extensionRuntimeStatus.activationTimes) {
 					const activationTime = extensionRuntimeStatus.activationTimes.codeLoadingTime + extensionRuntimeStatus.activationTimes.activateCallTime;
-					markdown.appendMarkdown(`${localize('activation', "Activation time")}${extensionRuntimeStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''} : \`${activationTime}ms\``);
+					markdown.appendMarkdown(`${localize('activation', "Activation time")}${extensionRuntimeStatus.activationTimes.activationReason.startup ? ` (${localize('startup', "Startup")})` : ''}: \`${activationTime}ms\``);
 					markdown.appendText(`\n`);
 				}
 				if (extensionRuntimeStatus.runtimeErrors.length || extensionRuntimeStatus.messages.length) {
@@ -460,19 +471,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				markdown.appendText(`\n`);
 			}
 
-			markdown.appendMarkdown(`---`);
-			markdown.appendText(`\n`);
-		}
-
-		if (this.extension.description) {
-			markdown.appendMarkdown(`${this.extension.description}`);
-			markdown.appendText(`\n`);
-		}
-
-		const recommendationMessage = this.getRecommendationMessage(this.extension);
-		if (recommendationMessage) {
-			markdown.appendMarkdown(recommendationMessage);
-			markdown.appendText(`\n`);
+			if (recommendationMessage) {
+				markdown.appendMarkdown(recommendationMessage);
+				markdown.appendText(`\n`);
+			}
 		}
 
 		return markdown;
@@ -480,7 +482,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 	private getRecommendationMessage(extension: IExtension): string | undefined {
 		const recommendation = this.extensionRecommendationsService.getAllRecommendationsWithReason()[extension.identifier.id.toLowerCase()];
-		if (recommendation) {
+		if (recommendation?.reasonText) {
 			const bgColor = this.themeService.getColorTheme().getColor(extensionButtonProminentBackground);
 			return `<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${starEmptyIcon.id})</span>&nbsp;${recommendation.reasonText}`;
 		}

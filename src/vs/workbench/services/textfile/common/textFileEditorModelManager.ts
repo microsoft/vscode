@@ -37,6 +37,12 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onDidChangeDirty = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
+	private readonly _onDidChangeReadonly = this._register(new Emitter<TextFileEditorModel>());
+	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
+
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<TextFileEditorModel>());
+	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+
 	private readonly _onDidSaveError = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
@@ -411,6 +417,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		const modelListeners = new DisposableStore();
 		modelListeners.add(model.onDidResolve(reason => this._onDidResolve.fire({ model, reason })));
 		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
+		modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(model)));
+		modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(model)));
 		modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(model)));
 		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model, reason })));
 		modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(model)));

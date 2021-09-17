@@ -4,11 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 const MarkdownIt = require('markdown-it');
+import * as DOMPurify from 'dompurify';
+import type * as markdownIt from 'markdown-it';
+import type { ActivationFunction } from 'vscode-notebook-renderer';
 
-export function activate() {
+const sanitizerOptions: DOMPurify.Config = {
+	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
+};
+
+export const activate: ActivationFunction<void> = (ctx) => {
 	let markdownIt = new MarkdownIt({
 		html: true
 	});
+	addNamedHeaderRendering(markdownIt);
 
 	const style = document.createElement('style');
 	style.textContent = `
@@ -139,7 +147,7 @@ export function activate() {
 	document.head.appendChild(template);
 
 	return {
-		renderOutputItem: (outputInfo: { text(): string }, element: HTMLElement) => {
+		renderOutputItem: (outputInfo, element) => {
 			let previewNode: HTMLElement;
 			if (!element.shadowRoot) {
 				const previewRoot = element.attachShadow({ mode: 'open' });
@@ -172,12 +180,60 @@ export function activate() {
 			} else {
 				previewNode.classList.remove('emptyMarkdownCell');
 
-				const rendered = markdownIt.render(text);
-				previewNode.innerHTML = rendered;
+				const unsanitizedRenderedMarkdown = markdownIt.render(text);
+				previewNode.innerHTML = ctx.workspace.isTrusted
+					? unsanitizedRenderedMarkdown
+					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions);
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
 			f(markdownIt);
 		}
 	};
+};
+
+
+function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
+	const slugCounter = new Map<string, number>();
+
+	const originalHeaderOpen = md.renderer.rules.heading_open;
+	md.renderer.rules.heading_open = (tokens: markdownIt.Token[], idx: number, options: any, env: any, self: any) => {
+		const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+		let slug = slugFromHeading(title);
+
+		if (slugCounter.has(slug)) {
+			const count = slugCounter.get(slug)!;
+			slugCounter.set(slug, count + 1);
+			slug = slugFromHeading(slug + '-' + (count + 1));
+		} else {
+			slugCounter.set(slug, 0);
+		}
+
+		tokens[idx].attrs = tokens[idx].attrs || [];
+		tokens[idx].attrs.push(['id', slug]);
+
+		if (originalHeaderOpen) {
+			return originalHeaderOpen(tokens, idx, options, env, self);
+		} else {
+			return self.renderToken(tokens, idx, options, env, self);
+		}
+	};
+
+	const originalRender = md.render;
+	md.render = function () {
+		slugCounter.clear();
+		return originalRender.apply(this, arguments as any);
+	};
+}
+
+function slugFromHeading(heading: string): string {
+	const slugifiedHeading = encodeURI(
+		heading.trim()
+			.toLowerCase()
+			.replace(/\s+/g, '-') // Replace whitespace with -
+			.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
+			.replace(/^\-+/, '') // Remove leading -
+			.replace(/\-+$/, '') // Remove trailing -
+	);
+	return slugifiedHeading;
 }
