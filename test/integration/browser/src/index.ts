@@ -46,7 +46,12 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		}
 	});
 	page.on('console', async msg => {
-		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+		try {
+			console.log('prelog', msg.text());
+			consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+		} catch (err) {
+			console.error('log err', err);
+		}
 	});
 
 	const host = endpoint.host;
