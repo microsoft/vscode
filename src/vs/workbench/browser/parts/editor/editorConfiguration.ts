@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -29,7 +29,7 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 	];
 
 	private configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	private configurationDisposable = this._register(new MutableDisposable());
+	private configurationNode: IConfigurationNode | undefined;
 
 	constructor(
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
@@ -65,7 +65,8 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorGroupAutoLockConfiguration.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
 		}
 
-		const configurationNode: IConfigurationNode = {
+		const oldConfigurationNode = this.configurationNode;
+		this.configurationNode = {
 			...workbenchConfigurationNodeBase,
 			properties: {
 				'workbench.editor.autoLockGroups': {
@@ -78,11 +79,6 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 			}
 		};
 
-		// Register configuration disposing any previous registration
-		this.configurationDisposable.value = (() => {
-			this.configurationRegistry.registerConfiguration(configurationNode);
-
-			return toDisposable(() => this.configurationRegistry.deregisterConfigurations([configurationNode]));
-		})();
+		this.configurationRegistry.updateConfigurations({ add: [this.configurationNode], remove: oldConfigurationNode ? [oldConfigurationNode] : [] });
 	}
 }
