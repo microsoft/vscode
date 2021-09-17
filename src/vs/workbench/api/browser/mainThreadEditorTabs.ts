@@ -173,6 +173,7 @@ export class MainThreadEditorTabs {
 				case GroupChangeKind.EDITOR_CLOSE:
 					this._onDidTabClose(event);
 					break;
+				case GroupChangeKind.EDITOR_ACTIVE:
 				case GroupChangeKind.GROUP_ACTIVE:
 					if (this._editorGroupsService.activeGroup.id !== event.groupId) {
 						return;
