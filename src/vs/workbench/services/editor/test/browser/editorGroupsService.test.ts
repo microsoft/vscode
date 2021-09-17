@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, isEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, isEditorGroup, IEditorGroupsService, IGroupChangeEvent } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -400,7 +400,9 @@ suite('EditorGroupsService', () => {
 
 		let activeEditorChangeCounter = 0;
 		let editorDidOpenCounter = 0;
+		const editorOpenEvents: IGroupChangeEvent[] = [];
 		let editorCloseCounter = 0;
+		const editorCloseEvents: IGroupChangeEvent[] = [];
 		let editorPinCounter = 0;
 		let editorStickyCounter = 0;
 		let editorCapabilitiesCounter = 0;
@@ -408,12 +410,14 @@ suite('EditorGroupsService', () => {
 			if (e.kind === GroupChangeKind.EDITOR_OPEN) {
 				assert.ok(e.editor);
 				editorDidOpenCounter++;
+				editorOpenEvents.push(e);
 			} else if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
 				assert.ok(e.editor);
 				activeEditorChangeCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_CLOSE) {
 				assert.ok(e.editor);
 				editorCloseCounter++;
+				editorCloseEvents.push(e);
 			} else if (e.kind === GroupChangeKind.EDITOR_PIN) {
 				assert.ok(e.editor);
 				editorPinCounter++;
@@ -450,6 +454,10 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(editorCapabilitiesCounter, 0);
 		assert.strictEqual(editorDidOpenCounter, 2);
+		assert.strictEqual(editorOpenEvents[0].editorIndex, 0);
+		assert.strictEqual(editorOpenEvents[1].editorIndex, 1);
+		assert.strictEqual(editorOpenEvents[0].editor, input);
+		assert.strictEqual(editorOpenEvents[1].editor, inputInactive);
 		assert.strictEqual(activeEditorChangeCounter, 1);
 		assert.strictEqual(group.getEditorByIndex(0), input);
 		assert.strictEqual(group.getEditorByIndex(1), inputInactive);
@@ -486,6 +494,8 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(activeEditorChangeCounter, 3);
 		assert.strictEqual(editorCloseCounter, 1);
+		assert.strictEqual(editorCloseEvents[0].editorIndex, 1);
+		assert.strictEqual(editorCloseEvents[0].editor, inputInactive);
 		assert.strictEqual(editorCloseCounter1, 1);
 		assert.strictEqual(editorWillCloseCounter, 1);
 
@@ -923,11 +933,11 @@ suite('EditorGroupsService', () => {
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
-		let editorMoveCounter = 0;
+		const moveEvents: IGroupChangeEvent[] = [];
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_MOVE) {
 				assert.ok(e.editor);
-				editorMoveCounter++;
+				moveEvents.push(e);
 			}
 		});
 
@@ -936,12 +946,18 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getEditorByIndex(0), input);
 		assert.strictEqual(group.getEditorByIndex(1), inputInactive);
 		group.moveEditor(inputInactive, group, { index: 0 });
-		assert.strictEqual(editorMoveCounter, 1);
+		assert.strictEqual(moveEvents.length, 1);
+		assert.strictEqual(moveEvents[0].editorIndex, 0);
+		assert.strictEqual(moveEvents[0].oldEditorIndex, 1);
+		assert.strictEqual(moveEvents[0].editor, inputInactive);
 		assert.strictEqual(group.getEditorByIndex(0), inputInactive);
 		assert.strictEqual(group.getEditorByIndex(1), input);
 
 		group.moveEditors([{ editor: inputInactive, options: { index: 1 } }], group);
-		assert.strictEqual(editorMoveCounter, 2);
+		assert.strictEqual(moveEvents.length, 2);
+		assert.strictEqual(moveEvents[1].editorIndex, 1);
+		assert.strictEqual(moveEvents[1].oldEditorIndex, 0);
+		assert.strictEqual(moveEvents[1].editor, inputInactive);
 		assert.strictEqual(group.getEditorByIndex(0), input);
 		assert.strictEqual(group.getEditorByIndex(1), inputInactive);
 

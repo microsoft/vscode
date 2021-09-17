@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IEditorMoveEvent, IEditorOpenEvent, IUntypedEditorInput, isEditorInput } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -415,14 +415,31 @@ export const enum GroupChangeKind {
 }
 
 export interface IGroupChangeEvent {
-	kind: GroupChangeKind;
-	editor?: EditorInput;
-	editorIndex?: number;
+
 	/**
-	 * For EDITOR_MOVE only. Signifies the index the editor is moving from.
-	 * editorIndex will contain the index the editor is moving to.
-	*/
-	previousEditorIndex?: number;
+	 * The kind of change that occured in the group.
+	 */
+	kind: GroupChangeKind;
+
+	/**
+	 * Only applies when editors change providing
+	 * access to the editor the event is about.
+	 */
+	editor?: EditorInput;
+
+	/**
+	 * Only applies when an editor opens, closes
+	 * or is moved. Identifies the index of the
+	 * editor in the group.
+	 */
+	editorIndex?: number;
+
+	/**
+	 * For `EDITOR_MOVE` only: Signifies the index the
+	 * editor is moving from. `editorIndex` will contain
+	 * the index the editor is moving to.
+	 */
+	oldEditorIndex?: number;
 }
 
 export const enum OpenEditorContext {
@@ -452,13 +469,13 @@ export interface IEditorGroup {
 	 * An event that is fired when an editor is about to move to
 	 * a different group.
 	 */
-	readonly onWillMoveEditor: Event<IEditorMoveEvent>;
+	readonly onWillMoveEditor: Event<IEditorWillMoveEvent>;
 
 	/**
 	 * An event that is fired when an editor is about to be opened
 	 * in the group.
 	 */
-	readonly onWillOpenEditor: Event<IEditorOpenEvent>;
+	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
 
 	/**
 	 * A unique identifier of this group that remains identical even if the

@@ -5,11 +5,11 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, IEditorsChangeEvent } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorReplacement, IGroupChangeEvent, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
@@ -79,6 +79,10 @@ export interface IOpenEditorsOptions {
 	readonly validateTrust?: boolean;
 }
 
+export interface IEditorsChangeEvent extends IGroupChangeEvent {
+	groupId: GroupIdentifier;
+}
+
 export interface IEditorService {
 
 	readonly _serviceBrand: undefined;
@@ -98,12 +102,8 @@ export interface IEditorService {
 	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
-	 * An aggregated event for a set of editor related events
-	 * across all editor groups:
-	 * - active editor changes
-	 * - editors opening/closing
-	 * - editors moving
-	 * - groups moving (unless they are empty)
+	 * An aggregated event for any change to any editor across
+	 * all groups.
 	 */
 	readonly onDidEditorsChange: Event<IEditorsChangeEvent[]>;
 
