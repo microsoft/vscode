@@ -69,7 +69,7 @@ import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { isSafari } from 'vs/base/browser/browser';
-import { template } from 'vs/base/common/labels';
+import { ISeparator, template } from 'vs/base/common/labels';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -164,16 +164,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _hasHadInput: boolean;
 
-	private _capabilities: ProcessCapability[] = [];
-
-	private _workspaceFolder: string = '';
 
 	readonly statusList: ITerminalStatusList;
 	disableLayout: boolean = false;
-	private _description: string | undefined = undefined;
-	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
-	private _processName: string | undefined = undefined;
-	private _sequence: string | undefined = undefined;
+
+	private _capabilities: ProcessCapability[] = [];
+	private _description?: string;
+	private _processName: string = '';
+	private _sequence?: string;
+	private _staticTitle?: string;
+	private _workspaceFolder?: string;
+	private _labelComputer?: TerminalLabelComputer;
 
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
@@ -222,6 +223,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
 
+	get processName(): string { return this._processName; }
+	get sequence(): string | undefined { return this._sequence; }
+	get staticTitle(): string | undefined { return this._staticTitle; }
+	get workspaceFolder(): string | undefined { return this._workspaceFolder; }
+	get cwd(): string | undefined { return this._cwd; }
+	get initialCwd(): string | undefined { return this._initialCwd; }
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
+	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
 	private readonly _onExit = new Emitter<number | undefined>();
@@ -322,7 +331,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// When a custom pty is used set the name immediately so it gets passed over to the exthost
 		// and is available when Pseudoterminal.open fires.
 		if (this.shellLaunchConfig.customPtyImplementation) {
-			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+			this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
 		this.statusList = this._instantiationService.createInstance(TerminalStatusList);
@@ -341,7 +350,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Re-establish the title after reconnect
 			if (this.shellLaunchConfig.attachPersistentProcess) {
-				this.setTitle(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
+				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
 			}
 		});
 
@@ -371,7 +380,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
 			}
+			if (
+				e.affectsConfiguration(TerminalSettingId.TerminalTitle) ||
+				e.affectsConfiguration(TerminalSettingId.TerminalTitleSeparator) ||
+				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
+				this._labelComputer?.refreshLabel();
+			}
 		}));
+		this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel());
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -1167,25 +1183,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._capabilities = e.capabilities;
 			// Set the initial name based on the _resolved_ shell launch config, this will also
 			// ensure the resolved icon gets shown
+			if (!this._labelComputer) {
+				this._labelComputer = this._register(new TerminalLabelComputer(this._configHelper, this, this._workspaceContextService));
+				this._labelComputer.onDidChangeLabel(e => {
+					this._title = e.title;
+					this._description = e.description;
+					this._onTitleChanged.fire(this);
+				});
+			}
 			this._processManager.onDidChangeProperty(e => {
 				if (e.type === ProcessPropertyType.Cwd) {
 					this._cwd = e.value;
-					this.setTitle(this.title, TitleEventSource.Api);
+					this._labelComputer?.refreshLabel();
 				} else if (e.type === ProcessPropertyType.InitialCwd) {
 					this._initialCwd = e.value;
 					this._cwd = this._initialCwd;
-					this.setTitle(this.title, TitleEventSource.Api);
+					this.refreshTabLabels(this.title, TitleEventSource.Api);
 				}
 			});
 			if (this._shellLaunchConfig.name) {
-				this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Only listen for process title changes when a name is not provided
 				if (this._configHelper.config.tabs.title.includes('${sequence}') || this._configHelper.config.tabs.description.includes('${sequence}')) {
 					// Set the title to the first event if the sequence hasn't set it yet
 					Event.once(this._processManager.onProcessTitle)(e => {
 						if (!this._title) {
-							this.setTitle(e, TitleEventSource.Sequence);
+							this.refreshTabLabels(e, TitleEventSource.Sequence);
 						}
 					});
 					// Listen to xterm.js' sequence title change event, trigger this async to ensure
@@ -1196,8 +1220,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						});
 					});
 				} else {
-					this.setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
-					this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.setTitle(title ? title : '', TitleEventSource.Process));
+					this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
+					this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.refreshTabLabels(title ? title : '', TitleEventSource.Process));
 				}
 			}
 		});
@@ -1468,7 +1492,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onTitleChange(title: string): void {
 		if (this.isTitleSetByProcess) {
-			this.setTitle(title, TitleEventSource.Sequence);
+			this.refreshTabLabels(title, TitleEventSource.Sequence);
 		}
 	}
 
@@ -1755,9 +1779,26 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	setTitle(title: string | undefined, eventSource: TitleEventSource): void {
+	refreshTabLabels(title: string | undefined, eventSource: TitleEventSource): void {
+		title = this._updateTitleProperties(title, eventSource);
+		const titleChanged = title !== this._title;
+		this._title = title;
+		this._labelComputer?.refreshLabel();
+		this._setAriaLabel(this._xterm, this._instanceId, this._title);
+
+		if (this._titleReadyComplete) {
+			this._titleReadyComplete(title);
+			this._titleReadyComplete = undefined;
+		}
+
+		if (titleChanged) {
+			this._onTitleChanged.fire(this);
+		}
+	}
+
+	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
 		if (!title) {
-			return;
+			return this._processName;
 		}
 		switch (eventSource) {
 			case TitleEventSource.Process:
@@ -1777,7 +1818,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			case TitleEventSource.Api:
 				// If the title has not been set by the API or the rename command, unregister the handler that
 				// automatically updates the terminal name
-				this._processName = title;
+				this._staticTitle = title;
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
 				break;
@@ -1791,70 +1832,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				break;
 		}
-		// Remove special characters that could mess with rendering
-		title = title.replace(/[\n\r\t]/g, '');
-		title = this._customizeTitle(title, eventSource);
-		this._title = title;
 		this._titleSource = eventSource;
-		this._setAriaLabel(this._xterm, this._instanceId, this._title);
-
-		if (this._titleReadyComplete) {
-			this._titleReadyComplete(title);
-			this._titleReadyComplete = undefined;
-		}
-		this._onTitleChanged.fire(this);
-	}
-
-	private _customizeTitle(title: string, eventSource: TitleEventSource): string {
-		if (eventSource === TitleEventSource.Api) {
-			return title;
-		}
-		const cwd = this._cwd || this._initialCwd || '';
-		const properties = {
-			cwd,
-			cwdFolder: this.getCwdFolder(),
-			workspaceFolder: this._workspaceFolder,
-			local: this.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
-			process: this._processName,
-			sequence: this._sequence,
-			task: this.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
-			separator: { label: this._configHelper.config.tabs.separator }
-		};
-		title = template(this._configHelper.config.tabs.title, properties);
-		const description = template(this._configHelper.config.tabs.description, properties);
-		const titleChanged = title !== this._title || description !== this.description || eventSource === TitleEventSource.Config;
-		if (!title || !titleChanged) {
-			return title;
-		}
-		this._description = description;
 		return title;
-	}
-
-	getCwdFolder(): string {
-		const cwd = this._cwd || this._initialCwd;
-		if (!cwd ||
-			!this._capabilities.includes(ProcessCapability.CwdDetection) ||
-			this._workspaceContextService.getWorkspace().folders.length === 0 ||
-			(this._workspaceContextService.getWorkspace().folders.length === 1 && this._equalIgnoringSlashes(this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0].uri.toString(), cwd))) {
-			return '';
-		}
-		return path.basename(cwd);
-	}
-
-	private _equalIgnoringSlashes(workspaceUri: string, cwd: string): boolean {
-		let workspacePaths = workspaceUri.includes('/') ? workspaceUri.split('/') : workspaceUri.split('\\');
-		let cwdPaths = cwd.includes('/') ? cwd.split('/') : cwd.split('\\');
-		workspacePaths = workspacePaths.slice(4);
-		cwdPaths = cwdPaths.slice(1);
-		if (workspacePaths.length !== cwdPaths.length) {
-			return false;
-		}
-		for (let i = 0; i < cwdPaths.length; i++) {
-			if (workspacePaths[i] !== cwdPaths[i]) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	waitForTitle(): Promise<string> {
@@ -2023,7 +2002,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 		}
 		if (title) {
-			this.setTitle(title, TitleEventSource.Api);
+			this.refreshTabLabels(title, TitleEventSource.Api);
 		}
 	}
 
@@ -2275,3 +2254,76 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		`);
 	}
 });
+
+export interface ITerminalLabelTemplateProperties {
+	cwd?: string | null | undefined;
+	cwdFolder?: string | null | undefined;
+	workspaceFolder?: string | null | undefined;
+	local?: string | null | undefined;
+	process?: string | null | undefined;
+	sequence?: string | null | undefined;
+	task?: string | null | undefined;
+	separator?: string | ISeparator | null | undefined;
+}
+
+const enum TerminalLabelType {
+	Title = 'title',
+	Description = 'description'
+}
+
+export class TerminalLabelComputer extends Disposable {
+	private _title: string = '';
+	private _description: string = '';
+	get title(): string | undefined { return this._title; }
+	get description(): string | undefined { return this._description; }
+
+	private readonly _onDidChangeLabel = this._register(new Emitter<{ title: string, description: string }>());
+	readonly onDidChangeLabel = this._onDidChangeLabel.event;
+	constructor(
+		private readonly _configHelper: TerminalConfigHelper,
+		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+	) {
+		super();
+	}
+	refreshLabel(): void {
+		this._title = this.computeLabel(this._configHelper.config.tabs.title, TerminalLabelType.Title);
+		this._description = this.computeLabel(this._configHelper.config.tabs.description, TerminalLabelType.Description);
+		if (this._title !== this._instance.title || this._description !== this._instance.description) {
+			this._onDidChangeLabel.fire({ title: this._title, description: this._description });
+		}
+	}
+
+	computeLabel(
+		labelTemplate: string,
+		labelType: TerminalLabelType
+	) {
+		const templateProperties: ITerminalLabelTemplateProperties = {
+			cwd: this._instance.cwd || this._instance.initialCwd || '',
+			cwdFolder: '',
+			workspaceFolder: this._instance.workspaceFolder,
+			local: this._instance.shellLaunchConfig.description === 'Local' ? 'Local' : undefined,
+			process: this._instance.processName,
+			sequence: this._instance.sequence,
+			task: this._instance.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
+			separator: { label: this._configHelper.config.tabs.separator }
+		};
+		if (!labelTemplate) {
+			return '';
+		}
+		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
+			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
+		}
+
+		if (!templateProperties.cwd || !this._instance.capabilities.includes(ProcessCapability.CwdDetection) ||
+			(this._workspaceContextService.getWorkspace().folders.length <= 1 &&
+				(templateProperties.cwd === (this._configHelper.config.cwd || (this._workspaceContextService.getWorkspace().folders[0].uri.fsPath))))) {
+			templateProperties.cwdFolder = '';
+		} else if (templateProperties.cwd && typeof templateProperties.cwd === 'string') {
+			templateProperties.cwdFolder = path.basename(templateProperties.cwd);
+		}
+		//Remove special characters that could mess with rendering
+		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
+		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
+	}
+}
