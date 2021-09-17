@@ -25,7 +25,7 @@ import { DefineKeybindingWidget, KeybindingsSearchWidget } from 'vs/workbench/co
 import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -494,9 +494,10 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		)) as WorkbenchTable<IKeybindingItemEntry>;
 
 		this._register(this.keybindingsTable.onContextMenu(e => this.onContextMenu(e)));
-		this._register(this.keybindingsTable.onDidChangeFocus(e => this.onFocusChange(e)));
+		this._register(this.keybindingsTable.onDidChangeFocus(e => this.onFocusChange()));
 		this._register(this.keybindingsTable.onDidFocus(() => {
 			this.keybindingsTable.getHTMLElement().classList.add('focused');
+			this.onFocusChange();
 		}));
 		this._register(this.keybindingsTable.onDidBlur(() => {
 			this.keybindingsTable.getHTMLElement().classList.remove('focused');
@@ -685,9 +686,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		}
 	}
 
-	private onFocusChange(e: IListEvent<IKeybindingItemEntry>): void {
+	private onFocusChange(): void {
 		this.keybindingFocusContextKey.reset();
-		const element = e.elements[0];
+		const element = this.keybindingsTable.getFocusedElements()[0];
 		if (!element) {
 			return;
 		}
