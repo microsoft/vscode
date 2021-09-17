@@ -9,6 +9,7 @@ const es = require("event-stream");
 const vfs = require("vinyl-fs");
 const util = require("../lib/util");
 const merge = require("gulp-merge-json");
+const gzip = require("gulp-gzip");
 const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -16,6 +17,7 @@ function main() {
     return es.merge(vfs.src('out-vscode-min/nls.metadata.json', { base: 'out-vscode-min' }), vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
         .pipe(merge({
         fileName: 'combined.nls.metadata.json',
+        jsonSpace: '',
         edit: (parsedJson, file) => {
             let key;
             if (file.base === 'out-vscode-min') {
@@ -64,6 +66,7 @@ function main() {
             return { [key]: parsedJson };
         },
     }))
+        .pipe(gzip({ append: false }))
         .pipe(vfs.dest('./nlsMetadata'))
         .pipe(es.through(function (data) {
         console.log(`Uploading ${data.path}`);
@@ -75,7 +78,11 @@ function main() {
         account: process.env.AZURE_STORAGE_ACCOUNT,
         key: process.env.AZURE_STORAGE_ACCESS_KEY,
         container: 'nlsmetadata',
-        prefix: commit + '/'
+        prefix: commit + '/',
+        contentSettings: {
+            contentEncoding: 'gzip',
+            cacheControl: 'max-age=31536000, public'
+        }
     }));
 }
 main();
