@@ -274,7 +274,7 @@ function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, 
 		}
 
 		return {
-			message: nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length),
+			message: nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length),
 			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
 		};
 	}
@@ -283,7 +283,7 @@ function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, 
 		return { message: nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
-	return { message: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name), detail: '' };
+	return { message: nls.localize('confirmDeleteMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
 function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
