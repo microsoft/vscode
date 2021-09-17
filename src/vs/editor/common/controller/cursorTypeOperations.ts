@@ -601,7 +601,7 @@ export class TypeOperations {
 			if (autoClosingPair.open.length === 1 && chIsQuote && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				const prevChar = lineText.charCodeAt(position.column - (insertOpenCharacter ? 2 : 3));
-				const maybeSubstitution = prevChar === CharCode.CloseSquareBracket || prevChar === CharCode.CloseParen;
+				const maybeSubstitution = prevChar === CharCode.CloseCurlyBrace || prevChar === CharCode.CloseParen;
 				if (insertOpenCharacter && position.column > 1 && (wordSeparators.get(prevChar) === WordCharacterClass.Regular || maybeSubstitution)) {
 					return null;
 				}
