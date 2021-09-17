@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -166,10 +166,10 @@ export abstract class CompositeScope extends Disposable {
 		this._register(this.viewsService.onDidChangeViewVisibility(e => e.visible ? this.onScopeOpened(e.id) : this.onScopeClosed(e.id)));
 
 		this._register(this.viewletService.onDidPaneCompositeOpen(viewlet => this.onScopeOpened(viewlet.getId())));
-		this._register(this.panelService.onDidPanelOpen(({ panel }) => this.onScopeOpened(panel.getId())));
+		this._register(this.panelService.onDidPaneCompositeOpen(({ panel }) => this.onScopeOpened(panel.getId())));
 
 		this._register(this.viewletService.onDidPaneCompositeClose(viewlet => this.onScopeClosed(viewlet.getId())));
-		this._register(this.panelService.onDidPanelClose(panel => this.onScopeClosed(panel.getId())));
+		this._register(this.panelService.onDidPaneCompositeClose(panel => this.onScopeClosed(panel.getId())));
 	}
 
 	private onScopeClosed(scopeId: string) {

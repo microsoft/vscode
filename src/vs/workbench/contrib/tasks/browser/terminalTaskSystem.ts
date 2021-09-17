@@ -42,7 +42,7 @@ import {
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -328,15 +328,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (this.previousTerminalInstance) {
 					this.terminalService.setActiveInstance(this.previousTerminalInstance);
 				}
-				this.panelService.openPanel(this.previousPanelId);
+				this.panelService.openPaneComposite(this.previousPanelId);
 			} else {
-				this.panelService.hideActivePanel();
+				this.panelService.hideActivePaneComposite();
 			}
 			this.previousPanelId = undefined;
 			this.previousTerminalInstance = undefined;
 		} else {
 			if (isTerminalInPanel) {
-				this.previousPanelId = this.panelService.getActivePanel()?.getId();
+				this.previousPanelId = this.panelService.getActivePaneComposite()?.getId();
 				if (this.previousPanelId === TERMINAL_VIEW_ID) {
 					this.previousTerminalInstance = this.terminalService.activeInstance ?? undefined;
 				}

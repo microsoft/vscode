@@ -9,46 +9,36 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 
 export const IPanelService = createDecorator<IPanelService>('panelService');
-
-export interface IPanelIdentifier {
-	id: string;
-	name: string;
-	cssClass?: string;
-}
 
 export interface IPanelService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onDidPanelOpen: Event<{ readonly panel: IPaneComposite, readonly focus: boolean }>;
-	readonly onDidPanelClose: Event<IPaneComposite>;
+	readonly onDidPaneCompositeOpen: Event<{ readonly panel: IPaneComposite, readonly focus: boolean }>;
+	readonly onDidPaneCompositeClose: Event<IPaneComposite>;
 
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id?: string, focus?: boolean): Promise<IPaneComposite | undefined>;
+	openPaneComposite(id?: string, focus?: boolean): Promise<IPaneComposite | undefined>;
 
 	/**
 	 * Returns the current active panel or null if none
 	 */
-	getActivePanel(): IPaneComposite | undefined;
+	getActivePaneComposite(): IPaneComposite | undefined;
 
 	/**
 	 * Returns the panel by id.
 	 */
-	getPanel(id: string): IPanelIdentifier | undefined;
+	getPaneComposite(id: string): PaneCompositeDescriptor | undefined;
 
 	/**
 	 * Returns all built-in panels following the default order
 	 */
-	getPanels(): readonly IPanelIdentifier[];
-
-	/**
-	 * Returns pinned panels following the visual order
-	 */
-	getPinnedPanels(): readonly IPanelIdentifier[];
+	getPaneComposites(): PaneCompositeDescriptor[];
 
 	/**
 	 * Returns the progress indicator for the panel bar.
@@ -56,17 +46,22 @@ export interface IPanelService {
 	getProgressIndicator(id: string): IProgressIndicator | undefined;
 
 	/**
-	 * Show an activity in a panel.
-	 */
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable;
-
-	/**
 	 * Hide the currently active panel.
 	 */
-	hideActivePanel(): void;
+	hideActivePaneComposite(): void;
 
 	/**
 	 * Get the last active panel ID.
 	 */
-	getLastActivePanelId(): string;
+	getLastActivePaneCompositeId(): string;
+
+	/**
+	 * Returns pinned panels following the visual order
+	 */
+	getPinnedPaneComposites(): PaneCompositeDescriptor[];
+
+	/**
+	 * Show an activity in a panel.
+	 */
+	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable;
 }

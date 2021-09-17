@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -86,8 +86,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	//#endregion
 
-	get onDidPanelOpen(): Event<{ panel: IPaneComposite, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite as IPaneComposite, focus: compositeOpen.focus })); }
-	readonly onDidPanelClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
+	get onDidPaneCompositeOpen(): Event<{ panel: IPaneComposite, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite as IPaneComposite, focus: compositeOpen.focus })); }
+	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
@@ -148,7 +148,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this.panelRegistry = Registry.as<PaneCompositeRegistry>(panelRegistryId);
 
 		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.viewContainerLocation,
-			(id: string, focus?: boolean) => (this.openPanel(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
+			(id: string, focus?: boolean) => (this.openPaneComposite(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
 			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore),
 			() => this.compositeBar.getCompositeBarItems()
 		);
@@ -159,10 +159,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			activityHoverOptions: {
 				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
-			openComposite: (compositeId, preserveFocus) => this.openPanel(compositeId, !preserveFocus).then(panel => panel || null),
+			openComposite: (compositeId, preserveFocus) => this.openPaneComposite(compositeId, !preserveFocus).then(panel => panel || null),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
+			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId))),
 			fillExtraContextMenuActions: actions => {
 				actions.push(...[
 					new Separator(),
@@ -195,7 +195,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this.panelFocusContextKey = PanelFocusContext.bindTo(contextKeyService);
 
 		this.registerListeners();
-		this.onDidRegisterPanels([...this.getPanels()]);
+		this.onDidRegisterPanels([...this.getPaneComposites()]);
 	}
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
@@ -220,10 +220,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	private onDidRegisterPanels(panels: PaneCompositeDescriptor[]): void {
 		for (const panel of panels) {
 			const cachedPanel = this.getCachedPanels().filter(({ id }) => id === panel.id)[0];
-			const activePanel = this.getActivePanel();
+			const activePanel = this.getActivePaneComposite();
 			const isActive =
 				activePanel?.getId() === panel.id ||
-				(!activePanel && this.getLastActivePanelId() === panel.id) ||
+				(!activePanel && this.getLastActivePaneCompositeId() === panel.id) ||
 				(this.extensionsRegistered && this.compositeBar.getVisibleComposites().length === 0);
 
 			if (isActive || !this.shouldBeHidden(panel.id, cachedPanel)) {
@@ -279,10 +279,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
 
 		if (activeContainers.length) {
-			if (this.getActivePanel()?.getId() === panelId) {
+			if (this.getActivePaneComposite()?.getId() === panelId) {
 				const defaultPanelId = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)!.id;
 				const containerToOpen = activeContainers.filter(c => c.id === defaultPanelId)[0] || activeContainers[0];
-				await this.openPanel(containerToOpen.id);
+				await this.openPaneComposite(containerToOpen.id);
 			}
 		} else {
 			this.layoutService.setPanelHidden(true);
@@ -346,10 +346,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this._register(this.registry.onDidDeregister(panel => this.onDidDeregisterPanel(panel.id)));
 
 		// Activate on panel open
-		this._register(this.onDidPanelOpen(({ panel }) => this.onPanelOpen(panel)));
+		this._register(this.onDidPaneCompositeOpen(({ panel }) => this.onPanelOpen(panel)));
 
 		// Deactivate on panel close
-		this._register(this.onDidPanelClose(this.onPanelClose, this));
+		this._register(this.onDidPaneCompositeClose(this.onPanelClose, this));
 
 		// Extension registration
 		let disposables = this._register(new DisposableStore());
@@ -370,7 +370,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private removeNotExistingComposites(): void {
-		const panels = this.getPanels();
+		const panels = this.getPaneComposites();
 		for (const { id } of this.getCachedPanels()) { // should this value match viewlet (load on ctor)
 			if (panels.every(panel => panel.id !== id)) {
 				this.hideComposite(id);
@@ -512,14 +512,14 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		return this.openComposite(id, focus) as PaneComposite;
 	}
 
-	async openPanel(id?: string, focus?: boolean): Promise<PaneComposite | undefined> {
-		if (typeof id === 'string' && this.getPanel(id)) {
+	async openPaneComposite(id?: string, focus?: boolean): Promise<PaneComposite | undefined> {
+		if (typeof id === 'string' && this.getPaneComposite(id)) {
 			return this.doOpenPanel(id, focus);
 		}
 
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
-		if (typeof id === 'string' && this.getPanel(id)) {
+		if (typeof id === 'string' && this.getPaneComposite(id)) {
 			return this.doOpenPanel(id, focus);
 		}
 
@@ -530,11 +530,11 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 
-	getPanel(panelId: string): IPanelIdentifier | undefined {
+	getPaneComposite(panelId: string): PaneCompositeDescriptor | undefined {
 		return this.panelRegistry.getPaneComposite(panelId);
 	}
 
-	getPanels(): readonly PaneCompositeDescriptor[] {
+	getPaneComposites(): PaneCompositeDescriptor[] {
 		return this.panelRegistry.getPaneComposites()
 			.sort((v1, v2) => {
 				if (typeof v1.order !== 'number') {
@@ -549,22 +549,22 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			});
 	}
 
-	getPinnedPanels(): readonly PaneCompositeDescriptor[] {
+	getPinnedPaneComposites(): PaneCompositeDescriptor[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
-		return this.getPanels()
+		return this.getPaneComposites()
 			.filter(p => pinnedCompositeIds.includes(p.id))
 			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
 	}
 
-	getActivePanel(): IPaneComposite | undefined {
+	getActivePaneComposite(): IPaneComposite | undefined {
 		return <IPaneComposite>this.getActiveComposite();
 	}
 
-	getLastActivePanelId(): string {
+	getLastActivePaneCompositeId(): string {
 		return this.getLastActiveCompositetId();
 	}
 
-	hideActivePanel(): void {
+	hideActivePaneComposite(): void {
 		// First check if panel is visible and hide if so
 		if (this.layoutService.isVisible(this.partId)) {
 			this.layoutService.setPanelHidden(true);
@@ -632,17 +632,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
-			const panel = this.getPanel(compositeId);
-			const cachedPanel = this.getCachedPanels().filter(p => p.id === compositeId)[0];
-
-			if (panel && cachedPanel?.name) {
-				panel.name = cachedPanel.name;
-			}
+			const panel = this.getPaneComposite(compositeId);
 
 			if (panel) {
 				compositeActions = {
-					activityAction: new PanelActivityAction(assertIsDefined(this.getPanel(compositeId)), this),
-					pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
+					activityAction: new PanelActivityAction(assertIsDefined(this.getPaneComposite(compositeId)), this),
+					pinnedAction: new ToggleCompositePinnedAction(this.getPaneComposite(compositeId), this.compositeBar)
 				};
 			} else {
 				compositeActions = {
@@ -674,7 +669,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private getToolbarWidth(): number {
-		const activePanel = this.getActivePanel();
+		const activePanel = this.getActivePaneComposite();
 		if (!activePanel || !this.toolBar) {
 			return 0;
 		}
@@ -731,7 +726,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private getCachedPanels(): ICachedPanel[] {
-		const registeredPanels = this.getPanels();
+		const registeredPanels = this.getPaneComposites();
 
 		const storedStates: Array<string | ICachedPanel> = JSON.parse(this.cachedPanelsValue);
 		const cachedPanels = storedStates.map(c => {

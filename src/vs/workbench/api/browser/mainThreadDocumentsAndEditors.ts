@@ -24,7 +24,7 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -132,8 +132,8 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
 		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
 
-		this._panelService.onDidPanelOpen(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
-		this._panelService.onDidPanelClose(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
+		this._panelService.onDidPaneCompositeOpen(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
+		this._panelService.onDidPaneCompositeClose(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 		this._editorService.onDidVisibleEditorsChange(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 
 		this._updateState();
@@ -252,7 +252,7 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _getActiveEditorFromPanel(): IEditor | undefined {
-		const panel = this._panelService.getActivePanel();
+		const panel = this._panelService.getActivePaneComposite();
 		if (panel instanceof BaseTextEditor) {
 			const control = panel.getControl();
 			if (isCodeEditor(control)) {

@@ -10,7 +10,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -554,7 +554,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		const startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
 
 		const activeViewlet = this._viewletService.getActivePaneComposite();
-		const activePanel = this._panelService.getActivePanel();
+		const activePanel = this._panelService.getActivePaneComposite();
 		const info: Writeable<IStartupMetrics> = {
 			version: 2,
 			ellapsed: this._marks.getDuration(startMark, 'code/didStartWorkbench'),

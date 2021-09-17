@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -69,14 +69,14 @@ abstract class BaseNavigationAction extends Action {
 			return false;
 		}
 
-		const activePanel = this.panelService.getActivePanel();
+		const activePanel = this.panelService.getActivePaneComposite();
 		if (!activePanel) {
 			return false;
 		}
 
 		const activePanelId = activePanel.getId();
 
-		const res = await this.panelService.openPanel(activePanelId, true);
+		const res = await this.panelService.openPaneComposite(activePanelId, true);
 		if (!res) {
 			return false;
 		}

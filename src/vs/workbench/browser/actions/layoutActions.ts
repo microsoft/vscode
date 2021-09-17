@@ -21,7 +21,7 @@ import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContaine
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 
 // --- Close Side Bar
 
@@ -544,7 +544,7 @@ registerAction2(class extends Action2 {
 			});
 		});
 
-		const panels = panelService.getPinnedPanels();
+		const panels = panelService.getPinnedPaneComposites();
 		panels.forEach(panel => {
 			const container = viewDescriptorService.getViewContainerById(panel.id)!;
 			const containerModel = viewDescriptorService.getViewContainerModel(container);
@@ -684,7 +684,7 @@ class MoveFocusedViewAction extends Action2 {
 			label: localize('panel', "Panel")
 		});
 
-		const pinnedPanels = panelService.getPinnedPanels();
+		const pinnedPanels = panelService.getPinnedPaneComposites();
 		items.push(...pinnedPanels
 			.filter(panel => {
 				if (panel.id === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {

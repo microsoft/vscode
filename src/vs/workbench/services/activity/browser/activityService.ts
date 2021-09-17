@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';

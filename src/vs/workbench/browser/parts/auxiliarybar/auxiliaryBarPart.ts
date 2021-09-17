@@ -18,7 +18,7 @@ import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/pane
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IAuxiliaryBarService } from 'vs/workbench/services/auxiliaryBar/common/auxiliaryBarService';
+import { IAuxiliaryBarService } from 'vs/workbench/services/auxiliaryBar/browser/auxiliaryBarService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 

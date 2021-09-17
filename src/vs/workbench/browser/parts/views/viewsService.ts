@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -72,9 +72,9 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		// View Container Visibility
 		this._register(this.viewletService.onDidPaneCompositeOpen(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: true, location: ViewContainerLocation.Sidebar })));
-		this._register(this.panelService.onDidPanelOpen(e => this._onDidChangeViewContainerVisibility.fire({ id: e.panel.getId(), visible: true, location: ViewContainerLocation.Panel })));
+		this._register(this.panelService.onDidPaneCompositeOpen(e => this._onDidChangeViewContainerVisibility.fire({ id: e.panel.getId(), visible: true, location: ViewContainerLocation.Panel })));
 		this._register(this.viewletService.onDidPaneCompositeClose(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: false, location: ViewContainerLocation.Sidebar })));
-		this._register(this.panelService.onDidPanelClose(panel => this._onDidChangeViewContainerVisibility.fire({ id: panel.getId(), visible: false, location: ViewContainerLocation.Panel })));
+		this._register(this.panelService.onDidPaneCompositeClose(panel => this._onDidChangeViewContainerVisibility.fire({ id: panel.getId(), visible: false, location: ViewContainerLocation.Panel })));
 
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 	}
@@ -161,7 +161,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		if (location === ViewContainerLocation.Sidebar) {
 			return this.viewletService.openPaneComposite(compositeId, focus);
 		} else if (location === ViewContainerLocation.Panel) {
-			return this.panelService.openPanel(compositeId, focus) as Promise<IPaneComposite>;
+			return this.panelService.openPaneComposite(compositeId, focus) as Promise<IPaneComposite>;
 		}
 		return undefined;
 	}
@@ -170,7 +170,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		if (location === ViewContainerLocation.Sidebar) {
 			return this.viewletService.getPaneComposite(compositeId);
 		} else if (location === ViewContainerLocation.Panel) {
-			return this.panelService.getPanel(compositeId);
+			return this.panelService.getPaneComposite(compositeId);
 		}
 
 		return undefined;
@@ -182,7 +182,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			switch (viewContainerLocation) {
 				case ViewContainerLocation.Panel:
-					return this.panelService.getActivePanel()?.getId() === id;
+					return this.panelService.getActivePaneComposite()?.getId() === id;
 				case ViewContainerLocation.Sidebar:
 					return this.viewletService.getActivePaneComposite()?.getId() === id;
 			}
@@ -194,7 +194,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		let viewContainerId: string | undefined = undefined;
 		switch (location) {
 			case ViewContainerLocation.Panel:
-				viewContainerId = this.panelService.getActivePanel()?.getId();
+				viewContainerId = this.panelService.getActivePaneComposite()?.getId();
 				break;
 			case ViewContainerLocation.Sidebar:
 				viewContainerId = this.viewletService.getActivePaneComposite()?.getId();
@@ -214,7 +214,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			switch (viewContainerLocation) {
 				case ViewContainerLocation.Panel:
-					const panel = await this.panelService.openPanel(id, focus);
+					const panel = await this.panelService.openPaneComposite(id, focus);
 					return panel as IPaneComposite;
 				case ViewContainerLocation.Sidebar:
 					const viewlet = await this.viewletService.openPaneComposite(id, focus);
@@ -230,7 +230,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			switch (viewContainerLocation) {
 				case ViewContainerLocation.Panel:
-					return this.panelService.getActivePanel()?.getId() === id ? this.layoutService.setPanelHidden(true) : undefined;
+					return this.panelService.getActivePaneComposite()?.getId() === id ? this.layoutService.setPanelHidden(true) : undefined;
 				case ViewContainerLocation.Sidebar:
 					return this.viewletService.getActivePaneComposite()?.getId() === id ? this.layoutService.setSideBarHidden(true) : undefined;
 			}
@@ -300,7 +300,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						if (location === ViewContainerLocation.Sidebar) {
 							this.layoutService.setSideBarHidden(true);
 						} else if (location === ViewContainerLocation.Panel) {
-							this.panelService.hideActivePanel();
+							this.panelService.hideActivePaneComposite();
 						}
 					} else {
 						view.setExpanded(false);
@@ -319,7 +319,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				return activeViewlet.getViewPaneContainer() || null;
 			}
 		} else if (location === ViewContainerLocation.Panel) {
-			const activePanel = this.panelService.getActivePanel();
+			const activePanel = this.panelService.getActivePaneComposite();
 			if (activePanel?.getId() === viewContainer.id) {
 				return (activePanel as IPaneComposite).getViewPaneContainer() || null;
 			}

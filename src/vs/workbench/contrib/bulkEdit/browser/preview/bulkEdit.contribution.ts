@@ -6,7 +6,7 @@
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
@@ -45,16 +45,16 @@ class UXState {
 		@IPanelService private readonly _panelService: IPanelService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
-		this._activePanel = _panelService.getActivePanel()?.getId();
+		this._activePanel = _panelService.getActivePaneComposite()?.getId();
 	}
 
 	async restore(): Promise<void> {
 
 		// (1) restore previous panel
 		if (typeof this._activePanel === 'string') {
-			await this._panelService.openPanel(this._activePanel);
+			await this._panelService.openPaneComposite(this._activePanel);
 		} else {
-			this._panelService.hideActivePanel();
+			this._panelService.hideActivePaneComposite();
 		}
 
 		// (2) close preview editors

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { CompositeScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { TestViewletService, TestPanelService, TestViewsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { IView, IViewPaneContainer, IViewsService } from 'vs/workbench/common/views';

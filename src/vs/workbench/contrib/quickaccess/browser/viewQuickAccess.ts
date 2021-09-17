@@ -10,7 +10,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewDescriptorService, IViewsService, ViewContainer } from 'vs/workbench/common/views';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { matchesFuzzy } from 'vs/base/common/filters';
@@ -128,13 +128,13 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		}
 
 		// Panels
-		const panels = this.panelService.getPanels();
+		const panels = this.panelService.getPaneComposites();
 		for (const panel of panels) {
 			if (this.includeViewContainer(panel)) {
 				viewEntries.push({
 					label: panel.name,
 					containerLabel: localize('panels', "Panel"),
-					accept: () => this.panelService.openPanel(panel.id, true)
+					accept: () => this.panelService.openPaneComposite(panel.id, true)
 				});
 			}
 		}
@@ -176,7 +176,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		return viewEntries;
 	}
 
-	private includeViewContainer(container: PaneCompositeDescriptor | IPanelIdentifier): boolean {
+	private includeViewContainer(container: PaneCompositeDescriptor): boolean {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(container.id);
 		if (viewContainer?.hideIfEmpty) {
 			return this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0;

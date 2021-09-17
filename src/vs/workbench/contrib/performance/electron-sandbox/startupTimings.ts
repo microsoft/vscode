@@ -15,7 +15,7 @@ import { IUpdateService } from 'vs/platform/update/common/update';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { didUseCachedData } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
@@ -107,9 +107,9 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (!isCodeEditor(visibleEditorPanes[0].getControl())) {
 			return 'Active editor is not a text editor';
 		}
-		const activePanel = this._panelService.getActivePanel();
+		const activePanel = this._panelService.getActivePaneComposite();
 		if (activePanel) {
-			return 'Current active panel : ' + this._panelService.getPanel(activePanel.getId())?.name;
+			return 'Current active panel : ' + this._panelService.getPaneComposite(activePanel.getId())?.name;
 		}
 		const noCachedData = this._environmentService.args['no-cached-data'];
 		if (!noCachedData && !didUseCachedData(this._productService, this._storageService, this._environmentService)) {

@@ -19,7 +19,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
@@ -86,9 +86,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 			editorGroupService,
 			null!,
 			new class extends mock<IPanelService>() implements IPanelService {
-				override onDidPanelOpen = Event.None;
-				override onDidPanelClose = Event.None;
-				override getActivePanel() {
+				override onDidPaneCompositeOpen = Event.None;
+				override onDidPaneCompositeClose = Event.None;
+				override getActivePaneComposite() {
 					return undefined;
 				}
 			},

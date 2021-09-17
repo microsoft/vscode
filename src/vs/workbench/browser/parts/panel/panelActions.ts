@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
@@ -65,7 +65,7 @@ class FocusPanelAction extends Action {
 		}
 
 		// Focus into active panel
-		let panel = this.panelService.getActivePanel();
+		let panel = this.panelService.getActivePaneComposite();
 		if (panel) {
 			panel.focus();
 		}
@@ -129,7 +129,7 @@ export class PanelActivityAction extends ActivityAction {
 	}
 
 	override async run(): Promise<void> {
-		await this.panelService.openPanel(this.activity.id, true);
+		await this.panelService.openPaneComposite(this.activity.id, true);
 		this.activate();
 	}
 
@@ -170,8 +170,8 @@ export class SwitchPanelViewAction extends Action {
 	}
 
 	override async run(offset: number): Promise<void> {
-		const pinnedPanels = this.panelService.getPinnedPanels();
-		const activePanel = this.panelService.getActivePanel();
+		const pinnedPanels = this.panelService.getPinnedPaneComposites();
+		const activePanel = this.panelService.getActivePaneComposite();
 		if (!activePanel) {
 			return;
 		}
@@ -183,7 +183,7 @@ export class SwitchPanelViewAction extends Action {
 			}
 		}
 		if (typeof targetPanelId === 'string') {
-			await this.panelService.openPanel(targetPanelId, true);
+			await this.panelService.openPaneComposite(targetPanelId, true);
 		}
 	}
 }

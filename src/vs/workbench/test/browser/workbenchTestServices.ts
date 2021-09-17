@@ -65,7 +65,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
@@ -622,20 +622,20 @@ export class TestViewletService implements IViewletService {
 export class TestPanelService implements IPanelService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPanelOpen = new Emitter<{ panel: IPaneComposite, focus: boolean; }>().event;
-	onDidPanelClose = new Emitter<IPaneComposite>().event;
+	onDidPaneCompositeOpen = new Emitter<{ panel: IPaneComposite, focus: boolean; }>().event;
+	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
 
-	async openPanel(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
-	getPanel(id: string): any { return activeViewlet; }
-	getPanels() { return []; }
-	getPinnedPanels() { return []; }
-	getActivePanel(): IPaneComposite { return activeViewlet; }
+	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
+	getPaneComposite(id: string): any { return activeViewlet; }
+	getPaneComposites() { return []; }
+	getPinnedPaneComposites() { return []; }
+	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
 	getProgressIndicator(id: string) { return null!; }
-	hideActivePanel(): void { }
-	getLastActivePanelId(): string { return undefined!; }
+	hideActivePaneComposite(): void { }
+	getLastActivePaneCompositeId(): string { return undefined!; }
 }
 
 export class TestViewsService implements IViewsService {

@@ -18,7 +18,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -50,7 +50,7 @@ import { Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { Schemas } from 'vs/base/common/network';
-import { IAuxiliaryBarService } from 'vs/workbench/services/auxiliaryBar/common/auxiliaryBarService';
+import { IAuxiliaryBarService } from 'vs/workbench/services/auxiliaryBar/browser/auxiliaryBarService';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -842,9 +842,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestorePanel');
 
-			const panel = await this.panelService.openPanel(this.state.panel.panelToRestore);
+			const panel = await this.panelService.openPaneComposite(this.state.panel.panelToRestore);
 			if (!panel) {
-				await this.panelService.openPanel(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id); // fallback to default panel as needed
+				await this.panelService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id); // fallback to default panel as needed
 			}
 
 			mark('code/didRestorePanel');
@@ -913,7 +913,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.editorGroupService.activeGroup.focus();
 				break;
 			case Parts.PANEL_PART:
-				const activePanel = this.panelService.getActivePanel();
+				const activePanel = this.panelService.getActivePaneComposite();
 				if (activePanel) {
 					activePanel.focus();
 				}
@@ -1467,7 +1467,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.viewletService.hideActivePaneComposite();
 
 			// Pass Focus to Editor or Panel if Sidebar is now hidden
-			const activePanel = this.panelService.getActivePanel();
+			const activePanel = this.panelService.getActivePaneComposite();
 			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
 				activePanel.focus();
 			} else {
@@ -1519,14 +1519,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// If panel part becomes hidden, also hide the current active panel if any
 		let focusEditor = false;
-		if (hidden && this.panelService.getActivePanel()) {
-			this.panelService.hideActivePanel();
+		if (hidden && this.panelService.getActivePaneComposite()) {
+			this.panelService.hideActivePaneComposite();
 			focusEditor = isIOS ? false : true; // Do not auto focus on ios #127832
 		}
 
 		// If panel part becomes visible, show last active panel or default panel
-		else if (!hidden && !this.panelService.getActivePanel()) {
-			let panelToOpen: string | undefined = this.panelService.getLastActivePanelId();
+		else if (!hidden && !this.panelService.getActivePaneComposite()) {
+			let panelToOpen: string | undefined = this.panelService.getLastActivePaneCompositeId();
 			const hasViews = (id: string): boolean => {
 				const viewContainer = this.viewDescriptorService.getViewContainerById(id);
 				if (!viewContainer) {
@@ -1551,7 +1551,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			if (panelToOpen) {
 				const focus = !skipLayout;
-				this.panelService.openPanel(panelToOpen, focus);
+				this.panelService.openPaneComposite(panelToOpen, focus);
 			}
 		}
 
