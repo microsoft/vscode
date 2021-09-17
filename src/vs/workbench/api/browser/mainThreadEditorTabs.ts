@@ -110,7 +110,7 @@ export class MainThreadEditorTabs {
 		if (movedTab === undefined) {
 			return;
 		}
-		this._tabModel.get(event.groupId)?.splice(event.oldEditorIndex, 0, movedTab[0]);
+		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 0, movedTab[0]);
 		movedTab[0].isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(movedTab[0].resource), options: { override: movedTab[0].editorId } });
 		// Update the currently active tab
 		if (movedTab[0].isActive) {
@@ -144,6 +144,27 @@ export class MainThreadEditorTabs {
 			}
 		}, this);
 	}
+
+	// TODOD @lramos15 Remove this after done finishing the tab model code
+	// private _eventArrayToString(events: IEditorsChangeEvent[]): void {
+	// 	let eventString = '[';
+	// 	events.forEach(event => {
+	// 		switch (event.kind) {
+	// 			case GroupChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX, '; break;
+	// 			case GroupChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE, '; break;
+	// 			case GroupChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN, '; break;
+	// 			case GroupChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN, '; break;
+	// 			case GroupChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE, '; break;
+	// 			case GroupChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE, '; break;
+	// 			case GroupChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL, '; break;
+	// 			case GroupChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE, '; break;
+	// 			case GroupChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED, '; break;
+	// 			default: eventString += 'UNKNOWN, '; break;
+	// 		}
+	// 	});
+	// 	eventString += ']';
+	// 	console.log(eventString);
+	// }
 
 	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
 		events.forEach(event => {
