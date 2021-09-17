@@ -1280,6 +1280,13 @@ export class CallHierarchyOutgoingCall {
 	}
 }
 
+export enum LanguageStatusSeverity {
+	Information = 0,
+	Warning = 1,
+	Error = 2
+}
+
+
 @es5ClassCompat
 export class CodeLens {
 
@@ -1336,6 +1343,14 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.supportThemeIcons = value;
 	}
 
+	get supportHtml(): boolean | undefined {
+		return this.#delegate.supportHtml;
+	}
+
+	set supportHtml(value: boolean | undefined) {
+		this.#delegate.supportHtml = value;
+	}
+
 	appendText(value: string): vscode.MarkdownString {
 		this.#delegate.appendText(value);
 		return this;
@@ -1350,8 +1365,6 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.appendCodeblock(language ?? '', value);
 		return this;
 	}
-
-
 }
 
 @es5ClassCompat

@@ -12,7 +12,7 @@ import { ILinkDescriptor } from 'vs/platform/opener/browser/link';
 
 export interface IBannerItem {
 	readonly id: string;
-	readonly icon: Codicon | URI;
+	readonly icon: Codicon | URI | undefined;
 	readonly message: string | MarkdownString;
 	readonly actions?: ILinkDescriptor[];
 	readonly ariaLabel?: string;

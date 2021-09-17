@@ -93,6 +93,7 @@ class Preview extends Disposable {
 
 		webviewEditor.webview.options = {
 			enableScripts: true,
+			enableForms: false,
 			localResourceRoots: [
 				resourceRoot,
 				extensionRoot,

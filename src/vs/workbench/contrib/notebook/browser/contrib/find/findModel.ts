@@ -160,9 +160,7 @@ export class FindModel extends Disposable {
 
 		if (oldCurrMatchCellIndex < 0) {
 			// the cell containing the active match is deleted
-			const focusedCell = this._notebookEditor.cellAt(this._notebookEditor.getFocus().start);
-
-			if (!focusedCell) {
+			if (this._notebookEditor.getLength() === 0) {
 				this.set(findMatches, false);
 				return;
 			}
@@ -257,7 +255,13 @@ export class FindModel extends Disposable {
 			return null;
 		}
 
-		const findMatches = this._notebookEditor.viewModel!.find(val, options).filter(match => match.matches.length > 0);
+		if (!this._notebookEditor.hasModel()) {
+			return null;
+		}
+
+		const vm = this._notebookEditor._getViewModel();
+
+		const findMatches = vm.find(val, options).filter(match => match.matches.length > 0);
 		return findMatches;
 	}
 

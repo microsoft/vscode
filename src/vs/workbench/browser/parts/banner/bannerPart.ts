@@ -232,9 +232,12 @@ export class BannerPart extends Part implements IBannerService {
 
 		if (item.icon instanceof Codicon) {
 			iconContainer.appendChild($(`div${item.icon.cssSelector}`));
-		} else if (URI.isUri(item.icon)) {
+		} else {
 			iconContainer.classList.add('custom-icon');
-			iconContainer.style.backgroundImage = asCSSUrl(item.icon);
+
+			if (URI.isUri(item.icon)) {
+				iconContainer.style.backgroundImage = asCSSUrl(item.icon);
+			}
 		}
 
 		// Message

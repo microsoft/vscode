@@ -5,20 +5,23 @@
 
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
-import { isAbsolute, join } from 'vs/base/common/path';
-import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
+import { Event } from 'vs/base/common/event';
+import { isAbsolute, join, resolve } from 'vs/base/common/path';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { randomPort } from 'vs/base/common/ports';
 import { isString } from 'vs/base/common/types';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
+import { watchFileContents } from 'vs/base/node/watcher';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { addArg, parseCLIProcessArgv } from 'vs/platform/environment/node/argvHelper';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from 'vs/platform/environment/node/stdin';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -27,6 +30,10 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['uninstall-extension']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
+}
+
+function createFileName(dir: string, prefix: string): string {
+	return join(dir, `${prefix}-${Math.random().toString(16).slice(-4)}`);
 }
 
 interface IMainCli {
@@ -134,7 +141,7 @@ export async function main(argv: string[]): Promise<any> {
 				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				await new Promise<void>(resolve => child.once('exit', () => resolve()));
+				await Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
 			});
 		}
 
@@ -198,6 +205,42 @@ export async function main(argv: string[]): Promise<any> {
 			if (waitMarkerFilePath) {
 				addArg(argv, '--waitMarkerFilePath', waitMarkerFilePath);
 			}
+
+			// When running with --wait, we want to continue running CLI process
+			// until either:
+			// - the wait marker file has been deleted (e.g. when closing the editor)
+			// - the launched process terminates (e.g. due to a crash)
+			processCallbacks.push(async child => {
+				let childExitPromise;
+				if (isMacintosh) {
+					// On macOS, we resolve the following promise only when the child,
+					// i.e. the open command, exited with a signal or error. Otherwise, we
+					// wait for the marker file to be deleted or for the child to error.
+					childExitPromise = new Promise<void>((resolve) => {
+						// Only resolve this promise if the child (i.e. open) exited with an error
+						child.on('exit', (code, signal) => {
+							if (code !== 0 || signal) {
+								resolve();
+							}
+						});
+					});
+				} else {
+					// On other platforms, we listen for exit in case the child exits before the
+					// marker file is deleted.
+					childExitPromise = Event.toPromise(Event.fromNodeEventEmitter(child, 'exit'));
+				}
+				try {
+					await Promise.race([
+						whenDeleted(waitMarkerFilePath!),
+						Event.toPromise(Event.fromNodeEventEmitter(child, 'error')),
+						childExitPromise
+					]);
+				} finally {
+					if (stdinFilePath) {
+						unlinkSync(stdinFilePath); // Make sure to delete the tmp stdin file if we have any
+					}
+				}
+			});
 		}
 
 		// If we have been started with `--prof-startup` we need to find free ports to profile
@@ -214,7 +257,7 @@ export async function main(argv: string[]): Promise<any> {
 				throw new Error('Failed to find free ports for profiler. Make sure to shutdown all instances of the editor first.');
 			}
 
-			const filenamePrefix = join(homedir(), 'prof-' + Math.random().toString(16).slice(-4));
+			const filenamePrefix = createFileName(homedir(), 'prof');
 
 			addArg(argv, `--inspect-brk=${portMain}`);
 			addArg(argv, `--remote-debugging-port=${portRenderer}`);
@@ -319,23 +362,58 @@ export async function main(argv: string[]): Promise<any> {
 			options['stdio'] = 'ignore';
 		}
 
-		const child = spawn(process.execPath, argv.slice(2), options);
+		let child: ChildProcess;
+		if (!isMacintosh) {
+			// We spawn process.execPath directly
+			child = spawn(process.execPath, argv.slice(2), options);
+		} else {
+			// On mac, we spawn using the open command to obtain behavior
+			// similar to if the app was launched from the dock
+			// https://github.com/microsoft/vscode/issues/102975
 
-		if (args.wait && waitMarkerFilePath) {
-			return new Promise<void>(resolve => {
+			const spawnArgs = ['-n'];				// -n: launches even when opened already
+			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
 
-				// Complete when process exits
-				child.once('exit', () => resolve(undefined));
+			if (verbose) {
+				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
 
-				// Complete when wait marker file is deleted
-				whenDeleted(waitMarkerFilePath!).then(resolve, resolve);
-			}).then(() => {
+				// The open command only allows for redirecting stderr and stdout to files,
+				// so we make it redirect those to temp files, and then use a logger to
+				// redirect the file output to the console
+				for (const outputType of ['stdout', 'stderr']) {
 
-				// Make sure to delete the tmp stdin file if we have any
-				if (stdinFilePath) {
-					unlinkSync(stdinFilePath);
+					// Tmp file to target output to
+					const tmpName = createFileName(tmpdir(), `code-${outputType}`);
+					writeFileSync(tmpName, '');
+					spawnArgs.push(`--${outputType}`, tmpName);
+
+					// Listener to redirect content to stdout/stderr
+					processCallbacks.push(async (child: ChildProcess) => {
+						try {
+							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
+
+							const cts = new CancellationTokenSource();
+							child.on('close', () => cts.dispose(true));
+							await watchFileContents(tmpName, chunk => stream.write(chunk), cts.token);
+						} finally {
+							unlinkSync(tmpName);
+						}
+					});
 				}
-			});
+			}
+
+			spawnArgs.push('--args', ...argv.slice(2)); // pass on our arguments
+
+			if (env['VSCODE_DEV']) {
+				// If we're in development mode, replace the . arg with the
+				// vscode source arg. Because the OSS app isn't bundled,
+				// it needs the full vscode source arg to launch properly.
+				const curdir = '.';
+				const launchDirIndex = spawnArgs.indexOf(curdir);
+				spawnArgs[launchDirIndex] = resolve(curdir);
+			}
+
+			child = spawn('open', spawnArgs, options);
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));

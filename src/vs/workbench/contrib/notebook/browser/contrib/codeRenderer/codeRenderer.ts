@@ -9,7 +9,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { RenderOutputType, ICommonNotebookEditor, ICellOutputViewModel, IRenderOutput, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { RenderOutputType, ICommonNotebookEditorDelegate, ICellOutputViewModel, IRenderOutput, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -25,7 +25,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 	abstract getMimetypes(): string[];
 
 	constructor(
-		public notebookEditor: ICommonNotebookEditor,
+		public notebookEditor: ICommonNotebookEditorDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,

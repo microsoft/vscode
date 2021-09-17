@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
   richnav:
@@ -34,6 +36,6 @@ jobs:
         with:
           languages: typescript
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          typescriptVersion: 0.6.0-next.16
+          typescriptVersion: 0.6.0-next.19
           configFiles: .lsifrc.json
         continue-on-error: true

@@ -60,6 +60,7 @@ import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const $ = DOM.$;
 
@@ -358,27 +359,69 @@ export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], tar
 	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
 }
 
-export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {
-	const settingsGroupToEntry = (group: ISettingsGroup) => {
+export async function resolveExtensionsSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
+	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
+	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
+		if (!extGroupTree.has(extensionId)) {
+			const rootEntry = {
+				id: extensionId,
+				label: extensionName,
+				children: []
+			};
+			extGroupTree.set(extensionId, rootEntry);
+		}
+		extGroupTree.get(extensionId)!.children!.push(childEntry);
+	};
+	const processGroupEntry = async (group: ISettingsGroup) => {
 		const flatSettings = arrays.flatten(
 			group.sections.map(section => section.settings));
 
-		return {
+		const extensionId = group.extensionInfo!.id;
+		const extension = await extensionService.getExtension(extensionId);
+		const extensionName = extension!.displayName ?? extension!.name;
+
+		const childEntry = {
 			id: group.id,
 			label: group.title,
+			order: group.order,
 			settings: flatSettings
 		};
+		addEntryToTree(extensionId, extensionName, childEntry);
 	};
 
-	const extGroups = groups
+	const processPromises = groups
 		.sort((a, b) => a.title.localeCompare(b.title))
-		.map(g => settingsGroupToEntry(g));
+		.map(g => processGroupEntry(g));
 
-	return {
-		id: 'extensions',
-		label: localize('extensions', "Extensions"),
-		children: extGroups
-	};
+	return Promise.all(processPromises).then(() => {
+		const extGroups: ITOCEntry<ISetting>[] = [];
+		for (const value of extGroupTree.values()) {
+			if (value.children!.length === 1) {
+				// push a flattened setting
+				extGroups.push({
+					id: value.id,
+					label: value.children![0].label,
+					settings: value.children![0].settings
+				});
+			} else {
+				value.children!.sort((a, b) => {
+					if (a.order !== undefined && b.order !== undefined) {
+						return a.order - b.order;
+					} else {
+						// leave things as-is
+						return 0;
+					}
+				});
+				extGroups.push(value);
+			}
+		}
+
+		return {
+			id: 'extensions',
+			label: localize('extensions', "Extensions"),
+			children: extGroups
+		};
+	});
 }
 
 function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISetting>, logService: ILogService): ITOCEntry<ISetting> {
@@ -590,6 +633,7 @@ function addChildrenToTabOrder(node: Element): void {
 
 export interface HeightChangeParams {
 	element: SettingsTreeElement;
+	height: number;
 }
 
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
@@ -775,7 +819,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.descriptionElement.innerText = '';
 		if (element.setting.descriptionIsMarkdown) {
 			const disposables = new DisposableStore();
-			template.toDispose.add(disposables);
+			template.elementDisposables.add(disposables);
 			const renderedDescription = this.renderSettingMarkdown(element, template.containerElement, element.description, disposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
@@ -870,7 +914,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 				disposables: disposeables
 			},
 			asyncRenderCallback: () => {
-				this._onDidChangeSettingHeight.fire({ element });
+				const height = container.clientHeight;
+				if (height) {
+					this._onDidChangeSettingHeight.fire({ element, height });
+				}
 			},
 		});
 		disposeables.add(renderedMarkdown);
@@ -1349,13 +1396,11 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalItem.value) {
-				if (e.originalItem.value.data.toString() in template.context.defaultValue) {
-					// delete a default by overriding it
-					newValue[e.originalItem.value.data.toString()] = false;
-				} else {
-					delete newValue[e.originalItem.value.data.toString()];
-				}
+			if (e.originalItem.value.data.toString() in template.context.defaultValue) {
+				// delete a default by overriding it
+				newValue[e.originalItem.value.data.toString()] = false;
+			} else {
+				delete newValue[e.originalItem.value.data.toString()];
 			}
 
 			// then add the new or updated entry, if present
@@ -1491,10 +1536,16 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 		};
 		super.renderValue(dataElement, template, onChangeOverride);
 		template.elementDisposables.add(
-			template.inputBox.onDidHeightChange(() => {
-				this._onDidChangeSettingHeight.fire({
-					element: dataElement,
-				});
+			template.inputBox.onDidHeightChange(e => {
+				const height = template.containerElement.clientHeight;
+				// Don't fire event if height is reported as 0,
+				// which sometimes happens when clicking onto a new setting.
+				if (height) {
+					this._onDidChangeSettingHeight.fire({
+						element: dataElement,
+						height: template.containerElement.clientHeight
+					});
+				}
 			})
 		);
 		template.inputBox.layout();

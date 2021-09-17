@@ -555,9 +555,14 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this.content = newContent;
 
+		const allowScripts = !!this.content.options.allowScripts;
 		this._send('content', {
 			contents: this.content.html,
-			options: this.content.options,
+			options: {
+				allowMultipleAPIAcquire: !!this.content.options.allowMultipleAPIAcquire,
+				allowScripts: allowScripts,
+				allowForms: this.content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
+			},
 			state: this.content.state,
 			cspSource: webviewGenericCspSource,
 			confirmBeforeClose: this._confirmBeforeClose,

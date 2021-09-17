@@ -9,6 +9,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TroubleshootController extends Disposable implements INotebookEditorContribution {
@@ -41,7 +42,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 	private _log(cell: ICellViewModel, e: any) {
 		if (this._logging) {
-			const oldHeight = this._notebookEditor.getViewHeight(cell);
+			const oldHeight = (this._notebookEditor as NotebookEditorWidget).getViewHeight(cell);
 			console.log(`cell#${cell.handle}`, e, `${oldHeight} -> ${cell.layoutInfo.totalHeight}`);
 		}
 	}
@@ -51,17 +52,15 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			return;
 		}
 
-		const viewModel = this._notebookEditor._getViewModel();
-
 		for (let i = 0; i < this._notebookEditor.getLength(); i++) {
-			const cell = viewModel.viewCells[i];
+			const cell = this._notebookEditor.cellAt(i);
 
 			this._cellStateListeners.push(cell.onDidChangeLayout(e => {
 				this._log(cell, e);
 			}));
 		}
 
-		this._localStore.add(viewModel.onDidChangeViewCells(e => {
+		this._localStore.add(this._notebookEditor.onDidChangeViewCells(e => {
 			e.splices.reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
 				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(cell => {
@@ -124,9 +123,9 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const viewModel = editor._getViewModel();
-		viewModel.viewCells.forEach(cell => {
+		for (let i = 0; i < editor.getLength(); i++) {
+			const cell = editor.cellAt(i);
 			console.log(`cell#${cell.handle}`, cell.layoutInfo);
-		});
+		}
 	}
 });

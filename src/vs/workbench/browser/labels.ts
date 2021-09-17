@@ -11,7 +11,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecoration, IDecorationsService, IResourceDecorationChangeEvent } from 'vs/workbench/services/decorations/common/decorations';
 import { Schemas } from 'vs/base/common/network';
 import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { ITextModel } from 'vs/editor/common/model';
@@ -19,7 +19,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { Disposable, dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 
@@ -51,12 +51,12 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	/**
 	 * File decorations to use for the label.
 	 */
-	fileDecorations?: { colors: boolean, badges: boolean };
+	readonly fileDecorations?: { colors: boolean, badges: boolean };
 
 	/**
 	 * Will take the provided label as is and e.g. not override it for untitled files.
 	 */
-	forceLabel?: boolean;
+	readonly forceLabel?: boolean;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -65,7 +65,9 @@ export interface IFileLabelOptions extends IResourceLabelOptions {
 }
 
 export interface IResourceLabel extends IDisposable {
+
 	readonly element: HTMLElement;
+
 	readonly onDidRender: Event<void>;
 
 	/**
@@ -267,12 +269,11 @@ enum Redraw {
 
 class ResourceLabelWidget extends IconLabel {
 
-	private _onDidRender = this._register(new Emitter<void>());
+	private readonly _onDidRender = this._register(new Emitter<void>());
 	readonly onDidRender = this._onDidRender.event;
 
-	private readonly renderDisposables = this._register(new DisposableStore());
-
 	private label?: IResourceLabelProps;
+	private decoration = this._register(new MutableDisposable<IDecoration>());
 	private options?: IResourceLabelOptions;
 	private computedIconClasses?: string[];
 	private lastKnownDetectedModeId?: string;
@@ -508,8 +509,6 @@ class ResourceLabelWidget extends IconLabel {
 			return false;
 		}
 
-		this.renderDisposables.clear();
-
 		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
 			title: '',
 			italic: this.options?.italic,
@@ -546,26 +545,28 @@ class ResourceLabelWidget extends IconLabel {
 			iconLabelOptions.extraClasses.push(...this.options.extraClasses);
 		}
 
-		if (this.options?.fileDecorations && resource && options.updateDecoration) {
-			const deco = this.decorationsService.getDecoration(
-				resource,
-				this.options.fileKind !== FileKind.FILE
-			);
+		if (this.options?.fileDecorations && resource) {
+			if (options.updateDecoration) {
+				this.decoration.value = this.decorationsService.getDecoration(resource, this.options.fileKind !== FileKind.FILE);
+			}
 
-			if (deco) {
-				this.renderDisposables.add(deco);
+			const decoration = this.decoration.value;
+			if (decoration) {
+				if (decoration.tooltip && (typeof iconLabelOptions.title === 'string')) {
+					iconLabelOptions.title = `${iconLabelOptions.title} • ${decoration.tooltip}`;
+				}
 
-				if (deco.tooltip && (typeof iconLabelOptions.title === 'string')) {
-					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
+				if (decoration.strikethrough) {
+					iconLabelOptions.strikethrough = true;
 				}
 
 				if (this.options.fileDecorations.colors) {
-					iconLabelOptions.extraClasses.push(deco.labelClassName);
+					iconLabelOptions.extraClasses.push(decoration.labelClassName);
 				}
 
 				if (this.options.fileDecorations.badges) {
-					iconLabelOptions.extraClasses.push(deco.badgeClassName);
-					iconLabelOptions.extraClasses.push(deco.iconClassName);
+					iconLabelOptions.extraClasses.push(decoration.badgeClassName);
+					iconLabelOptions.extraClasses.push(decoration.iconClassName);
 				}
 			}
 		}

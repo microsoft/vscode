@@ -36,7 +36,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
-import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest';
+import { CompletionItem, Context as SuggestContext, ISuggestItemPreselector, suggestWidgetStatusbarMenu } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
 import { CommitCharacterController } from './suggestCommitCharacters';
 import { State, SuggestModel } from './suggestModel';
@@ -112,6 +112,7 @@ export class SuggestController implements IEditorContribution {
 	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
+	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
 	constructor(
 		editor: ICodeEditor,
@@ -223,7 +224,16 @@ export class SuggestController implements IEditorContribution {
 		}));
 		this._toDispose.add(this.model.onDidSuggest(e => {
 			if (!e.shy) {
-				let index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				let index = -1;
+				for (const selector of this._selectors.itemsOrderedByPriorityDesc) {
+					index = selector.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+					if (index !== -1) {
+						break;
+					}
+				}
+				if (index === -1) {
+					index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				}
 				this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
@@ -599,6 +609,37 @@ export class SuggestController implements IEditorContribution {
 		}
 		this.widget.value.stopForceRenderingAbove();
 	}
+
+	registerSelector(selector: ISuggestItemPreselector): IDisposable {
+		return this._selectors.register(selector);
+	}
+}
+
+class PriorityRegistry<T> {
+	private readonly _items = new Array<T>();
+
+	constructor(private readonly prioritySelector: (item: T) => number) { }
+
+	register(value: T): IDisposable {
+		if (this._items.indexOf(value) !== -1) {
+			throw new Error('Value is already registered');
+		}
+		this._items.push(value);
+		this._items.sort((s1, s2) => this.prioritySelector(s2) - this.prioritySelector(s1));
+
+		return {
+			dispose: () => {
+				const idx = this._items.indexOf(value);
+				if (idx >= 0) {
+					this._items.splice(idx, 1);
+				}
+			}
+		};
+	}
+
+	get itemsOrderedByPriorityDesc(): readonly T[] {
+		return this._items;
+	}
 }
 
 export class TriggerSuggestAction extends EditorAction {
@@ -796,7 +837,8 @@ registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
-		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+		secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I] }
 	},
 	menuOpts: [{
 		menuId: suggestWidgetStatusbarMenu,

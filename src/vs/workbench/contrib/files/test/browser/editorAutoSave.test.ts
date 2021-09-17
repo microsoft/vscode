@@ -46,7 +46,6 @@ suite('EditorAutoSave', () => {
 		));
 
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);

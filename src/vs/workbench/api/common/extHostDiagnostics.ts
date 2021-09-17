@@ -16,12 +16,13 @@ import { ResourceMap } from 'vs/base/common/map';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtUri } from 'vs/base/common/resources';
+import { SkipList } from 'vs/base/common/skipList';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	readonly #proxy: MainThreadDiagnosticsShape | undefined;
 	readonly #onDidChangeDiagnostics: Emitter<vscode.Uri[]>;
-	readonly #data: ResourceMap<vscode.Diagnostic[]>;
+	readonly #data: SkipList<URI, vscode.Diagnostic[]>;
 
 	private _isDisposed = false;
 
@@ -33,7 +34,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		proxy: MainThreadDiagnosticsShape | undefined,
 		onDidChangeDiagnostics: Emitter<vscode.Uri[]>
 	) {
-		this.#data = new ResourceMap(uri => extUri.getComparisonKey(uri));
+		this.#data = new SkipList((a, b) => extUri.compare(a, b));
 		this.#proxy = proxy;
 		this.#onDidChangeDiagnostics = onDidChangeDiagnostics;
 	}

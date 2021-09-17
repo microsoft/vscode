@@ -8,7 +8,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, IDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
@@ -308,7 +308,7 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 			} else {
 				selectionListener.value = combinedDisposable(
 					notebookEditor.onDidChangeSelection(() => this._recomputeActive()),
-					notebookEditor.viewModel.onDidChangeViewCells(() => this._recomputeState())
+					notebookEditor.onDidChangeViewCells(() => this._recomputeState())
 				);
 			}
 		};
@@ -371,13 +371,19 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		this._activeEntry = undefined;
 		this._entries.length = 0;
 
-		const notebookEditorWidget = this._editor.getControl();
+		const notebookEditorControl = this._editor.getControl();
 
-		if (!notebookEditorWidget) {
+		if (!notebookEditorControl) {
 			return;
 		}
 
-		if (!notebookEditorWidget.hasModel()) {
+		if (!notebookEditorControl.hasModel()) {
+			return;
+		}
+
+		const notebookEditorWidget: IActiveNotebookEditor = notebookEditorControl;
+
+		if (notebookEditorWidget.getLength() === 0) {
 			return;
 		}
 
@@ -394,10 +400,6 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 
 		for (let i = 0; i < notebookEditorWidget.getLength(); i++) {
 			const cell = notebookEditorWidget.cellAt(i);
-			if (!cell) {
-				continue;
-			}
-
 			const isMarkdown = cell.cellKind === CellKind.Markup;
 			if (!isMarkdown && !includeCodeCells) {
 				continue;
@@ -515,12 +517,14 @@ export class NotebookCellOutline extends Disposable implements IOutline<OutlineE
 		const notebookEditorWidget = this._editor.getControl();
 
 		if (notebookEditorWidget) {
-			const cell = notebookEditorWidget.cellAt(notebookEditorWidget.getFocus().start);
-			if (cell) {
-				for (let entry of this._entries) {
-					newActive = entry.find(cell, []);
-					if (newActive) {
-						break;
+			if (notebookEditorWidget.hasModel() && notebookEditorWidget.getLength() > 0) {
+				const cell = notebookEditorWidget.cellAt(notebookEditorWidget.getFocus().start);
+				if (cell) {
+					for (let entry of this._entries) {
+						newActive = entry.find(cell, []);
+						if (newActive) {
+							break;
+						}
 					}
 				}
 			}

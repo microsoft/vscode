@@ -642,6 +642,7 @@ function areServiceWorkersEnabled() {
  *     contents: string;
  *     options: {
  *         readonly allowScripts: boolean;
+ *         readonly allowForms: boolean;
  *         readonly allowMultipleAPIAcquire: boolean;
  *     }
  *     state: any;
@@ -666,6 +667,11 @@ function toContentHtml(data) {
 			}
 		}
 	});
+
+	// Set default aria role
+	if (!newDocument.body.hasAttribute('role')) {
+		newDocument.body.setAttribute('role', 'document');
+	}
 
 	// Inject default script
 	if (options.allowScripts) {
@@ -800,7 +806,16 @@ onDomReady(() => {
 		const newFrame = document.createElement('iframe');
 		newFrame.setAttribute('id', 'pending-frame');
 		newFrame.setAttribute('frameborder', '0');
-		newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
+
+		const sandboxRules = new Set(['allow-same-origin', 'allow-pointer-lock']);
+		if (options.allowScripts) {
+			sandboxRules.add('allow-scripts');
+			sandboxRules.add('allow-downloads');
+		}
+		if (options.allowForms) {
+			sandboxRules.add('allow-forms');
+		}
+		newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 		if (!isFirefox) {
 			newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
 		}

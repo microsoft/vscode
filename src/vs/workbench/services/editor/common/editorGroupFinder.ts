@@ -7,7 +7,8 @@ import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInputWithOptions, isEditorInputWithOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupsOrder, preferredSideBySideGroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
@@ -157,7 +158,7 @@ function doFindGroup(input: IEditorInputWithOptions | IUntypedEditorInput, prefe
 	return group;
 }
 
-function isGroupLockedForEditor(group: IEditorGroup, editor: IEditorInput | IUntypedEditorInput): boolean {
+function isGroupLockedForEditor(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {
 	if (!group.isLocked) {
 		// only relevant for locked editor groups
 		return false;
@@ -174,7 +175,7 @@ function isGroupLockedForEditor(group: IEditorGroup, editor: IEditorInput | IUnt
 	return true;
 }
 
-function isActive(group: IEditorGroup, editor: IEditorInput | IUntypedEditorInput): boolean {
+function isActive(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {
 	if (!group.activeEditor) {
 		return false;
 	}
@@ -182,7 +183,7 @@ function isActive(group: IEditorGroup, editor: IEditorInput | IUntypedEditorInpu
 	return matchesEditor(group.activeEditor, editor);
 }
 
-function isOpened(group: IEditorGroup, editor: IEditorInput | IUntypedEditorInput): boolean {
+function isOpened(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {
 	for (const typedEditor of group.editors) {
 		if (matchesEditor(typedEditor, editor)) {
 			return true;
@@ -192,15 +193,19 @@ function isOpened(group: IEditorGroup, editor: IEditorInput | IUntypedEditorInpu
 	return false;
 }
 
-function matchesEditor(typedEditor: IEditorInput, editor: IEditorInput | IUntypedEditorInput): boolean {
+function matchesEditor(typedEditor: EditorInput, editor: EditorInput | IUntypedEditorInput): boolean {
 	if (typedEditor.matches(editor)) {
 		return true;
 	}
 
 	// Note: intentionally doing a "weak" check on the resource
-	// because `IEditorInput.matches` will not work for untyped
+	// because `EditorInput.matches` will not work for untyped
 	// editors that have no `override` defined.
 	//
 	// TODO@lramos15 https://github.com/microsoft/vscode/issues/131619
-	return isEqual(typedEditor.resource, EditorResourceAccessor.getCanonicalUri(editor));
+	if (typedEditor.resource) {
+		return isEqual(typedEditor.resource, EditorResourceAccessor.getCanonicalUri(editor));
+	}
+
+	return false;
 }

@@ -50,7 +50,8 @@ const CORE_TYPES = [
 	'decode',
 	'self',
 	'trimLeft',
-	'trimRight'
+	'trimRight',
+	'queueMicrotask'
 ];
 
 // Types that are defined in a common layer but are known to be only

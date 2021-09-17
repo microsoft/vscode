@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -29,6 +29,7 @@ import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/edi
 import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -36,6 +37,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOutlineService private readonly outlineService: IOutlineService,
 	) {
@@ -80,7 +82,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				preserveFocus: options.preserveFocus
 			};
 
-			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
+			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
 		}
 
 		// Otherwise let parent handle it

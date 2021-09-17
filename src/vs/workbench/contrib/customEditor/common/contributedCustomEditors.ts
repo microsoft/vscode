@@ -15,16 +15,6 @@ import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/wo
 import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-export const defaultCustomEditor = new CustomEditorInfo({
-	id: 'default',
-	displayName: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: nls.localize('builtinProviderDisplayName', "Built-in"),
-	selector: [
-		{ filenamePattern: '*' }
-	],
-	priority: RegisteredEditorPriority.default,
-});
-
 export class ContributedCustomEditors extends Disposable {
 
 	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'customEditors';
@@ -78,9 +68,7 @@ export class ContributedCustomEditors extends Disposable {
 	}
 
 	public get(viewType: string): CustomEditorInfo | undefined {
-		return viewType === defaultCustomEditor.id
-			? defaultCustomEditor
-			: this._editors.get(viewType);
+		return this._editors.get(viewType);
 	}
 
 	public getContributedEditors(resource: URI): readonly CustomEditorInfo[] {
@@ -89,7 +77,7 @@ export class ContributedCustomEditors extends Disposable {
 	}
 
 	private add(info: CustomEditorInfo): void {
-		if (info.id === defaultCustomEditor.id || this._editors.has(info.id)) {
+		if (this._editors.has(info.id)) {
 			console.error(`Custom editor with id '${info.id}' already registered`);
 			return;
 		}

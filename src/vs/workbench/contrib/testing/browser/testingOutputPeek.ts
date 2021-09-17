@@ -27,7 +27,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -49,6 +49,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -61,6 +62,8 @@ import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/brow
 import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -375,12 +378,22 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		return this.peek.value;
 	}
 
+	/**
+	 * Whether the history part of the peek view should be visible.
+	 */
+	public readonly historyVisible = MutableObservableValue.stored(new StoredValue<boolean>({
+		key: 'testHistoryVisibleInPeek',
+		scope: StorageScope.GLOBAL,
+		target: StorageTarget.USER,
+	}, this.storageService), true);
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestResultService private readonly testResults: ITestResultService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -431,7 +444,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 		const message = dto.messages[dto.messageIndex];
 		if (!this.peek.value) {
-			this.peek.value = this.instantiationService.createInstance(TestingOutputPeek, this.editor);
+			this.peek.value = this.instantiationService.createInstance(TestingOutputPeek, this.editor, this.historyVisible);
 			this.peek.value.onDidClose(() => {
 				this.visible.set(false);
 				this.currentPeekUri = undefined;
@@ -589,6 +602,7 @@ class TestingOutputPeek extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
+		private readonly historyVisible: IObservableValue<boolean>,
 		@IThemeService themeService: IThemeService,
 		@IPeekViewService peekViewService: IPeekViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -671,6 +685,12 @@ class TestingOutputPeek extends PeekViewWidget {
 				}
 			},
 		}, Sizing.Distribute);
+
+		const historyViewIndex = 1;
+		this.splitView.setViewVisible(historyViewIndex, this.historyVisible.value);
+		this._disposables.add(this.historyVisible.onDidChange(visible => {
+			this.splitView.setViewVisible(historyViewIndex, visible);
+		}));
 	}
 
 	/**
@@ -756,7 +776,7 @@ const commonEditorOptions: IEditorOptions = {
 	},
 };
 
-const diffEditorOptions: IDiffEditorOptions = {
+const diffEditorOptions: IDiffEditorConstructionOptions = {
 	...commonEditorOptions,
 	enableSplitViewResizing: true,
 	isInEmbeddedEditor: true,
@@ -1627,5 +1647,33 @@ export class OpenMessageInEditorAction extends EditorAction2 {
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
 		TestingOutputPeekController.get(getPeekedEditor(accessor, editor)).openCurrentInEditor();
+	}
+}
+
+export class ToggleTestingPeekHistory extends EditorAction2 {
+	public static readonly ID = 'testing.toggleTestingPeekHistory';
+	constructor() {
+		super({
+			id: ToggleTestingPeekHistory.ID,
+			f1: true,
+			title: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"),
+			icon: Codicon.history,
+			category: CATEGORIES.Test,
+			menu: [{
+				id: MenuId.TestPeekTitle,
+				group: 'navigation',
+				order: 3,
+			}],
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
+				when: TestingContextKeys.isPeekVisible.isEqualTo(true),
+			},
+		});
+	}
+
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+		const ctrl = TestingOutputPeekController.get(getPeekedEditor(accessor, editor));
+		ctrl.historyVisible.value = !ctrl.historyVisible.value;
 	}
 }

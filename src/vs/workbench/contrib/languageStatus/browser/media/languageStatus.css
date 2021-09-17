@@ -37,29 +37,10 @@
 	padding-left: 16px;
 }
 
-.monaco-workbench .hover-language-status-element .right .monaco-button.monaco-text-button {
-	font-size: 10px;
-	padding: 0px 4px
+.monaco-workbench .hover-language-status-element .right .monaco-link {
+	margin: auto 0;
 }
 
 .monaco-workbench .hover-language-status-element .right .monaco-action-bar:not(:first-child) {
 	padding-left: 8px;
-}
-
-/* todo@jrieken - unsets the default padding, something like friend/parent status bar items is needed */
-.monaco-workbench .part.statusbar > .items-container > DIV#status\.languageStatus.statusbar-item a {
-	padding: 0 4px;
-	margin: 0;
-}
-
-.monaco-workbench .part.statusbar > .items-container > DIV#status\.languageStatus.statusbar-item a:hover {
-	background-color: var(--code-language-status-item-active-background);
-}
-
-.monaco-workbench .part.statusbar > .items-container > DIV#status\.editor\.mode.statusbar-item:hover + DIV#status\.languageStatus.statusbar-item {
-	background-color: var(--code-language-status-item-active-background);
-}
-
-.monaco-workbench .part.statusbar > .items-container > DIV#status\.editor\.mode.statusbar-item A {
-	margin-left: 0;
 }

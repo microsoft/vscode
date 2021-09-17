@@ -88,7 +88,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!language || !locale || locale === 'en' || locale.indexOf('en-') === 0) {
 			return;
 		}
-		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
+		if (language === locale || languagePackSuggestionIgnoreList.indexOf(locale) > -1) {
 			return;
 		}
 
@@ -169,7 +169,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									label: localize('neverAgain', "Don't Show Again"),
 									isSecondary: true,
 									run: () => {
-										languagePackSuggestionIgnoreList.push(language);
+										languagePackSuggestionIgnoreList.push(locale);
 										this.storageService.store(
 											LANGUAGEPACK_SUGGESTION_IGNORE_STORAGE_KEY,
 											JSON.stringify(languagePackSuggestionIgnoreList),

@@ -10,7 +10,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -18,7 +18,7 @@ import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/b
 import { getInstanceFromResource, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { ILocalTerminalService, IOffProcessTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
@@ -100,7 +100,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}));
 	}
 
-	private _getActiveTerminalEditors(): IEditorInput[] {
+	private _getActiveTerminalEditors(): EditorInput[] {
 		return this._editorService.visibleEditors.filter(e => e instanceof TerminalEditorInput && e.terminalInstance?.instanceId);
 	}
 
@@ -163,13 +163,14 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (resource) {
 			await this._editorService.openEditor({
 				resource,
+				description: instance.description || instance.shellLaunchConfig.description,
 				options:
 				{
 					pinned: true,
 					forceReload: true,
 					preserveFocus: editorOptions?.preserveFocus
 				}
-			}, editorOptions?.viewColumn);
+			}, editorOptions?.viewColumn || ACTIVE_GROUP);
 		}
 	}
 
@@ -230,7 +231,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._onDidChangeInstances.fire();
 	}
 
-	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
+	getInstanceFromResource(resource?: URI): ITerminalInstance | undefined {
 		return getInstanceFromResource(this.instances, resource);
 	}
 
@@ -247,6 +248,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (resource) {
 			this._editorService.openEditor({
 				resource: URI.revive(resource),
+				description: instance.description,
 				options:
 				{
 					pinned: true,

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { changeCellToKind, copyCellRange, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { changeCellToKind, computeCellLinesContents, copyCellRange, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { Range } from 'vs/editor/common/core/range';
@@ -465,6 +465,37 @@ suite('CellOperations', () => {
 				assert.strictEqual(viewModel.cellAt(3)?.cellKind, CellKind.Markup);
 				assert.strictEqual(viewModel.cellAt(4)?.cellKind, CellKind.Markup);
 			});
+	});
+
+
+	test('split cell', async function () {
+		await withTestNotebook(
+			[
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				assert.deepStrictEqual(computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }]), [
+					'var',
+					' b = 1;'
+				]);
+
+				assert.deepStrictEqual(computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }, { lineNumber: 1, column: 6 }]), [
+					'var',
+					' b',
+					' = 1;'
+				]);
+
+				assert.deepStrictEqual(computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 1 }]), [
+					'',
+					'var b = 1;'
+				]);
+
+				assert.deepStrictEqual(computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 11 }]), [
+					'var b = 1;',
+					'',
+				]);
+			}
+		);
 	});
 
 });

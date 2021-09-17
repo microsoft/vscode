@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -77,8 +77,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly id = 0;
 	readonly shouldPersist = false;
 
+	private _properties: IProcessPropertyMap = {
+		cwd: '',
+		initialCwd: ''
+	};
 	private static _lastKillOrStart = 0;
-
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
 	private _closeTimeout: any;
@@ -94,6 +97,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
+	private _capabilities: ProcessCapability[] = [];
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
@@ -101,6 +105,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
 	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
+
+	get capabilities(): ProcessCapability[] { return this._capabilities; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
@@ -114,12 +120,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	constructor(
-		private readonly _shellLaunchConfig: IShellLaunchConfig,
+		readonly shellLaunchConfig: IShellLaunchConfig,
 		cwd: string,
 		cols: number,
 		rows: number,
@@ -134,13 +142,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		super();
 		let name: string;
 		if (isWindows) {
-			name = path.basename(this._shellLaunchConfig.executable || '');
+			name = path.basename(this.shellLaunchConfig.executable || '');
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
 			// color prompt as defined in the default ~/.bashrc file.
 			name = 'xterm-256color';
 		}
 		this._initialCwd = cwd;
+		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
+		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
 		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
@@ -151,11 +161,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			rows,
 			useConpty,
 			// This option will force conpty to not redraw the whole viewport on launch
-			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
+			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
+		const osRelease = os.release().split('.');
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
-			if (useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
+			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
 				this._delayedResizer = new DelayedResizer();
 				this._register(this._delayedResizer.onTrigger(dimensions => {
 					this._delayedResizer?.dispose();
@@ -171,6 +182,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
 			});
+		} else if (isLinux || (osRelease.length > 0 && parseInt(osRelease[0]) < 20)) {
+			this.capabilities.push(ProcessCapability.CwdDetection);
 		}
 	}
 
@@ -182,7 +195,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		try {
-			await this.setupPtyProcess(this._shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -201,11 +214,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				return { message: localize('launchFail.cwdDoesNotExist', "Starting directory (cwd) \"{0}\" does not exist", this._initialCwd.toString()) };
 			}
 		}
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });
 		return undefined;
 	}
 
 	private async _validateExecutable(): Promise<undefined | ITerminalLaunchError> {
-		const slc = this._shellLaunchConfig;
+		const slc = this.shellLaunchConfig;
 		if (!slc.executable) {
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
@@ -337,7 +351,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, capabilities: this.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {
@@ -384,6 +398,19 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	async processBinary(data: string): Promise<void> {
 		this.input(data, true);
+	}
+
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		if (type === ProcessPropertyType.Cwd) {
+			const newCwd = await this.getCwd();
+			if (newCwd !== this._properties.cwd) {
+				this._properties.cwd = newCwd;
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
+			}
+			return newCwd;
+		} else {
+			return this.getInitialCwd();
+		}
 	}
 
 	private _startWrite(): void {

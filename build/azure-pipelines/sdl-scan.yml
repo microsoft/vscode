@@ -58,7 +58,7 @@ stages:
         inputs:
           azureSubscription: "vscode-builds-subscription"
           KeyVaultName: vscode
-          SecretsFilter: "github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite"
+          SecretsFilter: "github-distro-mixin-password"
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -155,7 +155,7 @@ stages:
         inputs:
           azureSubscription: "vscode-builds-subscription"
           KeyVaultName: vscode
-          SecretsFilter: "github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite"
+          SecretsFilter: "github-distro-mixin-password"
 
       - script: |
           set -e

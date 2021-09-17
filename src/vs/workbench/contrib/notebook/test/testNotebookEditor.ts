@@ -14,9 +14,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { ICellViewModel, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, IActiveNotebookEditorDelegate, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -141,7 +141,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return false;
 	}
 
-	saveAs(): Promise<IEditorInput | undefined> {
+	saveAs(): Promise<EditorInput | undefined> {
 		throw new NotImplementedError();
 	}
 
@@ -168,7 +168,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditor, viewModel: NotebookViewModel; } {
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate, viewModel: NotebookViewModel; } {
 
 	const viewType = 'notebook';
 	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
@@ -190,19 +190,18 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	cellList.attachViewModel(viewModel);
 	const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
 
-	const notebookEditor: IActiveNotebookEditor = new class extends mock<IActiveNotebookEditor>() {
+	const notebookEditor: IActiveNotebookEditorDelegate = new class extends mock<IActiveNotebookEditorDelegate>() {
 		override dispose() {
 			viewModel.dispose();
 		}
 		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
-		override get viewModel() { return viewModel; }
 		override _getViewModel(): NotebookViewModel {
 			return viewModel;
 		}
-		override get textModel() { return viewModel.notebookDocument; }
-		override hasModel(): this is IActiveNotebookEditor {
-			return !!this.viewModel;
+		override textModel = viewModel.notebookDocument;
+		override hasModel(): this is IActiveNotebookEditorDelegate {
+			return !!viewModel;
 		}
 		override getLength() { return viewModel.length; }
 		override getFocus() { return viewModel.getFocus(); }
@@ -221,7 +220,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 				selections: selections
 			});
 		}
-		override getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
+		override getViewIndexByModelIndex(index: number) { return listViewInfoAccessor.getViewIndex(viewModel.viewCells[index]); }
 		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
 		override revealCellRangeInView() { }
 		override setHiddenAreas(_ranges: ICellRange[]): boolean {
@@ -250,13 +249,19 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override cellAt(index: number) { return viewModel.cellAt(index)!; }
 		override getCellIndex(cell: ICellViewModel) { return viewModel.getCellIndex(cell); }
 		override getCellIndexByHandle(handle: number) { return viewModel.getCellIndexByHandle(handle); }
-		override getCellsInRange(range?: ICellRange) { return viewModel.getCells(range); }
+		override getCellsInRange(range?: ICellRange) { return viewModel.getCellsInRange(range); }
+		override getNextVisibleCellIndex(index: number) { return viewModel.getNextVisibleCellIndex(index); }
+		getControl() { return this; }
+		override get onDidChangeSelection() { return viewModel.onDidChangeSelection as Event<any>; }
+		override get onDidChangeOptions() { return viewModel.onDidChangeOptions; }
+		override get onDidChangeViewCells() { return viewModel.onDidChangeViewCells; }
+
 	};
 
 	return { editor: notebookEditor, viewModel };
 }
 
-export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditor, viewModel: NotebookViewModel; } {
+export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate, viewModel: NotebookViewModel; } {
 	return _createTestNotebookEditor(setupInstantiationService(), cells);
 }
 
@@ -302,7 +307,7 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	return res;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
 	const instantiationService = accessor ?? setupInstantiationService();
 	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
 

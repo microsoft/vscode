@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IEditorIdentifier, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -70,7 +70,7 @@ export class TerminalEditorInput extends EditorInput {
 		});
 	}
 
-	override copy(): IEditorInput {
+	override copy(): EditorInput {
 		const instance = this._terminalInstanceService.createInstance(this._copyLaunchConfig || {}, TerminalLocation.Editor);
 		instance.focusWhenReady();
 		this._copyLaunchConfig = undefined;
@@ -78,7 +78,7 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	/**
-	 * Sets the launch config to use for the next call to IEditorInput.copy, which will be used when
+	 * Sets the launch config to use for the next call to EditorInput.copy, which will be used when
 	 * the editor's split command is run.
 	 */
 	setCopyLaunchConfig(launchConfig: IShellLaunchConfig) {
@@ -219,6 +219,10 @@ export class TerminalEditorInput extends EditorInput {
 			this._terminalInstance?.detachFromElement();
 			this._isDetached = true;
 		}
+	}
+
+	public override getDescription(): string | undefined {
+		return this._terminalInstance?.description || this._terminalInstance?.shellLaunchConfig.description;
 	}
 
 	public override toUntyped(): IUntypedEditorInput {

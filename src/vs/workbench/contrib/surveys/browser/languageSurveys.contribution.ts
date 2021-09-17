@@ -93,9 +93,6 @@ class LanguageSurvey extends Disposable {
 			return;
 		}
 
-		// __GDPR__TODO__ Need to move away from dynamic event names as those cannot be registered statically
-		telemetryService.publicLog(`${data.surveyId}.survey/userAsked`);
-
 		notificationService.prompt(
 			Severity.Info,
 			localize('helpUs', "Help us improve our support for {0}", modeService.getLanguageName(data.languageId) ?? data.languageId),

@@ -188,19 +188,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
 				'default': true
 			},
-			'workbench.editor.experimentalAutoLockGroups': {
-				'type': 'object',
-				'description': localize('workbench.editor.experimentalAutoLockGroups', "Experimental: If an editor matching one of the listed types is opened as the first in an editor group and more than one group is open, the group is automatically locked. Locked groups will only be used for opening editors when explicitly chosen by user gesture (e.g. drag and drop), but not by default. Consequently the active editor in a locked group is less likely to be replaced accidentally with a different editor."),
-				'default': {
-					'terminalEditor': true,
-					'mainThreadWebview-markdown.preview': false,
-					'default': false
-				},
-				'additionalProperties': {
-					'type': 'boolean',
-					'enum': [true, false]
-				},
-			},
 			'workbench.editor.revealIfOpen': {
 				'type': 'boolean',
 				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
@@ -221,6 +208,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'description': localize('sharedViewState', "Preserves the most recent editor view state (e.g. scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
 				'default': false
+			},
+			'workbench.editor.splitInGroupLayout': {
+				'type': 'string',
+				'enum': ['vertical', 'horizontal'],
+				'default': 'horizontal',
+				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal.")
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
@@ -365,20 +358,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 	let windowTitleDescription = localize('windowTitle', "Controls the window title based on the active editor. Variables are substituted based on the context:");
 	windowTitleDescription += '\n- ' + [
-		localize('activeEditorShort', "`\${activeEditorShort}`: the file name (e.g. myFile.txt)."),
-		localize('activeEditorMedium', "`\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
-		localize('activeEditorLong', "`\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
-		localize('activeFolderShort', "`\${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
-		localize('activeFolderMedium', "`\${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
-		localize('activeFolderLong', "`\${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
-		localize('folderName', "`\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
-		localize('folderPath', "`\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
-		localize('rootName', "`\${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
-		localize('rootPath', "`\${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
-		localize('appName', "`\${appName}`: e.g. VS Code."),
-		localize('remoteName', "`\${remoteName}`: e.g. SSH"),
-		localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
-		localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
+		localize('activeEditorShort', "`${activeEditorShort}`: the file name (e.g. myFile.txt)."),
+		localize('activeEditorMedium', "`${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
+		localize('activeEditorLong', "`${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
+		localize('activeFolderShort', "`${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
+		localize('activeFolderMedium', "`${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
+		localize('activeFolderLong', "`${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
+		localize('folderName', "`${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
+		localize('folderPath', "`${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
+		localize('rootName', "`${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
+		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
+		localize('appName', "`${appName}`: e.g. VS Code."),
+		localize('remoteName', "`${remoteName}`: e.g. SSH"),
+		localize('dirty', "`${dirty}`: a dirty indicator if the active editor is dirty."),
+		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 	registry.registerConfiguration({

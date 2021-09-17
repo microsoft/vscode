@@ -26,6 +26,7 @@ import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watche
 import { IDiskFileChange, ILogMessage, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
 import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
@@ -289,7 +290,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && this.canFlush) {
 				try {
-					await Promises.fdatasync(fd);
+					await Promises.fdatasync(fd); // https://github.com/microsoft/vscode/issues/9589
 				} catch (error) {
 					// In some exotic setups it is well possible that node fails to sync
 					// In that case we disable flushing and log the error to our logger
@@ -608,8 +609,8 @@ export class DiskFileSystemProvider extends Disposable implements
 
 				else {
 
-					// Single Folder Watcher
-					if (this.recursiveFoldersToWatch.length === 1) {
+					// Single Folder Watcher (stable only)
+					if (product.quality === 'stable' && this.recursiveFoldersToWatch.length === 1) {
 						if (isWindows) {
 							watcherImpl = WindowsWatcherService;
 						} else {
@@ -617,7 +618,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						}
 					}
 
-					// Multi Folder Watcher
+					// NSFW: Multi Folder Watcher or insiders
 					else {
 						watcherImpl = NsfwWatcherService;
 					}

@@ -7,11 +7,13 @@ import { MainContext, MainThreadLanguagesShape, IMainContext, ExtHostLanguagesSh
 import type * as vscode from 'vscode';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { StandardTokenType, Range, Position } from 'vs/workbench/api/common/extHostTypes';
+import { StandardTokenType, Range, Position, LanguageStatusSeverity } from 'vs/workbench/api/common/extHostTypes';
+import Severity from 'vs/base/common/severity';
 import { disposableTimeout } from 'vs/base/common/async';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export class ExtHostLanguages implements ExtHostLanguagesShape {
 
@@ -22,7 +24,8 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 	constructor(
 		mainContext: IMainContext,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _commands: CommandsConverter
+		private readonly _commands: CommandsConverter,
+		private readonly _uriTransformer: IURITransformer | undefined
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguages);
 	}
@@ -91,6 +94,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			selector,
 			id,
 			name: extension.displayName ?? extension.name,
+			severity: LanguageStatusSeverity.Information,
 			command: undefined,
 			text: '',
 			detail: '',
@@ -106,10 +110,10 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 					id: fullyQualifiedId,
 					name: data.name ?? extension.displayName ?? extension.name,
 					source: extension.displayName ?? extension.name,
-					selector: data.selector,
+					selector: typeConvert.DocumentSelector.from(data.selector, this._uriTransformer),
 					label: data.text,
 					detail: data.detail ?? '',
-					needsAttention: data.needsAttention,
+					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info,
 					command: data.command && this._commands.toInternal(data.command, commandDisposables),
 					accessibilityInfo: data.accessibilityInformation
 				});
@@ -154,11 +158,11 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 				data.detail = value;
 				updateAsync();
 			},
-			get needsAttention() {
-				return data.needsAttention;
+			get severity() {
+				return data.severity;
 			},
-			set needsAttention(value) {
-				data.needsAttention = value;
+			set severity(value) {
+				data.severity = value;
 				updateAsync();
 			},
 			get accessibilityInformation() {

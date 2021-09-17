@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED, InstallVSIXOptions, InstallExtensionResult
+	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED, InstallVSIXOptions, InstallExtensionResult, TargetPlatform
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -222,10 +222,23 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
-		for (const server of this.servers) {
-			if (await server.extensionManagementService.canInstall(gallery)) {
-				return true;
-			}
+		if (this.extensionManagementServerService.localExtensionManagementServer
+			&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery)) {
+			return true;
+		}
+		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
+		if (!manifest) {
+			return false;
+		}
+		if (this.extensionManagementServerService.remoteExtensionManagementServer
+			&& await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.canInstall(gallery)
+			&& this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
+			return true;
+		}
+		if (this.extensionManagementServerService.webExtensionManagementServer
+			&& await this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.canInstall(gallery)
+			&& this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
+			return true;
 		}
 		return false;
 	}
@@ -384,4 +397,5 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	registerParticipant() { throw new Error('Not Supported'); }
+	getTargetPlatform(): Promise<TargetPlatform> { throw new Error('Not Supported'); }
 }

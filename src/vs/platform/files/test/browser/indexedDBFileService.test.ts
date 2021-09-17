@@ -82,9 +82,9 @@ flakySuite('IndexedDB File Service', function () {
 	});
 
 	teardown(async () => {
-		disposables.clear();
 		await logFileProvider.delete(logfileURIFromPaths([]), { recursive: true, useTrash: false });
 		await userdataFileProvider.delete(userdataURIFromPaths([]), { recursive: true, useTrash: false });
+		disposables.clear();
 	});
 
 	test('root is always present', async () => {

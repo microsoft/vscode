@@ -15,7 +15,6 @@ import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/ex
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getTargetPlatformFromOS, CURRENT_TARGET_PLATFORM } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -34,22 +33,14 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	) {
 		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
 
-		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local"), getTargetPlatform() { return Promise.resolve(CURRENT_TARGET_PLATFORM); } };
+		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const extensionManagementService = instantiationService.createInstance(NativeRemoteExtensionManagementService, remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer);
-			const remoteEnvironemntPromise = remoteAgentService.getEnvironment();
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,
 				get label() { return labelService.getHostLabel(Schemas.vscodeRemote, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); },
-				async getTargetPlatform() {
-					const remoteEnvironment = await remoteEnvironemntPromise;
-					if (remoteEnvironment) {
-						return getTargetPlatformFromOS(remoteEnvironment.os, remoteEnvironment.arch);
-					}
-					throw new Error('Cannot get remote environment');
-				}
 			};
 		}
 	}

@@ -57,7 +57,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
@@ -224,8 +224,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const subtitle = append(details, $('.subtitle'));
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
+		publisher.setAttribute('role', 'button');
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
+		rating.setAttribute('role', 'link'); // #132645
 
 		const description = append(details, $('.description'));
 
@@ -470,15 +472,16 @@ export class ExtensionEditor extends EditorPane {
 					const statusIconActionBar = disposables.add(new ActionBar(template.status, { animated: false }));
 					statusIconActionBar.push(extensionStatus, { icon: true, label: false });
 				}
+				const rendered = disposables.add(renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true }), {
+					actionHandler: {
+						callback: (content) => {
+							this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+						},
+						disposables: disposables
+					}
+				}));
 				append(append(template.status, $('.status-text')),
-					renderMarkdown(new MarkdownString(status.message.value, { isTrusted: true, supportThemeIcons: true }), {
-						actionHandler: {
-							callback: (content) => {
-								this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-							},
-							disposables: disposables
-						}
-					}));
+					rendered.element);
 			}
 		};
 		updateStatus();

@@ -8,7 +8,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IEditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
@@ -31,6 +31,8 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Promises } from 'vs/base/common/async';
+import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
+import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -196,6 +198,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;
 	}
+
+	readonly sideGroup: IEditorSideGroup = {
+		openEditor: (editor, options) => {
+			const [group] = this.instantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
+
+			return group.openEditor(editor, options);
+		}
+	};
 
 	get groups(): IEditorGroupView[] {
 		return Array.from(this.groupViews.values());

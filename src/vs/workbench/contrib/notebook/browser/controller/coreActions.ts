@@ -22,7 +22,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { MarshalledId } from 'vs/base/common/marshalling';
 
 // Kernel Command
-export const SELECT_KERNEL_ID = 'notebook.selectKernel';
+export const SELECT_KERNEL_ID = '_notebook.selectKernel';
 export const NOTEBOOK_ACTIONS_CATEGORY = { value: localize('notebookActions.category', "Notebook"), original: 'Notebook' };
 
 export const CELL_TITLE_CELL_GROUP_ID = 'inline/cell';
@@ -335,7 +335,7 @@ export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args:
 		}
 
 		const ranges = firstArg.ranges;
-		const selectedCells = flatten(ranges.map(range => editor.viewModel.getCells(range).slice(0)));
+		const selectedCells = flatten(ranges.map(range => editor.getCellsInRange(range).slice(0)));
 		const autoReveal = firstArg.autoReveal;
 		return {
 			ui: false,
@@ -357,7 +357,7 @@ export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args:
 		return {
 			ui: false,
 			notebookEditor: editor,
-			selectedCells: editor.viewModel.getCells(firstArg)
+			selectedCells: editor.getCellsInRange(firstArg)
 		};
 	}
 

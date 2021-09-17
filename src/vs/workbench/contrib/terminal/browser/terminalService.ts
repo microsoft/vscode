@@ -50,6 +50,7 @@ import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workben
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -179,6 +180,7 @@ export class TerminalService implements ITerminalService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -274,11 +276,12 @@ export class TerminalService implements ITerminalService {
 		this._connectionState = TerminalConnectionState.Connecting;
 
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
-		let initPromise: Promise<any> = isPersistentRemote
-			? this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals()
-			: enableTerminalReconnection
-				? this._localTerminalsInitPromise = this._reconnectToLocalTerminals()
-				: Promise.resolve();
+
+		if (isPersistentRemote) {
+			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
+		} else if (enableTerminalReconnection) {
+			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+		}
 		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
 			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
@@ -294,8 +297,6 @@ export class TerminalService implements ITerminalService {
 				}
 			}
 		});
-
-		initPromise.then(() => this._setConnected());
 
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
 		// default terminal before launching the first terminal. This isn't expected to ever take
@@ -374,7 +375,7 @@ export class TerminalService implements ITerminalService {
 	private async _reconnectToRemoteTerminals(): Promise<void> {
 		const layoutInfo = await this._remoteTerminalService.getTerminalLayoutInfo();
 		this._remoteTerminalService.reduceConnectionGraceTime();
-		const reconnectCounter = this._recreateTerminalGroups(layoutInfo);
+		const reconnectCounter = await this._recreateTerminalGroups(layoutInfo);
 		/* __GDPR__
 			"terminalReconnection" : {
 				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
@@ -395,7 +396,7 @@ export class TerminalService implements ITerminalService {
 		}
 		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
-			this._recreateTerminalGroups(layoutInfo);
+			await this._recreateTerminalGroups(layoutInfo);
 		}
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
@@ -494,7 +495,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	@throttle(2000)
-	private async _refreshAvailableProfiles(): Promise<void> {
+	private _refreshAvailableProfiles(): void {
+		this._refreshAvailableProfilesNow();
+	}
+
+	private async _refreshAvailableProfilesNow(): Promise<void> {
 		const result = await this._detectProfiles();
 		const profilesChanged = !equals(result, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
@@ -506,6 +511,7 @@ export class TerminalService implements ITerminalService {
 			await this._refreshPlatformConfig(result);
 		}
 	}
+
 
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
@@ -529,20 +535,28 @@ export class TerminalService implements ITerminalService {
 		return this._defaultProfileName;
 	}
 
-	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+	private async _onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 		if (this.instances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
 		}
 
-		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
-		if (!shouldPersistTerminals) {
+		// Persist terminal _buffer state_, note that even if this happens the dirty terminal prompt
+		// still shows as that cannot be revived
+		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
+		if (shouldReviveProcesses) {
+			await this._localTerminalService?.persistTerminalState();
+		}
+
+		// Persist terminal _processes_
+		const shouldPersistProcesses = this._configHelper.config.enablePersistentSessions && reason === ShutdownReason.RELOAD;
+		if (!shouldPersistProcesses) {
 			const hasDirtyInstances = (
 				(this.configHelper.config.confirmOnExit === 'always' && this.instances.length > 0) ||
 				(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
 			);
 			if (hasDirtyInstances) {
-				return this._onBeforeShutdownAsync();
+				return this._onBeforeShutdownAsync(reason);
 			}
 		}
 
@@ -551,12 +565,24 @@ export class TerminalService implements ITerminalService {
 		return false;
 	}
 
-	private async _onBeforeShutdownAsync(): Promise<boolean> {
+	private _shouldReviveProcesses(reason: ShutdownReason): boolean {
+		if (!this._configHelper.config.enablePersistentSessions) {
+			return false;
+		}
+		switch (this.configHelper.config.persistentSessionReviveProcess) {
+			case 'onExit': return reason === ShutdownReason.LOAD || reason === ShutdownReason.QUIT;
+			case 'onExitAndWindowClose': return reason !== ShutdownReason.RELOAD;
+			default: return false;
+		}
+	}
+
+	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
 		// veto if configured to show confirmation and the user chose not to exit
 		const veto = await this._showTerminalCloseConfirmation();
 		if (!veto) {
 			this._isShuttingDown = true;
 		}
+
 		return veto;
 	}
 
@@ -564,14 +590,21 @@ export class TerminalService implements ITerminalService {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
-			this.instances.forEach(instance => instance.detachFromProcess());
+			for (const instance of this.instances) {
+				instance.detachFromProcess();
+			}
 			return;
 		}
 
 		// Force dispose of all terminal instances
-		this.instances.forEach(instance => instance.dispose(true));
+		for (const instance of this.instances) {
+			instance.dispose();
+		}
 
-		this._localTerminalService?.setTerminalLayoutInfo(undefined);
+		// Clear terminal layout info only when not persisting
+		if (!this._shouldReviveProcesses(e.reason)) {
+			this._localTerminalService?.setTerminalLayoutInfo(undefined);
+		}
 	}
 
 	getFindState(): FindReplaceState {
@@ -580,6 +613,10 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _saveState(): void {
+		// Avoid saving state when shutting down as that would override process state to be revived
+		if (this._isShuttingDown) {
+			return;
+		}
 		if (!this.configHelper.config.enablePersistentSessions) {
 			return;
 		}
@@ -647,8 +684,10 @@ export class TerminalService implements ITerminalService {
 	async initializeTerminals(): Promise<void> {
 		if (this._remoteTerminalsInitPromise) {
 			await this._remoteTerminalsInitPromise;
+			this._setConnected();
 		} else if (this._localTerminalsInitPromise) {
 			await this._localTerminalsInitPromise;
+			this._setConnected();
 		}
 		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
 			this.createTerminal({ location: TerminalLocation.Panel });
@@ -1143,6 +1182,17 @@ export class TerminalService implements ITerminalService {
 
 
 	async createTerminal(options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
+		// Await the initialization of available profiles as long as this is not a pty terminal or a
+		// local terminal in a remote workspace as profile won't be used in those cases and these
+		// terminals need to be launched before remote connections are established.
+		if (!this._availableProfiles) {
+			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
+			const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
+			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
+				await this._refreshAvailableProfilesNow();
+			}
+		}
+
 		const config = options?.config || this._availableProfiles?.find(p => p.profileName === this._defaultProfileName);
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._convertProfileToShellLaunchConfig(config || {});
 
@@ -1196,9 +1246,8 @@ export class TerminalService implements ITerminalService {
 		const parent = this._getSplitParent(options?.location);
 		if (parent) {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
-		} else {
-			return this._createTerminal(shellLaunchConfig, location, options);
 		}
+		return this._createTerminal(shellLaunchConfig, location, options);
 	}
 
 	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {

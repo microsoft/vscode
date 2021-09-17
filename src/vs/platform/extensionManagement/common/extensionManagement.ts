@@ -7,8 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
 import { IPager } from 'vs/base/common/paging';
-import { isWeb, OperatingSystem, Platform, platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
+import { Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionType, IExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -27,6 +26,9 @@ export const enum TargetPlatform {
 	LINUX_ARM64 = 'linux-arm64',
 	LINUX_ARMHF = 'linux-armhf',
 
+	ALPINE_X64 = 'alpine-x64',
+	ALPINE_ARM64 = 'alpine-arm64',
+
 	DARWIN_X64 = 'darwin-x64',
 	DARWIN_ARM64 = 'darwin-arm64',
 
@@ -35,6 +37,30 @@ export const enum TargetPlatform {
 	UNIVERSAL = 'universal',
 	UNKNOWN = 'unknown',
 	UNDEFINED = 'undefined',
+}
+
+export function TargetPlatformToString(targetPlatform: TargetPlatform) {
+	switch (targetPlatform) {
+		case TargetPlatform.WIN32_X64: return 'Windows 64 bit';
+		case TargetPlatform.WIN32_IA32: return 'Windows 32 bit';
+		case TargetPlatform.WIN32_ARM64: return 'Windows ARM';
+
+		case TargetPlatform.LINUX_X64: return 'Linux 64 bit';
+		case TargetPlatform.LINUX_ARM64: return 'Linux ARM 64';
+		case TargetPlatform.LINUX_ARMHF: return 'Linux ARM';
+
+		case TargetPlatform.ALPINE_X64: return 'Alpine Linux 64 bit';
+		case TargetPlatform.ALPINE_ARM64: return 'Alpine ARM 64';
+
+		case TargetPlatform.DARWIN_X64: return 'Mac';
+		case TargetPlatform.DARWIN_ARM64: return 'Mac Silicon';
+
+		case TargetPlatform.WEB: return 'Web';
+
+		case TargetPlatform.UNIVERSAL: return TargetPlatform.UNIVERSAL;
+		case TargetPlatform.UNKNOWN: return TargetPlatform.UNKNOWN;
+		case TargetPlatform.UNDEFINED: return TargetPlatform.UNDEFINED;
+	}
 }
 
 export function toTargetPlatform(targetPlatform: string): TargetPlatform {
@@ -47,6 +73,9 @@ export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 		case TargetPlatform.LINUX_ARM64: return TargetPlatform.LINUX_ARM64;
 		case TargetPlatform.LINUX_ARMHF: return TargetPlatform.LINUX_ARMHF;
 
+		case TargetPlatform.ALPINE_X64: return TargetPlatform.ALPINE_X64;
+		case TargetPlatform.ALPINE_ARM64: return TargetPlatform.ALPINE_ARM64;
+
 		case TargetPlatform.DARWIN_X64: return TargetPlatform.DARWIN_X64;
 		case TargetPlatform.DARWIN_ARM64: return TargetPlatform.DARWIN_ARM64;
 
@@ -57,17 +86,7 @@ export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 	}
 }
 
-export function getTargetPlatformFromOS(os: OperatingSystem, arch: string): TargetPlatform {
-	let platform: Platform;
-	switch (os) {
-		case OperatingSystem.Windows: platform = Platform.Windows; break;
-		case OperatingSystem.Linux: platform = Platform.Linux; break;
-		case OperatingSystem.Macintosh: platform = Platform.Mac; break;
-	}
-	return getTargetPlatform(platform, arch);
-}
-
-export function getTargetPlatform(platform: Platform, arch: string | undefined): TargetPlatform {
+export function getTargetPlatform(platform: Platform | 'alpine', arch: string | undefined): TargetPlatform {
 	switch (platform) {
 		case Platform.Windows:
 			if (arch === 'x64') {
@@ -93,6 +112,15 @@ export function getTargetPlatform(platform: Platform, arch: string | undefined):
 			}
 			return TargetPlatform.UNKNOWN;
 
+		case 'alpine':
+			if (arch === 'x64') {
+				return TargetPlatform.ALPINE_X64;
+			}
+			if (arch === 'arm64') {
+				return TargetPlatform.ALPINE_ARM64;
+			}
+			return TargetPlatform.UNKNOWN;
+
 		case Platform.Mac:
 			if (arch === 'x64') {
 				return TargetPlatform.DARWIN_X64;
@@ -106,7 +134,49 @@ export function getTargetPlatform(platform: Platform, arch: string | undefined):
 	}
 }
 
-export const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
+export function isNotWebExtensionInWebTargetPlatform(allTargetPlatforms: TargetPlatform[], productTargetPlatform: TargetPlatform): boolean {
+	// Not a web extension in web target platform
+	return productTargetPlatform === TargetPlatform.WEB && !allTargetPlatforms.includes(TargetPlatform.WEB);
+}
+
+export function isTargetPlatformCompatible(extensionTargetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[], productTargetPlatform: TargetPlatform): boolean {
+	// Not compatible when extension is not a web extension in web target platform
+	if (isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, productTargetPlatform)) {
+		return false;
+	}
+
+	// Compatible when extension target platform is not defined
+	if (extensionTargetPlatform === TargetPlatform.UNDEFINED) {
+		return true;
+	}
+
+	// Compatible when extension target platform is universal
+	if (extensionTargetPlatform === TargetPlatform.UNIVERSAL) {
+		return true;
+	}
+
+	// Not compatible when extension target platform is unknown
+	if (extensionTargetPlatform === TargetPlatform.UNKNOWN) {
+		return false;
+	}
+
+	// Compatible when extension and product target platforms matches
+	if (extensionTargetPlatform === productTargetPlatform) {
+		return true;
+	}
+
+	// Fallback
+	const fallbackTargetPlatforms = getFallbackTargetPlarforms(productTargetPlatform);
+	return fallbackTargetPlatforms.includes(extensionTargetPlatform);
+}
+
+export function getFallbackTargetPlarforms(targetPlatform: TargetPlatform): TargetPlatform[] {
+	switch (targetPlatform) {
+		case TargetPlatform.WIN32_X64: return [TargetPlatform.WIN32_IA32];
+		case TargetPlatform.WIN32_ARM64: return [TargetPlatform.WIN32_IA32];
+	}
+	return [];
+}
 
 export interface IGalleryExtensionProperties {
 	dependencies?: string[];
@@ -207,7 +277,7 @@ export const enum SortBy {
 	Title = 2,
 	PublisherName = 3,
 	InstallCount = 4,
-	PublishedDate = 5,
+	PublishedDate = 10,
 	AverageRating = 6,
 	WeightedRating = 12
 }
@@ -329,6 +399,7 @@ export interface IExtensionManagementService {
 	updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
 
 	registerParticipant(pariticipant: IExtensionManagementParticipant): void;
+	getTargetPlatform(): Promise<TargetPlatform>;
 }
 
 export const DISABLED_EXTENSIONS_STORAGE_PATH = 'extensionsIdentifiers/disabled';

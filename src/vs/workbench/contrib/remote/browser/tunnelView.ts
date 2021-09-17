@@ -353,9 +353,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			{
 				supportHighlights: true,
 				hoverDelegate: {
-					showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
-						return this.hoverService.showHover(options);
-					},
+					showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
 					delay: <number>this.configurationService.getValue('workbench.hover.delay')
 				}
 			});
@@ -1037,7 +1035,7 @@ namespace LabelTunnelAction {
 	}
 }
 
-const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Forwarded port is invalid.");
+const invalidPortString: string = nls.localize('remote.tunnelsView.portNumberValid', "Forwarded port should be a number or a host:port.");
 const maxPortNumber: number = 65536;
 const invalidPortNumberString: string = nls.localize('remote.tunnelsView.portNumberToHigh', "Port number must be \u2265 0 and < {0}.", maxPortNumber);
 const requiresSudoString: string = nls.localize('remote.tunnelView.inlineElevationMessage', "May Require Sudo");

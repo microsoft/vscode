@@ -60,9 +60,12 @@ suite('Inline Completions', () => {
 			assert.deepStrictEqual(getOutput('[ foo]', 'foobar'), ' foo[bar]');
 			assert.deepStrictEqual(getOutput('[\tfoo]', 'foobar'), '\tfoo[bar]');
 			assert.deepStrictEqual(getOutput('[\t foo]', '\tfoobar'), '	 foo[bar]');
+			assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subword: '\t[\t]foo[bar]' });
 			assert.deepStrictEqual(getOutput('[\t]', '\t\tfoobar'), '\t[\tfoobar]');
 			assert.deepStrictEqual(getOutput('\t[]', '\t'), '\t[\t]');
 			assert.deepStrictEqual(getOutput('\t[\t]', ''), '\t\t');
+
+			assert.deepStrictEqual(getOutput('[ ]', 'return 1'), ' [return 1]');
 		});
 
 		test('Whitespace (outside of indentation)', () => {
@@ -480,6 +483,53 @@ suite('Inline Completions', () => {
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',
 					'hello[world]',
+				]);
+			});
+	});
+
+	test('Do not reuse cache from previous session (#132516)', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ editor, editorViewModel, model, context }) => {
+				model.setActive(true);
+				context.keyboardType('hello\n');
+				context.cursorLeft();
+				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
+				await timeout(2000);
+
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
+					{
+						position: '(1,6)',
+						text: 'hello\n',
+						triggerKind: 0,
+					}
+				]);
+
+				provider.setReturnValue({ text: 'helloworld', range: new Range(2, 1, 2, 6) }, 1000);
+
+				context.cursorDown();
+				context.keyboardType('hello');
+				await timeout(100);
+
+				context.cursorLeft(); // Cause the ghost text to update
+				context.cursorRight();
+
+				await timeout(2000);
+
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
+					{
+						position: '(2,6)',
+						text: 'hello\nhello',
+						triggerKind: 0,
+					}
+				]);
+
+				assert.deepStrictEqual(context.getAndClearViewStates(), [
+					'',
+					'hello[world]\n',
+					'hello\n',
+					'hello\nhello[world]',
 				]);
 			});
 	});
