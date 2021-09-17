@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, IEditorMoveEvent, EditorExtensions as Extensions, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -49,10 +49,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { Dimension, IDimension } from 'vs/base/browser/dom';
@@ -60,14 +60,12 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ViewletDescriptor, Viewlet } from 'vs/workbench/browser/viewlet';
-import { IViewlet } from 'vs/workbench/common/viewlet';
+import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPanel } from 'vs/workbench/common/panel';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
@@ -305,7 +303,8 @@ export class TestServiceAccessor {
 		@IWorkingCopyEditorService public workingCopyEditorService: IWorkingCopyEditorService,
 		@IInstantiationService public instantiationService: IInstantiationService,
 		@IElevatedFileService public elevatedFileService: IElevatedFileService,
-		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService,
+		@IDecorationsService public decorationsService: IDecorationsService
 	) { }
 }
 
@@ -332,7 +331,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService,
-		@IElevatedFileService elevatedFileService: IElevatedFileService
+		@IElevatedFileService elevatedFileService: IElevatedFileService,
+		@IDecorationsService decorationsService: IDecorationsService
 	) {
 		super(
 			fileService,
@@ -352,7 +352,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			uriIdentityService,
 			modeService,
 			elevatedFileService,
-			logService
+			logService,
+			decorationsService
 		);
 	}
 
@@ -490,10 +491,10 @@ export class TestHistoryService implements IHistoryService {
 	forward(): void { }
 	back(): void { }
 	last(): void { }
-	removeFromHistory(_input: IEditorInput | IResourceEditorInput): void { }
+	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
-	getHistory(): readonly (IEditorInput | IResourceEditorInput)[] { return []; }
+	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
 	openNextRecentlyUsedEditor(group?: GroupIdentifier): void { }
 	openPreviouslyUsedEditor(group?: GroupIdentifier): void { }
 	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
@@ -591,27 +592,27 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	focus() { }
 }
 
-let activeViewlet: Viewlet = {} as any;
+let activeViewlet: PaneComposite = {} as any;
 
 export class TestViewletService implements IViewletService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
-	onDidViewletDeregisterEmitter = new Emitter<ViewletDescriptor>();
-	onDidViewletOpenEmitter = new Emitter<IViewlet>();
-	onDidViewletCloseEmitter = new Emitter<IViewlet>();
+	onDidViewletRegisterEmitter = new Emitter<PaneCompositeDescriptor>();
+	onDidViewletDeregisterEmitter = new Emitter<PaneCompositeDescriptor>();
+	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
+	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
 	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
 	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 
-	openViewlet(id: string, focus?: boolean): Promise<IViewlet | undefined> { return Promise.resolve(undefined); }
-	getViewlets(): ViewletDescriptor[] { return []; }
-	getAllViewlets(): ViewletDescriptor[] { return []; }
-	getActiveViewlet(): IViewlet { return activeViewlet; }
+	openViewlet(id: string, focus?: boolean): Promise<IPaneComposite | undefined> { return Promise.resolve(undefined); }
+	getViewlets(): PaneCompositeDescriptor[] { return []; }
+	getAllViewlets(): PaneCompositeDescriptor[] { return []; }
+	getActiveViewlet(): IPaneComposite { return activeViewlet; }
 	getDefaultViewletId(): string { return 'workbench.view.explorer'; }
-	getViewlet(id: string): ViewletDescriptor | undefined { return undefined; }
+	getViewlet(id: string): PaneCompositeDescriptor | undefined { return undefined; }
 	getProgressIndicator(id: string) { return undefined; }
 	hideActiveViewlet(): void { }
 	getLastActiveViewletId(): string { return undefined!; }
@@ -621,14 +622,14 @@ export class TestViewletService implements IViewletService {
 export class TestPanelService implements IPanelService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPanelOpen = new Emitter<{ panel: IPanel, focus: boolean; }>().event;
-	onDidPanelClose = new Emitter<IPanel>().event;
+	onDidPanelOpen = new Emitter<{ panel: IPaneComposite, focus: boolean; }>().event;
+	onDidPanelClose = new Emitter<IPaneComposite>().event;
 
 	async openPanel(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
 	getPanel(id: string): any { return activeViewlet; }
 	getPanels() { return []; }
 	getPinnedPanels() { return []; }
-	getActivePanel(): IPanel { return activeViewlet; }
+	getActivePanel(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
@@ -715,12 +716,12 @@ export class TestEditorGroupView implements IEditorGroupView {
 	constructor(public id: number) { }
 
 	activeEditorPane!: IVisibleEditorPane;
-	activeEditor!: IEditorInput;
-	previewEditor!: IEditorInput;
+	activeEditor!: EditorInput;
+	previewEditor!: EditorInput;
 	count!: number;
 	stickyCount!: number;
 	disposed!: boolean;
-	editors: readonly IEditorInput[] = [];
+	editors: readonly EditorInput[] = [];
 	label!: string;
 	isLocked!: boolean;
 	ariaLabel!: string;
@@ -741,33 +742,33 @@ export class TestEditorGroupView implements IEditorGroupView {
 	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onDidOpenEditorFail: Event<IEditorInput> = Event.None;
+	onDidOpenEditorFail: Event<EditorInput> = Event.None;
 	onDidFocus: Event<void> = Event.None;
 	onDidChange: Event<{ width: number; height: number; }> = Event.None;
-	onWillMoveEditor: Event<IEditorMoveEvent> = Event.None;
-	onWillOpenEditor: Event<IEditorOpenEvent> = Event.None;
+	onWillMoveEditor: Event<IEditorWillMoveEvent> = Event.None;
+	onWillOpenEditor: Event<IEditorWillOpenEvent> = Event.None;
 
-	getEditors(_order?: EditorsOrder): readonly IEditorInput[] { return []; }
-	findEditors(_resource: URI): readonly IEditorInput[] { return []; }
-	getEditorByIndex(_index: number): IEditorInput { throw new Error('not implemented'); }
-	getIndexOfEditor(_editor: IEditorInput): number { return -1; }
-	openEditor(_editor: IEditorInput, _options?: IEditorOptions): Promise<IEditorPane> { throw new Error('not implemented'); }
+	getEditors(_order?: EditorsOrder): readonly EditorInput[] { return []; }
+	findEditors(_resource: URI): readonly EditorInput[] { return []; }
+	getEditorByIndex(_index: number): EditorInput { throw new Error('not implemented'); }
+	getIndexOfEditor(_editor: EditorInput): number { return -1; }
+	openEditor(_editor: EditorInput, _options?: IEditorOptions): Promise<IEditorPane> { throw new Error('not implemented'); }
 	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
-	isPinned(_editor: IEditorInput): boolean { return false; }
-	isSticky(_editor: IEditorInput): boolean { return false; }
-	isActive(_editor: IEditorInput | IUntypedEditorInput): boolean { return false; }
-	contains(candidate: IEditorInput | IUntypedEditorInput): boolean { return false; }
-	moveEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
+	isPinned(_editor: EditorInput): boolean { return false; }
+	isSticky(_editor: EditorInput): boolean { return false; }
+	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
+	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
+	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	moveEditors(_editors: IEditorInputWithOptions[], _target: IEditorGroup): void { }
-	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
+	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	copyEditors(_editors: IEditorInputWithOptions[], _target: IEditorGroup): void { }
-	async closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> { }
-	async closeEditors(_editors: IEditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
+	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<void> { }
+	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
 	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }
 	async replaceEditors(_editors: IEditorReplacement[]): Promise<void> { }
-	pinEditor(_editor?: IEditorInput): void { }
-	stickEditor(editor?: IEditorInput | undefined): void { }
-	unstickEditor(editor?: IEditorInput | undefined): void { }
+	pinEditor(_editor?: EditorInput): void { }
+	stickEditor(editor?: EditorInput | undefined): void { }
+	unstickEditor(editor?: EditorInput | undefined): void { }
 	lock(locked: boolean): void { }
 	focus(): void { }
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
@@ -807,7 +808,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
-	onDidEditorsChange: Event<void> = Event.None;
+	onDidEditorsChange: Event<IEditorsChangeEvent[]> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
@@ -819,27 +820,27 @@ export class TestEditorService implements EditorServiceImpl {
 	activeEditorPane: IVisibleEditorPane | undefined;
 	activeTextEditorMode: string | undefined;
 
-	private _activeEditor: IEditorInput | undefined;
-	public get activeEditor(): IEditorInput | undefined { return this._activeEditor; }
-	public set activeEditor(value: IEditorInput | undefined) { this._activeEditor = value; }
+	private _activeEditor: EditorInput | undefined;
+	public get activeEditor(): EditorInput | undefined { return this._activeEditor; }
+	public set activeEditor(value: EditorInput | undefined) { this._activeEditor = value; }
 
-	editors: readonly IEditorInput[] = [];
+	editors: readonly EditorInput[] = [];
 	mostRecentlyActiveEditors: readonly IEditorIdentifier[] = [];
 	visibleEditorPanes: readonly IVisibleEditorPane[] = [];
 	visibleTextEditorControls = [];
-	visibleEditors: readonly IEditorInput[] = [];
+	visibleEditors: readonly EditorInput[] = [];
 	count = this.editors.length;
 
 	constructor(private editorGroupService?: IEditorGroupsService) { }
 	getEditors() { return []; }
 	findEditors() { return [] as any; }
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: EditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
+	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
 		throw new Error('not implemented');
 	}
-	doResolveEditorOpenRequest(editor: IEditorInput | IUntypedEditorInput): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
+	doResolveEditorOpenRequest(editor: EditorInput | IUntypedEditorInput): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
 		if (!this.editorGroupService) {
 			return undefined;
 		}
@@ -848,7 +849,7 @@ export class TestEditorService implements EditorServiceImpl {
 	}
 	openEditors(_editors: any, _group?: any): Promise<IEditorPane[]> { throw new Error('not implemented'); }
 	isOpened(_editor: IResourceEditorInputIdentifier): boolean { return false; }
-	isVisible(_editor: IEditorInput): boolean { return false; }
+	isVisible(_editor: EditorInput): boolean { return false; }
 	replaceEditors(_editors: any, _group: any) { return Promise.resolve(undefined); }
 	save(editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
@@ -1516,12 +1517,12 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	setFailToOpen(): void {
 		this.fails = true;
 	}
-	override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		this.gotSaved = true;
 		this.dirty = false;
 		return this;
 	}
-	override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		this.gotSavedAs = true;
 		return this;
 	}
@@ -1696,6 +1697,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> { throw new Error('Method not implemented.'); }
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> { throw new Error('Method not implemented.'); }
 	acceptDetachInstanceReply(requestId: number, persistentProcessId: number): Promise<void> { throw new Error('Method not implemented.'); }
+	persistTerminalState(): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {

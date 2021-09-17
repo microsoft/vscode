@@ -97,6 +97,7 @@ export interface IOffProcessTerminalService {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	persistTerminalState(): Promise<void>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
@@ -153,7 +154,7 @@ export interface ITerminalConfiguration {
 	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
-	cursorStyle: string;
+	cursorStyle: 'block' | 'underline' | 'bar';
 	cursorWidth: number;
 	drawBoldTextInBrightColors: boolean;
 	fastScrollSensitivity: number;
@@ -187,7 +188,6 @@ export interface ITerminalConfiguration {
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
 	wordSeparators: string;
-	titleMode: 'executable' | 'sequence';
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
@@ -208,6 +208,7 @@ export interface ITerminalConfiguration {
 	bellDuration: number;
 	defaultLocation: TerminalLocationString;
 	customGlyphs: boolean;
+	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];

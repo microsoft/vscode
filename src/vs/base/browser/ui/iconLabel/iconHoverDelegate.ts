@@ -17,10 +17,12 @@ export interface IHoverDelegateOptions {
 	target: IHoverDelegateTarget | HTMLElement;
 	hoverPosition?: HoverPosition;
 	showPointer?: boolean;
+	skipFadeInAnimation?: boolean;
 }
 
 export interface IHoverDelegate {
 	showHover(options: IHoverDelegateOptions): IHoverWidget | undefined;
+	onDidHideHover?: () => void;
 	delay: number;
 	placement?: 'mouse' | 'element';
 }

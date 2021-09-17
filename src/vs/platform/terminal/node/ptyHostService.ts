@@ -121,8 +121,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 					VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
 					VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
 					VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
-					VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback,
-					VSCODE_RECONNECT_EXPERIMENTAL_SERIALIZATION: this._reconnectConstants.useExperimentalSerialization ? 1 : 0
+					VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
 				}
 			}
 		);
@@ -269,6 +268,14 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
+	async serializeTerminalState(ids: number[]): Promise<string> {
+		return this._proxy.serializeTerminalState(ids);
+	}
+
+	async reviveTerminalProcesses(state: string) {
+		return this._proxy.reviveTerminalProcesses(state);
+	}
+
 	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._proxy.refreshProperty(id, property);
 	}
@@ -284,9 +291,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _disposePtyHost(): void {
-		if (this._proxy.shutdownAll) {
-			this._proxy.shutdownAll();
-		}
+		this._proxy.shutdownAll?.();
 		this._client.dispose();
 	}
 

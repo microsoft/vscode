@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notabstitlecontrol';
-import { EditorResourceAccessor, Verbosity, IEditorInput, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -18,7 +19,7 @@ import { equals } from 'vs/base/common/objects';
 import { toDisposable } from 'vs/base/common/lifecycle';
 
 interface IRenderedEditorLabel {
-	editor?: IEditorInput;
+	editor?: EditorInput;
 	pinned: boolean;
 }
 
@@ -126,11 +127,11 @@ export class NoTabsTitleControl extends TitleControl {
 		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
 	}
 
-	openEditor(editor: IEditorInput): void {
+	openEditor(editor: EditorInput): void {
 		this.doHandleOpenEditor();
 	}
 
-	openEditors(editors: IEditorInput[]): void {
+	openEditors(editors: EditorInput[]): void {
 		this.doHandleOpenEditor();
 	}
 
@@ -141,27 +142,27 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	closeEditor(editor: IEditorInput, index: number | undefined): void {
+	closeEditor(editor: EditorInput, index: number | undefined): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
-	closeEditors(editors: IEditorInput[]): void {
+	closeEditors(editors: EditorInput[]): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
-	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
+	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
-	pinEditor(editor: IEditorInput): void {
+	pinEditor(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
-	stickEditor(editor: IEditorInput): void {
+	stickEditor(editor: EditorInput): void {
 		// Sticky editors are not presented any different with tabs disabled
 	}
 
-	unstickEditor(editor: IEditorInput): void {
+	unstickEditor(editor: EditorInput): void {
 		// Sticky editors are not presented any different with tabs disabled
 	}
 
@@ -169,15 +170,11 @@ export class NoTabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	updateEditorLabel(editor: IEditorInput): void {
+	updateEditorLabel(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
-	updateEditorCapabilities(editor: IEditorInput): void {
-		this.ifEditorIsActive(editor, () => this.redraw());
-	}
-
-	updateEditorDirty(editor: IEditorInput): void {
+	updateEditorDirty(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => {
 			const titleContainer = assertIsDefined(this.titleContainer);
 
@@ -234,7 +231,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	private ifEditorIsActive(editor: IEditorInput, fn: () => void): void {
+	private ifEditorIsActive(editor: EditorInput, fn: () => void): void {
 		if (this.group.isActive(editor)) {
 			fn();  // only run if editor is current active
 		}

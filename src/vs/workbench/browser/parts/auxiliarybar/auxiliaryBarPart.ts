@@ -14,7 +14,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -49,7 +49,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		super(
 			Parts.AUXILIARYBAR_PART,
 			AuxiliaryBarPart.activePanelSettingsKey,
-			PanelExtensions.AuxiliaryBar,
+			PaneCompositeExtensions.Auxiliary,
 			SIDE_BAR_BACKGROUND,
 			ViewContainerLocation.AuxiliaryBar,
 			notificationService,

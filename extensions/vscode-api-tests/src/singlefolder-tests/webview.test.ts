@@ -255,7 +255,8 @@ const testDocument = workspaceFile('bower.json');
 					img.addEventListener('load', () => {
 						vscode.postMessage({ value: true });
 					});
-					img.addEventListener('error', () => {
+					img.addEventListener('error', (e) => {
+						console.log(e);
 						vscode.postMessage({ value: false });
 					});
 					img.src = message.data.src;
@@ -270,6 +271,7 @@ const testDocument = workspaceFile('bower.json');
 
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
+			console.log(imagePath);
 			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual(response.value, true);
 		}

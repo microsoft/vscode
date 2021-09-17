@@ -304,4 +304,12 @@ export class RemoteTerminalChannelClient {
 		};
 		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
 	}
+
+	reviveTerminalProcesses(state: string): Promise<void> {
+		return this._channel.call('$reviveTerminalProcesses', [state]);
+	}
+
+	serializeTerminalState(ids: number[]): Promise<string> {
+		return this._channel.call('$serializeTerminalState', [ids]);
+	}
 }

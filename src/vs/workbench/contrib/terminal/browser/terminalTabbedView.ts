@@ -207,7 +207,7 @@ export class TerminalTabbedView extends Disposable {
 			const style = window.getComputedStyle(this._tabListElement);
 			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
 			const maxInstanceWidth = this._terminalGroupService.instances.reduce((p, c) => {
-				return Math.max(p, ctx.measureText(c.title + (c.shellLaunchConfig.description || '')).width + this._getAdditionalWidth(c));
+				return Math.max(p, ctx.measureText(c.title + (c.description || '')).width + this._getAdditionalWidth(c));
 			}, 0);
 			idealWidth = Math.ceil(Math.max(maxInstanceWidth, TerminalTabsListSizes.WideViewMinimumWidth));
 		}
@@ -222,7 +222,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getAdditionalWidth(instance: ITerminalInstance): number {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
-		const additionalWidth = 30;
+		const additionalWidth = 40;
 		const statusIconWidth = instance.statusList.statuses.length > 0 ? STATUS_ICON_WIDTH : 0;
 		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
 		return additionalWidth + splitAnnotationWidth + statusIconWidth;

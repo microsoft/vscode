@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorsOrder, IEditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, IEditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestEditorWithOptions, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -2443,5 +2443,32 @@ suite('EditorService', () => {
 		await service.openEditor(otherSideBySideInput, { revealIfOpened: true, revealIfVisible: true });
 
 		assert.strictEqual(rootGroup.count, 1);
+	});
+
+	test('onDidCloseEditor indicates proper context when moving editor across groups', async () => {
+		const [part, service] = await createEditorService();
+
+		const rootGroup = part.activeGroup;
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource-onDidCloseEditor1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource-onDidCloseEditor2'), TEST_EDITOR_INPUT_ID);
+
+		await service.openEditor(input1, { pinned: true });
+		await service.openEditor(input2, { pinned: true });
+
+		const sidegroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		const events: IEditorCloseEvent[] = [];
+		service.onDidCloseEditor(e => {
+			events.push(e);
+		});
+
+		rootGroup.moveEditor(input1, sidegroup);
+
+		assert.strictEqual(events[0].context, EditorCloseContext.MOVE);
+
+		await sidegroup.closeEditor(input1);
+
+		assert.strictEqual(events[1].context, EditorCloseContext.UNKNOWN);
 	});
 });

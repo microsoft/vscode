@@ -162,6 +162,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
+		const bulkEditService = accessor.get(IBulkEditService);
 		const cell = context.cell;
 		const index = context.notebookEditor.getCellIndex(cell);
 		const splitPoints = cell.focusMode === CellFocusMode.Container ? [{ lineNumber: 1, column: 1 }] : cell.getSelectionsStartPosition();
@@ -171,8 +172,6 @@ registerAction2(class extends NotebookCellAction {
 			if (!cell.hasModel()) {
 				return;
 			}
-
-			const bulkEditService = accessor.get(IBulkEditService);
 
 			const newLinesContents = computeCellLinesContents(cell, splitPoints);
 			if (newLinesContents) {

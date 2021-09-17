@@ -15,6 +15,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -51,7 +52,7 @@ suite('NotebookViewModel', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor, viewModel) => {
-				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
+				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell), 1);
@@ -125,13 +126,13 @@ suite('NotebookViewModel', () => {
 				const lastViewCell = viewModel.cellAt(viewModel.length - 1)!;
 
 				const insertIndex = viewModel.getCellIndex(firstViewCell) + 1;
-				const cell = viewModel.createCell(insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
 
 				const addedCellIndex = viewModel.getCellIndex(cell);
 				viewModel.deleteCell(addedCellIndex, true);
 
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
-				const cell2 = viewModel.createCell(secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
+				const cell2 = insertCellAtIndex(viewModel, secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
 
 				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
@@ -184,7 +185,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2,
 				});
 
-				viewModel.createCell(0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true);
+				insertCellAtIndex(viewModel, 0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 2,
 
@@ -198,7 +199,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2
 				});
 
-				viewModel.createCell(3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true);
+				insertCellAtIndex(viewModel, 3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
@@ -241,14 +242,14 @@ suite('NotebookViewModel Decorations', () => {
 					end: 3
 				});
 
-				viewModel.createCell(5, 'var d = 9;', 'javascript', CellKind.Code, {}, [], true);
+				insertCellAtIndex(viewModel, 5, 'var d = 9;', 'javascript', CellKind.Code, {}, [], true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 3
 				});
 
-				viewModel.createCell(4, 'var d = 10;', 'javascript', CellKind.Code, {}, [], true);
+				insertCellAtIndex(viewModel, 4, 'var d = 10;', 'javascript', CellKind.Code, {}, [], true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
@@ -369,18 +370,18 @@ suite('NotebookViewModel API', () => {
 				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor, viewModel) => {
-				assert.strictEqual(viewModel.getCells().length, 3);
-				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 1 }).map(cell => cell.getText()), ['# header a']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 2 }).map(cell => cell.getText()), ['# header a', 'var b = 1;']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 3 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 4 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 1, end: 4 }).map(cell => cell.getText()), ['var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 2, end: 4 }).map(cell => cell.getText()), ['# header b']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 3, end: 4 }).map(cell => cell.getText()), []);
+				assert.strictEqual(viewModel.getCellsInRange().length, 3);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 1 }).map(cell => cell.getText()), ['# header a']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 2 }).map(cell => cell.getText()), ['# header a', 'var b = 1;']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 3 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 4 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 1, end: 4 }).map(cell => cell.getText()), ['var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 2, end: 4 }).map(cell => cell.getText()), ['# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 3, end: 4 }).map(cell => cell.getText()), []);
 
 				// no one should use an invalid range but `getCells` should be able to handle that.
-				assert.deepStrictEqual(viewModel.getCells({ start: -1, end: 1 }).map(cell => cell.getText()), ['# header a']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 3, end: 0 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: -1, end: 1 }).map(cell => cell.getText()), ['# header a']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 3, end: 0 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
 			}
 		);
 	});
