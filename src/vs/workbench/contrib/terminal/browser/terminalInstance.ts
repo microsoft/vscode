@@ -70,6 +70,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { isSafari } from 'vs/base/browser/browser';
 import { ISeparator, template } from 'vs/base/common/labels';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -175,6 +176,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _staticTitle?: string;
 	private _workspaceFolder?: string;
 	private _labelComputer?: TerminalLabelComputer;
+	private _userHome?: string;
 
 	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
@@ -231,6 +233,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get initialCwd(): string | undefined { return this._initialCwd; }
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	get description(): string | undefined { return this._description || this.shellLaunchConfig.description; }
+	get userHome(): string | undefined { return this._userHome; }
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
 	private readonly _onExit = new Emitter<number | undefined>();
@@ -278,6 +281,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		resource: URI | undefined,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@IPathService private readonly _pathService: IPathService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -693,7 +697,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
 		this._xterm.loadAddon(this._xtermTypeAhead);
-
+		this._userHome = (await this._pathService.userHome()).fsPath;
 		return xterm;
 	}
 
@@ -1748,7 +1752,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			if (this._isVisible) {
 				// HACK: Force the renderer to unpause by simulating an IntersectionObserver event.
-				// This is to fix an issue where dragging the window to the top of the screen to
+				// This is to fix an issue where dragging the windpow to the top of the screen to
 				// maximize on Windows/Linux would fire an event saying that the terminal was not
 				// visible.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
@@ -2284,7 +2288,7 @@ export class TerminalLabelComputer extends Disposable {
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 	constructor(
 		private readonly _configHelper: TerminalConfigHelper,
-		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
+		private readonly _instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
@@ -2317,14 +2321,11 @@ export class TerminalLabelComputer extends Disposable {
 		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
+		const detection = this._instance.capabilities.includes(ProcessCapability.CwdDetection);
+		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && templateProperties.cwd === (this._instance.userHome || this._configHelper.config.cwd);
+		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && templateProperties.cwd === (this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
+		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
 
-		if (!templateProperties.cwd || !this._instance.capabilities.includes(ProcessCapability.CwdDetection) ||
-			(this._workspaceContextService.getWorkspace().folders.length <= 1 &&
-				(templateProperties.cwd === (this._configHelper.config.cwd || (this._workspaceContextService.getWorkspace().folders[0].uri.fsPath))))) {
-			templateProperties.cwdFolder = '';
-		} else if (templateProperties.cwd && typeof templateProperties.cwd === 'string') {
-			templateProperties.cwdFolder = path.basename(templateProperties.cwd);
-		}
 		//Remove special characters that could mess with rendering
 		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
 		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
