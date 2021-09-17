@@ -60,6 +60,8 @@ export enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 
+	AUXILIARYBAR_ENABLED = 'workbench.experimental.auxiliaryBar.enabled',
+
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 }
 
@@ -996,7 +998,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.PANEL_PART:
 				return !this.state.panel.hidden;
 			case Parts.AUXILIARYBAR_PART:
-				return !this.state.auxiliaryBar.hidden;
+				return !!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED) && !this.state.auxiliaryBar.hidden;
 			case Parts.STATUSBAR_PART:
 				return !this.state.statusBar.hidden;
 			case Parts.ACTIVITYBAR_PART:
@@ -1825,7 +1827,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			type: 'leaf',
 			data: { type: Parts.AUXILIARYBAR_PART },
 			size: auxiliaryBarPartSize,
-			visible: !this.state.auxiliaryBar.hidden
+			visible: this.isVisible(Parts.AUXILIARYBAR_PART)
 		};
 
 		const editorNode: ISerializedLeafNode = {
