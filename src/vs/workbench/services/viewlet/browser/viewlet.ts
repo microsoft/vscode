@@ -15,30 +15,30 @@ export interface IViewletService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onDidViewletRegister: Event<PaneCompositeDescriptor>;
-	readonly onDidViewletDeregister: Event<PaneCompositeDescriptor>;
-	readonly onDidViewletOpen: Event<IPaneComposite>;
-	readonly onDidViewletClose: Event<IPaneComposite>;
+	readonly onDidPaneCompositeRegister: Event<PaneCompositeDescriptor>;
+	readonly onDidPaneCompositeDeregister: Event<PaneCompositeDescriptor>;
+	readonly onDidPaneCompositeOpen: Event<IPaneComposite>;
+	readonly onDidPaneCompositeClose: Event<IPaneComposite>;
 
 	/**
 	 * Opens a viewlet with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openViewlet(id: string | undefined, focus?: boolean): Promise<IPaneComposite | undefined>;
+	openPaneComposite(id: string | undefined, focus?: boolean): Promise<IPaneComposite | undefined>;
 
 	/**
 	 * Returns the current active viewlet if any.
 	 */
-	getActiveViewlet(): IPaneComposite | undefined;
+	getActivePaneComposite(): IPaneComposite | undefined;
 
 	/**
 	 * Returns the viewlet by id.
 	 */
-	getViewlet(id: string): PaneCompositeDescriptor | undefined;
+	getPaneComposite(id: string): PaneCompositeDescriptor | undefined;
 
 	/**
 	 * Returns all enabled viewlets
 	 */
-	getViewlets(): PaneCompositeDescriptor[];
+	getPaneComposites(): PaneCompositeDescriptor[];
 
 	/**
 	 * Returns the progress indicator for the side bar.
@@ -48,10 +48,10 @@ export interface IViewletService {
 	/**
 	 * Hide the active viewlet.
 	 */
-	hideActiveViewlet(): void;
+	hideActivePaneComposite(): void;
 
 	/**
 	 * Return the last active viewlet id.
 	 */
-	getLastActiveViewletId(): string;
+	getLastActivePaneCompositeId(): string;
 }

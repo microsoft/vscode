@@ -822,9 +822,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreViewlet');
 
-			const viewlet = await this.viewletService.openViewlet(this.state.sideBar.viewletToRestore);
+			const viewlet = await this.viewletService.openPaneComposite(this.state.sideBar.viewletToRestore);
 			if (!viewlet) {
-				await this.viewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
+				await this.viewletService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
 			}
 
 			mark('code/didRestoreViewlet');
@@ -919,7 +919,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 				break;
 			case Parts.SIDEBAR_PART:
-				const activeViewlet = this.viewletService.getActiveViewlet();
+				const activeViewlet = this.viewletService.getActivePaneComposite();
 				if (activeViewlet) {
 					activeViewlet.focus();
 				}
@@ -1463,8 +1463,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
-		if (hidden && this.viewletService.getActiveViewlet()) {
-			this.viewletService.hideActiveViewlet();
+		if (hidden && this.viewletService.getActivePaneComposite()) {
+			this.viewletService.hideActivePaneComposite();
 
 			// Pass Focus to Editor or Panel if Sidebar is now hidden
 			const activePanel = this.panelService.getActivePanel();
@@ -1476,12 +1476,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
-		else if (!hidden && !this.viewletService.getActiveViewlet()) {
-			const viewletToOpen = this.viewletService.getLastActiveViewletId();
+		else if (!hidden && !this.viewletService.getActivePaneComposite()) {
+			const viewletToOpen = this.viewletService.getLastActivePaneCompositeId();
 			if (viewletToOpen) {
-				const viewlet = this.viewletService.openViewlet(viewletToOpen, true);
+				const viewlet = this.viewletService.openPaneComposite(viewletToOpen, true);
 				if (!viewlet) {
-					this.viewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, true);
+					this.viewletService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, true);
 				}
 			}
 		}

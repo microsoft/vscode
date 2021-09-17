@@ -553,7 +553,7 @@ export abstract class AbstractTimerService implements ITimerService {
 		const initialStartup = this._isInitialStartup();
 		const startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
 
-		const activeViewlet = this._viewletService.getActiveViewlet();
+		const activeViewlet = this._viewletService.getActivePaneComposite();
 		const activePanel = this._panelService.getActivePanel();
 		const info: Writeable<IStartupMetrics> = {
 			version: 2,

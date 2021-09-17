@@ -151,7 +151,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 				run = (accessor: ServicesAccessor, input: string) => {
 					const viewletService = accessor.get(IViewletService);
-					return viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+					return viewletService.openPaneComposite(VIEWLET_ID, true).then(viewlet => {
 						if (viewlet) {
 							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`tag:"remote-menu"`);
 							viewlet.focus();

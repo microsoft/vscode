@@ -109,7 +109,7 @@ export class ManageExtensionsQuickAccessProvider extends PickerQuickAccessProvid
 }
 
 async function openExtensionsViewlet(viewletService: IViewletService, search = ''): Promise<void> {
-	const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+	const viewlet = await viewletService.openPaneComposite(VIEWLET_ID, true);
 	const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 	view?.search(search);
 	view?.focus();

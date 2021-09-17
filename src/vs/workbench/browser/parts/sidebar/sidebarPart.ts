@@ -52,7 +52,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 	readonly snap = true;
 
 	get preferredWidth(): number | undefined {
-		const viewlet = this.getActiveViewlet();
+		const viewlet = this.getActivePaneComposite();
 
 		if (!viewlet) {
 			return;
@@ -68,13 +68,13 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 
 	//#endregion
 
-	get onDidViewletRegister(): Event<PaneCompositeDescriptor> { return <Event<PaneCompositeDescriptor>>this.viewletRegistry.onDidRegister; }
+	get onDidPaneCompositeRegister(): Event<PaneCompositeDescriptor> { return <Event<PaneCompositeDescriptor>>this.viewletRegistry.onDidRegister; }
 
 	private _onDidViewletDeregister = this._register(new Emitter<PaneCompositeDescriptor>());
-	readonly onDidViewletDeregister = this._onDidViewletDeregister.event;
+	readonly onDidPaneCompositeDeregister = this._onDidViewletDeregister.event;
 
-	get onDidViewletOpen(): Event<IPaneComposite> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
-	get onDidViewletClose(): Event<IPaneComposite> { return this.onDidCompositeClose.event as Event<IPaneComposite>; }
+	get onDidPaneCompositeOpen(): Event<IPaneComposite> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
+	get onDidPaneCompositeClose(): Event<IPaneComposite> { return this.onDidCompositeClose.event as Event<IPaneComposite>; }
 
 	private readonly viewletRegistry = Registry.as<PaneCompositeRegistry>(ViewletExtensions.Viewlets);
 
@@ -121,12 +121,12 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 	private registerListeners(): void {
 
 		// Viewlet open
-		this._register(this.onDidViewletOpen(viewlet => {
+		this._register(this.onDidPaneCompositeOpen(viewlet => {
 			this.activeViewletContextKey.set(viewlet.getId());
 		}));
 
 		// Viewlet close
-		this._register(this.onDidViewletClose(viewlet => {
+		this._register(this.onDidPaneCompositeClose(viewlet => {
 			if (this.activeViewletContextKey.get() === viewlet.getId()) {
 				this.activeViewletContextKey.reset();
 			}
@@ -142,7 +142,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 				if (this.getActiveComposite()?.getId() === viewletDescriptor.id) {
 					const defaultViewletId = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;
 					const containerToOpen = activeContainers.filter(c => c.id === defaultViewletId)[0] || activeContainers[0];
-					await this.openViewlet(containerToOpen.id);
+					await this.openPaneComposite(containerToOpen.id);
 				}
 			} else {
 				this.layoutService.setSideBarHidden(true);
@@ -177,7 +177,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 		this.titleLabelElement!.draggable = true;
 
 		const draggedItemProvider = (): { type: 'view' | 'composite', id: string } => {
-			const activeViewlet = this.getActiveViewlet()!;
+			const activeViewlet = this.getActivePaneComposite()!;
 			return { type: 'composite', id: activeViewlet.getId() };
 		};
 
@@ -215,33 +215,33 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 
 	// Viewlet service
 
-	getActiveViewlet(): IPaneComposite | undefined {
+	getActivePaneComposite(): IPaneComposite | undefined {
 		return <IPaneComposite>this.getActiveComposite();
 	}
 
-	getLastActiveViewletId(): string {
+	getLastActivePaneCompositeId(): string {
 		return this.getLastActiveCompositetId();
 	}
 
-	hideActiveViewlet(): void {
+	hideActivePaneComposite(): void {
 		this.hideActiveComposite();
 	}
 
-	async openViewlet(id: string | undefined, focus?: boolean): Promise<IPaneComposite | undefined> {
-		if (typeof id === 'string' && this.getViewlet(id)) {
+	async openPaneComposite(id: string | undefined, focus?: boolean): Promise<IPaneComposite | undefined> {
+		if (typeof id === 'string' && this.getPaneComposite(id)) {
 			return this.doOpenViewlet(id, focus);
 		}
 
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
-		if (typeof id === 'string' && this.getViewlet(id)) {
+		if (typeof id === 'string' && this.getPaneComposite(id)) {
 			return this.doOpenViewlet(id, focus);
 		}
 
 		return undefined;
 	}
 
-	getViewlets(): PaneCompositeDescriptor[] {
+	getPaneComposites(): PaneCompositeDescriptor[] {
 		return this.viewletRegistry.getPaneComposites().sort((v1, v2) => {
 			if (typeof v1.order !== 'number') {
 				return -1;
@@ -255,8 +255,8 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 		});
 	}
 
-	getViewlet(id: string): PaneCompositeDescriptor {
-		return this.getViewlets().filter(viewlet => viewlet.id === id)[0];
+	getPaneComposite(id: string): PaneCompositeDescriptor {
+		return this.getPaneComposites().filter(viewlet => viewlet.id === id)[0];
 	}
 
 	private doOpenViewlet(id: string, focus?: boolean): PaneComposite | undefined {
@@ -282,7 +282,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-		const activeViewlet = this.getActiveViewlet() as PaneComposite;
+		const activeViewlet = this.getActivePaneComposite() as PaneComposite;
 		if (activeViewlet) {
 			const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
 			if (contextMenuActions.length) {

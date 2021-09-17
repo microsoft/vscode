@@ -96,7 +96,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (windowCount !== 1) {
 			return 'Expected window count : 1, Actual : ' + windowCount;
 		}
-		const activeViewlet = this._viewletService.getActiveViewlet();
+		const activeViewlet = this._viewletService.getActivePaneComposite();
 		if (!activeViewlet || activeViewlet.getId() !== files.VIEWLET_ID) {
 			return 'Explorer viewlet not visible';
 		}

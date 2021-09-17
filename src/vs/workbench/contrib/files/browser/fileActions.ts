@@ -566,7 +566,7 @@ export class FocusFilesExplorer extends Action {
 	}
 
 	override async run(): Promise<void> {
-		await this.viewletService.openViewlet(VIEWLET_ID, true);
+		await this.viewletService.openPaneComposite(VIEWLET_ID, true);
 	}
 }
 

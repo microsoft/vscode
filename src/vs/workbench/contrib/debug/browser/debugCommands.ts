@@ -600,7 +600,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: undefined,
 	handler: async (accessor, query: string) => {
 		const viewletService = accessor.get(IViewletService);
-		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		const viewlet = (await viewletService.openPaneComposite(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		let searchFor = `@category:debuggers`;
 		if (typeof query === 'string') {
 			searchFor += ` ${query}`;
@@ -697,6 +697,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	secondary: [KeyMod.CtrlCmd | KeyCode.F5],
 	handler: async (accessor) => {
 		const viewletService = accessor.get(IViewletService);
-		await viewletService.openViewlet(VIEWLET_ID, true);
+		await viewletService.openPaneComposite(VIEWLET_ID, true);
 	}
 });

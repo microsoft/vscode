@@ -366,7 +366,7 @@ export class ExtensionEditor extends EditorPane {
 			this.transientDisposables.add(this.onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
 			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}&ssr=false#review-details`))));
 			this.transientDisposables.add(this.onClick(template.publisher, () => {
-				this.viewletService.openViewlet(VIEWLET_ID, true)
+				this.viewletService.openPaneComposite(VIEWLET_ID, true)
 					.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 					.then(viewlet => viewlet.search(`publisher:"${extension.publisherDisplayName}"`));
 			}));
@@ -801,7 +801,7 @@ export class ExtensionEditor extends EditorPane {
 			const categoriesElement = append(categoriesContainer, $('.categories'));
 			for (const category of extension.categories) {
 				this.transientDisposables.add(this.onClick(append(categoriesElement, $('span.category', undefined, category)), () => {
-					this.viewletService.openViewlet(VIEWLET_ID, true)
+					this.viewletService.openPaneComposite(VIEWLET_ID, true)
 						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 						.then(viewlet => viewlet.search(`@category:"${category}"`));
 				}));

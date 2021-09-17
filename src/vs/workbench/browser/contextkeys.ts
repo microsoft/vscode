@@ -235,8 +235,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.layoutService.onDidChangeCenteredLayout(centered => this.isCenteredLayoutContext.set(centered)));
 		this._register(this.layoutService.onDidChangePanelPosition(position => this.panelPositionContext.set(position)));
 
-		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
-		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
+		this._register(this.viewletService.onDidPaneCompositeClose(() => this.updateSideBarContextKeys()));
+		this._register(this.viewletService.onDidPaneCompositeOpen(() => this.updateSideBarContextKeys()));
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => {
 			this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART));

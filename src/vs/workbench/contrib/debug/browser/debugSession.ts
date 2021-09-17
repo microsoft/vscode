@@ -930,7 +930,7 @@ export class DebugSession implements IDebugSession {
 
 						if (thread.stoppedDetails) {
 							if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.isSimpleUI) {
-								await this.viewletService.openViewlet(VIEWLET_ID);
+								await this.viewletService.openPaneComposite(VIEWLET_ID);
 							}
 
 							if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {

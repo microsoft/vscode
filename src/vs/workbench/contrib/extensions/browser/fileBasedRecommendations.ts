@@ -320,7 +320,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				run: () => {
 					this.addToPromptedFileExtensions(fileExtension);
 					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension });
-					this.viewletService.openViewlet('workbench.view.extensions', true)
+					this.viewletService.openPaneComposite('workbench.view.extensions', true)
 						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 						.then(viewlet => {
 							viewlet.search(`ext:${fileExtension}`);

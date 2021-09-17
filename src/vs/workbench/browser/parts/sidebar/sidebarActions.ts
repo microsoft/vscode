@@ -40,7 +40,7 @@ export class FocusSideBarAction extends Action2 {
 		}
 
 		// Focus into active viewlet
-		const viewlet = viewletService.getActiveViewlet();
+		const viewlet = viewletService.getActivePaneComposite();
 		if (viewlet) {
 			viewlet.focus();
 		}

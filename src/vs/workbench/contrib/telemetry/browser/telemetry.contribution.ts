@@ -63,7 +63,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		super();
 
 		const { filesToOpenOrCreate, filesToDiff } = environmentService.configuration;
-		const activeViewlet = viewletService.getActiveViewlet();
+		const activeViewlet = viewletService.getActivePaneComposite();
 
 		type WindowSizeFragment = {
 			innerHeight: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };

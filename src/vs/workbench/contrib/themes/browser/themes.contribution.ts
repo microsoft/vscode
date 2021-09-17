@@ -254,7 +254,7 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 }
 
 function openExtensionViewlet(viewletService: IViewletService, query: string) {
-	return viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+	return viewletService.openPaneComposite(VIEWLET_ID, true).then(viewlet => {
 		if (viewlet) {
 			(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
 			viewlet.focus();

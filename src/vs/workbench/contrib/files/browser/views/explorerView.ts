@@ -904,7 +904,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewletService = accessor.get(IViewletService);
 		const explorerService = accessor.get(IExplorerService);
-		await viewletService.openViewlet(VIEWLET_ID);
+		await viewletService.openPaneComposite(VIEWLET_ID);
 		await explorerService.refresh();
 	}
 });

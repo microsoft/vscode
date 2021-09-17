@@ -116,13 +116,13 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		};
 
 		// Viewlets
-		const viewlets = this.viewletService.getViewlets();
+		const viewlets = this.viewletService.getPaneComposites();
 		for (const viewlet of viewlets) {
 			if (this.includeViewContainer(viewlet)) {
 				viewEntries.push({
 					label: viewlet.name,
 					containerLabel: localize('views', "Side Bar"),
-					accept: () => this.viewletService.openViewlet(viewlet.id, true)
+					accept: () => this.viewletService.openPaneComposite(viewlet.id, true)
 				});
 			}
 		}

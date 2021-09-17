@@ -142,7 +142,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								label: translations['searchMarketplace'],
 								run: () => {
 									logUserReaction('search');
-									this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+									this.viewletService.openPaneComposite(EXTENSIONS_VIEWLET_ID, true)
 										.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 										.then(viewlet => {
 											viewlet.search(`tag:lp-${locale}`);
@@ -203,7 +203,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private installExtension(extension: IGalleryExtension): Promise<void> {
-		return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID)
+		return this.viewletService.openPaneComposite(EXTENSIONS_VIEWLET_ID)
 			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => viewlet.search(`@id:${extension.identifier.id}`))
 			.then(() => this.extensionManagementService.installFromGallery(extension))

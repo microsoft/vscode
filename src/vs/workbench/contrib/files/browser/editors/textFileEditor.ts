@@ -231,7 +231,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 		// Best we can do is to reveal the folder in the explorer
 		if (this.contextService.isInsideWorkspace(input.preferredResource)) {
-			await this.viewletService.openViewlet(VIEWLET_ID);
+			await this.viewletService.openPaneComposite(VIEWLET_ID);
 
 			this.explorerService.select(input.preferredResource, true);
 		}

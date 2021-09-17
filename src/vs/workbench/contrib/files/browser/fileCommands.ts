@@ -339,7 +339,7 @@ CommandsRegistry.registerCommand({
 		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
-		const viewlet = (await viewletService.openViewlet(VIEWLET_ID, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
+		const viewlet = (await viewletService.openPaneComposite(VIEWLET_ID, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
 			const explorerView = viewlet.getExplorerView();
@@ -590,7 +590,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: PREVIOUS_COMPRESSED_FOLDER,
 	handler: (accessor) => {
 		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActiveViewlet();
+		const viewlet = viewletService.getActivePaneComposite();
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -609,7 +609,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: NEXT_COMPRESSED_FOLDER,
 	handler: (accessor) => {
 		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActiveViewlet();
+		const viewlet = viewletService.getActivePaneComposite();
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -628,7 +628,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: FIRST_COMPRESSED_FOLDER,
 	handler: (accessor) => {
 		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActiveViewlet();
+		const viewlet = viewletService.getActivePaneComposite();
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -647,7 +647,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: LAST_COMPRESSED_FOLDER,
 	handler: (accessor) => {
 		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActiveViewlet();
+		const viewlet = viewletService.getActivePaneComposite();
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;

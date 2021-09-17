@@ -438,7 +438,7 @@ export class CellOutputElement extends Disposable {
 	}
 
 	private async _showJupyterExtension() {
-		const viewlet = await this.viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+		const viewlet = await this.viewletService.openPaneComposite(EXTENSION_VIEWLET_ID, true);
 		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
 	}

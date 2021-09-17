@@ -350,7 +350,7 @@ CommandsRegistry.registerCommand({
 	},
 	handler: async (accessor, query: string = '') => {
 		const viewletService = accessor.get(IViewletService);
-		const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+		const viewlet = await viewletService.openPaneComposite(VIEWLET_ID, true);
 
 		if (!viewlet) {
 			return;
@@ -1042,7 +1042,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}],
 				toggled: ExtensionsSortByContext.isEqualTo(id),
 				run: async () => {
-					const viewlet = await this.viewletService.openViewlet(VIEWLET_ID, true);
+					const viewlet = await this.viewletService.openPaneComposite(VIEWLET_ID, true);
 					const extensionsViewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 					const currentQuery = Query.parse(extensionsViewPaneContainer.searchValue || '');
 					extensionsViewPaneContainer.search(new Query(currentQuery.value, id, currentQuery.groupBy).toString());

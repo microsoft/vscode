@@ -72,7 +72,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 					if (command.externalLink) {
 						this.openerService.open(URI.parse(command.externalLink));
 					} else if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
-						this.viewletService.openViewlet('workbench.view.extensions', true)
+						this.viewletService.openPaneComposite('workbench.view.extensions', true)
 							.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 							.then(viewlet => {
 								if (viewlet) {

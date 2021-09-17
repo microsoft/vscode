@@ -89,13 +89,13 @@ abstract class BaseNavigationAction extends Action {
 			return false;
 		}
 
-		const activeViewlet = this.viewletService.getActiveViewlet();
+		const activeViewlet = this.viewletService.getActivePaneComposite();
 		if (!activeViewlet) {
 			return false;
 		}
 		const activeViewletId = activeViewlet.getId();
 
-		const viewlet = await this.viewletService.openViewlet(activeViewletId, true);
+		const viewlet = await this.viewletService.openPaneComposite(activeViewletId, true);
 		return !!viewlet;
 	}
 

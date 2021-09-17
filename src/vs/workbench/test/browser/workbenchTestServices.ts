@@ -602,20 +602,20 @@ export class TestViewletService implements IViewletService {
 	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
-	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
-	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
-	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
-	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+	onDidPaneCompositeRegister = this.onDidViewletRegisterEmitter.event;
+	onDidPaneCompositeDeregister = this.onDidViewletDeregisterEmitter.event;
+	onDidPaneCompositeOpen = this.onDidViewletOpenEmitter.event;
+	onDidPaneCompositeClose = this.onDidViewletCloseEmitter.event;
 
-	openViewlet(id: string, focus?: boolean): Promise<IPaneComposite | undefined> { return Promise.resolve(undefined); }
-	getViewlets(): PaneCompositeDescriptor[] { return []; }
+	openPaneComposite(id: string, focus?: boolean): Promise<IPaneComposite | undefined> { return Promise.resolve(undefined); }
+	getPaneComposites(): PaneCompositeDescriptor[] { return []; }
 	getAllViewlets(): PaneCompositeDescriptor[] { return []; }
-	getActiveViewlet(): IPaneComposite { return activeViewlet; }
+	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	getDefaultViewletId(): string { return 'workbench.view.explorer'; }
-	getViewlet(id: string): PaneCompositeDescriptor | undefined { return undefined; }
+	getPaneComposite(id: string): PaneCompositeDescriptor | undefined { return undefined; }
 	getProgressIndicator(id: string) { return undefined; }
-	hideActiveViewlet(): void { }
-	getLastActiveViewletId(): string { return undefined!; }
+	hideActivePaneComposite(): void { }
+	getLastActivePaneCompositeId(): string { return undefined!; }
 	dispose() { }
 }
 

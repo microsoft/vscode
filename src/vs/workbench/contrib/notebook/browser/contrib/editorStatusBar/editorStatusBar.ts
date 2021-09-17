@@ -210,7 +210,7 @@ registerAction2(class extends Action2 {
 	private async _showKernelExtension(viewletService: IViewletService, viewType: string) {
 		const extId = KERNEL_EXTENSIONS.get(viewType);
 		if (extId) {
-			const viewlet = await viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+			const viewlet = await viewletService.openPaneComposite(EXTENSION_VIEWLET_ID, true);
 			const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 			view?.search(`@id:${extId}`);
 		}

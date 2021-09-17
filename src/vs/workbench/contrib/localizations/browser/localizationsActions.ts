@@ -57,7 +57,7 @@ export class ConfigureLocaleAction extends Action {
 				});
 
 			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
-				return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+				return this.viewletService.openPaneComposite(EXTENSIONS_VIEWLET_ID, true)
 					.then(viewlet => viewlet?.getViewPaneContainer())
 					.then(viewlet => {
 						const extensionsViewlet = viewlet as IExtensionsViewPaneContainer;

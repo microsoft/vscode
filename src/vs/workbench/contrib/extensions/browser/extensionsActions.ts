@@ -1553,7 +1553,7 @@ export class ShowRecommendedExtensionAction extends Action {
 	}
 
 	override run(): Promise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
+		return this.viewletService.openPaneComposite(VIEWLET_ID, true)
 			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search(`@id:${this.extensionId}`);
@@ -1588,7 +1588,7 @@ export class InstallRecommendedExtensionAction extends Action {
 	}
 
 	override async run(): Promise<any> {
-		const viewlet = await this.viewletService.openViewlet(VIEWLET_ID, true);
+		const viewlet = await this.viewletService.openPaneComposite(VIEWLET_ID, true);
 		const viewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		viewPaneContainer.search(`@id:${this.extensionId}`);
 		viewPaneContainer.focus();
@@ -1661,7 +1661,7 @@ export class SearchExtensionsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		const viewPaneContainer = (await this.viewletService.openViewlet(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		const viewPaneContainer = (await this.viewletService.openPaneComposite(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		viewPaneContainer.search(this.searchValue);
 		viewPaneContainer.focus();
 	}
@@ -2541,7 +2541,7 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
 	const viewletService = accessor.get(IViewletService);
 
-	return viewletService.openViewlet(VIEWLET_ID, true)
+	return viewletService.openPaneComposite(VIEWLET_ID, true)
 		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 		.then(viewlet => {
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
@@ -2552,7 +2552,7 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWithIds', function (accessor: ServicesAccessor, extensionIds: string[]) {
 	const viewletService = accessor.get(IViewletService);
 
-	return viewletService.openViewlet(VIEWLET_ID, true)
+	return viewletService.openPaneComposite(VIEWLET_ID, true)
 		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 		.then(viewlet => {
 			const query = extensionIds

@@ -18,7 +18,7 @@ import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/e
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 async function showExtensionQuery(viewletService: IViewletService, query: string) {
-	const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+	const viewlet = await viewletService.openPaneComposite(VIEWLET_ID, true);
 	if (viewlet) {
 		(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
 	}

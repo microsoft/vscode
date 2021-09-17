@@ -545,7 +545,7 @@ export class DebugService implements IDebugService {
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
 		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.isSimpleUI) {
-			await this.viewletService.openViewlet(VIEWLET_ID);
+			await this.viewletService.openPaneComposite(VIEWLET_ID);
 		}
 
 		try {
@@ -665,7 +665,7 @@ export class DebugService implements IDebugService {
 				this.viewModel.setMultiSessionView(false);
 
 				if (this.layoutService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
-					this.viewletService.openViewlet(EXPLORER_VIEWLET_ID);
+					this.viewletService.openPaneComposite(EXPLORER_VIEWLET_ID);
 				}
 
 				// Data breakpoints that can not be persisted should be cleared when a session ends

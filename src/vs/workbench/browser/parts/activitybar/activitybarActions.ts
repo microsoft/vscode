@@ -71,7 +71,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		this.lastRun = now;
 
 		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-		const activeViewlet = this.viewletService.getActiveViewlet();
+		const activeViewlet = this.viewletService.getActivePaneComposite();
 		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
 
 		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
@@ -79,7 +79,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 			switch (focusBehavior) {
 				case 'focus':
 					this.logAction('refocus');
-					this.viewletService.openViewlet(this.activity.id, focus);
+					this.viewletService.openPaneComposite(this.activity.id, focus);
 					break;
 				case 'toggle':
 				default:
@@ -93,7 +93,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		}
 
 		this.logAction('show');
-		await this.viewletService.openViewlet(this.activity.id, focus);
+		await this.viewletService.openPaneComposite(this.activity.id, focus);
 
 		return this.activate();
 	}
@@ -348,7 +348,7 @@ class SwitchSideBarViewAction extends Action2 {
 
 		const visibleViewletIds = activityBarService.getVisibleViewContainerIds();
 
-		const activeViewlet = viewletService.getActiveViewlet();
+		const activeViewlet = viewletService.getActivePaneComposite();
 		if (!activeViewlet) {
 			return;
 		}
@@ -360,7 +360,7 @@ class SwitchSideBarViewAction extends Action2 {
 			}
 		}
 
-		await viewletService.openViewlet(targetViewletId, true);
+		await viewletService.openPaneComposite(targetViewletId, true);
 	}
 }
 

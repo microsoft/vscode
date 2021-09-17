@@ -345,7 +345,7 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet) => {
+		viewletService.openPaneComposite(VIEWLET_ID_FILES, false).then((viewlet) => {
 			if (!viewlet) {
 				return;
 			}
