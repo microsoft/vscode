@@ -238,6 +238,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 					return {
 						color: listErrorForeground,
 						letter: Codicon.lock,
+						strikethrough: true,
 						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
 					};
 				}
@@ -254,6 +255,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				else if (isOrphaned) {
 					return {
 						color: listErrorForeground,
+						strikethrough: true,
 						tooltip: localize('deleted', "Deleted"),
 					};
 				}

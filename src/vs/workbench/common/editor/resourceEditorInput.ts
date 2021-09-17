@@ -168,12 +168,4 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 				return this.mediumTitle;
 		}
 	}
-
-	protected isOrphaned(): boolean {
-		return false;
-	}
-
-	override getLabelExtraClasses(): string[] {
-		return this.isOrphaned() ? ['strikethrough'] : [];
-	}
 }

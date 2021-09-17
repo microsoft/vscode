@@ -174,10 +174,6 @@ export class NoTabsTitleControl extends TitleControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
-	updateEditorCapabilities(editor: EditorInput): void {
-		this.ifEditorIsActive(editor, () => this.redraw());
-	}
-
 	updateEditorDirty(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => {
 			const titleContainer = assertIsDefined(this.titleContainer);

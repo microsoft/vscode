@@ -128,6 +128,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 					return {
 						color: listErrorForeground,
 						letter: Codicon.lock,
+						strikethrough: true,
 						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
 					};
 				}
@@ -144,6 +145,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				else if (isOrphaned) {
 					return {
 						color: listErrorForeground,
+						strikethrough: true,
 						tooltip: localize('deleted', "Deleted"),
 					};
 				}

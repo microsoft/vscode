@@ -229,14 +229,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 	}
 
-	private isOrphaned(): boolean {
-		return !!this._modelRef?.object.isOrphaned();
-	}
-
-	override getLabelExtraClasses(): string[] {
-		return this.isOrphaned() ? ['strikethrough'] : [];
-	}
-
 	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
@@ -311,7 +303,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const oldCapabilities = this.capabilities;
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 			this._register(this._modelRef.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 			// If we're loading untitled file data we should ensure it's dirty
 			if (this._untitledDocumentData) {
