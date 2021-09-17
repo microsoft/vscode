@@ -16,7 +16,6 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
 import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
@@ -49,7 +48,6 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ITestService private readonly testService: ITestService,
 	) {
 		super(null, action);
@@ -67,7 +65,6 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 		const wrapper = this.wrapper = dom.$('.testing-filter-wrapper');
 		container.appendChild(wrapper);
 
-		const showHistoryHint = () => { return this.keybindingService.lookupKeybinding('history.showPrevious')?.getElectronAccelerator() === 'Up' && this.keybindingService.lookupKeybinding('history.showNext')?.getElectronAccelerator() === 'Down'; };
 		const input = this.input = this._register(this.instantiationService.createInstance(ContextScopedSuggestEnabledInputWithHistory, {
 			id: 'testing.explorer.filter',
 			ariaLabel: localize('testExplorerFilterLabel', "Filter text for tests in the explorer"),
@@ -92,8 +89,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				value: this.state.text.value,
 				placeholderText: localize('testExplorerFilter', "Filter (e.g. text, !exclude, @tag)"),
 			},
-			history: this.history.get([]),
-			showHistoryHint
+			history: this.history.get([])
 		}));
 		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 
