@@ -10,7 +10,8 @@ import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	// https://github.com/microsoft/vscode/issues/115244
-	describe('Search', () => {
+	// https://github.com/microsoft/vscode/issues/132218
+	(process.platform === 'win32' ? describe.skip : describe)('Search', () => {
 		beforeSuite(opts);
 
 		after(function () {
@@ -19,7 +20,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
-		afterSuite();
+		afterSuite(opts);
 
 		// https://github.com/microsoft/vscode/issues/124146
 		it.skip /* https://github.com/microsoft/vscode/issues/124335 */('has a tooltp with a keybinding', async function () {
@@ -75,7 +76,7 @@ export function setup(opts: minimist.ParsedArgs) {
 
 	describe('Quick Access', () => {
 		beforeSuite(opts);
-		afterSuite();
+		afterSuite(opts);
 
 		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;

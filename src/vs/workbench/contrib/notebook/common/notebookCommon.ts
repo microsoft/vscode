@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
@@ -20,7 +21,8 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -92,6 +94,8 @@ export interface NotebookCellInternalMetadata {
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
+	isPaused?: boolean;
+	didPause?: boolean;
 }
 
 export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
@@ -156,7 +160,7 @@ export interface IOrderedMimeType {
 
 export interface IOutputItemDto {
 	readonly mime: string;
-	readonly data: Uint8Array;
+	readonly data: VSBuffer;
 }
 
 export interface IOutputDto {
@@ -343,8 +347,12 @@ export type ISelectionState = ISelectionHandleState | ISelectionIndexState;
 export type NotebookTextModelChangedEvent = {
 	readonly rawEvents: NotebookRawContentEvent[];
 	readonly versionId: number;
-	readonly synchronous: boolean;
+	readonly synchronous: boolean | undefined;
 	readonly endSelectionState: ISelectionState | undefined;
+};
+
+export type NotebookTextModelWillAddRemoveEvent = {
+	readonly rawEvent: NotebookCellsModelChangedEvent<ICell>;
 };
 
 export const enum CellEditType {
@@ -463,7 +471,7 @@ export interface NotebookData {
 
 
 export interface INotebookContributionData {
-	extension: ExtensionIdentifier,
+	extension?: ExtensionIdentifier,
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
@@ -707,15 +715,13 @@ export interface INotebookEditorModel extends IEditorModel {
 	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
-	saveAs(target: URI): Promise<IEditorInput | undefined>;
+	saveAs(target: URI): Promise<EditorInput | undefined>;
 	revert(options?: IRevertOptions): Promise<void>;
 }
 
 export interface INotebookDiffEditorModel extends IEditorModel {
 	original: IResolvedNotebookEditorModel;
 	modified: IResolvedNotebookEditorModel;
-	resolveOriginalFromDisk(): Promise<void>;
-	resolveModifiedFromDisk(): Promise<void>;
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
@@ -835,7 +841,6 @@ export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
 export const ShowCellStatusBar = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
-export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
 export const CompactView = 'notebook.compactView';
 export const FocusIndicator = 'notebook.cellFocusIndicator';
@@ -848,6 +853,8 @@ export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
 export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
 export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
 export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
+export const TextOutputLineLimit = 'notebook.output.textLineLimit';
+export const GlobalToolbarShowLabel = 'notebook.globalToolbarShowLabel';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

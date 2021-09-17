@@ -25,9 +25,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { isWeb } from 'vs/base/common/platform';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -45,6 +45,16 @@ export interface IStoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyM
 	 * An event for when a stored file working copy changed it's dirty state.
 	 */
 	readonly onDidChangeDirty: Event<IStoredFileWorkingCopy<M>>;
+
+	/**
+	 * An event for when a stored file working copy changed it's readonly state.
+	 */
+	readonly onDidChangeReadonly: Event<IStoredFileWorkingCopy<M>>;
+
+	/**
+	 * An event for when a stored file working copy changed it's orphaned state.
+	 */
+	readonly onDidChangeOrphaned: Event<IStoredFileWorkingCopy<M>>;
 
 	/**
 	 * An event for when a stored file working copy failed to save.
@@ -127,6 +137,12 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 	private readonly _onDidChangeDirty = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
+	private readonly _onDidChangeReadonly = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
+	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
+
+	private readonly _onDidChangeOrphaned = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
+	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+
 	private readonly _onDidSaveError = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
@@ -153,7 +169,6 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -181,17 +196,30 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
+		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.fileWorkingCopyManager'));
 		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.fileWorkingCopyManager'));
 	}
 
+	private onBeforeShutdown(): boolean {
+		if (isWeb) {
+			if (this.workingCopies.some(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))) {
+				// stored file working copies are pending to be saved:
+				// veto because web does not support long running shutdown
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private async onWillShutdown(): Promise<void> {
-		let fileWorkingCopies: IStoredFileWorkingCopy<M>[];
+		let pendingSavedWorkingCopies: IStoredFileWorkingCopy<M>[];
 
 		// As long as stored file working copies are pending to be saved, we prolong the shutdown
 		// until that has happened to ensure we are not shutting down in the middle of
 		// writing to the working copy (https://github.com/microsoft/vscode/issues/116600).
-		while ((fileWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))).length > 0) {
-			await Promises.settled(fileWorkingCopies.map(workingCopy => workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE)));
+		while ((pendingSavedWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))).length > 0) {
+			await Promises.settled(pendingSavedWorkingCopies.map(workingCopy => workingCopy.joinState(StoredFileWorkingCopyState.PENDING_SAVE)));
 		}
 	}
 
@@ -441,7 +469,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				resource,
 				this.labelService.getUriBasenameLabel(resource),
 				this.modelFactory,
-				this.fileService, this.logService, this.textFileService, this.filesConfigurationService,
+				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
 				this.editorService, this.elevatedFileService
 			);
@@ -511,6 +539,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		const workingCopyListeners = new DisposableStore();
 		workingCopyListeners.add(workingCopy.onDidResolve(() => this._onDidResolve.fire(workingCopy)));
 		workingCopyListeners.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
+		workingCopyListeners.add(workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire(workingCopy)));
+		workingCopyListeners.add(workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire(workingCopy)));
 		workingCopyListeners.add(workingCopy.onDidSaveError(() => this._onDidSaveError.fire(workingCopy)));
 		workingCopyListeners.add(workingCopy.onDidSave(reason => this._onDidSave.fire({ workingCopy: workingCopy, reason })));
 		workingCopyListeners.add(workingCopy.onDidRevert(() => this._onDidRevert.fire(workingCopy)));

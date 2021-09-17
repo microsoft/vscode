@@ -7,13 +7,13 @@ import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/path';
 import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
 export interface NotebookEditorDescriptor {
-	readonly extension: ExtensionIdentifier,
+	readonly extension?: ExtensionIdentifier,
 	readonly id: string;
 	readonly displayName: string;
 	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
@@ -24,7 +24,7 @@ export interface NotebookEditorDescriptor {
 
 export class NotebookProviderInfo {
 
-	readonly extension: ExtensionIdentifier;
+	readonly extension?: ExtensionIdentifier;
 	readonly id: string;
 	readonly displayName: string;
 	readonly priority: RegisteredEditorPriority;

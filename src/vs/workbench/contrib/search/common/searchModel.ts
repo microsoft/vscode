@@ -849,14 +849,17 @@ export class SearchResult extends Disposable {
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any> {
 		this.replacingAll = true;
 
+		const start = Date.now();
 		const promise = this.replaceService.replace(this.matches(), progress);
-		const onDone = Event.stopwatch(Event.fromPromise(promise));
-		/* __GDPR__
-			"replaceAll.started" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
+
+		promise.finally(() => {
+			/* __GDPR__
+				"replaceAll.started" : {
+					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('replaceAll.started', { duration: Date.now() - start });
+		});
 
 		return promise.then(() => {
 			this.replacingAll = false;
@@ -1073,17 +1076,17 @@ export class SearchModel extends Disposable {
 		const dispose = () => tokenSource.dispose();
 		currentRequest.then(dispose, dispose);
 
-		const onDone = Event.fromPromise(currentRequest);
-		const onFirstRender = Event.any<any>(onDone, progressEmitter.event);
-		const onFirstRenderStopwatch = Event.stopwatch(onFirstRender);
-		/* __GDPR__
-			"searchResultsFirstRender" : {
-				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-			}
-		*/
-		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
-
 		const start = Date.now();
+
+		Promise.race([currentRequest, Event.toPromise(progressEmitter.event)]).finally(() => {
+			/* __GDPR__
+				"searchResultsFirstRender" : {
+					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+				}
+			*/
+			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
+		});
+
 		currentRequest.then(
 			value => this.onSearchCompleted(value, Date.now() - start),
 			e => this.onSearchError(e, Date.now() - start));

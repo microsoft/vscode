@@ -14,7 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OutputService, LogContentProvider } from 'vs/workbench/contrib/output/browser/outputServices';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
-import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { LogViewer, LogViewerInput } from 'vs/workbench/contrib/output/browser/logViewer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -28,7 +28,7 @@ import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/commo
 import { IOutputChannelDescriptor, IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -83,8 +83,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	}
 }], VIEW_CONTAINER);
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		LogViewer,
 		LogViewer.LOG_VIEWER_EDITOR_ID,
 		nls.localize('logViewer', "Log Viewer")
@@ -112,7 +112,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('switchToOutput.label', "Switch to Output"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 				group: 'navigation',
 				order: 1
 			},
@@ -133,7 +133,7 @@ registerAction2(class extends Action2 {
 			category: CATEGORIES.View,
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 				group: 'navigation',
 				order: 2
 			}, {
@@ -162,7 +162,7 @@ registerAction2(class extends Action2 {
 			tooltip: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', OUTPUT_VIEW_ID)),
 				group: 'navigation',
 				order: 3,
 			},
@@ -186,7 +186,7 @@ registerAction2(class extends Action2 {
 			title: { value: nls.localize('openActiveLogOutputFile', "Open Log Output File"), original: 'Open Log Output File' },
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyEqualsExpr.create('view', OUTPUT_VIEW_ID),
+				when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 				group: 'navigation',
 				order: 4
 			}, {

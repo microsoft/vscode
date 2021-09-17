@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/parts/storage/node/storage';
-import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
-import { join } from 'vs/base/common/path';
+import { ok, strictEqual } from 'assert';
 import { tmpdir } from 'os';
-import { strictEqual, ok } from 'assert';
-import { Promises } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
+import { Promises } from 'vs/base/node/pfs';
+import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
+import { ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('Storage Library', function () {
 
@@ -154,6 +154,12 @@ flakySuite('Storage Library', function () {
 		// Nothing happens if changing to same value
 		database.fireDidChangeItemsExternal({ deleted });
 		strictEqual(changes.size, 0);
+
+		strictEqual(isStorageItemsChangeEvent({ changed }), true);
+		strictEqual(isStorageItemsChangeEvent({ deleted }), true);
+		strictEqual(isStorageItemsChangeEvent({ changed, deleted }), true);
+		strictEqual(isStorageItemsChangeEvent(undefined), false);
+		strictEqual(isStorageItemsChangeEvent({ changed: 'yes', deleted: false }), false);
 
 		await storage.close();
 	});

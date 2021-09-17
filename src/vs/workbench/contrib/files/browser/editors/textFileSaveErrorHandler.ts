@@ -78,10 +78,10 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 		const activeInput = this.editorService.activeEditor;
 		if (activeInput instanceof DiffEditorInput) {
-			const resource = activeInput.originalInput.resource;
+			const resource = activeInput.original.resource;
 			if (resource?.scheme === CONFLICT_RESOLUTION_SCHEME) {
 				isActiveEditorSaveConflictResolution = true;
-				activeConflictResolutionResource = activeInput.modifiedInput.resource;
+				activeConflictResolutionResource = activeInput.modified.resource;
 			}
 		}
 
@@ -394,7 +394,7 @@ class ConfigureSaveConflictAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.preferencesService.openSettings(undefined, 'files.saveConflictResolution');
+		this.preferencesService.openSettings({ query: 'files.saveConflictResolution' });
 	}
 }
 

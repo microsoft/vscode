@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event, Emitter, EventBufferer, EventMultiplexer, PauseableEmitter, Relay } from 'vs/base/common/event';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { AsyncEmitter, IWaitUntil, timeout } from 'vs/base/common/async';
+import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 namespace Samples {
 
@@ -249,6 +249,52 @@ suite('Event', function () {
 
 		await timeout(1);
 		assert.deepStrictEqual(calls, [1, 1]);
+	});
+
+	test('DebounceEmitter', async function () {
+		let callCount = 0;
+		let sum = 0;
+		const emitter = new DebounceEmitter<number>({
+			merge: arr => {
+				callCount += 1;
+				return arr.reduce((p, c) => p + c);
+			}
+		});
+
+		emitter.event(e => { sum = e; });
+
+		const p = Event.toPromise(emitter.event);
+
+		emitter.fire(1);
+		emitter.fire(2);
+
+		await p;
+
+		assert.strictEqual(callCount, 1);
+		assert.strictEqual(sum, 3);
+	});
+
+	test('Microtask Emitter', (done) => {
+		let count = 0;
+		assert.strictEqual(count, 0);
+		const emitter = new MicrotaskEmitter<void>();
+		const listener = emitter.event(() => {
+			count++;
+		});
+		emitter.fire();
+		assert.strictEqual(count, 0);
+		emitter.fire();
+		assert.strictEqual(count, 0);
+		// Should wait until the event loop ends and therefore be the last thing called
+		setTimeout(() => {
+			assert.strictEqual(count, 3);
+			done();
+		}, 0);
+		queueMicrotask(() => {
+			assert.strictEqual(count, 2);
+			count++;
+			listener.dispose();
+		});
 	});
 
 	test('Emitter - In Order Delivery', function () {
@@ -581,55 +627,6 @@ suite('Event utils', () => {
 
 			listener1.dispose();
 			listener2.dispose();
-		});
-	});
-
-	suite('fromPromise', () => {
-
-		test('should emit when done', async () => {
-			let count = 0;
-
-			const event = Event.fromPromise(Promise.resolve(null));
-			event(() => count++);
-
-			assert.strictEqual(count, 0);
-
-			await timeout(10);
-			assert.strictEqual(count, 1);
-		});
-
-		test('should emit when done - setTimeout', async () => {
-			let count = 0;
-
-			const promise = timeout(5);
-			const event = Event.fromPromise(promise);
-			event(() => count++);
-
-			assert.strictEqual(count, 0);
-			await promise;
-			assert.strictEqual(count, 1);
-		});
-	});
-
-	suite('stopwatch', () => {
-
-		test('should emit', () => {
-			const emitter = new Emitter<void>();
-			const event = Event.stopwatch(emitter.event);
-
-			return new Promise((c, e) => {
-				event(duration => {
-					try {
-						assert(duration > 0);
-					} catch (err) {
-						e(err);
-					}
-
-					c(undefined);
-				});
-
-				setTimeout(() => emitter.fire(), 10);
-			});
 		});
 	});
 

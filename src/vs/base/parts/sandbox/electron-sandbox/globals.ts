@@ -5,7 +5,7 @@
 
 import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { IpcRenderer, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 /**
  * In sandboxed renderers we cannot expose all of the `process` global of node.js
@@ -124,6 +124,5 @@ export interface ISandboxContext {
 export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
 export const webFrame: WebFrame = globals.vscode.webFrame;
-export const crashReporter: CrashReporter = globals.vscode.crashReporter;
 export const process: ISandboxNodeProcess = globals.vscode.process;
 export const context: ISandboxContext = globals.vscode.context;

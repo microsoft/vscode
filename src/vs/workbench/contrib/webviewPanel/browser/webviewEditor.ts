@@ -124,7 +124,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	public override async setInput(input: EditorInput, options: IEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		if (input.matches(this.input)) {
+		if (this.input && input.matches(this.input)) {
 			return;
 		}
 

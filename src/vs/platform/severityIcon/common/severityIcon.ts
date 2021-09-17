@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { problemsErrorIconForeground, problemsInfoIconForeground, problemsWarningIconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import Severity from 'vs/base/common/severity';
+import { problemsErrorIconForeground, problemsInfoIconForeground, problemsWarningIconForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export namespace SeverityIcon {
 
@@ -34,6 +34,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`
 			.monaco-editor .zone-widget ${errorCodiconSelector},
 			.markers-panel .marker-icon${errorCodiconSelector},
+			.text-search-provider-messages .providerMessage ${errorCodiconSelector},
 			.extensions-viewlet > .extensions ${errorCodiconSelector} {
 				color: ${errorIconForeground};
 			}
@@ -48,6 +49,7 @@ registerThemingParticipant((theme, collector) => {
 			.markers-panel .marker-icon${warningCodiconSelector},
 			.extensions-viewlet > .extensions ${warningCodiconSelector},
 			.extension-editor ${warningCodiconSelector},
+			.text-search-provider-messages .providerMessage ${warningCodiconSelector},
 			.preferences-editor ${warningCodiconSelector} {
 				color: ${warningIconForeground};
 			}
@@ -61,6 +63,7 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-editor .zone-widget ${infoCodiconSelector},
 			.markers-panel .marker-icon${infoCodiconSelector},
 			.extensions-viewlet > .extensions ${infoCodiconSelector},
+			.text-search-provider-messages .providerMessage ${infoCodiconSelector},
 			.extension-editor ${infoCodiconSelector} {
 				color: ${infoIconForeground};
 			}

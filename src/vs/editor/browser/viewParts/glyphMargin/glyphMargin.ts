@@ -12,7 +12,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export class DecorationToRender {
-	_decorationToRenderBrand: void;
+	_decorationToRenderBrand: void = undefined;
 
 	public startLineNumber: number;
 	public endLineNumber: number;

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 export const ILoggerService = createServiceDecorator<ILoggerService>('loggerService');
@@ -79,9 +79,14 @@ export interface ILoggerService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Creates a logger
+	 * Creates a logger, or gets one if it already exists.
 	 */
 	createLogger(file: URI, options?: ILoggerOptions): ILogger;
+
+	/**
+	 * Gets an existing logger, if any.
+	 */
+	getLogger(file: URI): ILogger | undefined;
 }
 
 export abstract class AbstractLogger extends Disposable {
@@ -505,6 +510,10 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		}));
 	}
 
+	getLogger(resource: URI) {
+		return this.loggers.get(resource.toString());
+	}
+
 	createLogger(resource: URI, options?: ILoggerOptions): ILogger {
 		let logger = this.loggers.get(resource.toString());
 		if (!logger) {
@@ -586,4 +595,3 @@ export function LogLevelToString(logLevel: LogLevel): string {
 		case LogLevel.Off: return 'off';
 	}
 }
-

@@ -7,7 +7,8 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService, AutoSaveMode, IAutoSaveConfiguration } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { SaveReason, IEditorIdentifier, IEditorInput, GroupIdentifier, ISaveOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { SaveReason, IEditorIdentifier, GroupIdentifier, ISaveOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -22,7 +23,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	private readonly pendingAutoSavesAfterDelay = new Map<IWorkingCopy, IDisposable>();
 
 	// Auto save: focus change & window change
-	private lastActiveEditor: IEditorInput | undefined = undefined;
+	private lastActiveEditor: EditorInput | undefined = undefined;
 	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
 	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
 

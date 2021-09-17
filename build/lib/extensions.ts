@@ -21,6 +21,8 @@ import * as ansiColors from 'ansi-colors';
 const buffer = require('gulp-buffer');
 import * as jsoncParser from 'jsonc-parser';
 import webpack = require('webpack');
+import { getProductionDependencies } from './dependencies';
+import _ = require('underscore');
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -261,19 +263,38 @@ const webBuiltInExtensions: IBuiltInExtension[] = productJson.webBuiltInExtensio
 
 type ExtensionKind = 'ui' | 'workspace' | 'web';
 interface IExtensionManifest {
-	main: string;
-	browser: string;
+	main?: string;
+	browser?: string;
 	extensionKind?: ExtensionKind | ExtensionKind[];
+	extensionPack?: string[];
+	extensionDependencies?: string[];
+	contributes?: { [id: string]: any };
 }
 /**
- * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
  */
 function isWebExtension(manifest: IExtensionManifest): boolean {
+	if (Boolean(manifest.browser)) {
+		return true;
+	}
+	if (Boolean(manifest.main)) {
+		return false;
+	}
+	// neither browser nor main
 	if (typeof manifest.extensionKind !== 'undefined') {
 		const extensionKind = Array.isArray(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
-		return (extensionKind.indexOf('web') >= 0);
+		if (extensionKind.indexOf('web') >= 0) {
+			return true;
+		}
 	}
-	return (!Boolean(manifest.main) || Boolean(manifest.browser));
+	if (typeof manifest.contributes !== 'undefined') {
+		for (const id of ['debuggers', 'terminal', 'typescriptServerPlugins']) {
+			if (manifest.contributes.hasOwnProperty(id)) {
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 export function packageLocalExtensionsStream(forWeb: boolean): Stream {
@@ -302,8 +323,10 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 	if (forWeb) {
 		result = localExtensionsStream;
 	} else {
-		// also include shared node modules
-		result = es.merge(localExtensionsStream, gulp.src('extensions/node_modules/**', { base: '.' }));
+		// also include shared production node modules
+		const productionDependencies = getProductionDependencies('extensions/');
+		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+		result = es.merge(localExtensionsStream, gulp.src(dependenciesSrc, { base: '.' }));
 	}
 
 	return (
@@ -385,8 +408,11 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 }
 
 export function translatePackageJSON(packageJSON: string, packageNLSPath: string) {
+	interface NLSFormat {
+		[key: string]: string | { message: string, comment: string[] };
+	}
 	const CharCode_PC = '%'.charCodeAt(0);
-	const packageNls = JSON.parse(fs.readFileSync(packageNLSPath).toString());
+	const packageNls: NLSFormat = JSON.parse(fs.readFileSync(packageNLSPath).toString());
 	const translate = (obj: any) => {
 		for (let key in obj) {
 			const val = obj[key];
@@ -397,7 +423,7 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 			} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
 				const translated = packageNls[val.substr(1, val.length - 2)];
 				if (translated) {
-					obj[key] = translated;
+					obj[key] = typeof translated === 'string' ? translated : (typeof translated.message === 'string' ? translated.message : val);
 				}
 			}
 		}
@@ -472,7 +498,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 				if (err) {
 					reject();
 				} else {
-					reporter(stats.toJson());
+					reporter(stats?.toJson());
 				}
 			});
 		} else {
@@ -481,7 +507,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 					fancyLog.error(err);
 					reject();
 				} else {
-					reporter(stats.toJson());
+					reporter(stats?.toJson());
 					resolve();
 				}
 			});

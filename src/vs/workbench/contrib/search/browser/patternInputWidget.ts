@@ -15,8 +15,10 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import type { IThemable } from 'vs/base/common/styler';
 import * as nls from 'vs/nls';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { attachCheckboxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -49,7 +51,8 @@ export class PatternInputWidget extends Widget implements IThemable {
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService protected themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		options = {
@@ -151,7 +154,8 @@ export class PatternInputWidget extends Widget implements IThemable {
 			validationOptions: {
 				validation: undefined
 			},
-			history: options.history || []
+			history: options.history || [],
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
 		}, this.contextKeyService);
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));
@@ -192,8 +196,9 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
 	}
 
 	private useSearchInEditorsBox!: Checkbox;
@@ -209,6 +214,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 
 	setOnlySearchInOpenEditors(value: boolean) {
 		this.useSearchInEditorsBox.checked = value;
+		this._onChangeSearchInEditorsBoxEmitter.fire();
 	}
 
 	protected override getSubcontrolsWidth(): number {
@@ -242,8 +248,9 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
 	}
 
 	private useExcludesAndIgnoreFilesBox!: Checkbox;

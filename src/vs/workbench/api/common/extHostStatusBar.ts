@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto } from './extHost.protocol';
@@ -18,7 +17,10 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private static ID_GEN = 0;
 
 	private static ALLOWED_BACKGROUND_COLORS = new Map<string, ThemeColor>(
-		[['statusBarItem.errorBackground', new ThemeColor('statusBarItem.errorForeground')]]
+		[
+			['statusBarItem.errorBackground', new ThemeColor('statusBarItem.errorForeground')],
+			['statusBarItem.warningBackground', new ThemeColor('statusBarItem.warningForeground')]
+		]
 	);
 
 	#proxy: MainThreadStatusBarShape;
@@ -36,8 +38,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _visible: boolean = false;
 
 	private _text: string = '';
-	private _tooltip?: string;
-	private _tooltip2?: vscode.MarkdownString | string;
+	private _tooltip?: string | vscode.MarkdownString;
 	private _name?: string;
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
@@ -85,12 +86,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		return this._name;
 	}
 
-	public get tooltip(): string | undefined {
+	public get tooltip(): vscode.MarkdownString | string | undefined {
 		return this._tooltip;
-	}
-
-	public get tooltip2(): string | vscode.MarkdownString | undefined {
-		return this._tooltip2;
 	}
 
 	public get color(): string | ThemeColor | undefined {
@@ -119,13 +116,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.update();
 	}
 
-	public set tooltip(tooltip: string | undefined) {
+	public set tooltip(tooltip: vscode.MarkdownString | string | undefined) {
 		this._tooltip = tooltip;
-		this.update();
-	}
-
-	public set tooltip2(tooltip: vscode.MarkdownString | string | undefined) {
-		this._tooltip2 = tooltip;
 		this.update();
 	}
 
@@ -220,11 +212,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 				color = ExtHostStatusBarEntry.ALLOWED_BACKGROUND_COLORS.get(this._backgroundColor.id);
 			}
 
-			const tooltip = this._tooltip2 !== undefined ? MarkdownString.fromStrict(this._tooltip2) : this.tooltip;
+			const tooltip = this._tooltip ? MarkdownString.fromStrict(this._tooltip) : undefined;
 
 			// Set to status bar
 			this.#proxy.$setEntry(this._entryId, id, name, this._text, tooltip, this._command?.internal, color,
-				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left ? MainThreadStatusBarAlignment.LEFT : MainThreadStatusBarAlignment.RIGHT,
+				this._backgroundColor, this._alignment === ExtHostStatusBarAlignment.Left,
 				this._priority, this._accessibilityInformation);
 		}, 0);
 	}

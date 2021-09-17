@@ -33,7 +33,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestWorkingCopyBackupService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestPathService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestWorkingCopyBackupService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestPathService, TestTextFileService, TestDecorationsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -57,6 +57,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -89,6 +90,7 @@ suite('KeybindingsEditing', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
 		instantiationService.stub(IEnvironmentService, environmentService);
+		instantiationService.stub(IDecorationsService, TestDecorationsService);
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(IPathService, new TestPathService());
 		instantiationService.stub(IConfigurationService, configService);

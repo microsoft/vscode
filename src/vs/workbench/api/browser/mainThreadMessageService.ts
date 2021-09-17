@@ -35,11 +35,11 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		if (options.modal) {
 			return this._showModalMessage(severity, message, options.detail, commands, options.useCustom);
 		} else {
-			return this._showNotificationMessage(severity, message, options.detail, commands, options.extension);
+			return this._showMessage(severity, message, commands, options.extension);
 		}
 	}
 
-	private _showNotificationMessage(severity: Severity, message: string, detail: string | undefined, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription | undefined): Promise<number | undefined> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], extension: IExtensionDescription | undefined): Promise<number | undefined> {
 
 		return new Promise<number | undefined>(resolve => {
 
@@ -65,12 +65,6 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			commands.forEach(command => {
 				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
-
-			if (detail) {
-				primaryActions.push(new Action('more', nls.localize('details', "More"), undefined, true, () => {
-					resolve(this._showModalMessage(severity, message, detail, commands, false));
-				}));
-			}
 
 			let source: string | { label: string, id: string } | undefined;
 			if (extension) {

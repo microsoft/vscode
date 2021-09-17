@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
 
@@ -16,8 +16,8 @@ export const statePriority: { [K in TestResultState]: number } = {
 	[TestResultState.Running]: 6,
 	[TestResultState.Errored]: 5,
 	[TestResultState.Failed]: 4,
-	[TestResultState.Queued]: 3,
-	[TestResultState.Passed]: 2,
+	[TestResultState.Passed]: 3,
+	[TestResultState.Queued]: 2,
 	[TestResultState.Unset]: 1,
 	[TestResultState.Skipped]: 0,
 };

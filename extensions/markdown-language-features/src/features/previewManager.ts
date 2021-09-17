@@ -8,11 +8,11 @@ import { Logger } from '../logger';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable, disposeAll } from '../util/dispose';
+import { isMarkdownFile } from '../util/file';
 import { TopmostLineMonitor } from '../util/topmostLineMonitor';
-import { DynamicMarkdownPreview, ManagedMarkdownPreview, StartingScrollFragment, StaticMarkdownPreview, scrollEditorToLine } from './preview';
+import { DynamicMarkdownPreview, ManagedMarkdownPreview, scrollEditorToLine, StartingScrollFragment, StaticMarkdownPreview } from './preview';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { MarkdownContentProvider } from './previewContentProvider';
-import { isMarkdownFile } from '../util/file';
 
 export interface DynamicPreviewSettings {
 	readonly resourceColumn: vscode.ViewColumn;

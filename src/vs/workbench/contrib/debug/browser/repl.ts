@@ -3,66 +3,67 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/repl';
-import { URI as uri } from 'vs/base/common/uri';
-import { IAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { ITextModel } from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKeyService, IContextKey, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { memoize } from 'vs/base/common/decorators';
-import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDebugService, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration, REPL_VIEW_ID, CONTEXT_MULTI_SESSION_REPL, CONTEXT_DEBUG_STATE, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
-import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
-import { ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ReplDelegate, ReplVariablesRenderer, ReplSimpleElementsRenderer, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplRawObjectsRenderer, ReplDataSource, ReplAccessibilityProvider, ReplGroupRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
-import { localize } from 'vs/nls';
-import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { ReplFilter, ReplFilterState, ReplFilterActionViewItem } from 'vs/workbench/contrib/debug/browser/replFilter';
-import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { registerAction2, MenuId, Action2, IMenuService, IMenu } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import * as aria from 'vs/base/browser/ui/aria/aria';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { IAction } from 'vs/base/common/actions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { memoize } from 'vs/base/common/decorators';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { URI as uri } from 'vs/base/common/uri';
+import 'vs/css!./media/repl';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ITextModel } from 'vs/editor/common/model';
+import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, completionKindFromString, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { localize } from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IViewPaneOptions, ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
+import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { ReplFilter, ReplFilterActionViewItem, ReplFilterState } from 'vs/workbench/contrib/debug/browser/replFilter';
+import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplGroupRenderer, ReplRawObjectsRenderer, ReplSimpleElementsRenderer, ReplVariablesRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
+import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplElement, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
+import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 
@@ -95,7 +96,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private dimension!: dom.Dimension;
 	private replInputLineCount = 1;
 	private model: ITextModel | undefined;
-	private historyNavigationEnablement!: IContextKey<boolean>;
+	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
@@ -135,9 +136,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.filterState = new ReplFilterState(this);
 		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
-		this.multiSessionRepl.set(this.isMultiSessionView);
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
+		this.multiSessionRepl.set(this.isMultiSessionView);
 		this.registerListeners();
 	}
 
@@ -153,7 +154,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 						triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
 						provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 							// Disable history navigation because up and down are used to navigate through the suggest widget
-							this.historyNavigationEnablement.set(false);
+							this.setHistoryNavigationEnablement(false);
 
 							const model = this.replInput.getModel();
 							if (model) {
@@ -229,10 +230,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (!visible) {
-				dispose(this.model);
-			} else {
-				this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
+			if (visible) {
+				if (!this.model) {
+					this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
+				}
 				this.setMode();
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
@@ -248,6 +249,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.createReplTree();
 			} else if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
 				this.onDidStyleChange();
+			}
+			if (e.affectsConfiguration('debug.console.acceptSuggestionOnEnter')) {
+				const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+				this.replInput.updateOptions({
+					acceptSuggestionOnEnter: config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off'
+				});
 			}
 		}));
 
@@ -367,7 +374,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			aria.status(historyInput);
 			// always leave cursor at the end.
 			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
-			this.historyNavigationEnablement.set(true);
+			this.setHistoryNavigationEnablement(true);
 		}
 	}
 
@@ -436,9 +443,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
 			const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
 				node.children.forEach(child => {
-					text += child.element.toString().trimRight() + lineDelimiter;
-					if (!child.collapsed && child.children.length) {
-						traverseAndAppend(child);
+					if (child.visible) {
+						text += child.element.toString().trimRight() + lineDelimiter;
+						if (!child.collapsed && child.children.length) {
+							traverseAndAppend(child);
+						}
 					}
 				});
 			};
@@ -485,7 +494,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		} else if (action.id === FILTER_ACTION_ID) {
 			const filterHistory = JSON.parse(this.storageService.get(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')) as string[];
 			this.filterActionViewItem = this.instantiationService.createInstance(ReplFilterActionViewItem, action,
-				localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude)"), this.filterState, filterHistory);
+				localize({ key: 'workbench.debug.filter.placeholder', comment: ['Text in the brackets after e.g. is not localizable'] }, "Filter (e.g. text, !exclude)"), this.filterState, filterHistory, () => showHistoryKeybindingHint(this.keybindingService));
 			return this.filterActionViewItem;
 		}
 
@@ -601,21 +610,27 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 		dom.append(this.replInputContainer, $('.repl-input-chevron' + ThemeIcon.asCSSSelector(debugConsoleEvaluationPrompt)));
 
-		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: container, historyNavigator: this });
-		this.historyNavigationEnablement = historyNavigationEnablement;
+		const { scopedContextKeyService, historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: container, historyNavigator: this });
+		this.setHistoryNavigationEnablement = enabled => {
+			historyNavigationBackwardsEnablement.set(enabled);
+			historyNavigationForwardsEnablement.set(enabled);
+		};
 		this._register(scopedContextKeyService);
 		CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
+		options.suggest = { showStatusBar: true };
+		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
+		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
 		options.ariaLabel = localize('debugConsole', "Debug Console");
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
 		this._register(this.replInput.onDidChangeModelContent(() => {
 			const model = this.replInput.getModel();
-			this.historyNavigationEnablement.set(!!model && model.getValue() === '');
+			this.setHistoryNavigationEnablement(!!model && model.getValue() === '');
 			const lineCount = model ? Math.min(10, model.getLineCount()) : 1;
 			if (lineCount !== this.replInputLineCount) {
 				this.replInputLineCount = lineCount;
@@ -735,7 +750,7 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
+		SuggestController.get(editor).cancelSuggestWidget();
 		const repl = getReplView(accessor.get(IViewsService));
 		repl?.acceptReplInput();
 	}
@@ -758,7 +773,6 @@ class FilterReplAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		const repl = getReplView(accessor.get(IViewsService));
 		repl?.focusFilter();
 	}
@@ -815,7 +829,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', REPL_VIEW_ID),
+				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
 				order: 10
 			}
 		});
@@ -837,7 +851,7 @@ registerAction2(class extends ViewAction<Repl> {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', REPL_VIEW_ID), CONTEXT_MULTI_SESSION_REPL),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', REPL_VIEW_ID), CONTEXT_MULTI_SESSION_REPL),
 				order: 20
 			}
 		});
@@ -872,7 +886,7 @@ registerAction2(class extends ViewAction<Repl> {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', REPL_VIEW_ID),
+				when: ContextKeyExpr.equals('view', REPL_VIEW_ID),
 				order: 30
 			}, {
 				id: MenuId.DebugConsoleContext,

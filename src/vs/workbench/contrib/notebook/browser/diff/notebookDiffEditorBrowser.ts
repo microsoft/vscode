@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditorDelegate, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { Event } from 'vs/base/common/event';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -26,7 +26,7 @@ export interface IDiffCellInfo extends ICommonCellInfo {
 	diffElement: DiffElementViewModelBase;
 }
 
-export interface INotebookTextDiffEditor extends ICommonNotebookEditor {
+export interface INotebookTextDiffEditor extends ICommonNotebookEditorDelegate {
 	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase; }>;

@@ -150,7 +150,7 @@ export class OutputViewPane extends ViewPane {
 		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
 
 		const input = this.createInput(channel);
-		if (!input.matches(this.editor.input)) {
+		if (!this.editor.input || !input.matches(this.editor.input)) {
 			if (this.editorPromise) {
 				this.editorPromise.cancel();
 			}
@@ -233,7 +233,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const focus = !(options && options.preserveFocus);
-		if (input.matches(this.input)) {
+		if (this.input && input.matches(this.input)) {
 			return;
 		}
 

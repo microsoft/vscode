@@ -5,28 +5,36 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { assertIsDefined, isUndefinedOrNull } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
+import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
-import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Static values for editor contributions
 export const EditorExtensions = {
-	Editors: 'workbench.contributions.editors',
-	Associations: 'workbench.editors.associations',
-	EditorInputFactories: 'workbench.contributions.editor.inputFactories'
+	EditorPane: 'workbench.contributions.editors',
+	EditorFactory: 'workbench.contributions.editor.inputFactories'
+};
+
+// Static information regarding the text editor
+export const DEFAULT_EDITOR_ASSOCIATION = {
+	id: 'default',
+	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
 };
 
 // Editor State Context Keys
@@ -34,18 +42,22 @@ export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditor
 export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
 export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false, localize('activeEditorIsPinned', "Whether the active editor is pinned"));
 export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is readonly"));
+export const ActiveEditorCanRevertContext = new RawContextKey<boolean>('activeEditorCanRevert', false, localize('activeEditorCanRevert', "Whether the active editor can revert"));
+export const ActiveEditorCanSplitInGroupContext = new RawContextKey<boolean>('activeEditorCanSplitInGroup', true);
 
 // Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null, { type: 'string', description: localize('activeEditor', "The identifier of the active editor") });
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '', localize('activeEditorAvailableEditorIds', "The available editor identifiers that are usable for the active editor"));
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false, localize('textCompareEditorActive', "Whether a text compare editor is active"));
+export const SideBySideEditorActiveContext = new RawContextKey<boolean>('sideBySideEditorActive', false, localize('sideBySideEditorActive', "Whether a side by side editor is active"));
 
 // Editor Group Context Keys
 export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0, localize('groupEditorsCount', "The number of opened editor groups"));
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false, localize('activeEditorGroupEmpty', "Whether the active editor group is empty"));
 export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0, localize('activeEditorGroupIndex', "The index of the active editor group"));
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false, localize('activeEditorGroupLast', "Whether the active editor group is the last group"));
+export const ActiveEditorGroupLockedContext = new RawContextKey<boolean>('activeEditorGroupLocked', false, localize('activeEditorGroupLocked', "Whether the active editor group is locked"));
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 
@@ -55,6 +67,11 @@ export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', fa
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false, localize('isCenteredLayout', "Whether centered layout is enabled"));
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
 export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
+
+/**
+ * Side by side editor id.
+ */
+export const SIDE_BY_SIDE_EDITOR_ID = 'workbench.editor.sidebysideEditor';
 
 /**
  * Text diff editor id.
@@ -97,9 +114,19 @@ export interface IEditorDescriptor<T extends IEditorPane> {
 export interface IEditorPane extends IComposite {
 
 	/**
+	 * An event to notify when the `IEditorControl´ in this
+	 * editor pane changes.
+	 *
+	 * This can be used for editor panes that are a compound
+	 * of multiple editor controls to signal that the active
+	 * editor control has changed when the user clicks around.
+	 */
+	readonly onDidChangeControl: Event<void>;
+
+	/**
 	 * The assigned input of this editor.
 	 */
-	readonly input: IEditorInput | undefined;
+	readonly input: EditorInput | undefined;
 
 	/**
 	 * The assigned options of the editor.
@@ -146,8 +173,20 @@ export interface IEditorPane extends IComposite {
 	 * Returns the underlying control of this editor. Callers need to cast
 	 * the control to a specific instance as needed, e.g. by using the
 	 * `isCodeEditor` helper method to access the text code editor.
+	 *
+	 * Use the `onDidChangeControl` event to track whenever the control
+	 * changes.
 	 */
 	getControl(): IEditorControl | undefined;
+
+	/**
+	 * Returns the current view state of the editor if any.
+	 *
+	 * This method is optional to override for the editor pane
+	 * and should only be overridden when the pane can deal with
+	 * `IEditorOptions.viewState` to be applied when opening.
+	 */
+	getViewState(): object | undefined;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -156,33 +195,28 @@ export interface IEditorPane extends IComposite {
 }
 
 /**
- * Overrides `IEditorPane` where `input` and `group` are known to be set.
+ * Try to retrieve the view state for the editor pane that
+ * has the provided editor input opened, if at all.
+ *
+ * This method will return `undefined` if the editor input
+ * is not visible in any of the opened editor panes.
  */
-export interface IVisibleEditorPane extends IEditorPane {
-	readonly input: IEditorInput;
-	readonly group: IEditorGroup;
+export function findViewStateForEditor(input: EditorInput, group: GroupIdentifier, editorService: IEditorService): object | undefined {
+	for (const editorPane of editorService.visibleEditorPanes) {
+		if (editorPane.group.id === group && input.matches(editorPane.input)) {
+			return editorPane.getViewState();
+		}
+	}
+
+	return undefined;
 }
 
 /**
- * The text editor pane is the container for workbench text editors.
+ * Overrides `IEditorPane` where `input` and `group` are known to be set.
  */
-export interface ITextEditorPane extends IEditorPane {
-
-	/**
-	 * Returns the underlying text editor widget of this editor.
-	 */
-	getControl(): IEditor | undefined;
-
-	/**
-	 * Returns the current view state of the text editor if any.
-	 */
-	getViewState(): IEditorViewState | undefined;
-}
-
-export function isTextEditorPane(thing: IEditorPane | undefined): thing is ITextEditorPane {
-	const candidate = thing as ITextEditorPane | undefined;
-
-	return typeof candidate?.getViewState === 'function';
+export interface IVisibleEditorPane extends IEditorPane {
+	readonly input: EditorInput;
+	readonly group: IEditorGroup;
 }
 
 /**
@@ -203,51 +237,51 @@ export interface ITextDiffEditorPane extends IEditorPane {
  */
 export interface IEditorControl extends ICompositeControl { }
 
-export interface IFileEditorInputFactory {
+export interface IFileEditorFactory {
 
 	/**
-	 * The type identifier of the file editor input.
+	 * The type identifier of the file editor.
 	 */
 	typeId: string;
 
 	/**
-	 * Creates new new editor input capable of showing files.
+	 * Creates new new editor capable of showing files.
 	 */
-	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, preferredContents: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditor(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, preferredContents: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	/**
-	 * Check if the provided object is a file editor input.
+	 * Check if the provided object is a file editor.
 	 */
-	isFileEditorInput(obj: unknown): obj is IFileEditorInput;
+	isFileEditor(obj: unknown): obj is IFileEditorInput;
 }
 
-export interface IEditorInputFactoryRegistry {
+export interface IEditorFactoryRegistry {
 
 	/**
-	 * Registers the file editor input factory to use for file inputs.
+	 * Registers the file editor factory to use for file editors.
 	 */
-	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void;
+	registerFileEditorFactory(factory: IFileEditorFactory): void;
 
 	/**
-	 * Returns the file editor input factory to use for file inputs.
+	 * Returns the file editor factory to use for file editors.
 	 */
-	getFileEditorInputFactory(): IFileEditorInputFactory;
+	getFileEditorFactory(): IFileEditorFactory;
 
 	/**
-	 * Registers a editor input serializer for the given editor input to the registry.
-	 * An editor input serializer is capable of serializing and deserializing editor
-	 * inputs from string data.
+	 * Registers a editor serializer for the given editor to the registry.
+	 * An editor serializer is capable of serializing and deserializing editor
+	 * from string data.
 	 *
-	 * @param editorInputTypeId the type identifier of the editor input
-	 * @param serializer the editor input serializer for serialization/deserialization
+	 * @param editorTypeId the type identifier of the editor
+	 * @param serializer the editor serializer for serialization/deserialization
 	 */
-	registerEditorInputSerializer<Services extends BrandedService[]>(editorInputTypeId: string, ctor: { new(...Services: Services): IEditorInputSerializer }): IDisposable;
+	registerEditorSerializer<Services extends BrandedService[]>(editorTypeId: string, ctor: { new(...Services: Services): IEditorSerializer }): IDisposable;
 
 	/**
-	 * Returns the editor input serializer for the given editor input.
+	 * Returns the editor serializer for the given editor.
 	 */
-	getEditorInputSerializer(editorInput: IEditorInput): IEditorInputSerializer | undefined;
-	getEditorInputSerializer(editorInputTypeId: string): IEditorInputSerializer | undefined;
+	getEditorSerializer(editor: EditorInput): IEditorSerializer | undefined;
+	getEditorSerializer(editorTypeId: string): IEditorSerializer | undefined;
 
 	/**
 	 * Starts the registry by providing the required services.
@@ -255,54 +289,129 @@ export interface IEditorInputFactoryRegistry {
 	start(accessor: ServicesAccessor): void;
 }
 
-export interface IEditorInputSerializer {
+export interface IEditorSerializer {
 
 	/**
-	 * Determines whether the given editor input can be serialized by the serializer.
+	 * Determines whether the given editor can be serialized by the serializer.
 	 */
-	canSerialize(editorInput: IEditorInput): boolean;
+	canSerialize(editor: EditorInput): boolean;
 
 	/**
-	 * Returns a string representation of the provided editor input that contains enough information
-	 * to deserialize back to the original editor input from the deserialize() method.
+	 * Returns a string representation of the provided editor that contains enough information
+	 * to deserialize back to the original editor from the deserialize() method.
 	 */
-	serialize(editorInput: IEditorInput): string | undefined;
+	serialize(editor: EditorInput): string | undefined;
 
 	/**
-	 * Returns an editor input from the provided serialized form of the editor input. This form matches
+	 * Returns an editor from the provided serialized form of the editor. This form matches
 	 * the value returned from the serialize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): IEditorInput | undefined;
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined;
 }
 
 export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEditorInput {
 
 	/**
-	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
-	 * If the used scheme for the resource is not `untitled://`, `forceUntitled: true` must be configured to
-	 * force use the provided resource as associated path. As such, the resource will be used when saving
-	 * the untitled editor.
+	 * Optional resource for the untitled editor. Depending on the value, the editor:
+	 * - should get a unique name if `undefined` (for example `Untitled-1`)
+	 * - should use the resource directly if the scheme is `untitled:`
+	 * - should change the scheme to `untitled:` otherwise and assume an associated path
+	 *
+	 * Untitled editors with associated path behave slightly different from other untitled
+	 * editors:
+	 * - they are dirty right when opening
+	 * - they will not ask for a file path when saving but use the associated path
 	 */
-	readonly resource?: URI;
+	readonly resource: URI | undefined;
 }
 
-export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
+/**
+ * A resource side by side editor input shows 2 editors side by side but
+ * without highlighting any differences.
+ *
+ * Note: both sides will be resolved as editor individually. As such, it is
+ * possible to show 2 different editors side by side.
+ *
+ * @see {@link IResourceDiffEditorInput} for a variant that compares 2 editors.
+ */
+export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput {
+
+	/**
+	 * The right hand side editor to open inside a side-by-side editor.
+	 */
+	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+
+	/**
+	 * The left hand side editor to open inside a side-by-side editor.
+	 */
+	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+}
+
+/**
+ * A resource diff editor input compares 2 editors side by side
+ * highlighting the differences.
+ *
+ * Note: both sides must be resolvable to the same editor, or
+ * a text based presentation will be used as fallback.
+ */
+export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 
 	/**
 	 * The left hand side editor to open inside a diff editor.
 	 */
-	readonly originalInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly original: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 
 	/**
 	 * The right hand side editor to open inside a diff editor.
 	 */
-	readonly modifiedInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
-export function isResourceDiffEditorInput(editor: IResourceEditorInputType): editor is IResourceDiffEditorInput {
-	const candidate = editor as IResourceDiffEditorInput;
+export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
 
-	return candidate.originalInput !== undefined && candidate.modifiedInput !== undefined;
+	const candidate = editor as IResourceEditorInput | undefined;
+
+	return URI.isUri(candidate?.resource);
+}
+
+export function isResourceDiffEditorInput(editor: unknown): editor is IResourceDiffEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IResourceDiffEditorInput | undefined;
+
+	return candidate?.original !== undefined && candidate.modified !== undefined;
+}
+
+export function isResourceSideBySideEditorInput(editor: unknown): editor is IResourceSideBySideEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	if (isResourceDiffEditorInput(editor)) {
+		return false; // make sure to not accidentally match on diff editors
+	}
+
+	const candidate = editor as IResourceSideBySideEditorInput | undefined;
+
+	return candidate?.primary !== undefined && candidate.secondary !== undefined;
+}
+
+export function isUntitledResourceEditorInput(editor: unknown): editor is IUntitledTextResourceEditorInput {
+	if (isEditorInput(editor)) {
+		return false; // make sure to not accidentally match on typed editor inputs
+	}
+
+	const candidate = editor as IUntitledTextResourceEditorInput | undefined;
+	if (!candidate) {
+		return false;
+	}
+
+	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
 }
 
 export const enum Verbosity {
@@ -377,7 +486,7 @@ export interface IRevertOptions {
 }
 
 export interface IMoveResult {
-	editor: IEditorInput | IResourceEditorInputType;
+	editor: EditorInput | IUntypedEditorInput;
 	options?: IEditorOptions;
 }
 
@@ -408,161 +517,22 @@ export const enum EditorInputCapabilities {
 	 * Signals that the input requires workspace trust.
 	 */
 	RequiresTrust = 1 << 4,
+
+	/**
+	 * Signals that the editor can split into 2 in the same
+	 * editor group.
+	 */
+	CanSplitInGroup = 1 << 5
 }
 
-export interface IEditorInput extends IDisposable {
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;
 
-	/**
-	 * Triggered when this input is about to be disposed.
-	 */
-	readonly onWillDispose: Event<void>;
+export abstract class AbstractEditorInput extends Disposable {
+	// Marker class for implementing `isEditorInput`
+}
 
-	/**
-	 * Triggered when this input changes its dirty state.
-	 */
-	readonly onDidChangeDirty: Event<void>;
-
-	/**
-	 * Triggered when this input changes its label
-	 */
-	readonly onDidChangeLabel: Event<void>;
-
-	/**
-	 * Triggered when this input changes its capabilities.
-	 */
-	readonly onDidChangeCapabilities: Event<void>;
-
-	/**
-	 * Unique type identifier for this input. Every editor input of the
-	 * same class should share the same type identifier. The type identifier
-	 * is used for example for serialising/deserialising editor inputs
-	 * via the serialisers of the `IEditorInputFactoryRegistry`.
-	 */
-	readonly typeId: string;
-
-	/**
-	 * Returns the optional associated resource of this input.
-	 *
-	 * This resource should be unique for all editors of the same
-	 * kind and input and is often used to identify the editor input among
-	 * others.
-	 *
-	 * **Note:** DO NOT use this property for anything but identity
-	 * checks. DO NOT use this property to present as label to the user.
-	 * Please refer to `EditorResourceAccessor` documentation in that case.
-	 */
-	readonly resource: URI | undefined;
-
-	/**
-	 * The capabilities of the input.
-	 */
-	readonly capabilities: EditorInputCapabilities;
-
-	/**
-	 * Figure out if the input has the provided capability.
-	 */
-	hasCapability(capability: EditorInputCapabilities): boolean;
-
-	/**
-	 * Returns the display name of this input.
-	 */
-	getName(): string;
-
-	/**
-	 * Returns the display description of this input.
-	 */
-	getDescription(verbosity?: Verbosity): string | undefined;
-
-	/**
-	 * Returns the display title of this input.
-	 */
-	getTitle(verbosity?: Verbosity): string | undefined;
-
-	/**
-	 * Returns the aria label to be read out by a screen reader.
-	 */
-	getAriaLabel(): string;
-
-	/**
-	 * Returns a type of `IEditorModel` that represents the resolved input.
-	 * Subclasses should override to provide a meaningful model or return
-	 * `null` if the editor does not require a model.
-	 */
-	resolve(): Promise<IEditorModel | null>;
-
-	/**
-	 * Returns if this input is dirty or not.
-	 */
-	isDirty(): boolean;
-
-	/**
-	 * Returns if this input is currently being saved or soon to be
-	 * saved. Based on this assumption the editor may for example
-	 * decide to not signal the dirty state to the user assuming that
-	 * the save is scheduled to happen anyway.
-	 */
-	isSaving(): boolean;
-
-	/**
-	 * Saves the editor. The provided groupId helps implementors
-	 * to e.g. preserve view state of the editor and re-open it
-	 * in the correct group after saving.
-	 *
-	 * @returns the resulting editor input (typically the same) of
-	 * this operation or `undefined` to indicate that the operation
-	 * failed or was canceled.
-	 */
-	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
-
-	/**
-	 * Saves the editor to a different location. The provided `group`
-	 * helps implementors to e.g. preserve view state of the editor
-	 * and re-open it in the correct group after saving.
-	 *
-	 * @returns the resulting editor input (typically a different one)
-	 * of this operation or `undefined` to indicate that the operation
-	 * failed or was canceled.
-	 */
-	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined>;
-
-	/**
-	 * Reverts this input from the provided group.
-	 */
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void>;
-
-	/**
-	 * Called to determine how to handle a resource that is renamed that matches
-	 * the editors resource (or is a child of).
-	 *
-	 * Implementors are free to not implement this method to signal no intent
-	 * to participate. If an editor is returned though, it will replace the
-	 * current one with that editor and optional options.
-	 */
-	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined;
-
-	/**
-	 * Returns a copy of the current editor input. Used when we can't just reuse the input
-	 */
-	copy(): IEditorInput;
-
-	/**
-	 * Returns a representation of this typed editor input as untyped
-	 * resource editor input that e.g. can be used to serialize the
-	 * editor input into a form that it can be restored.
-	 *
-	 * May return `undefined` if a untyped representatin is not supported.
-	 */
-	asResourceEditorInput(groupId: GroupIdentifier): IBaseResourceEditorInput | undefined;
-
-	/**
-	 * Returns if the other object matches this input.
-	 */
-	matches(other: unknown): boolean;
-
-	/**
-	 * Returns if this editor is disposed.
-	 */
-	isDisposed(): boolean;
+export function isEditorInput(editor: unknown): editor is EditorInput {
+	return editor instanceof AbstractEditorInput;
 }
 
 export interface IEditorInputWithPreferredResource {
@@ -587,42 +557,63 @@ export interface IEditorInputWithPreferredResource {
 	readonly preferredResource: URI;
 }
 
-export function isEditorInputWithPreferredResource(obj: unknown): obj is IEditorInputWithPreferredResource {
-	const editorInputWithPreferredResource = obj as IEditorInputWithPreferredResource | undefined;
-	if (!editorInputWithPreferredResource) {
-		return false;
-	}
+function isEditorInputWithPreferredResource(editor: unknown): editor is IEditorInputWithPreferredResource {
+	const candidate = editor as IEditorInputWithPreferredResource | undefined;
 
-	return URI.isUri(editorInputWithPreferredResource.preferredResource);
+	return URI.isUri(candidate?.preferredResource);
 }
 
-export interface ISideBySideEditorInput extends IEditorInput {
+export interface ISideBySideEditorInput extends EditorInput {
 
 	/**
 	 * The primary editor input is shown on the right hand side.
 	 */
-	primary: IEditorInput;
+	primary: EditorInput;
 
 	/**
 	 * The secondary editor input is shown on the left hand side.
 	 */
-	secondary: IEditorInput;
+	secondary: EditorInput;
 }
 
-function isSideBySideEditorInput(obj: unknown): obj is ISideBySideEditorInput {
-	const sideBySideEditorInput = obj as ISideBySideEditorInput | undefined;
-	if (!sideBySideEditorInput) {
-		return false;
-	}
+export function isSideBySideEditorInput(editor: unknown): editor is ISideBySideEditorInput {
+	const candidate = editor as ISideBySideEditorInput | undefined;
 
-	return !!sideBySideEditorInput.primary && !!sideBySideEditorInput.secondary;
+	return isEditorInput(candidate?.primary) && isEditorInput(candidate?.secondary);
+}
+
+export interface IDiffEditorInput extends EditorInput {
+
+	/**
+	 * The modified (primary) editor input is shown on the right hand side.
+	 */
+	modified: EditorInput;
+
+	/**
+	 * The original (secondary) editor input is shown on the left hand side.
+	 */
+	original: EditorInput;
+}
+
+export function isDiffEditorInput(editor: unknown): editor is IDiffEditorInput {
+	const candidate = editor as IDiffEditorInput | undefined;
+
+	return isEditorInput(candidate?.modified) && isEditorInput(candidate?.original);
+}
+
+export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
+
+	/**
+	 * A marker to create a `IFileEditorInput` from this untyped input.
+	 */
+	forceFile: true;
 }
 
 /**
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.
  */
-export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport, IEditorInputWithPreferredResource {
+export interface IFileEditorInput extends EditorInput, IEncodingSupport, IModeSupport, IEditorInputWithPreferredResource {
 
 	/**
 	 * Gets the resource this file input is about. This will always be the
@@ -682,18 +673,24 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 }
 
 export interface IEditorInputWithOptions {
-	editor: IEditorInput;
+	editor: EditorInput;
 	options?: IEditorOptions;
 }
 
 export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
-	group?: IEditorGroup;
+	group: IEditorGroup;
 }
 
-export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
-	const editorInputWithOptions = obj as IEditorInputWithOptions;
+export function isEditorInputWithOptions(editor: unknown): editor is IEditorInputWithOptions {
+	const candidate = editor as IEditorInputWithOptions | undefined;
 
-	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
+	return isEditorInput(candidate?.editor);
+}
+
+export function isEditorInputWithOptionsAndGroup(editor: unknown): editor is IEditorInputWithOptionsAndGroup {
+	const candidate = editor as IEditorInputWithOptionsAndGroup | undefined;
+
+	return isEditorInputWithOptions(editor) && candidate?.group !== undefined;
 }
 
 /**
@@ -714,16 +711,13 @@ export interface IEditorOpenContext {
 
 export interface IEditorIdentifier {
 	groupId: GroupIdentifier;
-	editor: IEditorInput;
+	editor: EditorInput;
 }
 
-export function isEditorIdentifier(thing: unknown): thing is IEditorIdentifier {
-	const identifier = thing as IEditorIdentifier | undefined;
-	if (!identifier) {
-		return false;
-	}
+export function isEditorIdentifier(identifier: unknown): identifier is IEditorIdentifier {
+	const candidate = identifier as IEditorIdentifier | undefined;
 
-	return typeof identifier.groupId === 'number' && !isUndefinedOrNull(identifier.editor);
+	return typeof candidate?.groupId === 'number' && isEditorInput(candidate.editor);
 }
 
 /**
@@ -736,17 +730,86 @@ export interface IEditorCommandsContext {
 	editorIndex?: number;
 }
 
+/**
+ * More information around why an editor was closed in the model.
+ */
+export enum EditorCloseContext {
+
+	/**
+	 * No specific context for closing (e.g. explicit user gesture).
+	 */
+	UNKNOWN,
+
+	/**
+	 * The editor closed because it was in preview mode and got replaced.
+	 */
+	REPLACE,
+
+	/**
+	 * The editor closed as a result of moving it to another group.
+	 */
+	MOVE,
+
+	/**
+	 * The editor closed because another editor turned into preview
+	 * and this used to be the preview editor before.
+	 */
+	UNPIN
+}
+
 export interface IEditorCloseEvent extends IEditorIdentifier {
-	replaced: boolean;
-	index: number;
-	sticky: boolean;
+
+	/**
+	 * More information around why the editor was closed.
+	 */
+	readonly context: EditorCloseContext;
+
+	/**
+	 * The index of the editor before closing.
+	 */
+	readonly index: number;
+
+	/**
+	 * Whether the editor was sticky or not.
+	 */
+	readonly sticky: boolean;
+}
+
+export interface IEditorWillMoveEvent extends IEditorIdentifier {
+
+	/**
+	 * The target group of the move operation.
+	 */
+	readonly target: GroupIdentifier;
 }
 
 export interface IEditorMoveEvent extends IEditorIdentifier {
-	target: GroupIdentifier;
+
+	/**
+	 * The target group of the move operation.
+	 */
+	readonly target: GroupIdentifier;
+
+	/**
+	 * The index of the editor before moving.
+	 */
+	readonly index: number;
+
+	/**
+	 * The index of the editor after moving.
+	 */
+	readonly newIndex: number;
 }
 
-export interface IEditorOpenEvent extends IEditorIdentifier { }
+export interface IEditorWillOpenEvent extends IEditorIdentifier { }
+
+export interface IEditorOpenEvent extends IEditorIdentifier {
+
+	/**
+	 * The index the editor opens in.
+	 */
+	readonly index: number;
+}
 
 export type GroupIdentifier = number;
 
@@ -775,10 +838,12 @@ interface IEditorPartConfiguration {
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
 	openSideBySideDirection?: 'right' | 'down';
 	closeEmptyGroups?: boolean;
+	autoLockGroups?: Set<string>;
 	revealIfOpen?: boolean;
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
+	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
 	limit?: {
@@ -804,7 +869,8 @@ export interface IEditorPartOptionsChangeEvent {
 export enum SideBySideEditor {
 	PRIMARY = 1,
 	SECONDARY = 2,
-	BOTH = 3
+	BOTH = 3,
+	ANY = 4
 }
 
 export interface IEditorResourceAccessorOptions {
@@ -841,29 +907,32 @@ class EditorResourceAccessorImpl {
 	 * form so that only one editor opens for same file URIs with different casing. As
 	 * such, the original URI and the canonical URI can be different.
 	 */
-	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null): URI | undefined;
-	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
-	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
 		}
 
 		// Optionally support side-by-side editors
-		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modifiedInput : undefined;
-		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.originalInput : undefined;
-		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
-			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
-				return {
-					primary: this.getOriginalUri(primaryEditor, { filterByScheme: options.filterByScheme }),
-					secondary: this.getOriginalUri(secondaryEditor, { filterByScheme: options.filterByScheme })
-				};
-			}
+		if (options?.supportSideBySide) {
+			const { primary, secondary } = this.getSideEditors(editor);
+			if (primary && secondary) {
+				if (options?.supportSideBySide === SideBySideEditor.BOTH) {
+					return {
+						primary: this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }),
+						secondary: this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme })
+					};
+				} else if (options?.supportSideBySide === SideBySideEditor.ANY) {
+					return this.getOriginalUri(primary, { filterByScheme: options.filterByScheme }) ?? this.getOriginalUri(secondary, { filterByScheme: options.filterByScheme });
+				}
 
-			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primaryEditor : secondaryEditor;
+				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
+			}
 		}
 
-		if (isResourceDiffEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
 			return;
 		}
 
@@ -874,6 +943,18 @@ class EditorResourceAccessorImpl {
 		}
 
 		return this.filterUri(originalResource, options.filterByScheme);
+	}
+
+	private getSideEditors(editor: EditorInput | IUntypedEditorInput): { primary: EditorInput | IUntypedEditorInput | undefined, secondary: EditorInput | IUntypedEditorInput | undefined } {
+		if (isSideBySideEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
+			return { primary: editor.primary, secondary: editor.secondary };
+		}
+
+		if (isDiffEditorInput(editor) || isResourceDiffEditorInput(editor)) {
+			return { primary: editor.modified, secondary: editor.original };
+		}
+
+		return { primary: undefined, secondary: undefined };
 	}
 
 	/**
@@ -889,29 +970,32 @@ class EditorResourceAccessorImpl {
 	 * form so that only one editor opens for same file URIs with different casing. As
 	 * such, the original URI and the canonical URI can be different.
 	 */
-	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null): URI | undefined;
-	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
-	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
 		}
 
 		// Optionally support side-by-side editors
-		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modifiedInput : undefined;
-		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.originalInput : undefined;
-		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
-			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
-				return {
-					primary: this.getCanonicalUri(primaryEditor, { filterByScheme: options.filterByScheme }),
-					secondary: this.getCanonicalUri(secondaryEditor, { filterByScheme: options.filterByScheme })
-				};
-			}
+		if (options?.supportSideBySide) {
+			const { primary, secondary } = this.getSideEditors(editor);
+			if (primary && secondary) {
+				if (options?.supportSideBySide === SideBySideEditor.BOTH) {
+					return {
+						primary: this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }),
+						secondary: this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme })
+					};
+				} else if (options?.supportSideBySide === SideBySideEditor.ANY) {
+					return this.getCanonicalUri(primary, { filterByScheme: options.filterByScheme }) ?? this.getCanonicalUri(secondary, { filterByScheme: options.filterByScheme });
+				}
 
-			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primaryEditor : secondaryEditor;
+				editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primary : secondary;
+			}
 		}
 
-		if (isResourceDiffEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
 			return;
 		}
 
@@ -954,79 +1038,79 @@ export const enum CloseDirection {
 export interface IEditorMemento<T> {
 
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
-	saveEditorState(group: IEditorGroup, editor: IEditorInput, state: T): void;
+	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
 
 	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
-	loadEditorState(group: IEditorGroup, editor: IEditorInput): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
-	clearEditorState(editor: IEditorInput, group?: IEditorGroup): void;
+	clearEditorState(editor: EditorInput, group?: IEditorGroup): void;
 
-	clearEditorStateOnDispose(resource: URI, editor: IEditorInput): void;
+	clearEditorStateOnDispose(resource: URI, editor: EditorInput): void;
 
 	moveEditorState(source: URI, target: URI, comparer: IExtUri): void;
 }
 
-class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
+class EditorFactoryRegistry implements IEditorFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 
-	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
+	private fileEditorFactory: IFileEditorFactory | undefined;
 
-	private readonly editorInputSerializerConstructors: Map<string /* Type ID */, IConstructorSignature0<IEditorInputSerializer>> = new Map();
-	private readonly editorInputSerializerInstances: Map<string /* Type ID */, IEditorInputSerializer> = new Map();
+	private readonly editorSerializerConstructors: Map<string /* Type ID */, IConstructorSignature0<IEditorSerializer>> = new Map();
+	private readonly editorSerializerInstances: Map<string /* Type ID */, IEditorSerializer> = new Map();
 
 	start(accessor: ServicesAccessor): void {
 		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
 
-		for (const [key, ctor] of this.editorInputSerializerConstructors) {
-			this.createEditorInputSerializer(key, ctor, instantiationService);
+		for (const [key, ctor] of this.editorSerializerConstructors) {
+			this.createEditorSerializer(key, ctor, instantiationService);
 		}
 
-		this.editorInputSerializerConstructors.clear();
+		this.editorSerializerConstructors.clear();
 	}
 
-	private createEditorInputSerializer(editorInputTypeId: string, ctor: IConstructorSignature0<IEditorInputSerializer>, instantiationService: IInstantiationService): void {
+	private createEditorSerializer(editorTypeId: string, ctor: IConstructorSignature0<IEditorSerializer>, instantiationService: IInstantiationService): void {
 		const instance = instantiationService.createInstance(ctor);
-		this.editorInputSerializerInstances.set(editorInputTypeId, instance);
+		this.editorSerializerInstances.set(editorTypeId, instance);
 	}
 
-	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void {
-		if (this.fileEditorInputFactory) {
-			throw new Error('Can only register one file editor input factory.');
+	registerFileEditorFactory(factory: IFileEditorFactory): void {
+		if (this.fileEditorFactory) {
+			throw new Error('Can only register one file editor factory.');
 		}
 
-		this.fileEditorInputFactory = factory;
+		this.fileEditorFactory = factory;
 	}
 
-	getFileEditorInputFactory(): IFileEditorInputFactory {
-		return assertIsDefined(this.fileEditorInputFactory);
+	getFileEditorFactory(): IFileEditorFactory {
+		return assertIsDefined(this.fileEditorFactory);
 	}
 
-	registerEditorInputSerializer(editorInputTypeId: string, ctor: IConstructorSignature0<IEditorInputSerializer>): IDisposable {
-		if (this.editorInputSerializerConstructors.has(editorInputTypeId) || this.editorInputSerializerInstances.has(editorInputTypeId)) {
-			throw new Error(`A editor input serializer with type ID '${editorInputTypeId}' was already registered.`);
+	registerEditorSerializer(editorTypeId: string, ctor: IConstructorSignature0<IEditorSerializer>): IDisposable {
+		if (this.editorSerializerConstructors.has(editorTypeId) || this.editorSerializerInstances.has(editorTypeId)) {
+			throw new Error(`A editor serializer with type ID '${editorTypeId}' was already registered.`);
 		}
 
 		if (!this.instantiationService) {
-			this.editorInputSerializerConstructors.set(editorInputTypeId, ctor);
+			this.editorSerializerConstructors.set(editorTypeId, ctor);
 		} else {
-			this.createEditorInputSerializer(editorInputTypeId, ctor, this.instantiationService);
+			this.createEditorSerializer(editorTypeId, ctor, this.instantiationService);
 		}
 
 		return toDisposable(() => {
-			this.editorInputSerializerConstructors.delete(editorInputTypeId);
-			this.editorInputSerializerInstances.delete(editorInputTypeId);
+			this.editorSerializerConstructors.delete(editorTypeId);
+			this.editorSerializerInstances.delete(editorTypeId);
 		});
 	}
 
-	getEditorInputSerializer(editorInput: IEditorInput): IEditorInputSerializer | undefined;
-	getEditorInputSerializer(editorInputTypeId: string): IEditorInputSerializer | undefined;
-	getEditorInputSerializer(arg1: string | IEditorInput): IEditorInputSerializer | undefined {
-		return this.editorInputSerializerInstances.get(typeof arg1 === 'string' ? arg1 : arg1.typeId);
+	getEditorSerializer(editor: EditorInput): IEditorSerializer | undefined;
+	getEditorSerializer(editorTypeId: string): IEditorSerializer | undefined;
+	getEditorSerializer(arg1: string | EditorInput): IEditorSerializer | undefined {
+		return this.editorSerializerInstances.get(typeof arg1 === 'string' ? arg1 : arg1.typeId);
 	}
 }
 
-Registry.add(EditorExtensions.EditorInputFactories, new EditorInputFactoryRegistry());
+Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
 export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService): Promise<(IResourceEditorInput | IUntitledTextResourceEditorInput)[]> {
 	if (!paths || !paths.length) {
@@ -1035,7 +1119,16 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 
 	const editors = await Promise.all(paths.map(async path => {
 		const resource = URI.revive(path.fileUri);
-		if (!resource || !fileService.canHandleResource(resource)) {
+		if (!resource) {
+			return;
+		}
+
+		// Since we are possibly the first ones to use the file service
+		// on the resource, we must ensure to activate the provider first
+		// before asking whether the resource can be handled.
+		await fileService.activateProvider(resource.scheme);
+
+		if (!fileService.canHandleResource(resource)) {
 			return;
 		}
 
@@ -1044,14 +1137,8 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		const options: ITextEditorOptions = (exists && typeof path.lineNumber === 'number') ? {
-			selection: {
-				startLineNumber: path.lineNumber,
-				startColumn: path.columnNumber || 1
-			},
-			pinned: true,
-			override: path.editorOverrideId
-		} : {
+		const options: ITextEditorOptions = {
+			selection: exists ? path.selection : undefined,
 			pinned: true,
 			override: path.editorOverrideId
 		};
@@ -1060,7 +1147,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {
-			input = { resource, options, forceFile: true };
+			input = { resource, options };
 		}
 
 		return input;
@@ -1080,38 +1167,4 @@ export const enum EditorsOrder {
 	 * Editors sorted by sequential order
 	 */
 	SEQUENTIAL
-}
-
-/**
- * A way to address editor groups through a column based system
- * where `0` is the first column. Will fallback to `SIDE_GROUP`
- * in case the column does not exist yet.
- */
-export type EditorGroupColumn = number;
-
-export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService, viewColumn?: EditorGroupColumn): GroupIdentifier {
-	if (typeof viewColumn !== 'number' || viewColumn === ACTIVE_GROUP) {
-		return ACTIVE_GROUP; // prefer active group when position is undefined or passed in as such
-	}
-
-	const groups = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
-
-	let candidateGroup = groups[viewColumn];
-	if (candidateGroup) {
-		return candidateGroup.id; // found direct match
-	}
-
-	let firstGroup = groups[0];
-	if (groups.length === 1 && firstGroup.count === 0) {
-		return firstGroup.id; // first editor should always open in first group independent from position provided
-	}
-
-	return SIDE_GROUP; // open to the side if group not found or we are instructed to
-}
-
-export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorGroupColumn {
-	let group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
-	group = group ?? editorGroupService.activeGroup;
-
-	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
 }

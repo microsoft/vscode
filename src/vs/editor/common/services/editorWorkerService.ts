@@ -21,7 +21,6 @@ export interface IDiffComputationResult {
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
 
-	canComputeDiff(original: URI, modified: URI): boolean;
 	computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;

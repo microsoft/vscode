@@ -23,7 +23,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		this._terminals.push(terminal);
-		terminal.create(options, internalOptions);
+		terminal.create(options, this._serializeParentTerminal(options, internalOptions));
 		return terminal.value;
 	}
 }

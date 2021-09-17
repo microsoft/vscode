@@ -52,11 +52,16 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	) { }
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
+		const availableFileSystems = [Schemas.file];
+		if (this.environmentService.remoteAuthority) {
+			availableFileSystems.unshift(Schemas.vscodeRemote);
+		}
 		let workspacePath = await this.fileDialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
 			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME)
+			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
+			availableFileSystems
 		});
 
 		if (!workspacePath) {
@@ -360,7 +365,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	}
 
 	private async trustWorkspaceConfiguration(configPathURI: URI): Promise<void> {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			await this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
 		}
 	}

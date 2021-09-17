@@ -12,10 +12,10 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-14.14.43.tgz#26bcbb0595b305400e8ceaf9a127a7f905ae49c8"
   integrity sha512-3pwDJjp1PWacPTpH0LcfhgjvurQvrZFBrC6xxjaUEZ7ifUtT32jtjPxEMMblpqd2Mvx+k8haqQJLQxolyGN/cQ==
 
-vscode-css-languageservice@^5.1.3:
-  version "5.1.3"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-5.1.3.tgz#a7b2f21ed48842af5d9a98223bcae09e33d707d5"
-  integrity sha512-c8xiUhrDBNG6iS92FEE+K3IWOHAqVvzsqjjLSaXHyF5Qdn/6VhUweGNjtZ2CBSfs+Vkmz7pJzLQ7Io1x5deumA==
+vscode-css-languageservice@^5.1.5:
+  version "5.1.5"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-5.1.5.tgz#400b2f63a4f73c60f5b0afc48c478c1b326b27c6"
+  integrity sha512-c1hhsbnZ7bBvj10vMDLmkOk/n9r0rXQYDj4kbBi59bZaaEZ3e81zURx76/618NZM5NytlZmGfvmxQtB7mb03Ow==
   dependencies:
     vscode-languageserver-textdocument "^1.0.1"
     vscode-languageserver-types "^3.16.0"

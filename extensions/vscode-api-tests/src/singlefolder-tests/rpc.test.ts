@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNoRpcFromEntry, assertNoRpc, disposeAll } from '../utils';
 import * as vscode from 'vscode';
+import { assertNoRpc, assertNoRpcFromEntry, disposeAll } from '../utils';
 
 suite('vscode', function () {
 
@@ -17,6 +17,12 @@ suite('vscode', function () {
 
 	test('no rpc', function () {
 		assertNoRpc();
+	});
+
+	test('no rpc, createDiagnosticCollection()', function () {
+		const item = vscode.languages.createDiagnosticCollection();
+		dispo.push(item);
+		assertNoRpcFromEntry([item, 'DiagnosticCollection']);
 	});
 
 	test('no rpc, createTextEditorDecorationType(...)', function () {
@@ -63,7 +69,6 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createCommentController(...)', function () {
-		this.skip();
 		const item = vscode.comments.createCommentController('foo', 'Hello');
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'CommentController']);

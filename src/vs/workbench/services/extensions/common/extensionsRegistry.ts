@@ -11,10 +11,9 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES, ExtensionKind } from 'vs/platform/extensions/common/extensions';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
-export type ExtensionKind = 'workspace' | 'ui' | undefined;
 
 export class ExtensionMessageCollector {
 
@@ -63,9 +62,9 @@ export interface IExtensionPointUser<T> {
 export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUser<T>[], delta: ExtensionPointUserDelta<T>) => void;
 
 export interface IExtensionPoint<T> {
-	name: string;
+	readonly name: string;
 	setHandler(handler: IExtensionPointHandler<T>): void;
-	defaultExtensionKind: ExtensionKind;
+	readonly defaultExtensionKind: ExtensionKind[] | undefined;
 }
 
 export class ExtensionPointUserDelta<T> {
@@ -104,13 +103,13 @@ export class ExtensionPointUserDelta<T> {
 export class ExtensionPoint<T> implements IExtensionPoint<T> {
 
 	public readonly name: string;
-	public readonly defaultExtensionKind: ExtensionKind;
+	public readonly defaultExtensionKind: ExtensionKind[] | undefined;
 
 	private _handler: IExtensionPointHandler<T> | null;
 	private _users: IExtensionPointUser<T>[] | null;
 	private _delta: ExtensionPointUserDelta<T> | null;
 
-	constructor(name: string, defaultExtensionKind: ExtensionKind) {
+	constructor(name: string, defaultExtensionKind: ExtensionKind[] | undefined) {
 		this.name = name;
 		this.defaultExtensionKind = defaultExtensionKind;
 		this._handler = null;
@@ -149,13 +148,11 @@ const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
-		'workspace',
-		'web'
+		'workspace'
 	],
 	enumDescriptions: [
 		nls.localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
 		nls.localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
-		nls.localize('web', "Web worker extension kind. Such an extension can execute in a web worker extension host.")
 	],
 };
 
@@ -327,8 +324,13 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onTerminalProfile',
-						body: 'onTerminalProfile:${1:terminalType}',
+						body: 'onTerminalProfile:${1:terminalId}',
 						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+					},
+					{
+						label: 'onWalkthrough',
+						body: 'onWalkthrough:${1:walkthroughID}',
+						description: nls.localize('vscode.extension.activationEvents.onWalkthrough', 'An activation event emitted when a specified walkthrough is opened.'),
 					},
 					{
 						label: '*',
@@ -511,7 +513,7 @@ export interface IExtensionPointDescriptor {
 	extensionPoint: string;
 	deps?: IExtensionPoint<any>[];
 	jsonSchema: IJSONSchema;
-	defaultExtensionKind?: ExtensionKind;
+	defaultExtensionKind?: ExtensionKind[];
 }
 
 export class ExtensionsRegistryImpl {

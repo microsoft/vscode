@@ -14,7 +14,6 @@ import { IExtHostTerminalService, WorkerExtHostTerminalService } from 'vs/workbe
 import { IExtHostTask, WorkerExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostDebugService, WorkerExtHostDebugService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostSearch, ExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
-import { IExtensionStoragePaths, ExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { IExtHostStorage, ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtHostTunnelService, ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostApiDeprecationService, ExtHostApiDeprecationService, } from 'vs/workbench/api/common/extHostApiDeprecationService';
@@ -25,7 +24,6 @@ import { IExtHostSecretState, ExtHostSecretState } from 'vs/workbench/api/common
 import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostEditorTabs, IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService);
 registerSingleton(IExtHostCommands, ExtHostCommands);
 registerSingleton(IExtHostConfiguration, ExtHostConfiguration);

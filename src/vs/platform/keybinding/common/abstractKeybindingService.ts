@@ -3,29 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, Keybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingEvent, IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { IResolveResult, KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { ILogService } from 'vs/platform/log/common/log';
 
 interface CurrentChord {
 	keypress: string;
 	label: string | null;
 }
-
-// Skip logging for high-frequency text editing commands
-const HIGH_FREQ_COMMANDS = /^(cursor|delete)/;
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
 	public _serviceBrand: undefined;
@@ -111,7 +108,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	public lookupKeybinding(commandId: string, context?: IContextKeyService): ResolvedKeybinding | undefined {
-		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context);
+		const result = this._getResolver().lookupPrimaryKeybinding(commandId, context || this._contextKeyService);
 		if (!result) {
 			return undefined;
 		}
@@ -266,9 +263,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			} else {
 				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
 			}
-			if (!HIGH_FREQ_COMMANDS.test(resolveResult.commandId)) {
-				this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
-			}
+			this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
 		}
 
 		return shouldPreventDefault;

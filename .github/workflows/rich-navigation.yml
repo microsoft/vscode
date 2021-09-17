@@ -1,9 +1,12 @@
 name: "Rich Navigation Indexing"
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
       - main
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
   richnav:
@@ -21,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 12
+          node-version: 14
 
       - name: Install dependencies
         if: steps.caching-stage.outputs.cache-hit != 'true'
@@ -33,5 +36,6 @@ jobs:
         with:
           languages: typescript
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          typescriptVersion: 0.6.0-dev.1
+          typescriptVersion: 0.6.0-next.19
+          configFiles: .lsifrc.json
         continue-on-error: true

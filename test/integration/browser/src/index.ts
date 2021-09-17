@@ -15,7 +15,7 @@ import * as optimistLib from 'optimist';
 import { StdioOptions } from 'node:child_process';
 
 const optimist = optimistLib
-	.describe('workspacePath', 'path to the workspace to open in the test').string('workspacePath')
+	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
 	.describe('extensionDevelopmentPath', 'path to the extension to test').string('extensionDevelopmentPath')
 	.describe('extensionTestsPath', 'path to the extension tests').string('extensionTestsPath')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
@@ -33,11 +33,18 @@ const height = 800;
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 
 async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--disable-setuid-sandbox'] : undefined; // setuid sandboxes requires root and is used in containers so we disable this to support our CI
-	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), args });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
+
+	page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
+	page.on('crash', page => console.error('Playwright ERROR: page crash'));
+	page.on('response', async response => {
+		if (response.status() >= 400) {
+			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+		}
+	});
 
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
@@ -46,10 +53,13 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
-	const folderParam = testWorkspaceUri;
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5319757634f77a050b49c10162939bfe60970c29"],["skipWelcome","true"]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5f19eee5dc9588ca96192f89587b5878b7d7180d"],["skipWelcome","true"]]`;
 
-	await page.goto(`${endpoint.href}&folder=${folderParam}&payload=${payloadParam}`);
+	if (path.extname(testWorkspaceUri) === '.code-workspace') {
+		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
+	} else {
+		await page.goto(`${endpoint.href}&folder=${testWorkspaceUri}&payload=${payloadParam}`);
+	}
 
 	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {
 		console[type](...args);
@@ -96,22 +106,26 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const root = path.join(__dirname, '..', '..', '..', '..');
 	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
-	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api'];
+	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api', '--disable-telemetry'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
 		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 		serverArgs.push(`--logsPath=${logsPath}`);
 
-		console.log(`Starting built server from '${serverLocation}'`);
-		console.log(`Storing log files into '${logsPath}'`);
+		if (optimist.argv.debug) {
+			console.log(`Starting built server from '${serverLocation}'`);
+			console.log(`Storing log files into '${logsPath}'`);
+		}
 	} else {
 		serverLocation = path.join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		serverArgs.push('--logsPath', logsPath);
 		process.env.VSCODE_DEV = '1';
 
-		console.log(`Starting server out of sources from '${serverLocation}'`);
-		console.log(`Storing log files into '${logsPath}'`);
+		if (optimist.argv.debug) {
+			console.log(`Starting server out of sources from '${serverLocation}'`);
+			console.log(`Storing log files into '${logsPath}'`);
+		}
 	}
 
 	const stdio: StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];

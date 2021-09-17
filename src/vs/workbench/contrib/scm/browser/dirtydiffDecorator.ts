@@ -188,6 +188,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			['originalResourceScheme', this.model.original!.uri.scheme]
 		]);
 		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
+		this._disposables.add(this.menu);
 
 		this.create();
 		if (editor.hasModel()) {
@@ -258,9 +259,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
 		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
 		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
-		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, async () => {
-			this.dispose();
-		}), { label: false, icon: true });
+		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => this.dispose()), { label: false, icon: true });
 	}
 
 	protected override _getActionBarOptions(): IActionBarOptions {
@@ -298,6 +297,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
+		this._disposables.add(this.diffEditor);
 	}
 
 	override _onWidth(width: number): void {

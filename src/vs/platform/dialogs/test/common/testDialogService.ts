@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import Severity from 'vs/base/common/severity';
-import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IShowResult, IInputResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IInputResult, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 
 export class TestDialogService implements IDialogService {
 

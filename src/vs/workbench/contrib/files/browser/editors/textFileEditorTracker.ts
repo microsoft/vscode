@@ -18,6 +18,7 @@ import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 
 export class TextFileEditorTracker extends Disposable implements IWorkbenchContribution {
 
@@ -51,7 +52,11 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
 
-	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyTextFilesAreOpened(units), 50));
+	private readonly ensureDirtyFilesAreOpenedWorker = this._register(new RunOnceWorker<URI>(units => this.ensureDirtyTextFilesAreOpened(units), this.getDirtyTextFileTrackerDelay()));
+
+	protected getDirtyTextFileTrackerDelay(): number {
+		return 800; // encapsulated in a method for tests to override
+	}
 
 	private ensureDirtyTextFilesAreOpened(resources: URI[]): void {
 		this.doEnsureDirtyTextFilesAreOpened(distinct(resources.filter(resource => {
@@ -70,7 +75,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false;
 			}
 
-			if (this.editorService.isOpened({ resource, typeId: resource.scheme === Schemas.untitled ? UntitledTextEditorInput.ID : FILE_EDITOR_INPUT_ID })) {
+			if (this.editorService.isOpened({ resource, typeId: resource.scheme === Schemas.untitled ? UntitledTextEditorInput.ID : FILE_EDITOR_INPUT_ID, editorId: DEFAULT_EDITOR_ASSOCIATION.id })) {
 				return false; // model must not be opened already as file (fast check via editor type)
 			}
 

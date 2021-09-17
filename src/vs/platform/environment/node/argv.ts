@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as minimist from 'minimist';
-import { localize } from 'vs/nls';
 import { isWindows } from 'vs/base/common/platform';
+import { localize } from 'vs/nls';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 /**
@@ -65,6 +65,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
 	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup.") },
 	'prof-append-timers': { type: 'string' },
+	'no-cached-data': { type: 'boolean' },
 	'prof-startup-prefix': { type: 'string' },
 	'prof-v8-extensions': { type: 'boolean' },
 	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
@@ -122,6 +123,12 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
+	// Minimist incorrectly parses keys that start with `--no`
+	// https://github.com/substack/minimist/blob/aeb3e27dae0412de5c0494e9563a5f10c82cc7a9/index.js#L118-L121
+	// If --no-sandbox is passed via cli wrapper it will be treated as --sandbox which is incorrect, we use
+	// the alias here to make sure --no-sandbox is always respected.
+	// For https://github.com/microsoft/vscode/issues/128279
+	'no-sandbox': { type: 'boolean', alias: 'sandbox' },
 	'proxy-server': { type: 'string' },
 	'proxy-bypass-list': { type: 'string' },
 	'proxy-pac-url': { type: 'string' },

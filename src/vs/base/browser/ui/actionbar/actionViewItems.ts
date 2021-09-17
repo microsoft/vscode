@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./actionbar';
-import * as platform from 'vs/base/common/platform';
-import * as nls from 'vs/nls';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, Separator } from 'vs/base/common/actions';
-import * as types from 'vs/base/common/types';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { DataTransfers } from 'vs/base/browser/dnd';
 import { isFirefox } from 'vs/base/browser/browser';
+import { DataTransfers } from 'vs/base/browser/dnd';
 import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
+import { Disposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import * as types from 'vs/base/common/types';
+import 'vs/css!./actionbar';
+import * as nls from 'vs/nls';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
@@ -29,6 +29,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	_context: unknown;
 	_action: IAction;
+
+	get action() {
+		return this._action;
+	}
 
 	private _actionRunner: IActionRunner | undefined;
 
@@ -141,7 +145,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 			// menus do not use the click event
 			if (!(this.options && this.options.isMenu)) {
-				platform.setImmediate(() => this.onClick(e));
+				this.onClick(e);
 			}
 		}));
 

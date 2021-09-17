@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, IUntypedFileEditorInput, findViewStateForEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { EditorOverride, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -22,6 +23,7 @@ import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 const enum ForceOpenAs {
 	None,
@@ -38,8 +40,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return FILE_EDITOR_INPUT_ID;
 	}
 
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
 	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.None;
+		let capabilities = EditorInputCapabilities.CanSplitInGroup;
 
 		if (this.model) {
 			if (this.model.isReadonly()) {
@@ -86,9 +92,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
-		super(resource, preferredResource, editorService, textFileService, labelService, fileService);
+		super(resource, preferredResource, editorService, textFileService, labelService, fileService, editorResolverService);
 
 		this.model = this.textFileService.files.get(resource);
 
@@ -139,7 +146,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		// re-emit some events from the model
 		this.modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this.modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 		this.modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 
 		// important: treat save errors as potential dirty change because
@@ -270,14 +276,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return !!(this.model?.isDirty());
 	}
 
-	override isOrphaned(): boolean {
-		if (this.model) {
-			return this.model.hasState(TextFileEditorModelState.ORPHAN);
-		}
-
-		return super.isOrphaned();
-	}
-
 	override isSaving(): boolean {
 		if (this.model?.hasState(TextFileEditorModelState.SAVED) || this.model?.hasState(TextFileEditorModelState.CONFLICT) || this.model?.hasState(TextFileEditorModelState.ERROR)) {
 			return false; // require the model to be dirty and not in conflict or error state
@@ -295,12 +293,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return super.isSaving();
 	}
 
-	override prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
+	override prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
 		if (this.forceOpenAs === ForceOpenAs.Binary) {
-			return editors.find(editor => editor.typeId === BINARY_FILE_EDITOR_ID);
+			return editorPanes.find(editorPane => editorPane.typeId === BINARY_FILE_EDITOR_ID);
 		}
 
-		return editors.find(editor => editor.typeId === TEXT_FILE_EDITOR_ID);
+		return editorPanes.find(editorPane => editorPane.typeId === TEXT_FILE_EDITOR_ID);
 	}
 
 	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
@@ -378,40 +376,49 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return !!this.model;
 	}
 
-	override rename(group: GroupIdentifier, target: URI): IMoveResult {
+	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult> {
 		return {
 			editor: {
 				resource: target,
 				encoding: this.getEncoding(),
 				options: {
-					viewState: this.getViewStateFor(group)
+					viewState: findViewStateForEditor(this, group, this.editorService)
 				}
 			}
 		};
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): ITextResourceEditorInput {
-		return {
+	override toUntyped(options?: { preserveViewState: GroupIdentifier }): ITextResourceEditorInput {
+		const untypedInput: IUntypedFileEditorInput = {
 			resource: this.preferredResource,
 			forceFile: true,
-			encoding: this.getEncoding(),
-			mode: this.getMode(),
-			contents: (() => {
+			options: {
+				override: this.editorId
+			}
+		};
+
+		if (typeof options?.preserveViewState === 'number') {
+			untypedInput.encoding = this.getEncoding();
+			untypedInput.mode = this.getMode();
+			untypedInput.contents = (() => {
 				const model = this.textFileService.files.get(this.resource);
 				if (model && model.isDirty()) {
 					return model.textEditorModel.getValue(); // only if dirty
 				}
 
 				return undefined;
-			})(),
-			options: {
-				viewState: this.getViewStateFor(group),
-				override: EditorOverride.DISABLED
-			}
-		};
+			})();
+
+			untypedInput.options = {
+				...untypedInput.options,
+				viewState: findViewStateForEditor(this, options.preserveViewState, this.editorService)
+			};
+		}
+
+		return untypedInput;
 	}
 
-	override matches(otherInput: unknown): boolean {
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

@@ -11,14 +11,14 @@ import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActivityActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction, ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType, isAncestor } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -39,11 +39,10 @@ import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { GestureEvent } from 'vs/base/browser/touch';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -159,21 +158,21 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			activityHoverOptions: this.getActivityHoverOptions(),
 			preventLoopNavigation: true,
-			openComposite: compositeId => this.viewsService.openViewContainer(compositeId, true),
+			openComposite: (compositeId, preserveFocus) => this.viewsService.openViewContainer(compositeId, !preserveFocus),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: compositeId => toAction({ id: compositeId, label: '', run: async () => this.viewsService.isViewContainerVisible(compositeId) ? this.viewsService.closeViewContainer(compositeId) : this.viewsService.openViewContainer(compositeId) }),
-			fillExtraContextMenuActions: actions => {
-				const topActions: IAction[] = [];
-
+			fillExtraContextMenuActions: (actions, e?: MouseEvent | GestureEvent) => {
 				// Menu
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 				if (menuBarVisibility === 'compact' || menuBarVisibility === 'hidden' || menuBarVisibility === 'toggle') {
-					topActions.push(toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact') }));
+					actions.unshift(...[toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact') }), new Separator()]);
 				}
 
-				if (topActions.length) {
-					actions.unshift(...topActions, new Separator());
+				if (menuBarVisibility === 'compact' && this.menuBarContainer && e?.target) {
+					if (isAncestor(e.target as Node, this.menuBarContainer)) {
+						actions.unshift(...[toAction({ id: 'hideCompactMenu', label: localize('hideMenu', "Hide Menu"), run: () => this.configurationService.updateValue('window.menuBarVisibility', 'toggle') }), new Separator()]);
+					}
 				}
 
 				// Accounts
@@ -204,7 +203,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private getActivityHoverOptions(): IActivityHoverOptions {
 		return {
 			position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
-			delay: () => 0
 		};
 	}
 
@@ -988,24 +986,4 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 }
 
-class FocusActivityBarAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.focusActivityBar',
-			title: { value: localize('focusActivityBar', "Focus Activity Bar"), original: 'Focus Activity Bar' },
-			category: CATEGORIES.View,
-			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const activityBarService = accessor.get(IActivityBarService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.setActivityBarHidden(false);
-		activityBarService.focusActivityBar();
-	}
-}
-
 registerSingleton(IActivityBarService, ActivitybarPart);
-registerAction2(FocusActivityBarAction);

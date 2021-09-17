@@ -3,17 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import * as dom from 'vs/base/browser/dom';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ITextContentData, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import * as nls from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextContentData, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -38,10 +44,13 @@ export class InlineCompletionsHover implements IHoverPart {
 export class InlineCompletionsHoverParticipant implements IEditorHoverParticipant<InlineCompletionsHover> {
 	constructor(
 		private readonly _editor: ICodeEditor,
-		hover: IEditorHover,
+		private readonly _hover: IEditorHover,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IModeService private readonly _modeService: IModeService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) { }
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
@@ -82,6 +91,11 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		const disposableStore = new DisposableStore();
+		const part = hoverParts[0];
+
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			this.renderScreenReaderText(part, fragment, disposableStore);
+		}
 
 		const menu = disposableStore.add(this._menuService.createMenu(
 			MenuId.InlineCompletionsActions,
@@ -108,7 +122,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		for (const action of actions) {
 			action.setEnabled(false);
 		}
-		hoverParts[0].hasMultipleSuggestions().then(hasMore => {
+		part.hasMultipleSuggestions().then(hasMore => {
 			for (const action of actions) {
 				action.setEnabled(hasMore);
 			}
@@ -127,5 +141,29 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		}
 
 		return disposableStore;
+	}
+
+	private renderScreenReaderText(part: InlineCompletionsHover, fragment: DocumentFragment, disposableStore: DisposableStore) {
+		const $ = dom.$;
+		const markdownHoverElement = $('div.hover-row.markdown-hover');
+		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
+		const renderer = disposableStore.add(new MarkdownRenderer({ editor: this._editor }, this._modeService, this._openerService));
+		const render = (code: string) => {
+			disposableStore.add(renderer.onDidRenderAsync(() => {
+				hoverContentsElement.className = 'hover-contents code-hover-contents';
+				this._hover.onContentsChanged();
+			}));
+
+			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Suggestion:");
+			const renderedContents = disposableStore.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code)));
+			hoverContentsElement.replaceChildren(renderedContents.element);
+		};
+
+		const ghostText = part.controller.activeModel?.inlineCompletionsModel?.ghostText;
+		if (ghostText) {
+			const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
+			render(ghostText.renderForScreenReader(lineText));
+		}
+		fragment.appendChild(markdownHoverElement);
 	}
 }

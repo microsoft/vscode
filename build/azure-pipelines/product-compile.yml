@@ -12,6 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password,ticino-storage-key'
 
   - script: |
       set -e
@@ -114,6 +115,13 @@ steps:
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
+      set -e
+      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+        node build/azure-pipelines/upload-nlsmetadata
+    displayName: Upload NLS Metadata
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - script: |
       set -
       ./build/azure-pipelines/common/extract-telemetry.sh
     displayName: Extract Telemetry
@@ -121,15 +129,7 @@ steps:
 
   - script: |
       set -e
-      AZURE_WEBVIEW_STORAGE_ACCESS_KEY="$(vscode-webview-storage-key)" \
-      ./build/azure-pipelines/common/publish-webview.sh
-    displayName: Publish Webview
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  # we gotta tarball everything in order to preserve file permissions
-  - script: |
-      set -e
-      tar -czf $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
+      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
     displayName: Compress compilation artifact
 
   - task: PublishPipelineArtifact@1

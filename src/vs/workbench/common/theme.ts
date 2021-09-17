@@ -195,12 +195,6 @@ export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
 	hc: editorBackground
 }, localize('editorPaneBackground', "Background color of the editor pane visible on the left and right side of the centered editor layout."));
 
-registerColor('editorGroup.background', {
-	dark: null,
-	light: null,
-	hc: null
-}, localize('editorGroupBackground', "Deprecated background color of an editor group."), false, localize('deprecatedEditorGroupBackground', "Deprecated: Background color of an editor group is no longer being supported with the introduction of the grid editor layout. You can use editorGroup.emptyBackground to set the background color of empty editor groups."));
-
 export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBackground', {
 	dark: null,
 	light: null,
@@ -248,6 +242,12 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	light: Color.fromHex('#2677CB').transparent(0.18),
 	hc: null
 }, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
+
+export const SIDE_BY_SIDE_EDITOR_BORDER = registerColor('sideBySideEditor.border', {
+	dark: EDITOR_GROUP_BORDER,
+	light: EDITOR_GROUP_BORDER,
+	hc: EDITOR_GROUP_BORDER
+}, localize('sideBySideEditor.border', "Color to separate two editors from each other when shown side by side in an editor group."));
 
 // < --- Panels --- >
 
@@ -423,6 +423,19 @@ export const STATUS_BAR_ERROR_ITEM_FOREGROUND = registerColor('statusBarItem.err
 	light: Color.white,
 	hc: Color.white,
 }, localize('statusBarErrorItemForeground', "Status bar error items foreground color. Error items stand out from other status bar entries to indicate error conditions. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_WARNING_ITEM_BACKGROUND = registerColor('statusBarItem.warningBackground', {
+	dark: darken(editorWarningForeground, .4),
+	light: darken(editorWarningForeground, .4),
+	hc: null,
+}, localize('statusBarWarningItemBackground', "Status bar warning items background color. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_WARNING_ITEM_FOREGROUND = registerColor('statusBarItem.warningForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white,
+}, localize('statusBarWarningItemForeground', "Status bar warning items foreground color. Warning items stand out from other status bar entries to indicate warning conditions. The status bar is shown in the bottom of the window."));
+
 
 // < --- Activity Bar --- >
 

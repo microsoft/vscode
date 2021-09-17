@@ -6,24 +6,24 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
-import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { WorkspacesManagementMainService, IStoredWorkspace, getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { URI } from 'vs/base/common/uri';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import * as path from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { URI } from 'vs/base/common/uri';
+import * as pfs from 'vs/base/node/pfs';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
+import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceIdentifier, rewriteWorkspaceFileForNewLocation, WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 flakySuite('WorkspacesManagementMainService', () => {
 
@@ -225,6 +225,29 @@ flakySuite('WorkspacesManagementMainService', () => {
 		assert.ok(!(<IRawFileWorkspaceFolder>ws.folders[1]).name);
 	});
 
+	test('resolveWorkspace', async () => {
+		const workspace = await createUntitledWorkspace([cwd, tmpDir]);
+		assert.ok(await service.resolveLocalWorkspace(workspace.configPath));
+
+		// make it a valid workspace path
+		const newPath = path.join(path.dirname(workspace.configPath.fsPath), `workspace.${WORKSPACE_EXTENSION}`);
+		fs.renameSync(workspace.configPath.fsPath, newPath);
+		workspace.configPath = URI.file(newPath);
+
+		const resolved = await service.resolveLocalWorkspace(workspace.configPath);
+		assert.strictEqual(2, resolved!.folders.length);
+		assertEqualURI(resolved!.configPath, workspace.configPath);
+		assert.ok(resolved!.id);
+		fs.writeFileSync(workspace.configPath.fsPath, JSON.stringify({ something: 'something' })); // invalid workspace
+
+		const resolvedInvalid = await service.resolveLocalWorkspace(workspace.configPath);
+		assert.ok(!resolvedInvalid);
+
+		fs.writeFileSync(workspace.configPath.fsPath, JSON.stringify({ transient: true, folders: [] })); // transient worksapce
+		const resolvedTransient = await service.resolveLocalWorkspace(workspace.configPath);
+		assert.ok(resolvedTransient?.transient);
+	});
+
 	test('resolveWorkspaceSync', async () => {
 		const workspace = await createUntitledWorkspace([cwd, tmpDir]);
 		assert.ok(service.resolveLocalWorkspaceSync(workspace.configPath));
@@ -242,6 +265,10 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		const resolvedInvalid = service.resolveLocalWorkspaceSync(workspace.configPath);
 		assert.ok(!resolvedInvalid);
+
+		fs.writeFileSync(workspace.configPath.fsPath, JSON.stringify({ transient: true, folders: [] })); // transient worksapce
+		const resolvedTransient = service.resolveLocalWorkspaceSync(workspace.configPath);
+		assert.ok(resolvedTransient?.transient);
 	});
 
 	test('resolveWorkspaceSync (support relative paths)', async () => {
@@ -392,41 +419,5 @@ flakySuite('WorkspacesManagementMainService', () => {
 		service.deleteUntitledWorkspaceSync(untitledOne);
 		untitled = service.getUntitledWorkspacesSync();
 		assert.strictEqual(0, untitled.length);
-	});
-
-	test('getSingleWorkspaceIdentifier', async function () {
-		const nonLocalUri = URI.parse('myscheme://server/work/p/f1');
-		const nonLocalUriId = getSingleFolderWorkspaceIdentifier(nonLocalUri);
-		assert.ok(nonLocalUriId?.id);
-
-		const localNonExistingUri = URI.file(path.join(testDir, 'f1'));
-		const localNonExistingUriId = getSingleFolderWorkspaceIdentifier(localNonExistingUri);
-		assert.ok(!localNonExistingUriId);
-
-		fs.mkdirSync(path.join(testDir, 'f1'));
-
-		const localExistingUri = URI.file(path.join(testDir, 'f1'));
-		const localExistingUriId = getSingleFolderWorkspaceIdentifier(localExistingUri);
-		assert.ok(localExistingUriId?.id);
-	});
-
-	test('workspace identifiers are stable', function () {
-
-		// workspace identifier (local)
-		assert.strictEqual(getWorkspaceIdentifier(URI.file('/hello/test')).id, isWindows  /* slash vs backslash */ ? '9f3efb614e2cd7924e4b8076e6c72233' : 'e36736311be12ff6d695feefe415b3e8');
-
-		// single folder identifier (local)
-		const fakeStat = {
-			ino: 1611312115129,
-			birthtimeMs: 1611312115129,
-			birthtime: new Date(1611312115129)
-		};
-		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.file('/hello/test'), fakeStat as fs.Stats)?.id, isWindows /* slash vs backslash */ ? '9a8441e897e5174fa388bc7ef8f7a710' : '1d726b3d516dc2a6d343abf4797eaaef');
-
-		// workspace identifier (remote)
-		assert.strictEqual(getWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test')).id, '786de4f224d57691f218dc7f31ee2ee3');
-
-		// single folder identifier (remote)
-		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test'))?.id, '786de4f224d57691f218dc7f31ee2ee3');
 	});
 });

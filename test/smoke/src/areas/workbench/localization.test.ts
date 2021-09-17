@@ -10,45 +10,33 @@ import { afterSuite, beforeSuite } from '../../utils';
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Localization', () => {
 		beforeSuite(opts);
-
-		before(async function () {
-			const app = this.app as Application;
-
-			// Don't run the localization tests in dev or remote.
-			if (app.quality === Quality.Dev || app.remote) {
-				return;
-			}
-
-			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
-
-			await app.restart({ extraArgs: ['--locale=DE'] });
-		});
-
-		afterSuite();
+		afterSuite(opts);
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 			const app = this.app as Application;
 
 			if (app.quality === Quality.Dev || app.remote) {
-				this.skip();
-				return;
+				return this.skip();
 			}
 
-			// await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
+			await app.workbench.extensions.openExtensionsViewlet();
+			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
+			await app.restart({ extraArgs: ['--locale=DE'] });
 
-			await app.workbench.search.openSearchViewlet();
-			await app.workbench.search.waitForTitle(title => /suchen/i.test(title));
+			const result = await app.workbench.localization.getLocalizedStrings();
+			const localeInfo = await app.workbench.localization.getLocaleInfo();
 
-			// await app.workbench.scm.openSCMViewlet();
-			// await app.workbench.scm.waitForTitle(title => /quellcodeverwaltung/i.test(title));
+			if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
+				throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
+			}
 
-			// See https://github.com/microsoft/vscode/issues/93462
-			// await app.workbench.debug.openDebugViewlet();
-			// await app.workbench.debug.waitForTitle(title => /starten/i.test(title));
+			if (localeInfo.language.toLowerCase() !== 'de') {
+				throw new Error(`The UI language is not German. It is ${localeInfo.language}`);
+			}
 
-			// await app.workbench.extensions.openExtensionsViewlet();
-			// await app.workbench.extensions.waitForTitle(title => /extensions/i.test(title));
+			if (result.open.toLowerCase() !== 'öffnen' || result.close.toLowerCase() !== 'schließen' || result.find.toLowerCase() !== 'finden') {
+				throw new Error(`Received wrong German localized strings: ${JSON.stringify(result, undefined, 0)}`);
+			}
 		});
 	});
 }

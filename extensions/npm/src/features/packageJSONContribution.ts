@@ -96,7 +96,7 @@ export class PackageJSONContribution implements IJSONContribution {
 				queryUrl = `https://registry.npmjs.org/-/v1/search?size=${LIMIT}&text=${encodeURIComponent(currentWord)}`;
 				return this.xhr({
 					url: queryUrl,
-					agent: USER_AGENT
+					headers: { agent: USER_AGENT }
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
@@ -156,7 +156,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			let queryUrl = `https://registry.npmjs.com/-/v1/search?text=scope:${scope}%20${name}&size=250`;
 			return this.xhr({
 				url: queryUrl,
-				agent: USER_AGENT
+				headers: { agent: USER_AGENT }
 			}).then((success) => {
 				if (success.status === 200) {
 					try {
@@ -235,7 +235,13 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && !item.documentation) {
-			return this.fetchPackageInfo(item.label, resource).then(info => {
+
+			let name = item.label;
+			if (typeof name !== 'string') {
+				name = name.label;
+			}
+
+			return this.fetchPackageInfo(name, resource).then(info => {
 				if (info) {
 					item.documentation = this.getDocumentation(info.description, info.version, info.homepage);
 					return item;
@@ -305,7 +311,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		try {
 			const success = await this.xhr({
 				url: queryUrl,
-				agent: USER_AGENT
+				headers: { agent: USER_AGENT }
 			});
 			const obj = JSON.parse(success.responseText);
 			return {

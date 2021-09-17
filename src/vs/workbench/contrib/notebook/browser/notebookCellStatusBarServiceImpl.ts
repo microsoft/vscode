@@ -13,10 +13,10 @@ import { INotebookCellStatusBarItemList, INotebookCellStatusBarItemProvider } fr
 
 export class NotebookCellStatusBarService extends Disposable implements INotebookCellStatusBarService {
 
-	private _onDidChangeProviders = new Emitter<void>();
+	private _onDidChangeProviders = this._register(new Emitter<void>());
 	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
 
-	private _onDidChangeItems = new Emitter<void>();
+	private _onDidChangeItems = this._register(new Emitter<void>());
 	readonly onDidChangeItems: Event<void> = this._onDidChangeItems.event;
 
 	private _providers: INotebookCellStatusBarItemProvider[] = [];

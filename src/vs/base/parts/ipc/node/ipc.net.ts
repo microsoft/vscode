@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { Socket, Server as NetServer, createConnection, createServer } from 'net';
-import * as zlib from 'zlib';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
-import { join } from 'vs/base/common/path';
+import { createConnection, createServer, Server as NetServer, Socket } from 'net';
 import { tmpdir } from 'os';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ISocket, Protocol, Client, ChunkStream, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { join } from 'vs/base/common/path';
 import { Platform, platform } from 'vs/base/common/platform';
+import { generateUuid } from 'vs/base/common/uuid';
+import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
+import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import * as zlib from 'zlib';
 
 export class NodeSocket implements ISocket {
 
@@ -230,7 +230,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		this._recordInflateBytes = recordInflateBytes;
 		if (permessageDeflate) {
 			// See https://tools.ietf.org/html/rfc7692#page-16
-			// To simplify our logic, we don't negociate the window size
+			// To simplify our logic, we don't negotiate the window size
 			// and simply dedicate (2^15) / 32kb per web socket
 			this._zlibInflate = zlib.createInflateRaw({
 				windowBits: 15

@@ -51,8 +51,8 @@ suite('Untitled text editors', () => {
 		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		assert.strictEqual(service.get(input2.resource), input2.model);
 
-		// asResourceEditorInput()
-		const untypedInput = input1.asResourceEditorInput(0);
+		// toUntyped()
+		const untypedInput = input1.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(untypedInput.forceUntitled, true);
 
 		// get()
@@ -81,8 +81,11 @@ suite('Untitled text editors', () => {
 
 		assert.ok(input2.isDirty());
 
-		const dirtyUntypedInput = input2.asResourceEditorInput(0);
+		const dirtyUntypedInput = input2.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(dirtyUntypedInput.contents, 'foo bar');
+
+		const dirtyUntypedInputWithoutContent = input2.toUntyped();
+		assert.strictEqual(dirtyUntypedInputWithoutContent.contents, undefined);
 
 		assert.ok(workingCopyService.isDirty(input2.resource));
 		assert.strictEqual(workingCopyService.dirtyCount, 1);
@@ -276,7 +279,6 @@ suite('Untitled text editors', () => {
 		const service = accessor.untitledTextEditorService;
 		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create({ mode }));
 
-		assert.ok(input.model.hasModeSetExplicitly);
 		assert.strictEqual(input.getMode(), mode);
 
 		const model = await input.resolve();

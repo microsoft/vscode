@@ -20,7 +20,8 @@ import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor'
 import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IExtHostContext, IModelAddedData, ITextEditorAddData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { editorGroupToViewColumn, EditorGroupColumn, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -252,11 +253,14 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	private _getActiveEditorFromPanel(): IEditor | undefined {
 		const panel = this._panelService.getActivePanel();
-		if (panel instanceof BaseTextEditor && isCodeEditor(panel.getControl())) {
-			return panel.getControl();
-		} else {
-			return undefined;
+		if (panel instanceof BaseTextEditor) {
+			const control = panel.getControl();
+			if (isCodeEditor(control)) {
+				return control;
+			}
 		}
+
+		return undefined;
 	}
 
 	private _getActiveEditorFromEditorPart(): IEditor | undefined {
@@ -412,7 +416,7 @@ export class MainThreadDocumentsAndEditors {
 	private _findEditorPosition(editor: MainThreadTextEditor): EditorGroupColumn | undefined {
 		for (const editorPane of this._editorService.visibleEditorPanes) {
 			if (editor.matches(editorPane)) {
-				return editorGroupToViewColumn(this._editorGroupService, editorPane.group);
+				return editorGroupToColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		return undefined;

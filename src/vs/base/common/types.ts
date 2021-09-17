@@ -287,6 +287,10 @@ export function NotImplementedProxy<T>(name: string): { new(): T } {
 	};
 }
 
-export function assertNever(value: never) {
-	throw new Error('Unreachable');
+export function assertNever(value: never, message = 'Unreachable') {
+	throw new Error(message);
+}
+
+export function isPromise<T>(obj: unknown): obj is Promise<T> {
+	return !!obj && typeof (obj as Promise<T>).then === 'function' && typeof (obj as Promise<T>).catch === 'function';
 }

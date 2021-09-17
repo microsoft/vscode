@@ -6,35 +6,12 @@
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletionsProvider, InlineCompletion, InlineCompletionContext } from 'vs/editor/common/modes';
-import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
+import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/modes';
+import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-
-export function renderGhostTextToText(ghostText: GhostText, text: string): string;
-export function renderGhostTextToText(ghostText: GhostText | undefined, text: string): string | undefined;
-export function renderGhostTextToText(ghostText: GhostText | undefined, text: string): string | undefined {
-	if (!ghostText) {
-		return undefined;
-	}
-	const l = ghostText.lineNumber;
-	const tempModel = createTextModel(text);
-	tempModel.applyEdits(
-		[
-			...ghostText.parts.map(p => ({ range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column }, text: `[${p.text}]` })),
-			...(ghostText.additionalLines.length > 0 ? [{
-				range: { startLineNumber: l, endLineNumber: l, startColumn: tempModel.getLineMaxColumn(l), endColumn: tempModel.getLineMaxColumn(l) },
-				text: `{${ghostText.additionalLines.map(s => '\n' + s).join('')}}`
-			}] : [])
-		]
-	);
-	const value = tempModel.getValue();
-	tempModel.dispose();
-	return value;
-}
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -114,7 +91,7 @@ export class GhostTextContext extends Disposable {
 		const ghostText = this.model?.ghostText;
 		let view: string | undefined;
 		if (ghostText) {
-			view = renderGhostTextToText(ghostText, this.editor.getValue());
+			view = ghostText.render(this.editor.getValue(), true);
 		} else {
 			view = this.editor.getValue();
 		}
@@ -133,6 +110,26 @@ export class GhostTextContext extends Disposable {
 
 	public keyboardType(text: string): void {
 		this.editor.trigger('keyboard', 'type', { text });
+	}
+
+	public cursorUp(): void {
+		CoreNavigationCommands.CursorUp.runEditorCommand(null, this.editor, null);
+	}
+
+	public cursorRight(): void {
+		CoreNavigationCommands.CursorRight.runEditorCommand(null, this.editor, null);
+	}
+
+	public cursorLeft(): void {
+		CoreNavigationCommands.CursorLeft.runEditorCommand(null, this.editor, null);
+	}
+
+	public cursorDown(): void {
+		CoreNavigationCommands.CursorDown.runEditorCommand(null, this.editor, null);
+	}
+
+	public cursorLineEnd(): void {
+		CoreNavigationCommands.CursorLineEnd.runEditorCommand(null, this.editor, null);
 	}
 
 	public leftDelete(): void {

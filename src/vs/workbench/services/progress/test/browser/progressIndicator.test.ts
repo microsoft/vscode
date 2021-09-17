@@ -8,12 +8,12 @@ import { IEditorControl } from 'vs/workbench/common/editor';
 import { CompositeScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IViewlet } from 'vs/workbench/common/viewlet';
 import { TestViewletService, TestPanelService, TestViewsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { IView, IViewPaneContainer, IViewsService } from 'vs/workbench/common/views';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
-class TestViewlet implements IViewlet {
+class TestViewlet implements IPaneComposite {
 
 	constructor(private id: string) { }
 

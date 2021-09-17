@@ -42,6 +42,7 @@ export interface IProductConfiguration {
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
 	readonly applicationName: string;
+	readonly embedderIdentifier?: string;
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
@@ -51,6 +52,7 @@ export interface IProductConfiguration {
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
 	readonly webEndpointUrl?: string;
+	readonly webEndpointUrlTemplate?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
@@ -68,6 +70,7 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly itemUrl: string;
+		readonly resourceUrlTemplate: string;
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
 	};
@@ -125,6 +128,7 @@ export interface IProductConfiguration {
 	readonly portable?: string;
 
 	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
+	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[]; };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };

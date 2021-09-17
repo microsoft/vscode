@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions, FileChangeType, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { isSafari } from 'vs/base/browser/browser';
 import { Throttler } from 'vs/base/common/async';
-import { localize } from 'vs/nls';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isIOS } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
+import { isString } from 'vs/base/common/types';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
 export const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
@@ -33,12 +37,12 @@ export class IndexedDB {
 		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
 	}
 
-	async createFileSystemProvider(scheme: string, store: string): Promise<IIndexedDBFileSystemProvider | null> {
+	async createFileSystemProvider(scheme: string, store: string, watchCrossWindowChanges: boolean): Promise<IIndexedDBFileSystemProvider | null> {
 		let fsp: IIndexedDBFileSystemProvider | null = null;
 		const indexedDB = await this.indexedDBPromise;
 		if (indexedDB) {
 			if (indexedDB.objectStoreNames.contains(store)) {
-				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store);
+				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store, watchCrossWindowChanges);
 			} else {
 				console.error(`Error while creating indexedDB filesystem provider. Could not find ${store} object store`);
 			}
@@ -205,6 +209,78 @@ class IndexedDBFileSystemNode {
 	}
 }
 
+type FileChangeDto = {
+	readonly type: FileChangeType;
+	readonly resource: UriComponents;
+};
+
+class IndexedDBChangesBroadcastChannel extends Disposable {
+
+	private broadcastChannel: BroadcastChannel | undefined;
+
+	private readonly _onDidFileChanges = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidFileChanges: Event<readonly IFileChange[]> = this._onDidFileChanges.event;
+
+	constructor(private readonly changesKey: string) {
+		super();
+
+		// BroadcastChannel is not supported. Use storage.
+		if (isSafari || isIOS) {
+			this.createStorageBroadcastChannel(changesKey);
+		}
+
+		// Use BroadcastChannel
+		else {
+			try {
+				this.broadcastChannel = new BroadcastChannel(changesKey);
+				const listener = (event: MessageEvent) => {
+					if (isString(event.data)) {
+						this.onDidReceiveChanges(event.data);
+					}
+				};
+				this.broadcastChannel.addEventListener('message', listener);
+				this._register(toDisposable(() => {
+					if (this.broadcastChannel) {
+						this.broadcastChannel.removeEventListener('message', listener);
+						this.broadcastChannel.close();
+					}
+				}));
+			} catch (error) {
+				console.warn('Error while creating broadcast channel. Falling back to localStorage.', getErrorMessage(error));
+				this.createStorageBroadcastChannel(changesKey);
+			}
+		}
+	}
+
+	private createStorageBroadcastChannel(changesKey: string): void {
+		const listener = (event: StorageEvent) => {
+			if (event.key === changesKey && event.newValue) {
+				this.onDidReceiveChanges(event.newValue);
+			}
+		};
+		window.addEventListener('storage', listener);
+		this._register(toDisposable(() => window.removeEventListener('storage', listener)));
+	}
+
+	private onDidReceiveChanges(data: string): void {
+		try {
+			const changesDto: FileChangeDto[] = JSON.parse(data);
+			this._onDidFileChanges.fire(changesDto.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
+		} catch (error) {/* ignore*/ }
+	}
+
+	postChanges(changes: IFileChange[]): void {
+		if (this.broadcastChannel) {
+			this.broadcastChannel.postMessage(JSON.stringify(changes));
+		} else {
+			// remove previous changes so that event is triggered even if new changes are same as old changes
+			window.localStorage.removeItem(this.changesKey);
+			window.localStorage.setItem(this.changesKey, JSON.stringify(changes));
+		}
+	}
+
+}
+
 class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities =
@@ -212,18 +288,23 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		| FileSystemProviderCapabilities.PathCaseSensitive;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
+	private readonly changesBroadcastChannel: IndexedDBChangesBroadcastChannel | undefined;
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
-	private readonly versions: Map<string, number> = new Map<string, number>();
+	private readonly versions = new Map<string, number>();
 
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
 
-	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
+	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string, watchCrossWindowChanges: boolean) {
 		super();
 		this.writeManyThrottler = new Throttler();
 
+		if (watchCrossWindowChanges) {
+			this.changesBroadcastChannel = this._register(new IndexedDBChangesBroadcastChannel(`vscode.indexedDB.${scheme}.changes`));
+			this._register(this.changesBroadcastChannel.onDidFileChanges(changes => this._onDidChangeFile.fire(changes)));
+		}
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -317,7 +398,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		await this.writeManyThrottler.queue(() => this.writeMany());
 		(await this.getFiletree()).add(resource.path, { type: 'file', size: content.byteLength });
 		this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
-		this._onDidChangeFile.fire([{ resource, type: FileChangeType.UPDATED }]);
+		this.triggerChanges([{ resource, type: FileChangeType.UPDATED }]);
 	}
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
@@ -344,7 +425,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		await this.deleteKeys(toDelete);
 		(await this.getFiletree()).delete(resource.path);
 		toDelete.forEach(key => this.versions.delete(key));
-		this._onDidChangeFile.fire(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
+		this.triggerChanges(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
 	}
 
 	private async tree(resource: URI): Promise<DirEntry[]> {
@@ -369,6 +450,16 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
 		return Promise.reject(new Error('Not Supported'));
+	}
+
+	private triggerChanges(changes: IFileChange[]): void {
+		if (changes.length) {
+			this._onDidChangeFile.fire(changes);
+
+			if (this.changesBroadcastChannel) {
+				this.changesBroadcastChannel.postChanges(changes);
+			}
+		}
 	}
 
 	private getFiletree(): Promise<IndexedDBFileSystemNode> {

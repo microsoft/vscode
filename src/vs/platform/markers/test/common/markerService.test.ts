@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import * as markerService from 'vs/platform/markers/common/markerService';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import * as markerService from 'vs/platform/markers/common/markerService';
 
 function randomMarkerData(severity = MarkerSeverity.Error): IMarkerData {
 	return {

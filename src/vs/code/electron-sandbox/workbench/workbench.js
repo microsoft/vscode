@@ -35,7 +35,7 @@
 			configureDeveloperSettings: function (windowConfig) {
 				return {
 					// disable automated devtools opening on error when running extension tests
-					// as this can lead to undeterministic test exectuion (devtools steals focus)
+					// as this can lead to nondeterministic test execution (devtools steals focus)
 					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string',
 					// enable devtools keybindings in extension development window
 					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath) && windowConfig.extensionDevelopmentPath.length > 0,
@@ -67,23 +67,6 @@
 			}
 		}
 	);
-
-	// add default trustedTypes-policy for logging and to workaround
-	// lib/platform limitations
-	window.trustedTypes?.createPolicy('default', {
-		createHTML(value) {
-			// see https://github.com/electron/electron/issues/27211
-			// Electron webviews use a static innerHTML default value and
-			// that isn't trusted. We use a default policy to check for the
-			// exact value of that innerHTML-string and only allow that.
-			if (value === '<!DOCTYPE html><style type="text/css">:host { display: flex; }</style>') {
-				return value;
-			}
-			throw new Error('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
-			// console.trace('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
-			// return value;
-		}
-	});
 
 	//#region Helpers
 

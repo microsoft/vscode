@@ -9,6 +9,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -20,15 +21,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -75,7 +78,7 @@ export class CellOutputElement extends Disposable {
 	private readonly contextKeyService: IContextKeyService;
 
 	constructor(
-		private notebookEditor: INotebookEditor,
+		private notebookEditor: INotebookEditorDelegate,
 		private viewCell: CodeCellViewModel,
 		private outputContainer: HTMLElement,
 		readonly output: ICellOutputViewModel,
@@ -85,6 +88,7 @@ export class CellOutputElement extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IViewletService private readonly viewletService: IViewletService,
 	) {
 		super();
 
@@ -207,7 +211,7 @@ export class CellOutputElement extends Disposable {
 			return undefined;
 		}
 
-		const notebookTextModel = this.notebookEditor.viewModel.notebookDocument;
+		const notebookTextModel = this.notebookEditor.textModel;
 
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.preloadProvides);
 
@@ -328,20 +332,20 @@ export class CellOutputElement extends Disposable {
 
 		const toolbar = this._renderDisposableStore.add(new ToolBar(mimeTypePicker, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: false
 		}));
 		toolbar.context = <INotebookCellActionContext>{
 			ui: true,
 			cell: this.output.cellViewModel as ICellViewModel,
 			notebookEditor: this.notebookEditor,
-			$mid: 12
+			$mid: MarshalledId.NotebookCellActionContext
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose a different output mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
+		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose Output Mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
 			async _context => this._pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
 		if (index === 0 && useConsolidatedButton) {
-			const menu = this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService);
+			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
 			const updateMenuToolbar = () => {
 				const primary: IAction[] = [];
 				const secondary: IAction[] = [];
@@ -360,10 +364,14 @@ export class CellOutputElement extends Disposable {
 	private async _pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
 		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.preloadProvides);
 
-		let items: IMimeTypeRenderer[] = [];
+		const items: IMimeTypeRenderer[] = [];
+		const unsupportedItems: IMimeTypeRenderer[] = [];
 		mimeTypes.forEach((mimeType, index) => {
 			if (mimeType.isTrusted) {
-				items.push({
+				const arr = mimeType.rendererId === RENDERER_NOT_AVAILABLE ?
+					unsupportedItems :
+					items;
+				arr.push({
 					label: mimeType.mimeType,
 					id: mimeType.mimeType,
 					index: index,
@@ -374,11 +382,23 @@ export class CellOutputElement extends Disposable {
 			}
 		});
 
+		if (unsupportedItems.some(m => JUPYTER_RENDERER_MIMETYPES.includes(m.id!))) {
+			unsupportedItems.push({
+				label: nls.localize('installJupyterPrompt', "Install additional renderers from the marketplace"),
+				id: 'installRenderers',
+				index: mimeTypes.length
+			});
+		}
+
 		const picker = this.quickInputService.createQuickPick();
-		picker.items = items;
+		picker.items = [
+			...items,
+			{ type: 'separator' },
+			...unsupportedItems
+		];
 		picker.activeItems = items.filter(item => !!item.picked);
 		picker.placeholder = items.length !== mimeTypes.length
-			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output. Rich mimetypes are available only when the notebook is trusted")
+			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output")
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
 		const pick = await new Promise<IMimeTypeRenderer | undefined>(resolve => {
@@ -390,6 +410,11 @@ export class CellOutputElement extends Disposable {
 		});
 
 		if (pick === undefined || pick.index === currIndex) {
+			return;
+		}
+
+		if (pick.id === 'installRenderers') {
+			this._showJupyterExtension();
 			return;
 		}
 
@@ -412,6 +437,12 @@ export class CellOutputElement extends Disposable {
 		this._relayoutCell();
 	}
 
+	private async _showJupyterExtension() {
+		const viewlet = await this.viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
+	}
+
 	private _generateRendererInfo(renderId: string | undefined): string {
 		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
 			return nls.localize('builtinRenderInfo', "built-in");
@@ -424,7 +455,7 @@ export class CellOutputElement extends Disposable {
 			return `${displayName} (${renderInfo.extensionId.value})`;
 		}
 
-		return nls.localize('builtinRenderInfo', "built-in");
+		return nls.localize('unavailableRenderInfo', "renderer not available");
 	}
 
 	private _outputHeightTimer: any = null;
@@ -456,6 +487,10 @@ export class CellOutputElement extends Disposable {
 			clearTimeout(this._outputHeightTimer);
 		}
 
+		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
+			this.renderResult.disposable?.dispose();
+		}
+
 		super.dispose();
 	}
 }
@@ -477,9 +512,9 @@ export class CellOutputContainer extends Disposable {
 	}
 
 	constructor(
-		private notebookEditor: INotebookEditor,
+		private notebookEditor: INotebookEditorDelegate,
 		private viewCell: CodeCellViewModel,
-		private templateData: CodeCellRenderTemplate,
+		private readonly templateData: CodeCellRenderTemplate,
 		private options: { limit: number; },
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -533,7 +568,7 @@ export class CellOutputContainer extends Disposable {
 
 		this.templateData.outputShowMoreContainer.innerText = '';
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
@@ -738,7 +773,7 @@ export class CellOutputContainer extends Disposable {
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
 			DOM.show(this.templateData.outputShowMoreContainer);
 			if (!this.templateData.outputShowMoreContainer.hasChildNodes()) {
-				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 			}
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {
@@ -754,28 +789,29 @@ export class CellOutputContainer extends Disposable {
 		this._validateFinalOutputHeight(!outputHasDynamicHeight || this.viewCell.outputsViewModels.length === 0);
 	}
 
-	private _generateShowMoreElement(): any {
+	private _generateShowMoreElement(disposables: DisposableStore): HTMLElement {
 		const md: IMarkdownString = {
 			value: `There are more than ${this.options.limit} outputs, [show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)`,
 			isTrusted: true,
 			supportThemeIcons: true
 		};
 
-		const element = renderMarkdown(md, {
+		const rendered = renderMarkdown(md, {
 			actionHandler: {
 				callback: (content) => {
 					if (content === 'command:workbench.action.openLargeOutput') {
-						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.viewModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
+						this.openerService.open(CellUri.generateCellUri(this.notebookEditor.textModel!.uri, this.viewCell.handle, Schemas.vscodeNotebookCellOutput));
 					}
 
 					return;
 				},
-				disposeables: new DisposableStore()
+				disposables
 			}
 		});
+		disposables.add(rendered);
 
-		element.classList.add('output-show-more');
-		return element;
+		rendered.element.classList.add('output-show-more');
+		return rendered.element;
 	}
 
 	private _relayoutCell() {
@@ -796,3 +832,24 @@ export class CellOutputContainer extends Disposable {
 		super.dispose();
 	}
 }
+
+const JUPYTER_RENDERER_MIMETYPES = [
+	'application/geo+json',
+	'application/vdom.v1+json',
+	'application/vnd.dataresource+json',
+	'application/vnd.plotly.v1+json',
+	'application/vnd.vega.v2+json',
+	'application/vnd.vega.v3+json',
+	'application/vnd.vega.v4+json',
+	'application/vnd.vega.v5+json',
+	'application/vnd.vegalite.v1+json',
+	'application/vnd.vegalite.v2+json',
+	'application/vnd.vegalite.v3+json',
+	'application/vnd.vegalite.v4+json',
+	'application/x-nteract-model-debug+json',
+	'image/svg+xml',
+	'text/latex',
+	'text/vnd.plotly.v1+html',
+	'application/vnd.jupyter.widget-view+json',
+	'application/vnd.code.notebook.error'
+];

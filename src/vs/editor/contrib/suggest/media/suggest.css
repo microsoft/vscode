@@ -155,8 +155,6 @@
 
 /** signature, qualifier, type/details opacity **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.signature-label,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.qualifier-label,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label {
 	opacity: 0.7;
 }
@@ -164,12 +162,14 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.signature-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	opacity: 0.6;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.qualifier-label {
-	margin-left: 4px;
+	margin-left: 12px;
 	opacity: 0.4;
-	font-size: 90%;
+	font-size: 85%;
+	line-height: initial;
 	text-overflow: ellipsis;
 	overflow: hidden;
 	align-self: center;
@@ -178,6 +178,7 @@
 /** Type Info and icon next to the label in the focused completion item **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label {
+	font-size: 85%;
 	margin-left: 1.1em;
 	overflow: hidden;
 	text-overflow: ellipsis;

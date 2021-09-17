@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
 import { gt } from 'vs/base/common/semver/semver';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { CLIOutput, IExtensionGalleryService, IExtensionManagementCLIService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
+
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, e.g.: {0}", 'ms-dotnettools.csharp');
@@ -199,23 +199,11 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 	}
 
 	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
-		const extensionIds = extensions.filter(({ version }) => version === undefined).map(({ id }) => id);
-		const extensionsWithIdAndVersion = extensions.filter(({ version }) => version !== undefined);
-
 		const galleryExtensions = new Map<string, IGalleryExtension>();
-		await Promise.all([
-			(async () => {
-				const result = await this.extensionGalleryService.getExtensions(extensionIds, CancellationToken.None);
-				result.forEach(extension => galleryExtensions.set(extension.identifier.id.toLowerCase(), extension));
-			})(),
-			Promise.all(extensionsWithIdAndVersion.map(async ({ id, version }) => {
-				const extension = await this.extensionGalleryService.getCompatibleExtension({ id }, version);
-				if (extension) {
-					galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
-				}
-			}))
-		]);
-
+		const result = await this.extensionGalleryService.getExtensions(extensions, CancellationToken.None);
+		for (const extension of result) {
+			galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
+		}
 		return galleryExtensions;
 	}
 
@@ -241,7 +229,7 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 				output.log(version ? localize('installing with version', "Installing extension '{0}' v{1}...", id, version) : localize('installing', "Installing extension '{0}'...", id));
 			}
 
-			await this.extensionManagementService.installFromGallery(galleryExtension, installOptions);
+			await this.extensionManagementService.installFromGallery(galleryExtension, { ...installOptions, installGivenVersion: !!version });
 			output.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, galleryExtension.version));
 			return manifest;
 		} catch (error) {

@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
-import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, hasFileReadStreamCapability, IFileSystemProviderWithFileReadStreamCapability, ensureFileSystemProviderError, IFileSystemProviderCapabilitiesChangeEvent, IReadFileStreamOptions, FileDeleteOptions, FilePermission, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
+import { coalesce } from 'vs/base/common/arrays';
+import { Promises, ResourceQueue, ThrottledWorker } from 'vs/base/common/async';
+import { bufferedStreamToBuffer, bufferToReadable, newWriteableBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableBufferedStream, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { IExtUri, extUri, extUriIgnorePathCase, isAbsolutePath } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
-import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream, listenStream, consumeStream } from 'vs/base/common/stream';
-import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
-import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { Iterable } from 'vs/base/common/iterator';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { mark } from 'vs/base/common/performance';
+import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/common/resources';
+import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileChange, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IRawFileChangesEvent, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveFileResult, IResolveFileResultWithMetadata, IResolveMetadataFileOptions, IStat, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { readFileIntoStream } from 'vs/platform/files/common/io';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -57,7 +57,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Forward events from provider
 		const providerDisposables = new DisposableStore();
-		providerDisposables.add(provider.onDidChangeFile(changes => this._onDidFilesChange.fire(new FileChangesEvent(changes, !this.isPathCaseSensitive(provider)))));
+		providerDisposables.add(provider.onDidChangeFile(changes => this.onDidChangeFile(changes, this.isPathCaseSensitive(provider))));
 		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
 		if (typeof provider.onDidErrorOccur === 'function') {
 			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(new Error(error))));
@@ -200,13 +200,15 @@ export class FileService extends Disposable implements IFileService {
 			if (!trie) {
 				trie = TernarySearchTree.forUris<true>(() => !isPathCaseSensitive);
 				trie.set(resource, true);
-				if (isNonEmptyArray(resolveTo)) {
-					resolveTo.forEach(uri => trie!.set(uri, true));
+				if (resolveTo) {
+					for (const uri of resolveTo) {
+						trie.set(uri, true);
+					}
 				}
 			}
 
 			// check for recursive resolving
-			if (Boolean(trie.findSuperstr(stat.resource) || trie.get(stat.resource))) {
+			if (trie.get(stat.resource) || trie.findSuperstr(stat.resource.with({ query: null, fragment: null } /* required for https://github.com/microsoft/vscode/issues/128151 */))) {
 				return true;
 			}
 
@@ -418,7 +420,7 @@ export class FileService extends Disposable implements IFileService {
 		// but to the same length. This is a compromise we take to avoid having to produce checksums of
 		// the file content for comparison which would be much slower to compute.
 		if (
-			options && typeof options.mtime === 'number' && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED &&
+			typeof options?.mtime === 'number' && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED &&
 			typeof stat.mtime === 'number' && typeof stat.size === 'number' &&
 			options.mtime < stat.mtime && options.etag !== etag({ mtime: options.mtime /* not using stat.mtime for a reason, see above */, size: stat.size })
 		) {
@@ -496,7 +498,7 @@ export class FileService extends Disposable implements IFileService {
 			// due to the likelihood of hitting a NOT_MODIFIED_SINCE result.
 			// otherwise, we let it run in parallel to the file reading for
 			// optimal startup performance.
-			if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED) {
+			if (typeof options?.etag === 'string' && options.etag !== ETAG_DISABLED) {
 				await statPromise;
 			}
 
@@ -572,12 +574,12 @@ export class FileService extends Disposable implements IFileService {
 				let buffer = await provider.readFile(resource);
 
 				// respect position option
-				if (options && typeof options.position === 'number') {
+				if (typeof options?.position === 'number') {
 					buffer = buffer.slice(options.position);
 				}
 
 				// respect length option
-				if (options && typeof options.length === 'number') {
+				if (typeof options?.length === 'number') {
 					buffer = buffer.slice(0, options.length);
 				}
 
@@ -604,7 +606,7 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		// Throw if file not modified since (unless disabled)
-		if (options && typeof options.etag === 'string' && options.etag !== ETAG_DISABLED && options.etag === stat.etag) {
+		if (typeof options?.etag === 'string' && options.etag !== ETAG_DISABLED && options.etag === stat.etag) {
 			throw new NotModifiedSinceFileOperationError(localize('fileNotModifiedError', "File not modified since"), stat, options);
 		}
 
@@ -965,29 +967,154 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Watching
 
+	/**
+	 * Providers can send unlimited amount of `IFileChange` events
+	 * and we want to protect against this to reduce CPU pressure.
+	 * The following settings limit the amount of file changes we
+	 * process at once.
+	 * (https://github.com/microsoft/vscode/issues/124723)
+	 */
+	private static readonly FILE_EVENTS_THROTTLING = {
+		maxChangesChunkSize: 500 as const,		// number of changes we process per interval
+		maxChangesBufferSize: 30000 as const,  	// total number of changes we are willing to buffer in memory
+		coolDownDelay: 200 as const,	  		// rest for 100ms before processing next events
+		warningscounter: 0						// keep track how many warnings we showed to reduce log spam
+	};
+
 	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
 	readonly onDidFilesChange = this._onDidFilesChange.event;
 
+	private readonly _onDidChangeFilesRaw = this._register(new Emitter<IRawFileChangesEvent>());
+	readonly onDidChangeFilesRaw = this._onDidChangeFilesRaw.event;
+
 	private readonly activeWatchers = new Map<string, { disposable: IDisposable, count: number; }>();
 
-	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
-		let watchDisposed = false;
-		let disposeWatch = () => { watchDisposed = true; };
+	private readonly caseSensitiveFileEventsWorker = this._register(
+		new ThrottledWorker<IFileChange>(
+			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
+			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
+			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
+			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, false))
+		)
+	);
 
-		// Watch and wire in disposable which is async but
-		// check if we got disposed meanwhile and forward
-		this.doWatch(resource, options).then(disposable => {
-			if (watchDisposed) {
-				dispose(disposable);
-			} else {
-				disposeWatch = () => dispose(disposable);
+	private readonly caseInsensitiveFileEventsWorker = this._register(
+		new ThrottledWorker<IFileChange>(
+			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
+			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
+			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
+			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, true))
+		)
+	);
+
+	private onDidChangeFile(changes: readonly IFileChange[], caseSensitive: boolean): void {
+
+		// Event #1: access to raw events goes out instantly
+		{
+			this._onDidChangeFilesRaw.fire({ changes });
+		}
+
+		// Event #2: immediately send out events for
+		// explicitly watched resources by splitting
+		// changes up into 2 buckets
+		let explicitlyWatchedFileChanges: IFileChange[] | undefined = undefined;
+		let implicitlyWatchedFileChanges: IFileChange[] | undefined = undefined;
+		{
+			for (const change of changes) {
+				if (this.watchedResources.has(change.resource)) {
+					if (!explicitlyWatchedFileChanges) {
+						explicitlyWatchedFileChanges = [];
+					}
+					explicitlyWatchedFileChanges.push(change);
+				} else {
+					if (!implicitlyWatchedFileChanges) {
+						implicitlyWatchedFileChanges = [];
+					}
+					implicitlyWatchedFileChanges.push(change);
+				}
 			}
-		}, error => this.logService.error(error));
 
-		return toDisposable(() => disposeWatch());
+			if (explicitlyWatchedFileChanges) {
+				this._onDidFilesChange.fire(new FileChangesEvent(explicitlyWatchedFileChanges, !caseSensitive));
+			}
+		}
+
+		// Event #3: implicitly watched resources get
+		// throttled due to performance reasons
+		if (implicitlyWatchedFileChanges) {
+			const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
+			const worked = worker.work(implicitlyWatchedFileChanges);
+
+			if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
+				this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${implicitlyWatchedFileChanges.length}, most recent change: ${implicitlyWatchedFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			}
+
+			if (worker.pending > 0) {
+				this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${implicitlyWatchedFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			}
+		}
 	}
 
-	async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
+	private readonly watchedResources = TernarySearchTree.forUris<number>(uri => {
+		const provider = this.getProvider(uri.scheme);
+		if (provider) {
+			return !this.isPathCaseSensitive(provider);
+		}
+
+		return false;
+	});
+
+	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
+		const disposables = new DisposableStore();
+
+		// Forward watch request to provider and
+		// wire in disposables.
+		{
+			let watchDisposed = false;
+			let disposeWatch = () => { watchDisposed = true; };
+			disposables.add(toDisposable(() => disposeWatch()));
+
+			// Watch and wire in disposable which is async but
+			// check if we got disposed meanwhile and forward
+			this.doWatch(resource, options).then(disposable => {
+				if (watchDisposed) {
+					dispose(disposable);
+				} else {
+					disposeWatch = () => dispose(disposable);
+				}
+			}, error => this.logService.error(error));
+		}
+
+		// Remember as watched resource and unregister
+		// properly on disposal.
+		//
+		// Note: we only do this for non-recursive watchers
+		// until we have a better `createWatcher` based API
+		// (https://github.com/microsoft/vscode/issues/126809)
+		//
+		if (!options.recursive) {
+
+			// Increment counter for resource
+			this.watchedResources.set(resource, (this.watchedResources.get(resource) ?? 0) + 1);
+
+			// Decrement counter for resource on dispose
+			// and remove from map when last one is gone
+			disposables.add(toDisposable(() => {
+				const watchedResourceCounter = this.watchedResources.get(resource);
+				if (typeof watchedResourceCounter === 'number') {
+					if (watchedResourceCounter <= 1) {
+						this.watchedResources.delete(resource);
+					} else {
+						this.watchedResources.set(resource, watchedResourceCounter - 1);
+					}
+				}
+			}));
+		}
+
+		return disposables;
+	}
+
+	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
 		const provider = await this.withProvider(resource);
 		const key = this.toWatchKey(provider, resource, options);
 
@@ -1026,7 +1153,10 @@ export class FileService extends Disposable implements IFileService {
 	override dispose(): void {
 		super.dispose();
 
-		this.activeWatchers.forEach(watcher => dispose(watcher.disposable));
+		for (const [, watcher] of this.activeWatchers) {
+			dispose(watcher.disposable);
+		}
+
 		this.activeWatchers.clear();
 	}
 

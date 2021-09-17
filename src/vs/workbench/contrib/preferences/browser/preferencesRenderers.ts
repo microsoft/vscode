@@ -6,80 +6,56 @@
 import { EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import * as modes from 'vs/editor/common/modes';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMarkerData, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
-import { DefaultSettingsHeaderWidget, EditPreferenceWidget, SettingsGroupTitleWidget, SettingsHeaderWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { IFilterResult, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import * as modes from 'vs/editor/common/modes';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
+import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { EditPreferenceWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { ResourceMap } from 'vs/base/common/map';
-import { Selection } from 'vs/editor/common/core/selection';
 
-export interface IPreferencesRenderer<T> extends IDisposable {
-	readonly preferencesModel: IPreferencesEditorModel<T>;
-
-	getAssociatedPreferencesModel(): IPreferencesEditorModel<T>;
-	setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<T>): void;
-
-	onFocusPreference: Event<T>;
-	onClearFocusPreference: Event<T>;
-	onUpdatePreference: Event<{ key: string, value: any, source: T }>;
-
+export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
-	updatePreference(key: string, value: any, source: T): void;
-	focusPreference(setting: T): void;
-	clearFocus(setting: T): void;
-	filterPreferences(filterResult: IFilterResult | undefined): void;
-	editPreference(setting: T): boolean;
+	updatePreference(key: string, value: any, source: ISetting): void;
+	focusPreference(setting: ISetting): void;
+	clearFocus(setting: ISetting): void;
+	editPreference(setting: ISetting): boolean;
 }
 
-export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
+export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer {
 
 	private settingHighlighter: SettingHighlighter;
 	private editSettingActionRenderer: EditSettingRenderer;
-	private highlightMatchesRenderer: HighlightMatchesRenderer;
 	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
 	private associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 
-	private readonly _onFocusPreference = this._register(new Emitter<ISetting>());
-	readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
-
-	private readonly _onClearFocusPreference = this._register(new Emitter<ISetting>());
-	readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
-
-	private readonly _onUpdatePreference = this._register(new Emitter<{ key: string, value: any, source: IIndexedSetting }>());
-	readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
-
 	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
-
-	private filterResult: IFilterResult | undefined;
 
 	constructor(protected editor: ICodeEditor, readonly preferencesModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
@@ -87,41 +63,16 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
-		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
-		this.highlightMatchesRenderer = this._register(instantiationService.createInstance(HighlightMatchesRenderer, editor));
+		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor));
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
-		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this._updatePreference(key, value, source)));
+		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this.updatePreference(key, value, source)));
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 	}
 
-	getAssociatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
-		return this.associatedPreferencesModel;
-	}
-
-	setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
-		this.associatedPreferencesModel = associatedPreferencesModel;
-		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
-
-		// Create header only in Settings editor mode
-		this.createHeader();
-	}
-
-	protected createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyUserSettingsHeader', "Place your settings here to override the Default Settings."));
-	}
-
 	render(): void {
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this.associatedPreferencesModel);
-		if (this.filterResult) {
-			this.filterPreferences(this.filterResult);
-		}
 		this.unsupportedSettingsRenderer.render();
-	}
-
-	private _updatePreference(key: string, value: any, source: IIndexedSetting): void {
-		this._onUpdatePreference.fire({ key, value, source });
-		this.updatePreference(key, value, source);
 	}
 
 	updatePreference(key: string, value: any, source: IIndexedSetting): void {
@@ -164,12 +115,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		return this.preferencesModel.getPreference(key);
 	}
 
-	filterPreferences(filterResult: IFilterResult | undefined): void {
-		this.filterResult = filterResult;
-		this.settingHighlighter.clear(true);
-		this.highlightMatchesRenderer.render(filterResult ? filterResult.matches : []);
-	}
-
 	focusPreference(setting: ISetting): void {
 		const s = this.getSetting(setting);
 		if (s) {
@@ -190,13 +135,12 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 }
 
-export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
+export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer {
 
 	private workspaceConfigurationRenderer: WorkspaceConfigurationRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -204,431 +148,9 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
 
-	protected override createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyWorkspaceSettingsHeader', "Place your settings here to override the User Settings."));
-	}
-
-	override setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
-		super.setAssociatedPreferencesModel(associatedPreferencesModel);
-		this.workspaceConfigurationRenderer.render(this.getAssociatedPreferencesModel());
-	}
-
 	override render(): void {
 		super.render();
-		this.workspaceConfigurationRenderer.render(this.getAssociatedPreferencesModel());
-	}
-}
-
-export class FolderSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
-
-	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
-		@IPreferencesService preferencesService: IPreferencesService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(editor, preferencesModel, preferencesService, configurationService, instantiationService);
-	}
-
-	protected override createHeader(): void {
-		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to override those from the Workspace Settings."));
-	}
-
-}
-
-export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
-
-	private _associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
-	private settingHighlighter: SettingHighlighter;
-	private settingsHeaderRenderer: DefaultSettingsHeaderRenderer;
-	private settingsGroupTitleRenderer: SettingsGroupTitleRenderer;
-	private filteredMatchesRenderer: FilteredMatchesRenderer;
-	private hiddenAreasRenderer: HiddenAreasRenderer;
-	private editSettingActionRenderer: EditSettingRenderer;
-	private bracesHidingRenderer: BracesHidingRenderer;
-	private filterResult: IFilterResult | undefined;
-
-	private readonly _onUpdatePreference = this._register(new Emitter<{ key: string, value: any, source: IIndexedSetting }>());
-	readonly onUpdatePreference: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdatePreference.event;
-
-	private readonly _onFocusPreference = this._register(new Emitter<ISetting>());
-	readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
-
-	private readonly _onClearFocusPreference = this._register(new Emitter<ISetting>());
-	readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
-
-	constructor(protected editor: ICodeEditor, readonly preferencesModel: DefaultSettingsEditorModel,
-		@IPreferencesService protected preferencesService: IPreferencesService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-	) {
-		super();
-		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
-		this.settingsHeaderRenderer = this._register(instantiationService.createInstance(DefaultSettingsHeaderRenderer, editor));
-		this.settingsGroupTitleRenderer = this._register(instantiationService.createInstance(SettingsGroupTitleRenderer, editor));
-		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
-		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
-		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor));
-		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
-
-		this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
-		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
-		this._register(preferencesModel.onDidChangeGroups(() => this.render()));
-	}
-
-	getAssociatedPreferencesModel(): IPreferencesEditorModel<ISetting> {
-		return this._associatedPreferencesModel;
-	}
-
-	setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
-		this._associatedPreferencesModel = associatedPreferencesModel;
-		this.editSettingActionRenderer.associatedPreferencesModel = associatedPreferencesModel;
-	}
-
-	render() {
-		this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
-		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
-		this.settingHighlighter.clear(true);
-		this.bracesHidingRenderer.render(undefined, this.preferencesModel.settingsGroups);
-		this.settingsGroupTitleRenderer.showGroup(0);
-		this.hiddenAreasRenderer.render();
-	}
-
-	filterPreferences(filterResult: IFilterResult | undefined): void {
-		this.filterResult = filterResult;
-
-		if (filterResult) {
-			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
-			this.settingsGroupTitleRenderer.render(undefined);
-			this.settingsHeaderRenderer.render(filterResult);
-			this.settingHighlighter.clear(true);
-			this.bracesHidingRenderer.render(filterResult, this.preferencesModel.settingsGroups);
-			this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
-		} else {
-			this.settingHighlighter.clear(true);
-			this.filteredMatchesRenderer.render(undefined, this.preferencesModel.settingsGroups);
-			this.settingsHeaderRenderer.render(undefined);
-			this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
-			this.settingsGroupTitleRenderer.showGroup(0);
-			this.bracesHidingRenderer.render(undefined, this.preferencesModel.settingsGroups);
-			this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
-		}
-
-		this.hiddenAreasRenderer.render();
-	}
-
-	focusPreference(s: ISetting): void {
-		const setting = this.getSetting(s);
-		if (setting) {
-			this.settingsGroupTitleRenderer.showSetting(setting);
-			this.settingHighlighter.highlight(setting, true);
-		} else {
-			this.settingHighlighter.clear(true);
-		}
-	}
-
-	private getSetting(setting: ISetting): ISetting | undefined {
-		const { key, overrideOf } = setting;
-		if (overrideOf) {
-			const setting = this.getSetting(overrideOf);
-			return setting!.overrides!.find(override => override.key === key);
-		}
-		const settingsGroups = this.filterResult ? this.filterResult.filteredGroups : this.preferencesModel.settingsGroups;
-		return this.getPreference(key, settingsGroups);
-	}
-
-	private getPreference(key: string, settingsGroups: ISettingsGroup[]): ISetting | undefined {
-		for (const group of settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					if (setting.key === key) {
-						return setting;
-					}
-				}
-			}
-		}
-		return undefined;
-	}
-
-	clearFocus(setting: ISetting): void {
-		this.settingHighlighter.clear(true);
-	}
-
-	updatePreference(key: string, value: any, source: ISetting): void {
-	}
-
-	editPreference(setting: ISetting): boolean {
-		return this.editSettingActionRenderer.activateOnSetting(setting);
-	}
-}
-
-export interface HiddenAreasProvider {
-	hiddenAreas: IRange[];
-}
-
-export class BracesHidingRenderer extends Disposable implements HiddenAreasProvider {
-	private _result: IFilterResult | undefined;
-	private _settingsGroups!: ISettingsGroup[];
-
-	constructor(private editor: ICodeEditor) {
-		super();
-	}
-
-	render(result: IFilterResult | undefined, settingsGroups: ISettingsGroup[]): void {
-		this._result = result;
-		this._settingsGroups = settingsGroups;
-	}
-
-	get hiddenAreas(): IRange[] {
-		// Opening square brace
-		const hiddenAreas = [
-			{
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: 2,
-				endColumn: 1
-			}
-		];
-
-		const hideBraces = (group: ISettingsGroup, hideExtraLine?: boolean) => {
-			// Opening curly brace
-			hiddenAreas.push({
-				startLineNumber: group.range.startLineNumber - 3,
-				startColumn: 1,
-				endLineNumber: group.range.startLineNumber - (hideExtraLine ? 1 : 3),
-				endColumn: 1
-			});
-
-			// Closing curly brace
-			hiddenAreas.push({
-				startLineNumber: group.range.endLineNumber + 1,
-				startColumn: 1,
-				endLineNumber: group.range.endLineNumber + 4,
-				endColumn: 1
-			});
-		};
-
-		this._settingsGroups.forEach(g => hideBraces(g));
-		if (this._result) {
-			this._result.filteredGroups.forEach((g, i) => hideBraces(g, true));
-		}
-
-		// Closing square brace
-		const lineCount = this.editor.getModel()!.getLineCount();
-		hiddenAreas.push({
-			startLineNumber: lineCount,
-			startColumn: 1,
-			endLineNumber: lineCount,
-			endColumn: 1
-		});
-
-
-		return hiddenAreas;
-	}
-
-}
-
-class DefaultSettingsHeaderRenderer extends Disposable {
-
-	private settingsHeaderWidget: DefaultSettingsHeaderWidget;
-	readonly onClick: Event<void>;
-
-	constructor(editor: ICodeEditor) {
-		super();
-		this.settingsHeaderWidget = this._register(new DefaultSettingsHeaderWidget(editor, ''));
-		this.onClick = this.settingsHeaderWidget.onClick;
-	}
-
-	render(filterResult: IFilterResult | undefined) {
-		const hasSettings = !filterResult || filterResult.filteredGroups.length > 0;
-		this.settingsHeaderWidget.toggleMessage(hasSettings);
-	}
-}
-
-export class SettingsGroupTitleRenderer extends Disposable implements HiddenAreasProvider {
-
-	private readonly _onHiddenAreasChanged = this._register(new Emitter<void>());
-	readonly onHiddenAreasChanged: Event<void> = this._onHiddenAreasChanged.event;
-
-	private settingsGroups!: ISettingsGroup[];
-	private hiddenGroups: ISettingsGroup[] = [];
-	private settingsGroupTitleWidgets!: SettingsGroupTitleWidget[];
-	private readonly renderDisposables = this._register(new DisposableStore());
-
-	constructor(private editor: ICodeEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) {
-		super();
-	}
-
-	get hiddenAreas(): IRange[] {
-		const hiddenAreas: IRange[] = [];
-		for (const group of this.hiddenGroups) {
-			hiddenAreas.push(group.range);
-		}
-		return hiddenAreas;
-	}
-
-	render(settingsGroups: ISettingsGroup[] | undefined) {
-		this.disposeWidgets();
-		if (!settingsGroups) {
-			return;
-		}
-
-		this.settingsGroups = settingsGroups.slice();
-		this.settingsGroupTitleWidgets = [];
-		for (const group of this.settingsGroups.slice().reverse()) {
-			if (group.sections.every(sect => sect.settings.length === 0)) {
-				continue;
-			}
-
-			const settingsGroupTitleWidget = this.instantiationService.createInstance(SettingsGroupTitleWidget, this.editor, group);
-			settingsGroupTitleWidget.render();
-			this.settingsGroupTitleWidgets.push(settingsGroupTitleWidget);
-			this.renderDisposables.add(settingsGroupTitleWidget);
-			this.renderDisposables.add(settingsGroupTitleWidget.onToggled(collapsed => this.onToggled(collapsed, settingsGroupTitleWidget.settingsGroup)));
-		}
-		this.settingsGroupTitleWidgets.reverse();
-	}
-
-	showGroup(groupIdx: number) {
-		const shownGroup = this.settingsGroupTitleWidgets[groupIdx].settingsGroup;
-
-		this.hiddenGroups = this.settingsGroups.filter(g => g !== shownGroup);
-		for (const groupTitleWidget of this.settingsGroupTitleWidgets.filter(widget => widget.settingsGroup !== shownGroup)) {
-			groupTitleWidget.toggleCollapse(true);
-		}
-		this._onHiddenAreasChanged.fire();
-	}
-
-	showSetting(setting: ISetting): void {
-		const settingsGroupTitleWidget = this.settingsGroupTitleWidgets.filter(widget => Range.containsRange(widget.settingsGroup.range, setting.range))[0];
-		if (settingsGroupTitleWidget && settingsGroupTitleWidget.isCollapsed()) {
-			settingsGroupTitleWidget.toggleCollapse(false);
-			this.hiddenGroups.splice(this.hiddenGroups.indexOf(settingsGroupTitleWidget.settingsGroup), 1);
-			this._onHiddenAreasChanged.fire();
-		}
-	}
-
-	private onToggled(collapsed: boolean, group: ISettingsGroup) {
-		const index = this.hiddenGroups.indexOf(group);
-		if (collapsed) {
-			const currentPosition = this.editor.getPosition();
-			if (group.range.startLineNumber <= currentPosition!.lineNumber && group.range.endLineNumber >= currentPosition!.lineNumber) {
-				this.editor.setPosition({ lineNumber: group.range.startLineNumber - 1, column: 1 });
-			}
-			this.hiddenGroups.push(group);
-		} else {
-			this.hiddenGroups.splice(index, 1);
-		}
-		this._onHiddenAreasChanged.fire();
-	}
-
-	private disposeWidgets() {
-		this.hiddenGroups = [];
-		this.renderDisposables.clear();
-	}
-
-	override dispose() {
-		this.disposeWidgets();
-		super.dispose();
-	}
-}
-
-export class HiddenAreasRenderer extends Disposable {
-
-	constructor(private editor: ICodeEditor, private hiddenAreasProviders: HiddenAreasProvider[]
-	) {
-		super();
-	}
-
-	render() {
-		const ranges: IRange[] = [];
-		for (const hiddenAreaProvider of this.hiddenAreasProviders) {
-			ranges.push(...hiddenAreaProvider.hiddenAreas);
-		}
-		this.editor.setHiddenAreas(ranges);
-	}
-
-	override dispose() {
-		this.editor.setHiddenAreas([]);
-		super.dispose();
-	}
-}
-
-export class FilteredMatchesRenderer extends Disposable implements HiddenAreasProvider {
-
-	private decorationIds: string[] = [];
-	hiddenAreas: IRange[] = [];
-
-	constructor(private editor: ICodeEditor
-	) {
-		super();
-	}
-
-	render(result: IFilterResult | undefined, allSettingsGroups: ISettingsGroup[]): void {
-		this.hiddenAreas = [];
-		if (result) {
-			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups);
-			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, result.matches.map(match => this.createDecoration(match)));
-		} else {
-			this.hiddenAreas = this.computeHiddenRanges(undefined, allSettingsGroups);
-			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
-		}
-	}
-
-	private createDecoration(range: IRange): IModelDeltaDecoration {
-		return {
-			range,
-			options: FindDecorations._FIND_MATCH_DECORATION
-		};
-	}
-
-	private computeHiddenRanges(filteredGroups: ISettingsGroup[] | undefined, allSettingsGroups: ISettingsGroup[]): IRange[] {
-		// Hide the contents of hidden groups
-		const notMatchesRanges: IRange[] = [];
-		if (filteredGroups) {
-			allSettingsGroups.forEach((group, i) => {
-				notMatchesRanges.push({
-					startLineNumber: group.range.startLineNumber - 1,
-					startColumn: group.range.startColumn,
-					endLineNumber: group.range.endLineNumber,
-					endColumn: group.range.endColumn
-				});
-			});
-		}
-
-		return notMatchesRanges;
-	}
-
-	override dispose() {
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
-		super.dispose();
-	}
-}
-
-export class HighlightMatchesRenderer extends Disposable {
-
-	private decorationIds: string[] = [];
-
-	constructor(private editor: ICodeEditor
-	) {
-		super();
-	}
-
-	render(matches: IRange[]): void {
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match)));
-	}
-
-	private createDecoration(range: IRange): IModelDeltaDecoration {
-		return {
-			range,
-			options: FindDecorations._FIND_MATCH_DECORATION
-		};
-	}
-
-	override dispose() {
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
-		super.dispose();
+		this.workspaceConfigurationRenderer.render();
 	}
 }
 
@@ -910,20 +432,14 @@ class SettingHighlighter extends Disposable {
 
 	private fixedHighlighter: RangeHighlightDecorations;
 	private volatileHighlighter: RangeHighlightDecorations;
-	private highlightedSetting!: ISetting;
 
-	constructor(private editor: ICodeEditor, private readonly focusEventEmitter: Emitter<ISetting>, private readonly clearFocusEventEmitter: Emitter<ISetting>,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
+	constructor(private editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.fixedHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
 		this.volatileHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
-		this.fixedHighlighter.onHighlightRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
-		this.volatileHighlighter.onHighlightRemoved(() => this.clearFocusEventEmitter.fire(this.highlightedSetting));
 	}
 
 	highlight(setting: ISetting, fix: boolean = false) {
-		this.highlightedSetting = setting;
 		this.volatileHighlighter.removeHighlightRange();
 		this.fixedHighlighter.removeHighlightRange();
 
@@ -934,7 +450,6 @@ class SettingHighlighter extends Disposable {
 		}, this.editor);
 
 		this.editor.revealLineInCenterIfOutsideViewport(setting.valueRange.startLineNumber, editorCommon.ScrollType.Smooth);
-		this.focusEventEmitter.fire(setting);
 	}
 
 	clear(fix: boolean = false): void {
@@ -942,7 +457,6 @@ class SettingHighlighter extends Disposable {
 		if (fix) {
 			this.fixedHighlighter.removeHighlightRange();
 		}
-		this.clearFocusEventEmitter.fire(this.highlightedSetting);
 	}
 }
 
@@ -1059,7 +573,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1085,7 +599,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			});
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1149,9 +663,9 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 }
 
 class WorkspaceConfigurationRenderer extends Disposable {
+	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
 
 	private decorationIds: string[] = [];
-	private associatedSettingsEditorModel!: IPreferencesEditorModel<ISetting>;
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
@@ -1159,28 +673,17 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
-		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render(this.associatedSettingsEditorModel))));
+		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
 	}
 
-	render(associatedSettingsEditorModel: IPreferencesEditorModel<ISetting>): void {
-		this.associatedSettingsEditorModel = associatedSettingsEditorModel;
+	render(): void {
 		const markerData: IMarkerData[] = [];
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceSettingsEditorModel instanceof WorkspaceConfigurationEditorModel) {
 			const ranges: IRange[] = [];
 			for (const settingsGroup of this.workspaceSettingsEditorModel.configurationGroups) {
 				for (const section of settingsGroup.sections) {
 					for (const setting of section.settings) {
-						if (setting.key === 'folders' || setting.key === 'tasks' || setting.key === 'launch' || setting.key === 'extensions') {
-							if (this.associatedSettingsEditorModel) {
-								// Dim other configurations in workspace configuration file only in the context of Settings Editor
-								ranges.push({
-									startLineNumber: setting.keyRange.startLineNumber,
-									startColumn: setting.keyRange.startColumn - 1,
-									endLineNumber: setting.valueRange.endLineNumber,
-									endColumn: setting.valueRange.endColumn
-								});
-							}
-						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority') {
+						if (!WorkspaceConfigurationRenderer.supportedKeys.includes(setting.key)) {
 							markerData.push({
 								severity: MarkerSeverity.Hint,
 								tags: [MarkerTag.Unnecessary],

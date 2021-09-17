@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementViewModelBase, getFormatedMetadataJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
@@ -23,7 +23,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Delayer } from 'vs/base/common/async';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
@@ -39,6 +38,7 @@ import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 
 const fixedEditorPadding = {
 	top: 12,
@@ -86,7 +86,7 @@ export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOp
 	};
 }
 
-export const fixedDiffEditorOptions: IDiffEditorOptions = {
+export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	...fixedEditorOptions,
 	glyphMargin: true,
 	enableSplitViewResizing: false,
@@ -146,7 +146,7 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
 					return item;
 				}
 
@@ -303,10 +303,8 @@ abstract class AbstractElementRenderer extends Disposable {
 		super();
 		// init
 		this._isDisposed = false;
-		this._metadataEditorDisposeStore = new DisposableStore();
-		this._outputEditorDisposeStore = new DisposableStore();
-		this._register(this._metadataEditorDisposeStore);
-		this._register(this._outputEditorDisposeStore);
+		this._metadataEditorDisposeStore = this._register(new DisposableStore());
+		this._outputEditorDisposeStore = this._register(new DisposableStore());
 		this._register(cell.onDidLayoutChange(e => this.layout(e)));
 		this._register(cell.onDidLayoutChange(e => this.updateBorders()));
 		this.init();
@@ -1515,24 +1513,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		const textModel = originalRef.object.textEditorModel;
 		const modifiedTextModel = modifiedRef.object.textEditorModel;
-		this._register({
-			dispose: () => {
-				const delayer = new Delayer<void>(5000);
-				delayer.trigger(() => {
-					originalRef.dispose();
-					delayer.dispose();
-				});
-			}
-		});
-		this._register({
-			dispose: () => {
-				const delayer = new Delayer<void>(5000);
-				delayer.trigger(() => {
-					modifiedRef.dispose();
-					delayer.dispose();
-				});
-			}
-		});
+		this._register(originalRef);
+		this._register(modifiedRef);
 
 		this._editor!.setModel({
 			original: textModel,

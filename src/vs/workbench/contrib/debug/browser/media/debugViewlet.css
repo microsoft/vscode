@@ -73,6 +73,12 @@
 	cursor: initial;
 }
 
+.debug-pane .monaco-list:focus .monaco-list-row.selected .state.label,
+.debug-pane .monaco-list:focus .monaco-list-row.selected .load-all,
+.debug-pane .monaco-list:focus .monaco-list-row.selected.focused .state.label {
+	color: inherit;
+}
+
 /* Call stack */
 
 .debug-pane .call-stack-state-message {

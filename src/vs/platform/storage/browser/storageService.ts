@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { StorageScope, IS_NEW_KEY, AbstractStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { IStorage, Storage, IStorageDatabase, IUpdateRequest, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { Promises } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { joinPath } from 'vs/base/common/resources';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { InMemoryStorageDatabase, isStorageItemsChangeEvent, IStorage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
+import { ILogService } from 'vs/platform/log/common/log';
+import { AbstractStorageService, IS_NEW_KEY, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
 export class BrowserStorageService extends AbstractStorageService {
 
@@ -31,9 +28,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	constructor(
 		private readonly payload: IWorkspaceInitializationPayload,
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IFileService private readonly fileService: IFileService
+		@ILogService private readonly logService: ILogService
 	) {
 		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 	}
@@ -46,8 +41,8 @@ export class BrowserStorageService extends AbstractStorageService {
 
 		// Create Storage in Parallel
 		const [workspaceStorageDatabase, globalStorageDatabase] = await Promises.settled([
-			IndexedDBStorageDatabase.create(this.getId(StorageScope.WORKSPACE), this.logService),
-			IndexedDBStorageDatabase.create(this.getId(StorageScope.GLOBAL), this.logService)
+			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.WORKSPACE) }, this.logService),
+			IndexedDBStorageDatabase.create({ id: this.getId(StorageScope.GLOBAL), broadcastChanges: true /* only for global storage */ }, this.logService)
 		]);
 
 		// Workspace Storage
@@ -69,7 +64,6 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Check to see if this is the first time we are "opening" the application
 		const firstOpen = this.globalStorage.getBoolean(IS_NEW_KEY);
 		if (firstOpen === undefined) {
-			await this.migrateOldStorage(StorageScope.GLOBAL); // TODO@bpasero remove browser storage migration
 			this.globalStorage.set(IS_NEW_KEY, true);
 		} else if (firstOpen) {
 			this.globalStorage.set(IS_NEW_KEY, false);
@@ -78,40 +72,9 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Check to see if this is the first time we are "opening" this workspace
 		const firstWorkspaceOpen = this.workspaceStorage.getBoolean(IS_NEW_KEY);
 		if (firstWorkspaceOpen === undefined) {
-			await this.migrateOldStorage(StorageScope.WORKSPACE); // TODO@bpasero remove browser storage migration
 			this.workspaceStorage.set(IS_NEW_KEY, true);
 		} else if (firstWorkspaceOpen) {
 			this.workspaceStorage.set(IS_NEW_KEY, false);
-		}
-	}
-
-	private async migrateOldStorage(scope: StorageScope): Promise<void> {
-		try {
-			const stateRoot = joinPath(this.environmentService.userRoamingDataHome, 'state');
-
-			if (scope === StorageScope.GLOBAL) {
-				const globalStorageFile = joinPath(stateRoot, 'global.json');
-				const globalItemsRaw = await this.fileService.readFile(globalStorageFile);
-				const globalItems = new Map<string, string>(JSON.parse(globalItemsRaw.value.toString()));
-
-				for (const [key, value] of globalItems) {
-					this.globalStorage?.set(key, value);
-				}
-
-				await this.fileService.del(globalStorageFile);
-			} else if (scope === StorageScope.WORKSPACE) {
-				const workspaceStorageFile = joinPath(stateRoot, `${this.payload.id}.json`);
-				const workspaceItemsRaw = await this.fileService.readFile(workspaceStorageFile);
-				const workspaceItems = new Map<string, string>(JSON.parse(workspaceItemsRaw.value.toString()));
-
-				for (const [key, value] of workspaceItems) {
-					this.workspaceStorage?.set(key, value);
-				}
-
-				await this.fileService.del(workspaceStorageFile);
-			}
-		} catch (error) {
-			// ignore
 		}
 	}
 
@@ -200,16 +163,21 @@ class InMemoryIndexedDBStorageDatabase extends InMemoryStorageDatabase implement
 	}
 }
 
+interface IndexedDBStorageDatabaseOptions {
+	id: string;
+	broadcastChanges?: boolean;
+}
+
 export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBStorageDatabase {
 
-	static async create(id: string, logService: ILogService): Promise<IIndexedDBStorageDatabase> {
+	static async create(options: IndexedDBStorageDatabaseOptions, logService: ILogService): Promise<IIndexedDBStorageDatabase> {
 		try {
-			const database = new IndexedDBStorageDatabase(id, logService);
+			const database = new IndexedDBStorageDatabase(options, logService);
 			await database.whenConnected;
 
 			return database;
 		} catch (error) {
-			logService.error(`[IndexedDB Storage ${id}] create(): ${toErrorMessage(error, true)}`);
+			logService.error(`[IndexedDB Storage ${options.id}] create(): ${toErrorMessage(error, true)}`);
 
 			return new InMemoryIndexedDBStorageDatabase();
 		}
@@ -218,22 +186,50 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	private static readonly STORAGE_DATABASE_PREFIX = 'vscode-web-state-db-';
 	private static readonly STORAGE_OBJECT_STORE = 'ItemTable';
 
-	readonly onDidChangeItemsExternal = Event.None; // IndexedDB currently does not support observers (https://github.com/w3c/IndexedDB/issues/51)
+	private static readonly STORAGE_BROADCAST_CHANNEL = 'vscode.web.state.changes';
 
-	private pendingUpdate: Promise<void> | undefined = undefined;
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+
+	private broadcastChannel: BroadcastChannel | undefined;
+
+	private pendingUpdate: Promise<boolean> | undefined = undefined;
 	get hasPendingUpdate(): boolean { return !!this.pendingUpdate; }
 
 	private readonly name: string;
 	private readonly whenConnected: Promise<IDBDatabase>;
 
 	private constructor(
-		id: string,
+		options: IndexedDBStorageDatabaseOptions,
 		private readonly logService: ILogService
 	) {
 		super();
 
-		this.name = `${IndexedDBStorageDatabase.STORAGE_DATABASE_PREFIX}${id}`;
+		this.name = `${IndexedDBStorageDatabase.STORAGE_DATABASE_PREFIX}${options.id}`;
+		this.broadcastChannel = options.broadcastChanges && ('BroadcastChannel' in window) ? new BroadcastChannel(IndexedDBStorageDatabase.STORAGE_BROADCAST_CHANNEL) : undefined;
+
 		this.whenConnected = this.connect();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Check for global storage change events from other
+		// windows/tabs via `BroadcastChannel` mechanisms.
+		if (this.broadcastChannel) {
+			const listener = (event: MessageEvent) => {
+				if (isStorageItemsChangeEvent(event.data)) {
+					this._onDidChangeItemsExternal.fire(event.data);
+				}
+			};
+
+			this.broadcastChannel.addEventListener('message', listener);
+			this._register(toDisposable(() => {
+				this.broadcastChannel?.removeEventListener('message', listener);
+				this.broadcastChannel?.close();
+			}));
+		}
 	}
 
 	private connect(): Promise<IDBDatabase> {
@@ -295,29 +291,43 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
+
+		// Run the update
+		let didUpdate = false;
 		this.pendingUpdate = this.doUpdateItems(request);
 		try {
-			await this.pendingUpdate;
+			didUpdate = await this.pendingUpdate;
 		} finally {
 			this.pendingUpdate = undefined;
 		}
+
+		// Broadcast changes to other windows/tabs if enabled
+		// and only if we actually did update storage items.
+		if (this.broadcastChannel && didUpdate) {
+			const event: IStorageItemsChangeEvent = {
+				changed: request.insert,
+				deleted: request.delete
+			};
+
+			this.broadcastChannel.postMessage(event);
+		}
 	}
 
-	private async doUpdateItems(request: IUpdateRequest): Promise<void> {
+	private async doUpdateItems(request: IUpdateRequest): Promise<boolean> {
 
 		// Return early if the request is empty
 		const toInsert = request.insert;
 		const toDelete = request.delete;
 		if ((!toInsert && !toDelete) || (toInsert?.size === 0 && toDelete?.size === 0)) {
-			return;
+			return false;
 		}
 
 		// Update `ItemTable` with inserts and/or deletes
-		return new Promise<void>(async (resolve, reject) => {
+		return new Promise<boolean>(async (resolve, reject) => {
 			const db = await this.whenConnected;
 
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
-			transaction.oncomplete = () => resolve();
+			transaction.oncomplete = () => resolve(true);
 			transaction.onerror = () => reject(transaction.error);
 
 			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);

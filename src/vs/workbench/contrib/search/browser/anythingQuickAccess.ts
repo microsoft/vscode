@@ -27,14 +27,15 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration, IEditorInput, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, EditorResourceAccessor, isEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { top } from 'vs/base/common/arrays';
 import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
@@ -45,13 +46,12 @@ import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/b
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { once } from 'vs/base/common/functional';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -61,9 +61,9 @@ interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
 }
 
 function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEditorSymbolAnythingQuickPickItem {
-	const candidate = pick ? pick as IEditorSymbolAnythingQuickPickItem : undefined;
+	const candidate = pick as IEditorSymbolAnythingQuickPickItem | undefined;
 
-	return !!candidate && !!candidate.range && !!candidate.resource;
+	return !!candidate?.range && !!candidate.resource;
 }
 
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
@@ -83,7 +83,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
 
 		editorViewState: {
-			editor: IEditorInput,
+			editor: EditorInput,
 			group: IEditorGroup,
 			state: ICodeEditorViewState | IDiffEditorViewState | undefined
 		} | undefined = undefined;
@@ -144,12 +144,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		async restoreEditorViewState(): Promise<void> {
 			if (this.editorViewState) {
-				const options: ITextEditorOptions = {
+				const options: IEditorOptions = {
 					viewState: this.editorViewState.state,
 					preserveFocus: true /* import to not close the picker as a result */
 				};
 
-				await this.editorService.openEditor(this.editorViewState.editor, options, this.editorViewState.group);
+				await this.editorViewState.group.openEditor(this.editorViewState.editor, options);
 			}
 		}
 	}(this, this.editorService);
@@ -178,7 +178,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IHistoryService private readonly historyService: IHistoryService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -447,7 +448,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
 		for (const editor of this.historyService.getHistory()) {
 			const resource = editor.resource;
-			if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
+			// allow untitled and terminal editors to go through
+			if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled && resource.scheme !== Schemas.vscodeTerminal)) {
 				continue; // exclude editors without file resource if we are searching by pattern
 			}
 
@@ -865,24 +867,27 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, configuration: { shortAutoSaveDelay: boolean, openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { shortAutoSaveDelay: boolean, openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
 		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
 
 		let resource: URI | undefined;
 		let label: string;
 		let description: string | undefined = undefined;
 		let isDirty: boolean | undefined = undefined;
+		let extraClasses: string[];
 
-		if (resourceOrEditor instanceof EditorInput) {
+		if (isEditorInput(resourceOrEditor)) {
 			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
 			label = resourceOrEditor.getName();
 			description = resourceOrEditor.getDescription();
 			isDirty = resourceOrEditor.isDirty() && !resourceOrEditor.isSaving();
+			extraClasses = resourceOrEditor.getLabelExtraClasses();
 		} else {
-			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : (resourceOrEditor as IResourceEditorInput).resource;
+			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			label = basenameOrAuthority(resource);
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
+			extraClasses = [];
 		}
 
 		const labelAndDescription = description ? `${label} ${description}` : label;
@@ -891,7 +896,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} dirty", labelAndDescription) : labelAndDescription,
 			description,
-			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
+			iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(extraClasses),
 			buttons: (() => {
 				const openSideBySideDirection = configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];
@@ -939,7 +944,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	private async openAnything(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
+	private async openAnything(resourceOrEditor: URI | EditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
+
+		// Craft some editor options based on quick access usage
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
@@ -953,16 +960,32 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			await this.pickState.restoreEditorViewState();
 		}
 
-		// Open editor
-		if (resourceOrEditor instanceof EditorInput) {
-			await this.editorService.openEditor(resourceOrEditor, editorOptions);
-		} else {
-			await this.editorService.openEditor({
-				resource: URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource,
-				options: editorOptions
-			}, targetGroup);
+		// Open editor (typed)
+		if (isEditorInput(resourceOrEditor)) {
+			const group = (targetGroup === SIDE_GROUP) ? this.editorGroupService.sideGroup : this.editorGroupService.activeGroup;
+			await group.openEditor(resourceOrEditor, editorOptions);
 		}
 
+		// Open editor (untyped)
+		else {
+			let resourceEditorInput: IResourceEditorInput;
+			if (URI.isUri(resourceOrEditor)) {
+				resourceEditorInput = {
+					resource: resourceOrEditor,
+					options: editorOptions
+				};
+			} else {
+				resourceEditorInput = {
+					...resourceOrEditor,
+					options: {
+						...resourceOrEditor.options,
+						...editorOptions
+					}
+				};
+			}
+
+			await this.editorService.openEditor(resourceEditorInput, targetGroup);
+		}
 	}
 
 	//#endregion

@@ -7,9 +7,9 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { workbenchInstantiationService, TestServiceAccessor, TestEditorService, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInputFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -21,6 +21,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInputSerializer } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 
 suite('Files - FileEditorInput', () => {
 
@@ -31,15 +32,15 @@ suite('Files - FileEditorInput', () => {
 		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredMode, preferredContents);
 	}
 
+	class TestTextEditorService extends TextEditorService {
+		override createTextEditor(input: IResourceEditorInput) {
+			return createFileInput(input.resource);
+		}
+	}
+
 	setup(() => {
 		instantiationService = workbenchInstantiationService({
-			editorService: () => {
-				return new class extends TestEditorService {
-					override createEditorInput(input: IResourceEditorInput) {
-						return createFileInput(input.resource);
-					}
-				};
-			}
+			textEditorService: instantiationService => instantiationService.createInstance(TestTextEditorService)
 		});
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -53,7 +54,6 @@ suite('Files - FileEditorInput', () => {
 		assert(input.matches(input));
 		assert(input.matches(otherInputSame));
 		assert(!input.matches(otherInput));
-		assert(!input.matches(null));
 		assert.ok(input.getName());
 		assert.ok(input.getDescription());
 		assert.ok(input.getTitle(Verbosity.SHORT));
@@ -63,7 +63,7 @@ suite('Files - FileEditorInput', () => {
 		assert.ok(!input.hasCapability(EditorInputCapabilities.Singleton));
 		assert.ok(!input.hasCapability(EditorInputCapabilities.RequiresTrust));
 
-		const untypedInput = input.asResourceEditorInput(0);
+		const untypedInput = input.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(untypedInput.resource.toString(), input.resource.toString());
 
 		assert.strictEqual('file.js', input.getName());
@@ -193,8 +193,11 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(model.textEditorModel!.getValue(), 'My contents');
 		assert.strictEqual(input.isDirty(), true);
 
-		const untypedInput = input.asResourceEditorInput(0);
+		const untypedInput = input.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(untypedInput.contents, 'My contents');
+
+		const untypedInputWithoutContents = input.toUntyped();
+		assert.strictEqual(untypedInputWithoutContents.contents, undefined);
 
 		input.setPreferredContents('Other contents');
 		await input.resolve();
@@ -218,7 +221,6 @@ suite('Files - FileEditorInput', () => {
 		const input3 = createFileInput(toResource.call(this, '/foo/bar/other.js'));
 		const input2Upper = createFileInput(toResource.call(this, '/foo/bar/UPDATEFILE.js'));
 
-		assert.strictEqual(input1.matches(null), false);
 		assert.strictEqual(input1.matches(input1), true);
 		assert.strictEqual(input1.matches(input2), true);
 		assert.strictEqual(input1.matches(input3), false);
@@ -320,14 +322,14 @@ suite('Files - FileEditorInput', () => {
 		resolved.dispose();
 	});
 
-	test('file editor input serializer', async function () {
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
+	test('file editor serializer', async function () {
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('workbench.editors.files.fileEditorInput', FileEditorInputSerializer);
+		const disposable = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('workbench.editors.files.fileEditorInput', FileEditorInputSerializer);
 
-		const editorSerializer = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputSerializer(input.typeId);
+		const editorSerializer = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getEditorSerializer(input.typeId);
 		if (!editorSerializer) {
 			assert.fail('File Editor Input Serializer missing');
 		}
@@ -340,7 +342,7 @@ suite('Files - FileEditorInput', () => {
 		}
 
 		const inputDeserialized = editorSerializer.deserialize(instantiationService, inputSerialized);
-		assert.strictEqual(input.matches(inputDeserialized), true);
+		assert.strictEqual(inputDeserialized ? input.matches(inputDeserialized) : false, true);
 
 		const preferredResource = toResource.call(this, '/foo/bar/UPDATEfile.js');
 		const inputWithPreferredResource = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), preferredResource);

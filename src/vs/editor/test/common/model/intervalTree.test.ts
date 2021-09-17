@@ -20,7 +20,7 @@ const MAX_CHANGE_CNT = 20;
 suite('IntervalTree', () => {
 
 	class Interval {
-		_intervalBrand: void;
+		_intervalBrand: void = undefined;
 
 		public start: number;
 		public end: number;

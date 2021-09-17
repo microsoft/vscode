@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { flakySuite, getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { join, basename, dirname, posix } from 'vs/base/common/path';
-import { Promises, rimrafSync } from 'vs/base/node/pfs';
-import { URI } from 'vs/base/common/uri';
-import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions, FilePermission, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { basename, dirname, join, posix } from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual, joinPath } from 'vs/base/common/resources';
-import { VSBuffer, VSBufferReadable, streamToBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
+import { URI } from 'vs/base/common/uri';
+import { Promises, rimrafSync } from 'vs/base/node/pfs';
+import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { etag, FileChangeType, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, IFileChange, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
@@ -348,12 +348,20 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(deep!.children!.length, 4);
 	});
 
-	test('resolve directory - resolveTo multiple directories', async () => {
+	test('resolve directory - resolveTo multiple directories', () => {
+		return testResolveDirectoryWithTarget(false);
+	});
+
+	test('resolve directory - resolveTo with a URI that has query parameter (https://github.com/microsoft/vscode/issues/128151)', () => {
+		return testResolveDirectoryWithTarget(true);
+	});
+
+	async function testResolveDirectoryWithTarget(withQueryParam: boolean): Promise<void> {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
-		const result = await service.resolve(URI.file(resolverFixturesPath), {
+		const result = await service.resolve(URI.file(resolverFixturesPath).with({ query: withQueryParam ? 'test' : undefined }), {
 			resolveTo: [
-				URI.file(join(resolverFixturesPath, 'other/deep')),
-				URI.file(join(resolverFixturesPath, 'examples'))
+				URI.file(join(resolverFixturesPath, 'other/deep')).with({ query: withQueryParam ? 'test' : undefined }),
+				URI.file(join(resolverFixturesPath, 'examples')).with({ query: withQueryParam ? 'test' : undefined })
 			]
 		});
 
@@ -378,7 +386,7 @@ flakySuite('Disk File Service', function () {
 		assert.ok(examples);
 		assert.ok(examples!.children!.length > 0);
 		assert.strictEqual(examples!.children!.length, 4);
-	});
+	}
 
 	test('resolve directory - resolveSingleChildFolders', async () => {
 		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver/other');
@@ -2279,23 +2287,23 @@ flakySuite('Disk File Service', function () {
 				}
 			}
 
-			function printEvents(event: FileChangesEvent): string {
-				return event.raw.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
+			function printEvents(raw: readonly IFileChange[]): string {
+				return raw.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
 			}
 
-			const listenerDisposable = service.onDidFilesChange(event => {
+			const listenerDisposable = service.onDidChangeFilesRaw(({ changes }) => {
 				watcherDisposable.dispose();
 				listenerDisposable.dispose();
 
 				try {
-					assert.strictEqual(event.raw.length, expected.length, `Expected ${expected.length} events, but got ${event.raw.length}. Details (${printEvents(event)})`);
+					assert.strictEqual(changes.length, expected.length, `Expected ${expected.length} events, but got ${changes.length}. Details (${printEvents(changes)})`);
 
 					if (expected.length === 1) {
-						assert.strictEqual(event.raw[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(event.raw[0].type)}. Details (${printEvents(event)})`);
-						assert.strictEqual(event.raw[0].resource.fsPath, expected[0][1].fsPath);
+						assert.strictEqual(changes[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(changes[0].type)}. Details (${printEvents(changes)})`);
+						assert.strictEqual(changes[0].resource.fsPath, expected[0][1].fsPath);
 					} else {
 						for (const expect of expected) {
-							assert.strictEqual(hasChange(event.raw, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(event)})`);
+							assert.strictEqual(hasChange(changes, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(changes)})`);
 						}
 					}
 

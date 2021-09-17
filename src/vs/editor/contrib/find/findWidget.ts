@@ -3,41 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./findWidget';
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
-import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { IVerticalSashLayoutProvider, ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import 'vs/css!./findWidget';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
+import * as nls from 'vs/nls';
+import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Codicon } from 'vs/base/common/codicons';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, editorWidgetResizeBorder, errorForeground, focusBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, toolbarHoverBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
+import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
@@ -56,15 +57,15 @@ export interface IFindController {
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
-const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in selection");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
+const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
 const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
 const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
 const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
-const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
+const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
 export const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
@@ -966,7 +967,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			},
 			flexibleHeight,
 			flexibleWidth,
-			flexibleMaxHeight: 118
+			flexibleMaxHeight: 118,
+			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
 		}, this._contextKeyService, true));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -1105,7 +1107,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			history: [],
 			flexibleHeight,
 			flexibleWidth,
-			flexibleMaxHeight: 118
+			flexibleMaxHeight: 118,
+			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
 		}, this._contextKeyService, true));
 		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));
@@ -1429,6 +1432,17 @@ registerThemingParticipant((theme, collector) => {
 		if (border) {
 			collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; }`);
 		}
+	}
+
+	// Action bars
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`
+		.monaco-editor .find-widget .button:not(.disabled):hover,
+		.monaco-editor .find-widget .codicon-find-selection:hover {
+			background-color: ${toolbarHoverBackgroundColor} !important;
+		}
+	`);
 	}
 
 	// This rule is used to override the outline color for synthetic-focus find input.

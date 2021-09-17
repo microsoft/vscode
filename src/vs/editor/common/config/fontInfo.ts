@@ -19,7 +19,7 @@ const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 const MINIMUM_LINE_HEIGHT = 8;
 
 export class BareFontInfo {
-	readonly _bareFontInfoBrand: void;
+	readonly _bareFontInfoBrand: void = undefined;
 
 	/**
 	 * @internal
@@ -140,7 +140,7 @@ export class BareFontInfo {
 export const SERIALIZED_FONT_INFO_VERSION = 1;
 
 export class FontInfo extends BareFontInfo {
-	readonly _editorStylingBrand: void;
+	readonly _editorStylingBrand: void = undefined;
 
 	readonly version: number = SERIALIZED_FONT_INFO_VERSION;
 	readonly isTrusted: boolean;

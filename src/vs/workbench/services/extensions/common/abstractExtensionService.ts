@@ -12,15 +12,14 @@ import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { BetterMergeId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { createExtensionHostManager, IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionKind, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
@@ -44,13 +43,6 @@ class DeltaExtensionsQueueItem {
 		public readonly toAdd: IExtension[],
 		public readonly toRemove: string[] | IExtension[]
 	) { }
-}
-
-export const enum ExtensionRunningLocation {
-	None,
-	LocalProcess,
-	LocalWebWorker,
-	Remote
 }
 
 export const enum ExtensionRunningPreference {
@@ -158,7 +150,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _runningLocation: Map<string, ExtensionRunningLocation>;
 
 	// --- Members used per extension host process
-	protected _extensionHostManagers: ExtensionHostManager[];
+	protected _extensionHostManagers: IExtensionHostManager[];
 	protected _extensionHostActiveExtensions: Map<string, ExtensionIdentifier>;
 	private _extensionHostActivationTimes: Map<string, ActivationTimes>;
 	private _extensionHostExtensionRuntimeErrors: Map<string, Error[]>;
@@ -222,12 +214,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			this._handleDeltaExtensions(new DeltaExtensionsQueueItem(toAdd, toRemove));
 		}));
 
-		this._register(this._extensionManagementService.onDidInstallExtension((event) => {
-			if (event.local) {
-				if (this._safeInvokeIsEnabled(event.local)) {
-					// an extension has been installed
-					this._handleDeltaExtensions(new DeltaExtensionsQueueItem([event.local], []));
+		this._register(this._extensionManagementService.onDidInstallExtensions((result) => {
+			const extensions: IExtension[] = [];
+			for (const { local } of result) {
+				if (local && this._safeInvokeIsEnabled(local)) {
+					extensions.push(local);
 				}
+			}
+			if (extensions.length) {
+				this._handleDeltaExtensions(new DeltaExtensionsQueueItem(extensions, []));
 			}
 		}));
 
@@ -247,7 +242,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return this._extensionManifestPropertiesService.getExtensionKind(extensionDescription);
 	}
 
-	protected _getExtensionHostManager(kind: ExtensionHostKind): ExtensionHostManager | null {
+	protected _getExtensionHostManager(kind: ExtensionHostKind): IExtensionHostManager | null {
 		for (const extensionHostManager of this._extensionHostManagers) {
 			if (extensionHostManager.kind === kind) {
 				return extensionHostManager;
@@ -495,7 +490,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected async _initialize(): Promise<void> {
 		perf.mark('code/willLoadExtensions');
 		this._startExtensionHosts(true, []);
-		await this._scanAndHandleExtensions();
+
+		const lock = await this._registryLock.acquire('_initialize');
+		try {
+			await this._scanAndHandleExtensions();
+		} finally {
+			lock.dispose();
+		}
+
 		this._releaseBarrier();
 		perf.mark('code/didLoadExtensions');
 		await this._handleExtensionTests();
@@ -527,7 +529,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onExtensionHostExit(exitCode);
 	}
 
-	private findTestExtensionHost(testLocation: URI): ExtensionHostManager | undefined | null {
+	private findTestExtensionHost(testLocation: URI): IExtensionHostManager | undefined | null {
 		let extensionHostKind: ExtensionHostKind | undefined;
 
 		for (const extension of this._registry.getAllExtensionDescriptions()) {
@@ -591,14 +593,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
 		const extensionHosts = this._createExtensionHosts(isInitialStart);
 		extensionHosts.forEach((extensionHost) => {
-			const processManager = this._instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents);
+			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents);
 			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 			processManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 			this._extensionHostManagers.push(processManager);
 		});
 	}
 
-	private _onExtensionHostCrashOrExit(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
+	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
 
 		// Unexpected termination
 		if (!this._isExtensionDevHost) {
@@ -609,7 +611,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onExtensionHostExit(code);
 	}
 
-	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
+	protected _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			this.stopExtensionHosts();
@@ -729,6 +731,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					messages: this._extensionsMessages.get(extensionKey) || [],
 					activationTimes: this._extensionHostActivationTimes.get(extensionKey),
 					runtimeErrors: this._extensionHostExtensionRuntimeErrors.get(extensionKey) || [],
+					runningLocation: this._runningLocation.get(extensionKey) || ExtensionRunningLocation.None,
 				};
 			}
 		}
@@ -763,7 +766,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._checkEnableProposedApi(extensions);
 
 		// keep only enabled extensions
-		return extensions.filter(extension => this._isEnabled(extension, ignoreWorkspaceTrust));
+		return this._filterEnabledExtensions(extensions, ignoreWorkspaceTrust);
 	}
 
 	/**
@@ -771,30 +774,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
 	 */
 	protected _isEnabled(extension: IExtensionDescription, ignoreWorkspaceTrust: boolean): boolean {
-		if (extension.isUnderDevelopment) {
-			// Never disable extensions under development
-			return true;
-		}
-
-		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
-			// Check if this is the better merge extension which was migrated to a built-in extension
-			return false;
-		}
-
-		const ext = toExtension(extension);
-
-		const isEnabled = this._safeInvokeIsEnabled(ext);
-		if (isEnabled) {
-			return true;
-		}
-
-		if (ignoreWorkspaceTrust && this._safeInvokeIsDisabledByWorkspaceTrust(ext)) {
-			// This extension is disabled, but the reason for it being disabled
-			// is workspace trust, so we will consider it enabled
-			return true;
-		}
-
-		return false;
+		return this._filterEnabledExtensions([extension], ignoreWorkspaceTrust).includes(extension);
 	}
 
 	protected _safeInvokeIsEnabled(extension: IExtension): boolean {
@@ -805,12 +785,27 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	protected _safeInvokeIsDisabledByWorkspaceTrust(extension: IExtension): boolean {
-		try {
-			return this._extensionEnablementService.isDisabledByWorkspaceTrust(extension);
-		} catch (err) {
-			return false;
+	private _filterEnabledExtensions(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
+		const enabledExtensions: IExtensionDescription[] = [], extensionsToCheck: IExtensionDescription[] = [], mappedExtensions: IExtension[] = [];
+		for (const extension of extensions) {
+			if (extension.isUnderDevelopment) {
+				// Never disable extensions under development
+				enabledExtensions.push(extension);
+			}
+			else {
+				extensionsToCheck.push(extension);
+				mappedExtensions.push(toExtension(extension));
+			}
 		}
+
+		const enablementStates = this._extensionEnablementService.getEnablementStates(mappedExtensions, ignoreWorkspaceTrust ? { trusted: true } : undefined);
+		for (let index = 0; index < enablementStates.length; index++) {
+			if (this._extensionEnablementService.isEnabledEnablementState(enablementStates[index])) {
+				enabledExtensions.push(extensionsToCheck[index]);
+			}
+		}
+
+		return enabledExtensions;
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
@@ -948,7 +943,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
 		type ExtensionActivationErrorClassification = {
 			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			error: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			error: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
 		};
 		type ExtensionActivationErrorEvent = {
 			extensionId: string;

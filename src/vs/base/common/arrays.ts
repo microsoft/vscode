@@ -219,7 +219,7 @@ export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, comp
  * @param array The unsorted array.
  * @param compare A sort function for the elements.
  * @param n The number of elements to return.
- * @return The first n elemnts from array when sorted with compare.
+ * @return The first n elements from array when sorted with compare.
  */
 export function top<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, n: number): T[] {
 	if (n === 0) {
@@ -241,7 +241,7 @@ export function top<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number,
  * @param compare A sort function for the elements.
  * @param n The number of elements to return.
  * @param batch The number of elements to examine before yielding to the event loop.
- * @return The first n elemnts from array when sorted with compare.
+ * @return The first n elements from array when sorted with compare.
  */
 export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number, token?: CancellationToken): Promise<T[]> {
 	if (n === 0) {
@@ -286,7 +286,7 @@ export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
 }
 
 /**
- * Remove all falsey values from `array`. The original array IS modified.
+ * Remove all falsy values from `array`. The original array IS modified.
  */
 export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 	let to = 0;
@@ -324,7 +324,7 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
 
 /**
  * Removes duplicates from the given array. The optional keyFn allows to specify
- * how elements are checked for equalness by returning a unique string for each.
+ * how elements are checked for equality by returning a unique string for each.
  */
 export function distinct<T>(array: ReadonlyArray<T>, keyFn?: (t: T) => string): T[] {
 	if (!keyFn) {
@@ -556,6 +556,53 @@ export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undef
 }
 
 /**
+ * Insert the new items in the array.
+ * @param array The original array.
+ * @param start The zero-based location in the array from which to start inserting elements.
+ * @param newItems The items to be inserted
+ */
+export function insertInto<T>(array: T[], start: number, newItems: T[]): void {
+	const startIdx = getActualStartIndex(array, start);
+	const originalLength = array.length;
+	const newItemsLength = newItems.length;
+	array.length = originalLength + newItemsLength;
+	// Move the items after the start index, start from the end so that we don't overwrite any value.
+	for (let i = originalLength - 1; i >= startIdx; i--) {
+		array[i + newItemsLength] = array[i];
+	}
+
+	for (let i = 0; i < newItemsLength; i++) {
+		array[i + startIdx] = newItems[i];
+	}
+}
+
+/**
+ * Removes elements from an array and inserts new elements in their place, returning the deleted elements. Alternative to the native Array.splice method, it
+ * can only support limited number of items due to the maximum call stack size limit.
+ * @param array The original array.
+ * @param start The zero-based location in the array from which to start removing elements.
+ * @param deleteCount The number of elements to remove.
+ * @returns An array containing the elements that were deleted.
+ */
+export function splice<T>(array: T[], start: number, deleteCount: number, newItems: T[]): T[] {
+	const index = getActualStartIndex(array, start);
+	const result = array.splice(index, deleteCount);
+	insertInto(array, index, newItems);
+	return result;
+}
+
+/**
+ * Determine the actual start index (same logic as the native splice() or slice())
+ * If greater than the length of the array, start will be set to the length of the array. In this case, no element will be deleted but the method will behave as an adding function, adding as many element as item[n*] provided.
+ * If negative, it will begin that many elements from the end of the array. (In this case, the origin -1, meaning -n is the index of the nth last element, and is therefore equivalent to the index of array.length - n.) If array.length + start is less than 0, it will begin from index 0.
+ * @param array The target array.
+ * @param start The operation index.
+ */
+function getActualStartIndex<T>(array: T[], start: number): number {
+	return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
+}
+
+/**
  * Like Math.min with a delegate, and returns the winning index
  */
 export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
@@ -587,4 +634,53 @@ export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): numb
 	});
 
 	return maxIdx;
+}
+
+export class ArrayQueue<T> {
+	private firstIdx = 0;
+	private lastIdx = this.items.length - 1;
+
+	/**
+	 * Constructs a queue that is backed by the given array. Runtime is O(1).
+	*/
+	constructor(private readonly items: T[]) { }
+
+	get length(): number {
+		return this.lastIdx - this.firstIdx + 1;
+	}
+
+	/**
+	 * Consumes elements from the beginning of the queue as long as the predicate returns true.
+	 * If no elements were consumed, `null` is returned. Has a runtime of O(result.length).
+	*/
+	takeWhile(predicate: (value: T) => boolean): T[] | null {
+		// P(k) := k <= this.lastIdx && predicate(this.items[k])
+		// Find s := min { k | k >= this.firstIdx && !P(k) } and return this.data[this.firstIdx...s)
+
+		let startIdx = this.firstIdx;
+		while (startIdx < this.items.length && predicate(this.items[startIdx])) {
+			startIdx++;
+		}
+		const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
+		this.firstIdx = startIdx;
+		return result;
+	}
+
+	/**
+	 * Consumes elements from the end of the queue as long as the predicate returns true.
+	 * If no elements were consumed, `null` is returned.
+	 * The result has the same order as the underlying array!
+	*/
+	takeFromEndWhile(predicate: (value: T) => boolean): T[] | null {
+		// P(k) := this.firstIdx >= k && predicate(this.items[k])
+		// Find s := max { k | k <= this.lastIdx && !P(k) } and return this.data(s...this.lastIdx]
+
+		let endIdx = this.lastIdx;
+		while (endIdx >= 0 && predicate(this.items[endIdx])) {
+			endIdx--;
+		}
+		const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);
+		this.lastIdx = endIdx;
+		return result;
+	}
 }

@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, State, getStateLabel, CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, VIEWLET_ID, CONTEXT_DISASSEMBLY_VIEW_FOCUS } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -16,7 +16,7 @@ import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -30,6 +30,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { deepClone } from 'vs/base/common/objects';
 import { isWeb, isWindows } from 'vs/base/common/platform';
+import { saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -54,6 +55,7 @@ export const DEBUG_CONFIGURE_COMMAND_ID = 'workbench.action.debug.configure';
 export const DEBUG_START_COMMAND_ID = 'workbench.action.debug.start';
 export const DEBUG_RUN_COMMAND_ID = 'workbench.action.debug.run';
 export const EDIT_EXPRESSION_COMMAND_ID = 'debug.renameWatchExpression';
+export const SET_EXPRESSION_COMMAND_ID = 'debug.setWatchExpression';
 export const REMOVE_EXPRESSION_COMMAND_ID = 'debug.removeWatchExpression';
 
 export const RESTART_LABEL = nls.localize('restartDebug', "Restart");
@@ -88,7 +90,15 @@ async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: C
 		if (session) {
 			thread = session.getAllThreads().find(t => t.getId() === sessionAndThreadId.threadId);
 		}
-	} else {
+	} else if (isSessionContext(sessionAndThreadId)) {
+		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
+		if (session) {
+			const threads = session.getAllThreads();
+			thread = threads.length > 0 ? threads[0] : undefined;
+		}
+	}
+
+	if (!thread) {
 		thread = debugService.getViewModel().focusedThread;
 		if (!thread) {
 			const focusedSession = debugService.getViewModel().focusedSession;
@@ -152,7 +162,12 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: STEP_BACK_ID,
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, thread => thread.stepBack());
+		const contextKeyService = accessor.get(IContextKeyService);
+		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack('instruction'));
+		} else {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepBack());
+		}
 	}
 });
 
@@ -229,7 +244,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (!session) {
 			const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
-			await debugService.startDebugging(launch, name, { noDebug: false });
+			await debugService.startDebugging(launch, name, { noDebug: false, startedByUser: true });
 		} else {
 			const showSubSessions = configurationService.getValue<IDebugConfiguration>('debug').showSubSessionsInToolBar;
 			// Stop should be sent to the root parent session
@@ -248,7 +263,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: isWeb ? (KeyMod.Alt | KeyCode.F10) : KeyCode.F10, // Browsers do not allow F10 to be binded so we have to bind an alternative
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, (thread: IThread) => thread.next());
+		const contextKeyService = accessor.get(IContextKeyService);
+		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.next('instruction'));
+		} else {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.next());
+		}
 	}
 });
 
@@ -259,7 +279,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
 	when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
+		const contextKeyService = accessor.get(IContextKeyService);
+		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn('instruction'));
+		} else {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
+		}
 	}
 });
 
@@ -269,7 +294,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Shift | KeyCode.F11,
 	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
-		getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut());
+		const contextKeyService = accessor.get(IContextKeyService);
+		if (CONTEXT_DISASSEMBLY_VIEW_FOCUS.getValue(contextKeyService)) {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut('instruction'));
+		} else {
+			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepOut());
+		}
 	}
 });
 
@@ -392,10 +422,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.isEqualTo('inactive')),
 	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
 		const debugService = accessor.get(IDebugService);
+		await saveAllBeforeDebugStart(accessor.get(IConfigurationService), accessor.get(IEditorService));
 		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
 		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
-		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug });
+		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug, startedByUser: true }, false);
 	}
 });
 
@@ -473,7 +504,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		if (expression instanceof Expression) {
-			debugService.getViewModel().setSelectedExpression(expression);
+			debugService.getViewModel().setSelectedExpression(expression, false);
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: SET_EXPRESSION_COMMAND_ID,
+	handler: async (accessor: ServicesAccessor, expression: Expression | unknown) => {
+		const debugService = accessor.get(IDebugService);
+		if (expression instanceof Expression || expression instanceof Variable) {
+			debugService.getViewModel().setSelectedExpression(expression, true);
 		}
 	}
 });
@@ -492,7 +533,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (focused) {
 			const elements = focused.getFocus();
 			if (Array.isArray(elements) && elements[0] instanceof Variable) {
-				debugService.getViewModel().setSelectedExpression(elements[0]);
+				debugService.getViewModel().setSelectedExpression(elements[0], false);
 			}
 		}
 	}

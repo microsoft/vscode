@@ -14,7 +14,10 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 /**
  * The working copy backup tracker deals with:
@@ -32,7 +35,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		private readonly lifecycleService: ILifecycleService,
 		protected readonly filesConfigurationService: IFilesConfigurationService,
 		private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		protected readonly editorService: IEditorService
+		protected readonly editorService: IEditorService,
+		private readonly editorGroupService: IEditorGroupsService
 	) {
 		super();
 
@@ -233,8 +237,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 		// Figure out already opened editors for backups vs
 		// non-opened.
-		const openedEditorsForBackups: IEditorInput[] = [];
-		const nonOpenedEditorsForBackups: IEditorInput[] = [];
+		const openedEditorsForBackups = new Set<EditorInput>();
+		const nonOpenedEditorsForBackups = new Set<EditorInput>();
 
 		// Ensure each backup that can be handled has an
 		// associated editor.
@@ -250,7 +254,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			for (const { editor } of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 				const isUnrestoredBackupOpened = handler.isOpen(unrestoredBackup, editor);
 				if (isUnrestoredBackupOpened) {
-					openedEditorsForBackups.push(editor);
+					openedEditorsForBackups.add(editor);
 					hasOpenedEditorForBackup = true;
 				}
 			}
@@ -258,7 +262,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			// Otherwise, make sure to create at least one editor
 			// for the backup to show
 			if (!hasOpenedEditorForBackup) {
-				nonOpenedEditorsForBackups.push(await handler.createEditor(unrestoredBackup));
+				nonOpenedEditorsForBackups.add(await handler.createEditor(unrestoredBackup));
 			}
 
 			// Remember as (potentially) restored
@@ -267,22 +271,33 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 		// Ensure editors are opened for each backup without editor
 		// in the background without stealing focus
-		if (nonOpenedEditorsForBackups.length > 0) {
-			await this.editorService.openEditors(nonOpenedEditorsForBackups.map(nonOpenedEditorForBackup => ({
+		if (nonOpenedEditorsForBackups.size > 0) {
+			await this.editorGroupService.activeGroup.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
 				editor: nonOpenedEditorForBackup,
 				options: {
 					pinned: true,
 					preserveFocus: true,
-					inactive: true
+					inactive: true,
+					override: EditorResolution.DISABLED // very important to disable overrides because the editor input we got is proper
 				}
 			})));
 
-			openedEditorsForBackups.push(...nonOpenedEditorsForBackups);
+			for (const nonOpenedEditorForBackup of nonOpenedEditorsForBackups) {
+				openedEditorsForBackups.add(nonOpenedEditorForBackup);
+			}
 		}
 
-		// Then, resolve each editor to make sure the working copy
+		// Then, resolve each opened editor to make sure the working copy
 		// is loaded and the dirty editor appears properly
-		await Promises.settled(openedEditorsForBackups.map(openedEditorsForBackup => openedEditorsForBackup.resolve()));
+		// We only do that for editors that are not active in a group
+		// already to prevent calling `resolve` twice!
+		await Promises.settled([...openedEditorsForBackups].map(async openedEditorForBackup => {
+			if (this.editorService.isVisible(openedEditorForBackup)) {
+				return;
+			}
+
+			return openedEditorForBackup.resolve();
+		}));
 
 		// Finally, remove all handled backups from the list
 		for (const restoredBackup of restoredBackups) {

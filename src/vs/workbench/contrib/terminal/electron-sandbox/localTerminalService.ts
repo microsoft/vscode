@@ -14,10 +14,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { LocalPty } from 'vs/workbench/contrib/terminal/electron-sandbox/localPty';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
@@ -35,6 +38,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
 	private readonly _onPtyHostRestart = this._register(new Emitter<void>());
 	readonly onPtyHostRestart = this._onPtyHostRestart.event;
+	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -44,8 +49,9 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService notificationService: INotificationService,
 		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IHistoryService historyService: IHistoryService
+		@IHistoryService historyService: IHistoryService,
 	) {
 		super();
 
@@ -62,7 +68,11 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		this._localPtyService.onProcessTitleChanged(e => this._ptys.get(e.id)?.handleTitleChanged(e.event));
 		this._localPtyService.onProcessOverrideDimensions(e => this._ptys.get(e.id)?.handleOverrideDimensions(e.event));
 		this._localPtyService.onProcessResolvedShellLaunchConfig(e => this._ptys.get(e.id)?.handleResolvedShellLaunchConfig(e.event));
+		this._localPtyService.onProcessDidChangeHasChildProcesses(e => this._ptys.get(e.id)?.handleDidChangeHasChildProcesses(e.event));
+		this._localPtyService.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
 		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
+		this._localPtyService.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
+		this._localPtyService.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
 
 		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
@@ -105,16 +115,39 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		}
 		if (this._localPtyService.onPtyHostRequestResolveVariables) {
 			this._register(this._localPtyService.onPtyHostRequestResolveVariables(async e => {
+				// Only answer requests for this workspace
+				if (e.workspaceId !== this._workspaceContextService.getWorkspace().id) {
+					return;
+				}
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
 				});
 				const result = await Promise.all(resolveCalls);
-				this._localPtyService.acceptPtyHostResolvedVariables?.(e.id, result);
+				this._localPtyService.acceptPtyHostResolvedVariables?.(e.requestId, result);
 			}));
 		}
 	}
+
+	async requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
+		return this._localPtyService.requestDetachInstance(workspaceId, instanceId);
+	}
+
+	async acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void> {
+		if (!persistentProcessId) {
+			this._logService.warn('Cannot attach to feature terminals, custom pty terminals, or those without a persistentProcessId');
+			return;
+		}
+		return this._localPtyService.acceptDetachInstanceReply(requestId, persistentProcessId);
+	}
+
+	async persistTerminalState(): Promise<void> {
+		const ids = Array.from(this._ptys.keys());
+		const serialized = await this._localPtyService.serializeTerminalState(ids);
+		this._storageService.store(TerminalStorageKeys.TerminalBufferState, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
 	async updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void> {
 		await this._localPtyService.updateTitle(id, title, titleSource);
 	}
@@ -123,9 +156,9 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		await this._localPtyService.updateIcon(id, icon, color);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
+	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {
 		const executableEnv = await this._shellEnvironmentService.getShellEnv();
-		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
+		const id = await this._localPtyService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, executableEnv, windowsEnableConpty, shouldPersist, this._getWorkspaceId(), this._getWorkspaceName());
 		const pty = this._instantiationService.createInstance(LocalPty, id, shouldPersist);
 		this._ptys.set(id, pty);
 		return pty;
@@ -133,11 +166,13 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
+			console.log(`Try attach ` + id);
 			await this._localPtyService.attachToProcess(id);
 			const pty = this._instantiationService.createInstance(LocalPty, id, true);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
+			console.log(`Couldn't attach to process ${e.message}`);
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
 		}
 		return undefined;
@@ -156,7 +191,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	}
 
 	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean) {
-		return this._localPtyService.getProfiles?.(profiles, defaultProfile, includeDetectedProfiles) || [];
+		return this._localPtyService.getProfiles?.(this._workspaceContextService.getWorkspace().id, profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {
@@ -177,13 +212,33 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
 		await this._localPtyService.setTerminalLayoutInfo(args);
+		// Store in the storage service as well to be used when reviving processes as normally this
+		// is stored in memory on the pty host
+		this._storageService.store(TerminalStorageKeys.TerminalLayoutInfo, JSON.stringify(args), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		const layoutArgs: IGetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId()
 		};
-		return await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
+
+		// Revive processes if needed
+		const serializedState = this._storageService.get(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
+		if (serializedState) {
+			try {
+				await this._localPtyService.reviveTerminalProcesses(serializedState);
+				// If reviving processes, send the terminal layout info back to the pty host as it
+				// will not have been persisted on application exit
+				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
+				if (layoutInfo) {
+					await this._localPtyService.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+				}
+			} catch {
+				// no-op
+			}
+		}
+
+		return this._localPtyService.getTerminalLayoutInfo(layoutArgs);
 	}
 
 	private _getWorkspaceId(): string {

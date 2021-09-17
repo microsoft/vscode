@@ -23,9 +23,18 @@
 	height: 100%;
 }
 
-/* Override monaco's cursor focus outline */
-.monaco-workbench .editor-instance textarea:focus {
+/* Override monaco's styles for terminal editors */
+.monaco-workbench .editor-instance .xterm textarea:focus {
+	opacity: 0 !important;
 	outline: 0 !important;
+}
+
+.monaco-workbench .terminal-tab::before {
+	font-family: 'codicon' !important;
+	font-size: 16px !important;
+}
+.monaco-workbench .terminal-tab:not(.terminal-uri-icon)::before {
+	background-image: none !important;
 }
 
 .monaco-workbench .editor-instance .terminal-wrapper,
@@ -228,6 +237,11 @@
 	flex-direction: column;
 }
 
+.monaco-workbench .terminal-overflow-guard {
+	overflow: hidden;
+	position: relative;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
 	height: 100%;
 	overflow: hidden;
@@ -237,6 +251,16 @@
 	padding: 4px 0 2px;
 	margin: auto;
 }
+.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before {
+	display: block;
+	position: absolute;
+	content: "";
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 1px;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
 	padding: 4px 7px 2px;
 	margin: 0;
@@ -261,8 +285,7 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label::after {
-	padding-right: 0;
-	padding-left: 0;
+	margin-right: 0;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-entry .codicon {

@@ -14,12 +14,12 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CompletionItem, CompletionItemKind } from 'vs/editor/common/modes';
 import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
+import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
+import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
-import { localize } from 'vs/nls';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;

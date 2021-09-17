@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { sep } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { IExpression } from 'vs/base/common/glob';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { startsWithIgnoreCase } from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isNumber } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { IExpression } from 'vs/base/common/glob';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { sep } from 'vs/base/common/path';
+import { ReadableStreamEvents } from 'vs/base/common/stream';
+import { startsWithIgnoreCase } from 'vs/base/common/strings';
+import { isNumber } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 //#region file service & providers
 
@@ -76,6 +76,15 @@ export interface IFileService {
 	 * (if any) as well as all files that have been watched explicitly using the #watch() API.
 	 */
 	readonly onDidFilesChange: Event<FileChangesEvent>;
+
+	/**
+	 *
+	 * Raw access to all file events emitted from file system providers.
+	 *
+	 * @deprecated use this method only if you know what you are doing. use the other watch related events
+	 * and APIs for more efficient file watching.
+	 */
+	readonly onDidChangeFilesRaw: Event<IRawFileChangesEvent>;
 
 	/**
 	 * An event that is fired upon successful completion of a certain file operation.
@@ -639,13 +648,21 @@ export interface IFileChange {
 	readonly resource: URI;
 }
 
+export interface IRawFileChangesEvent {
+
+	/**
+	 * @deprecated use `FileChangesEvent` instead unless you know what you are doing
+	 */
+	readonly changes: readonly IFileChange[];
+}
+
 export class FileChangesEvent {
 
 	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
-	constructor(private readonly changes: readonly IFileChange[], ignorePathCasing: boolean) {
+	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
 		for (const change of changes) {
 			switch (change.type) {
 				case FileChangeType.ADDED:
@@ -751,14 +768,6 @@ export class FileChangesEvent {
 	gotUpdated(): boolean {
 		return !!this.updated;
 	}
-
-	/**
-	 * @deprecated use the `contains` or `affects` method to efficiently find
-	 * out if the event relates to a given resource. these methods ensure:
-	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	get raw(): readonly IFileChange[] { return this.changes; }
 
 	/**
 	 * @deprecated use the `contains` or `affects` method to efficiently find

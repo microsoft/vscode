@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises as FSPromises } from 'vs/base/node/pfs';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { joinPath } from 'vs/base/common/resources';
-import { ExtensionIdentifierWithVersion, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ILogService } from 'vs/platform/log/common/log';
-import { generateUuid } from 'vs/base/common/uuid';
-import * as semver from 'vs/base/common/semver/semver';
-import { isWindows } from 'vs/base/common/platform';
 import { Promises } from 'vs/base/common/async';
 import { getErrorMessage } from 'vs/base/common/errors';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
+import { joinPath } from 'vs/base/common/resources';
+import * as semver from 'vs/base/common/semver/semver';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { Promises as FSPromises } from 'vs/base/node/pfs';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionGalleryService, IGalleryExtension, InstallOperation, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifierWithVersion, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const ExtensionIdVersionRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/;
 
@@ -123,7 +123,7 @@ export class ExtensionsDownloader extends Disposable {
 	}
 
 	private getName(extension: IGalleryExtension): string {
-		return this.cache ? new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key().toLowerCase() : generateUuid();
+		return this.cache ? `${new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key().toLowerCase()}${extension.properties.targetPlatform !== TargetPlatform.UNDEFINED ? `-${extension.properties.targetPlatform}` : ''}` : generateUuid();
 	}
 
 	private parse(name: string): ExtensionIdentifierWithVersion | null {

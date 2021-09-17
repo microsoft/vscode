@@ -71,7 +71,12 @@ export const DataTransfers = {
 	/**
 	 * Typically transfer type for copy/paste transfers.
 	 */
-	TEXT: Mimes.text
+	TEXT: Mimes.text,
+
+	/**
+	 * Application specific terminal transfer type.
+	 */
+	TERMINALS: 'Terminals'
 };
 
 export function applyDragImage(event: DragEvent, label: string | null, clazz: string): void {

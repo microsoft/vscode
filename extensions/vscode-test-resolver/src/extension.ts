@@ -382,13 +382,14 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 
 	return createTunnelService();
 
-	function newTunnel(localAddress: { host: string, port: number }) {
+	function newTunnel(localAddress: { host: string, port: number }): vscode.Tunnel {
 		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
 		let isDisposed = false;
 		return {
 			localAddress,
 			remoteAddress: tunnelOptions.remoteAddress,
 			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') && tunnelOptions.public,
+			protocol: tunnelOptions.protocol,
 			onDidDispose: onDidDispose.event,
 			dispose: () => {
 				if (!isDisposed) {

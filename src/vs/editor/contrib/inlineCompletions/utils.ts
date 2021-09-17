@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference, trackDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
 export function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference<T> {
 	return {
@@ -12,47 +12,22 @@ export function createDisposableRef<T>(object: T, disposable?: IDisposable): IRe
 	};
 }
 
-// TODO: merge this class into Matt's MutableDisposable.
-/**
- * Manages the lifecycle of a disposable value that may be changed.
- *
- * This ensures that when the disposable value is changed, the previously held disposable is disposed of. You can
- * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
- */
-export class MutableDisposable<T extends IDisposable> implements IDisposable {
-	private _value?: T;
-	private _isDisposed = false;
+export type Comparator<T> = (a: T, b: T) => number;
 
-	constructor() {
-		trackDisposable(this);
-	}
+export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompareBy, comparator: Comparator<TCompareBy>): Comparator<TItem> {
+	return (a, b) => comparator(selector(a), selector(b));
+}
 
-	get value(): T | undefined {
-		return this._isDisposed ? undefined : this._value;
-	}
+export function compareByNumberAsc<T>(): Comparator<number> {
+	return (a, b) => a - b;
+}
 
-	set value(value: T | undefined) {
-		if (this._isDisposed || value === this._value) {
-			return;
+export function findMinBy<T>(items: T[], comparator: Comparator<T>): T | undefined {
+	let min: T | undefined = undefined;
+	for (const item of items) {
+		if (min === undefined || comparator(item, min) < 0) {
+			min = item;
 		}
-
-		this._value?.dispose();
-		this._value = value;
 	}
-
-	clear() {
-		this.value = undefined;
-	}
-
-	dispose(): void {
-		this._isDisposed = true;
-		this._value?.dispose();
-		this._value = undefined;
-	}
-
-	replace(newValue: T | undefined): T | undefined {
-		const oldValue = this._value;
-		this._value = newValue;
-		return oldValue;
-	}
+	return min;
 }

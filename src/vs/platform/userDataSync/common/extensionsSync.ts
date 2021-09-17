@@ -3,31 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncResourceEnablementService,
-	IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, IRemoteUserData, ISyncData, Change, ISyncExtensionWithVersion
-} from 'vs/platform/userDataSync/common/userDataSync';
-import { Event } from 'vs/base/common/event';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { areSameExtensions, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { merge, IMergeResult as IExtensionMergeResult } from 'vs/platform/userDataSync/common/extensionsMerge';
-import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { URI } from 'vs/base/common/uri';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { compare } from 'vs/base/common/strings';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { Promises } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
+import { applyEdits } from 'vs/base/common/jsonEdit';
+import { format } from 'vs/base/common/jsonFormatter';
+import { compare } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, INSTALL_ERROR_INCOMPATIBLE } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { IMergeResult as IExtensionMergeResult, merge } from 'vs/platform/userDataSync/common/extensionsMerge';
+import { IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
+import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
+import { Change, IRemoteUserData, ISyncData, ISyncExtension, ISyncExtensionWithVersion, ISyncResourceHandle, IUserDataSyncBackupStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 type IExtensionResourceMergeResult = IAcceptResult & IExtensionMergeResult;
 
@@ -116,7 +113,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		this._register(
 			Event.debounce(
 				Event.any<any>(
-					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
+					Event.filter(this.extensionManagementService.onDidInstallExtensions, (e => e.some(({ local }) => !!local))),
 					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
 					this.extensionEnablementService.onDidChangeEnablement,
 					this.extensionsStorageSyncService.onDidChangeExtensionsStorage),
@@ -378,7 +375,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				}
 
 				// User Extension Sync: Install/Update, Enablement & State
-				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier);
+				const extension = (await this.extensionGalleryService.getExtensions([e.identifier], CancellationToken.None))[0];
 
 				/* Update extension state only if
 				 *	extension is installed and version is same as synced version or
@@ -407,18 +404,28 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 						// Install only if the extension does not exist
 						if (!installedExtension) {
-							this.logService.trace(`${this.syncResourceLogLabel}: Installing extension...`, e.identifier.id, extension.version);
-							await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false, donotIncludePackAndDependencies: true } /* pass options to prevent install and sync dialog in web */);
-							this.logService.info(`${this.syncResourceLogLabel}: Installed extension.`, e.identifier.id, extension.version);
-							removeFromSkipped.push(extension.identifier);
+							if (await this.extensionManagementService.canInstall(extension)) {
+								this.logService.trace(`${this.syncResourceLogLabel}: Installing extension...`, e.identifier.id, extension.version);
+								await this.extensionManagementService.installFromGallery(extension, { isMachineScoped: false, donotIncludePackAndDependencies: true } /* pass options to prevent install and sync dialog in web */);
+								this.logService.info(`${this.syncResourceLogLabel}: Installed extension.`, e.identifier.id, extension.version);
+								removeFromSkipped.push(extension.identifier);
+							} else {
+								this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because it cannot be installed.`, extension.displayName || extension.identifier.id);
+								addToSkipped.push(e);
+							}
 						}
 					} catch (error) {
 						addToSkipped.push(e);
-						this.logService.error(error);
-						this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
+						if (error instanceof ExtensionManagementError && error.code === INSTALL_ERROR_INCOMPATIBLE) {
+							this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, extension.displayName || extension.identifier.id);
+						} else {
+							this.logService.error(error);
+							this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
+						}
 					}
 				} else {
 					addToSkipped.push(e);
+					this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because the extension is not found.`, e.identifier.id);
 				}
 			}));
 		}

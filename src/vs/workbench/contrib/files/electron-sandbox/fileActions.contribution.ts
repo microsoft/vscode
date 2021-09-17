@@ -21,11 +21,11 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ContextKeyOrExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
-const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyOrExpr.create([ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.userData)]);
+const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.userData));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,

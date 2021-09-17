@@ -26,12 +26,12 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 					compile-extension:markdown-language-features^
 					compile-extension:typescript-language-features^
 					compile-extension:vscode-custom-editor-tests^
-					compile-extension:vscode-notebook-tests^
 					compile-extension:emmet^
 					compile-extension:css-language-features-server^
 					compile-extension:html-language-features-server^
 					compile-extension:json-language-features-server^
 					compile-extension:git^
+					compile-extension:ipynb^
 					compile-extension-media
 
 	:: Configuration for more verbose output
@@ -43,13 +43,16 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	echo Running integration tests with '%INTEGRATION_TEST_ELECTRON_PATH%' as build.
 )
 
-:: Integration & performance tests in AMD
+
+:: Tests standalone (AMD)
+
 call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+
 :: Tests in the extension host
 
-set ALL_PLATFORMS_API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
+set ALL_PLATFORMS_API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
 
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\singlefolder-tests %ALL_PLATFORMS_API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
@@ -69,16 +72,20 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\emmet\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test %ALL_PLATFORMS_API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-notebook-tests\test --enable-proposed-api=vscode.vscode-notebook-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-notebook-tests --extensionTestsPath=%~dp0\..\extensions\vscode-notebook-tests\out %ALL_PLATFORMS_API_TESTS_EXTRA_ARGS%
-if %errorlevel% neq 0 exit /b %errorlevel%
-
 for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
 set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
 mkdir %GITWORKSPACE%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test --enable-proposed-api=vscode.git %ALL_PLATFORMS_API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-:: Tests in commonJS (CSS, HTML)
+set IPYNBWORKSPACE=%TEMPDIR%\ipynb-%RANDOM%
+mkdir %IPYNBWORKSPACE%
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %IPYNBWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\ipynb --extensionTestsPath=%~dp0\..\extensions\ipynb\out\test %ALL_PLATFORMS_API_TESTS_EXTRA_ARGS%
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+
+:: Tests standalone (CommonJS)
+
 call %~dp0\node-electron.bat %~dp0\..\extensions\css-language-features/server/test/index.js
 if %errorlevel% neq 0 exit /b %errorlevel%
 
