@@ -419,16 +419,6 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'string',
 			default: ' ()[]{}\',"`─'
 		},
-		[TerminalSettingId.TitleMode]: {
-			description: localize('terminal.integrated.titleMode', "Determines how the terminal's title is set, this shows up in the terminal's tab or dropdown entry."),
-			type: 'string',
-			enum: ['executable', 'sequence'],
-			markdownEnumDescriptions: [
-				localize('titleMode.executable', "The title is set by the terminal, the name of the detected foreground process will be used."),
-				localize('titleMode.sequence', "The title is set by the process via an escape sequence, this is useful if your shell dynamically sets the title.")
-			],
-			default: 'executable'
-		},
 		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
 			type: 'boolean',
