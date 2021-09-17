@@ -59,6 +59,7 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEditorInput> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
+
 		// Data Transfer: Code Editors
 		const rawEditorsData = e.dataTransfer.getData(CodeDataTransfers.EDITORS);
 		if (rawEditorsData) {
