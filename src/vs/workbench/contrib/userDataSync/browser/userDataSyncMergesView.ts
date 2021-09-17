@@ -18,7 +18,7 @@ import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, SYNC_MERGES_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { isEqual, basename } from 'vs/base/common/resources';
-import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { listWarningForeground, listDeemphasizedForeground } from 'vs/platform/theme/common/colorRegistry';
 import * as DOM from 'vs/base/browser/dom';

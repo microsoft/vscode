@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { DecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
-import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';

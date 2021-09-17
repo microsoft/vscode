@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { Emitter, DebounceEmitter } from 'vs/base/common/event';
-import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
+import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';

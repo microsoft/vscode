@@ -21,7 +21,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';

@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService, IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
