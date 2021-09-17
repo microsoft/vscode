@@ -251,7 +251,7 @@ function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: str
 	}
 
 	if (distinctElements[0].isDirectory) {
-		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
+		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '(You will not be able to restore it after exiting VS Code)' };
 	}
 
 	return { message: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
@@ -274,7 +274,7 @@ function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, 
 		}
 
 		return {
-			message: nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length),
+			message: nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to delete the following {0} files? (You will not be able to restore these files after exiting VS Code)", distinctElements.length),
 			detail: getFileNamesMessage(distinctElements.map(e => e.resource))
 		};
 	}
