@@ -42,8 +42,7 @@ export function registerRemoteTerminal(services: ServicesAccessor, channelServer
 	const reconnectConstants: IReconnectConstants = {
 		graceTime: LocalReconnectConstants.GraceTime,
 		shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-		scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100,
-		useExperimentalSerialization: configurationService.getValue<boolean>(TerminalSettingId.PersistentSessionExperimentalSerializer) ?? true,
+		scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 	};
 	const ptyHostService = new PtyHostService(reconnectConstants, configurationService, logService, telemetryService);
 	channelServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannelServer(rawURITransformerFactory, logService, ptyHostService));
