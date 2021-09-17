@@ -7,11 +7,11 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { EditorResourceAccessor, IEditorsChangeEvent, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupChangeKind, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
@@ -104,14 +104,14 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidTabMove(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.EDITOR_MOVE || event.editorIndex === undefined || event.previousEditorIndex === undefined) {
+		if (event.kind !== GroupChangeKind.EDITOR_MOVE || event.editorIndex === undefined || event.oldEditorIndex === undefined) {
 			return;
 		}
-		const movedTab = this._tabModel.get(event.groupId)?.splice(event.previousEditorIndex, 1);
+		const movedTab = this._tabModel.get(event.groupId)?.splice(event.oldEditorIndex, 1);
 		if (movedTab === undefined) {
 			return;
 		}
-		this._tabModel.get(event.groupId)?.splice(event.previousEditorIndex, 0, movedTab[0]);
+		this._tabModel.get(event.groupId)?.splice(event.oldEditorIndex, 0, movedTab[0]);
 		movedTab[0].isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(movedTab[0].resource), options: { override: movedTab[0].editorId } });
 		// Update the currently active tab
 		if (movedTab[0].isActive) {
