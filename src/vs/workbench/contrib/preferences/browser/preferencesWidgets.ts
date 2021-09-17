@@ -26,6 +26,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -370,7 +371,8 @@ export class SearchWidget extends Widget {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService protected readonly keybindingService: IKeybindingService
 	) {
 		super();
 		this.create(parent);
@@ -420,7 +422,8 @@ export class SearchWidget extends Widget {
 	}
 
 	protected createInputBox(parent: HTMLElement): HistoryInputBox {
-		const box = this._register(new ContextScopedHistoryInputBox(parent, this.contextViewService, this.options, this.contextKeyService));
+		const showHistoryHint = () => { return this.keybindingService.lookupKeybinding('history.showPrevious')?.getElectronAccelerator() === 'Up' && this.keybindingService.lookupKeybinding('history.showNext')?.getElectronAccelerator() === 'Down'; };
+		const box = this._register(new ContextScopedHistoryInputBox(parent, this.contextViewService, { ...this.options, showHistoryHint }, this.contextKeyService));
 		this._register(attachInputBoxStyler(box, this.themeService));
 
 		return box;
