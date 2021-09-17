@@ -179,11 +179,11 @@ export class ListViewInfoAccessor extends Disposable {
 			return [];
 		}
 
-		return this.list.viewModel.getCells(range);
+		return this.list.viewModel.getCellsInRange(range);
 	}
 
 	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
-		return this.list.viewModel?.getCells(range) ?? [];
+		return this.list.viewModel?.getCellsInRange(range) ?? [];
 	}
 
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
@@ -1895,7 +1895,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const existingDecorations = this._decortionKeyToIds.get(key) || [];
-		const newDecorations = this.viewModel.getCells(range).map(cell => ({
+		const newDecorations = this.viewModel.getCellsInRange(range).map(cell => ({
 			handle: cell.handle,
 			options: { className: decorationRule.className, outputClassName: decorationRule.className, topClassName: decorationRule.topClassName }
 		}));

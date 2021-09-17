@@ -524,7 +524,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._viewCells[index];
 	}
 
-	getCells(range?: ICellRange): ReadonlyArray<ICellViewModel> {
+	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
 		if (!range) {
 			return this._viewCells.slice(0);
 		}
