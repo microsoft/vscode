@@ -18,11 +18,13 @@ export interface IDecorationData {
 	readonly color?: ColorIdentifier;
 	readonly letter?: string | ThemeIcon;
 	readonly tooltip?: string;
+	readonly strikethrough?: boolean;
 	readonly bubble?: boolean;
 }
 
 export interface IDecoration extends IDisposable {
 	readonly tooltip: string;
+	readonly strikethrough: boolean;
 	readonly labelClassName: string;
 	readonly badgeClassName: string;
 	readonly iconClassName: string;

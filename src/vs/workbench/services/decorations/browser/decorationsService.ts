@@ -187,6 +187,7 @@ class DecorationStyles {
 		let badgeClassName = rule.itemBadgeClassName;
 		let iconClassName = rule.iconBadgeClassName;
 		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
+		let strikethrough = data.some(d => d.strikethrough);
 
 		if (onlyChildren) {
 			// show items from its children only
@@ -198,6 +199,7 @@ class DecorationStyles {
 			labelClassName,
 			badgeClassName,
 			iconClassName,
+			strikethrough,
 			tooltip,
 			dispose: () => {
 				if (rule?.release()) {

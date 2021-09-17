@@ -556,6 +556,10 @@ class ResourceLabelWidget extends IconLabel {
 					iconLabelOptions.title = `${iconLabelOptions.title} • ${decoration.tooltip}`;
 				}
 
+				if (decoration.strikethrough) {
+					iconLabelOptions.strikethrough = true;
+				}
+
 				if (this.options.fileDecorations.colors) {
 					iconLabelOptions.extraClasses.push(decoration.labelClassName);
 				}
