@@ -57,7 +57,7 @@ interface IPlaceholderViewContainer {
 	name?: string;
 }
 
-export abstract class BasePanelPart extends CompositePart<PaneComposite> {
+export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPanelService {
 	protected abstract pinnedPanelsKey: string;
 	protected abstract placeholdeViewContainersKey: string;
 
