@@ -52,7 +52,7 @@
 	padding: 0px !important;
 }
 
-.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:hover {
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:not(.disabled):hover {
 	background-color: var(--code-toolbarHoverBackground);
 }
 
