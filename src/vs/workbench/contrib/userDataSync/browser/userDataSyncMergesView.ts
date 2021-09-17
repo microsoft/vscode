@@ -465,6 +465,10 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			return false;
 		}
 
+		if (!this.configurationService.getValue('diffEditor.renderSideBySide')) {
+			return isEqual(userDataSyncResource.merged, model.uri);
+		}
+
 		return true;
 	}
 
