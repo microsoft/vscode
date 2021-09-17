@@ -279,8 +279,7 @@ class SharedProcessMain extends Disposable {
 				new PtyHostService({
 					graceTime: LocalReconnectConstants.GraceTime,
 					shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100,
-					useExperimentalSerialization: configurationService.getValue<boolean>(TerminalSettingId.PersistentSessionExperimentalSerializer) ?? true,
+					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 				},
 					configurationService,
 					logService,

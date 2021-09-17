@@ -95,7 +95,6 @@ export const enum TerminalSettingId {
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
-	PersistentSessionExperimentalSerializer = 'terminal.integrated.persistentSessionExperimentalSerializer',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 }
@@ -560,7 +559,6 @@ export interface IReconnectConstants {
 	graceTime: number;
 	shortGraceTime: number;
 	scrollback: number;
-	useExperimentalSerialization: boolean;
 }
 
 export const enum LocalReconnectConstants {

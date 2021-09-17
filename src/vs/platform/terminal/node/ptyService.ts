@@ -19,7 +19,6 @@ import { Terminal as XtermTerminal } from 'xterm-headless';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalSerializer, TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { localize } from 'vs/nls';
@@ -471,18 +470,13 @@ export class PersistentTerminalProcess extends Disposable {
 		super();
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
 		this._wasRevived = reviveBuffer !== undefined;
-
-		if (reconnectConstants.useExperimentalSerialization) {
-			this._serializer = new XtermSerializer(
-				cols,
-				rows,
-				reconnectConstants.scrollback,
-				unicodeVersion,
-				reviveBuffer
-			);
-		} else {
-			this._serializer = new TerminalRecorder(cols, rows);
-		}
+		this._serializer = new XtermSerializer(
+			cols,
+			rows,
+			reconnectConstants.scrollback,
+			unicodeVersion,
+			reviveBuffer
+		);
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new ProcessTimeRunOnceScheduler(() => {
@@ -781,4 +775,11 @@ export interface ISerializedTerminalState {
 	unicodeVersion: '6' | '11';
 	replayEvent: IPtyHostProcessReplayEvent;
 	timestamp: number;
+}
+
+export interface ITerminalSerializer {
+	handleData(data: string): void;
+	handleResize(cols: number, rows: number): void;
+	generateReplayEvent(normalBufferOnly?: boolean): Promise<IPtyHostProcessReplayEvent>;
+	setUnicodeVersion?(version: '6' | '11'): void;
 }
