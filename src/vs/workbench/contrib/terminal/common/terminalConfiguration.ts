@@ -151,7 +151,9 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
-			default: isMacintosh ? 12 : 14
+			default: isMacintosh ? 12 : 14,
+			minimum: 6,
+			maximum: 100
 		},
 		[TerminalSettingId.LetterSpacing]: {
 			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal, this is an integer value which represents the amount of additional pixels to add between characters."),
