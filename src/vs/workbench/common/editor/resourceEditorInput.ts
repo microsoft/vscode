@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Verbosity, IEditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
@@ -159,40 +158,14 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
-		const state = { readonly: this.hasCapability(EditorInputCapabilities.Readonly), orphaned: this.isOrphaned() };
-
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return decorateFileEditorLabel(this.shortTitle, state);
+				return this.shortTitle;
 			case Verbosity.LONG:
-				return decorateFileEditorLabel(this.longTitle, state);
+				return this.longTitle;
 			default:
 			case Verbosity.MEDIUM:
-				return decorateFileEditorLabel(this.mediumTitle, state);
+				return this.mediumTitle;
 		}
 	}
-
-	protected isOrphaned(): boolean {
-		return false;
-	}
-
-	override getLabelExtraClasses(): string[] {
-		return this.isOrphaned() ? ['strikethrough'] : [];
-	}
-}
-
-export function decorateFileEditorLabel(label: string, state: { orphaned: boolean, readonly: boolean }): string {
-	if (state.orphaned && state.readonly) {
-		return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-	}
-
-	if (state.orphaned) {
-		return localize('orphanedFile', "{0} (deleted)", label);
-	}
-
-	if (state.readonly) {
-		return localize('readonlyFile', "{0} (read-only)", label);
-	}
-
-	return label;
 }

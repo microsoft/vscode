@@ -19,7 +19,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, GroupIdentifier, IRevertOptions, ISaveOptions, isEditorInputWithOptionsAndGroup, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
@@ -219,25 +218,15 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
-		const state = { readonly: this.hasCapability(EditorInputCapabilities.Readonly), orphaned: this.isOrphaned() };
-
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return decorateFileEditorLabel(this.shortTitle, state);
+				return this.shortTitle;
 			case Verbosity.LONG:
-				return decorateFileEditorLabel(this.longTitle, state);
+				return this.longTitle;
 			default:
 			case Verbosity.MEDIUM:
-				return decorateFileEditorLabel(this.mediumTitle, state);
+				return this.mediumTitle;
 		}
-	}
-
-	private isOrphaned(): boolean {
-		return !!this._modelRef?.object.isOrphaned();
-	}
-
-	override getLabelExtraClasses(): string[] {
-		return this.isOrphaned() ? ['strikethrough'] : [];
 	}
 
 	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
@@ -314,7 +303,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			const oldCapabilities = this.capabilities;
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 			this._register(this._modelRef.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 			// If we're loading untitled file data we should ensure it's dirty
 			if (this._untitledDocumentData) {

@@ -121,14 +121,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object.isDirty();
 	}
 
-	override isOrphaned() {
-		if (!this._editorModelReference) {
-			return super.isOrphaned();
-		}
-
-		return this._editorModelReference.object.isOrphaned();
-	}
-
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		if (this._editorModelReference) {
 
@@ -242,7 +234,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				return null;
 			}
 			this._register(this._editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			this._register(this._editorModelReference.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 			this._register(this._editorModelReference.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 			if (this._editorModelReference.object.isDirty()) {
 				this._onDidChangeDirty.fire();

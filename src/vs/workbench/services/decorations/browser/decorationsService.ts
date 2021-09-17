@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { Emitter, DebounceEmitter } from 'vs/base/common/event';
-import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
+import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from '../common/decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isThenable } from 'vs/base/common/async';
@@ -187,6 +187,7 @@ class DecorationStyles {
 		let badgeClassName = rule.itemBadgeClassName;
 		let iconClassName = rule.iconBadgeClassName;
 		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
+		let strikethrough = data.some(d => d.strikethrough);
 
 		if (onlyChildren) {
 			// show items from its children only
@@ -198,6 +199,7 @@ class DecorationStyles {
 			labelClassName,
 			badgeClassName,
 			iconClassName,
+			strikethrough,
 			tooltip,
 			dispose: () => {
 				if (rule?.release()) {

@@ -146,7 +146,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		// re-emit some events from the model
 		this.modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this.modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 		this.modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 
 		// important: treat save errors as potential dirty change because
@@ -275,14 +274,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	override isDirty(): boolean {
 		return !!(this.model?.isDirty());
-	}
-
-	override isOrphaned(): boolean {
-		if (this.model) {
-			return this.model.hasState(TextFileEditorModelState.ORPHAN);
-		}
-
-		return super.isOrphaned();
 	}
 
 	override isSaving(): boolean {

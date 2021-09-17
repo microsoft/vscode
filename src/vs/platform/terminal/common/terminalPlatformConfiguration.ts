@@ -389,17 +389,15 @@ export function registerTerminalPlatformConfiguration() {
 	registerTerminalDefaultProfileConfiguration();
 }
 
-let lastDefaultProfilesConfiguration: IConfigurationNode | undefined;
+let defaultProfilesConfiguration: IConfigurationNode | undefined;
 export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }, extensionContributedProfiles?: readonly IExtensionTerminalProfile[]) {
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	if (lastDefaultProfilesConfiguration) {
-		registry.deregisterConfigurations([lastDefaultProfilesConfiguration]);
-	}
 	let profileEnum;
 	if (detectedProfiles) {
 		profileEnum = createProfileSchemaEnums(detectedProfiles?.profiles, extensionContributedProfiles);
 	}
-	lastDefaultProfilesConfiguration = {
+	const oldDefaultProfilesConfiguration = defaultProfilesConfiguration;
+	defaultProfilesConfiguration = {
 		id: 'terminal',
 		order: 100,
 		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
@@ -431,5 +429,5 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 			},
 		}
 	};
-	registry.registerConfiguration(lastDefaultProfilesConfiguration);
+	registry.updateConfigurations({ add: [defaultProfilesConfiguration], remove: oldDefaultProfilesConfiguration ? [oldDefaultProfilesConfiguration] : [] });
 }

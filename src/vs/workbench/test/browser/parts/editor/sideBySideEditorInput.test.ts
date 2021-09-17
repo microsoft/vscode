@@ -116,7 +116,7 @@ suite('SideBySideEditorInput', () => {
 
 		input.fireLabelChangeEvent();
 		otherInput.fireLabelChangeEvent();
-		assert.strictEqual(labelChangeCounter, 1);
+		assert.strictEqual(labelChangeCounter, 2);
 	});
 
 	test('toUntyped', () => {

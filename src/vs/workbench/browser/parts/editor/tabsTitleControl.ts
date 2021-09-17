@@ -523,10 +523,6 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimensions);
 	}
 
-	updateEditorCapabilities(editor: EditorInput): void {
-		this.updateEditorLabel(editor);
-	}
-
 	private updateEditorLabelScheduler = this._register(new RunOnceScheduler(() => this.doUpdateEditorLabels(), 0));
 
 	updateEditorLabel(editor: EditorInput): void {

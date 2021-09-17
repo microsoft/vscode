@@ -405,8 +405,6 @@ export abstract class TitleControl extends Themable {
 
 	abstract updateEditorLabel(editor: EditorInput): void;
 
-	abstract updateEditorCapabilities(editor: EditorInput): void;
-
 	abstract updateEditorDirty(editor: EditorInput): void;
 
 	abstract updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
