@@ -303,7 +303,8 @@ export class TestServiceAccessor {
 		@IWorkingCopyEditorService public workingCopyEditorService: IWorkingCopyEditorService,
 		@IInstantiationService public instantiationService: IInstantiationService,
 		@IElevatedFileService public elevatedFileService: IElevatedFileService,
-		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService,
+		@IDecorationsService public decorationsService: IDecorationsService
 	) { }
 }
 
@@ -330,7 +331,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IModeService modeService: IModeService,
 		@ILogService logService: ILogService,
-		@IElevatedFileService elevatedFileService: IElevatedFileService
+		@IElevatedFileService elevatedFileService: IElevatedFileService,
+		@IDecorationsService decorationsService: IDecorationsService
 	) {
 		super(
 			fileService,
@@ -350,7 +352,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			uriIdentityService,
 			modeService,
 			elevatedFileService,
-			logService
+			logService,
+			decorationsService
 		);
 	}
 
