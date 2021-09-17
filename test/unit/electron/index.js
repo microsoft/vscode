@@ -79,11 +79,15 @@ function deserializeRunnable(runnable) {
 function deserializeError(err) {
 	const inspect = err.inspect;
 	err.inspect = () => inspect;
+	// Unfortunately, mocha rewrites and formats err.actual/err.expected.
+	// This formatting is hard to reverse, so err.*JSON includes the unformatted value.
 	if (err.actual) {
 		err.actual = JSON.parse(err.actual).value;
+		err.actualJSON = err.actual;
 	}
 	if (err.expected) {
 		err.expected = JSON.parse(err.expected).value;
+		err.expectedJSON = err.expected;
 	}
 	return err;
 }
