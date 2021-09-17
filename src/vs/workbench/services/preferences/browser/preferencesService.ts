@@ -541,7 +541,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return null;
 		}
 		const schema = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[settingKey];
-		if (!schema && !OVERRIDE_PROPERTY_PATTERN.test(settingKey)) {
+		const isOverrideProperty = OVERRIDE_PROPERTY_PATTERN.test(settingKey);
+		if (!schema && !isOverrideProperty) {
 			return null;
 		}
 
@@ -549,7 +550,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const type = schema ? schema.type : 'object' /* Override Identifier */;
 		let setting = settingsModel.getPreference(settingKey);
 		if (!setting && edit) {
-			const defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
+			let defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
+			defaultValue = defaultValue === undefined && isOverrideProperty ? {} : undefined;
 			if (defaultValue !== undefined) {
 				const key = settingsModel instanceof WorkspaceConfigurationEditorModel ? ['settings', settingKey] : [settingKey];
 				await this.jsonEditingService.write(settingsModel.uri!, [{ path: key, value: defaultValue }], false);
