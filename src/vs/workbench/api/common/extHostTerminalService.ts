@@ -68,7 +68,7 @@ export class ExtHostTerminal {
 	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
-	private _state: vscode.TerminalState = { interactedWith: false };
+	private _state: vscode.TerminalState = { isInteractedWith: false };
 
 	public isOpen: boolean = false;
 
@@ -218,8 +218,8 @@ export class ExtHostTerminal {
 	}
 
 	public setInteractedWith(): boolean {
-		if (!this._state.interactedWith) {
-			this._state = { interactedWith: true };
+		if (!this._state.isInteractedWith) {
+			this._state = { isInteractedWith: true };
 			return true;
 		}
 		return false;

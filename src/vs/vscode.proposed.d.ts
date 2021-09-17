@@ -926,8 +926,7 @@ declare module 'vscode' {
 		 * For more information on events that can send data see "DEC Private Mode Set (DECSET)" on
 		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 		 */
-		// todo@API Maybe, isInteractedWith to align with other isXYZ
-		readonly interactedWith: boolean;
+		readonly isInteractedWith: boolean;
 	}
 
 	export interface Terminal {
