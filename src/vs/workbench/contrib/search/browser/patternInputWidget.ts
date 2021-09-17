@@ -15,6 +15,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import type { IThemable } from 'vs/base/common/styler';
 import * as nls from 'vs/nls';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -145,7 +146,6 @@ export class PatternInputWidget extends Widget implements IThemable {
 		this.domNode.style.width = this.width + 'px';
 		this.domNode.classList.add('monaco-findInput');
 
-		const showHistoryHint = () => { return this.keybindingService.lookupKeybinding('history.showPrevious')?.getElectronAccelerator() === 'Up' && this.keybindingService.lookupKeybinding('history.showNext')?.getElectronAccelerator() === 'Down'; };
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: options.placeholder,
 			showPlaceholderOnFocus: options.showPlaceholderOnFocus,
@@ -155,7 +155,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 				validation: undefined
 			},
 			history: options.history || [],
-			showHistoryHint
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
 		}, this.contextKeyService);
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));

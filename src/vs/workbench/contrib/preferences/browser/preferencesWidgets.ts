@@ -22,6 +22,7 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -422,7 +423,7 @@ export class SearchWidget extends Widget {
 	}
 
 	protected createInputBox(parent: HTMLElement): HistoryInputBox {
-		const showHistoryHint = () => { return this.keybindingService.lookupKeybinding('history.showPrevious')?.getElectronAccelerator() === 'Up' && this.keybindingService.lookupKeybinding('history.showNext')?.getElectronAccelerator() === 'Down'; };
+		const showHistoryHint = () => showHistoryKeybindingHint(this.keybindingService);
 		const box = this._register(new ContextScopedHistoryInputBox(parent, this.contextViewService, { ...this.options, showHistoryHint }, this.contextKeyService));
 		this._register(attachInputBoxStyler(box, this.themeService));
 
