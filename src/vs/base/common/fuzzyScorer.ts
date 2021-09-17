@@ -6,6 +6,7 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { compareAnything } from 'vs/base/common/comparers';
 import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
+import { hash } from 'vs/base/common/hash';
 import { sep } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { equalsIgnoreCase, stripWildcards } from 'vs/base/common/strings';
@@ -21,7 +22,7 @@ const NO_SCORE: FuzzyScore = [NO_MATCH, []];
 // const DEBUG = false;
 // const DEBUG_MATRIX = false;
 
-export function scoreFuzzy(target: string, query: string, queryLower: string, fuzzy: boolean): FuzzyScore {
+export function scoreFuzzy(target: string, query: string, queryLower: string, allowNonContiguousMatches: boolean): FuzzyScore {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
@@ -38,20 +39,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 	// }
 
 	const targetLower = target.toLowerCase();
-
-	// When not searching fuzzy, we require the query to be contained fully
-	// in the target string contiguously.
-	if (!fuzzy) {
-		if (!targetLower.includes(queryLower)) {
-			// if (DEBUG) {
-			// 	console.log(`Characters not matching consecutively ${queryLower} within ${targetLower}`);
-			// }
-
-			return NO_SCORE;
-		}
-	}
-
-	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength);
+	const res = doScoreFuzzy(query, queryLower, queryLength, target, targetLower, targetLength, allowNonContiguousMatches);
 
 	// if (DEBUG) {
 	// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
@@ -61,7 +49,7 @@ export function scoreFuzzy(target: string, query: string, queryLower: string, fu
 	return res;
 }
 
-function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): FuzzyScore {
+function doScoreFuzzy(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number, allowNonContiguousMatches: boolean): FuzzyScore {
 	const scores: number[] = [];
 	const matches: number[] = [];
 
@@ -116,7 +104,17 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 			// We have a score and its equal or larger than the left score
 			// Match: sequence continues growing from previous diag value
 			// Score: increases by diag score value
-			if (score && diagScore + score >= leftScore) {
+			const isValidScore = score && diagScore + score >= leftScore;
+			if (isValidScore && (
+				// We don't need to check if it's contiguous if we allow non-contiguous matches
+				allowNonContiguousMatches ||
+				// We must be looking for a contiguous match.
+				// Looking at an index higher than 0 in the query means we must have already
+				// found out this is contiguous otherwise there wouldn't have been a score
+				queryIndexGtNull ||
+				// lastly check if the query is completely contiguous at this index in the target
+				targetLower.startsWith(queryLower, targetIndex)
+			)) {
 				matches[currentIndex] = matchesSequenceLength + 1;
 				scores[currentIndex] = diagScore + score;
 			}
@@ -372,7 +370,20 @@ const PATH_IDENTITY_SCORE = 1 << 18;
 const LABEL_PREFIX_SCORE_THRESHOLD = 1 << 17;
 const LABEL_SCORE_THRESHOLD = 1 << 16;
 
-export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
+function getCacheHash(label: string, description: string | undefined, allowNonContiguousMatches: boolean, query: IPreparedQuery) {
+	const values = query.values ? query.values : [query];
+	const cacheHash = hash({
+		[query.normalized]: {
+			values: values.map(v => ({ value: v.normalized, expectContiguousMatch: v.expectContiguousMatch })),
+			label,
+			description,
+			allowNonContiguousMatches
+		}
+	});
+	return cacheHash;
+}
+
+export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
 	if (!item || !query.normalized) {
 		return NO_ITEM_SCORE; // we need an item and query to score on at least
 	}
@@ -387,28 +398,21 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean
 	// in order to speed up scoring, we cache the score with a unique hash based on:
 	// - label
 	// - description (if provided)
-	// - query (normalized)
-	// - number of query pieces (i.e. 'hello world' and 'helloworld' are different)
-	// - whether fuzzy matching is enabled or not
-	let cacheHash: string;
-	if (description) {
-		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;
-	} else {
-		cacheHash = `${label}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;
-	}
-
+	// - whether non-contiguous matching is enabled or not
+	// - hash of the query (normalized) values
+	const cacheHash = getCacheHash(label, description, allowNonContiguousMatches, query);
 	const cached = cache[cacheHash];
 	if (cached) {
 		return cached;
 	}
 
-	const itemScore = doScoreItemFuzzy(label, description, accessor.getItemPath(item), query, fuzzy);
+	const itemScore = doScoreItemFuzzy(label, description, accessor.getItemPath(item), query, allowNonContiguousMatches);
 	cache[cacheHash] = itemScore;
 
 	return itemScore;
 }
 
-function doScoreItemFuzzy(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function doScoreItemFuzzy(label: string, description: string | undefined, path: string | undefined, query: IPreparedQuery, allowNonContiguousMatches: boolean): IItemScore {
 	const preferLabelMatches = !path || !query.containsPathSeparator;
 
 	// Treat identity matches on full path highest
@@ -418,20 +422,20 @@ function doScoreItemFuzzy(label: string, description: string | undefined, path: 
 
 	// Score: multiple inputs
 	if (query.values && query.values.length > 1) {
-		return doScoreItemFuzzyMultiple(label, description, path, query.values, preferLabelMatches, fuzzy);
+		return doScoreItemFuzzyMultiple(label, description, path, query.values, preferLabelMatches, allowNonContiguousMatches);
 	}
 
 	// Score: single input
-	return doScoreItemFuzzySingle(label, description, path, query, preferLabelMatches, fuzzy);
+	return doScoreItemFuzzySingle(label, description, path, query, preferLabelMatches, allowNonContiguousMatches);
 }
 
-function doScoreItemFuzzyMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
+function doScoreItemFuzzyMultiple(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece[], preferLabelMatches: boolean, allowNonContiguousMatches: boolean): IItemScore {
 	let totalScore = 0;
 	const totalLabelMatches: IMatch[] = [];
 	const totalDescriptionMatches: IMatch[] = [];
 
 	for (const queryPiece of query) {
-		const { score, labelMatch, descriptionMatch } = doScoreItemFuzzySingle(label, description, path, queryPiece, preferLabelMatches, fuzzy);
+		const { score, labelMatch, descriptionMatch } = doScoreItemFuzzySingle(label, description, path, queryPiece, preferLabelMatches, allowNonContiguousMatches);
 		if (score === NO_MATCH) {
 			// if a single query value does not match, return with
 			// no score entirely, we require all queries to match
@@ -457,11 +461,15 @@ function doScoreItemFuzzyMultiple(label: string, description: string | undefined
 	};
 }
 
-function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
+function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, allowNonContiguousMatches: boolean): IItemScore {
 
 	// Prefer label matches if told so or we have no description
 	if (preferLabelMatches || !description) {
-		const [labelScore, labelPositions] = scoreFuzzy(label, query.normalized, query.normalizedLowercase, fuzzy);
+		const [labelScore, labelPositions] = scoreFuzzy(
+			label,
+			query.normalized,
+			query.normalizedLowercase,
+			allowNonContiguousMatches && !query.expectContiguousMatch);
 		if (labelScore) {
 
 			// If we have a prefix match on the label, we give a much
@@ -499,7 +507,11 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 		const descriptionPrefixLength = descriptionPrefix.length;
 		const descriptionAndLabel = `${descriptionPrefix}${label}`;
 
-		const [labelDescriptionScore, labelDescriptionPositions] = scoreFuzzy(descriptionAndLabel, query.normalized, query.normalizedLowercase, fuzzy);
+		const [labelDescriptionScore, labelDescriptionPositions] = scoreFuzzy(
+			descriptionAndLabel,
+			query.normalized,
+			query.normalizedLowercase,
+			allowNonContiguousMatches && !query.expectContiguousMatch);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];
@@ -598,9 +610,9 @@ function matchOverlaps(matchA: IMatch, matchB: IMatch): boolean {
 
 //#region Comparers
 
-export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): number {
-	const itemScoreA = scoreItemFuzzy(itemA, query, fuzzy, accessor, cache);
-	const itemScoreB = scoreItemFuzzy(itemB, query, fuzzy, accessor, cache);
+export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPreparedQuery, allowNonContiguousMatches: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): number {
+	const itemScoreA = scoreItemFuzzy(itemA, query, allowNonContiguousMatches, accessor, cache);
+	const itemScoreB = scoreItemFuzzy(itemB, query, allowNonContiguousMatches, accessor, cache);
 
 	const scoreA = itemScoreA.score;
 	const scoreB = itemScoreB.score;
@@ -793,6 +805,13 @@ export interface IPreparedQueryPiece {
 	 */
 	normalized: string;
 	normalizedLowercase: string;
+
+	/**
+	 * The query is wrapped in quotes which means
+	 * this query must be a substring of the input.
+	 * In other words, no fuzzy matching is used.
+	 */
+	expectContiguousMatch: boolean;
 }
 
 export interface IPreparedQuery extends IPreparedQueryPiece {
@@ -808,6 +827,14 @@ export interface IPreparedQuery extends IPreparedQueryPiece {
 	containsPathSeparator: boolean;
 }
 
+/*
+ * If a query is wrapped in quotes, the user does not want to
+ * use fuzzy search for this query.
+ */
+function queryExpectsExactMatch(query: string) {
+	return query.startsWith('"') && query.endsWith('"');
+}
+
 /**
  * Helper function to prepare a search value for scoring by removing unwanted characters
  * and allowing to score on multiple pieces separated by whitespace character.
@@ -821,12 +848,14 @@ export function prepareQuery(original: string): IPreparedQuery {
 	const originalLowercase = original.toLowerCase();
 	const { pathNormalized, normalized, normalizedLowercase } = normalizeQuery(original);
 	const containsPathSeparator = pathNormalized.indexOf(sep) >= 0;
+	const expectExactMatch = queryExpectsExactMatch(original);
 
 	let values: IPreparedQueryPiece[] | undefined = undefined;
 
 	const originalSplit = original.split(MULTIPLE_QUERY_VALUES_SEPARATOR);
 	if (originalSplit.length > 1) {
 		for (const originalPiece of originalSplit) {
+			const expectExactMatchPiece = queryExpectsExactMatch(originalPiece);
 			const {
 				pathNormalized: pathNormalizedPiece,
 				normalized: normalizedPiece,
@@ -843,13 +872,14 @@ export function prepareQuery(original: string): IPreparedQuery {
 					originalLowercase: originalPiece.toLowerCase(),
 					pathNormalized: pathNormalizedPiece,
 					normalized: normalizedPiece,
-					normalizedLowercase: normalizedLowercasePiece
+					normalizedLowercase: normalizedLowercasePiece,
+					expectContiguousMatch: expectExactMatchPiece
 				});
 			}
 		}
 	}
 
-	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator };
+	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectContiguousMatch: expectExactMatch };
 }
 
 function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
@@ -860,7 +890,8 @@ function normalizeQuery(original: string): { pathNormalized: string, normalized:
 		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
 	}
 
-	const normalized = stripWildcards(pathNormalized).replace(/\s/g, '');
+	// we remove quotes here because quotes are used for exact match search
+	const normalized = stripWildcards(pathNormalized).replace(/\s|"/g, '');
 
 	return {
 		pathNormalized,

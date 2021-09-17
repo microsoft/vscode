@@ -26,13 +26,11 @@ server.registerChannel(TerminalIpcChannels.Heartbeat, ProxyChannel.fromService(h
 const reconnectConstants: IReconnectConstants = {
 	graceTime: parseInt(process.env.VSCODE_RECONNECT_GRACE_TIME || '0'),
 	shortGraceTime: parseInt(process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME || '0'),
-	scrollback: parseInt(process.env.VSCODE_RECONNECT_SCROLLBACK || '100'),
-	useExperimentalSerialization: !!parseInt(process.env.VSCODE_RECONNECT_EXPERIMENTAL_SERIALIZATION || '1')
+	scrollback: parseInt(process.env.VSCODE_RECONNECT_SCROLLBACK || '100')
 };
 delete process.env.VSCODE_RECONNECT_GRACE_TIME;
 delete process.env.VSCODE_RECONNECT_SHORT_GRACE_TIME;
 delete process.env.VSCODE_RECONNECT_SCROLLBACK;
-delete process.env.VSCODE_RECONNECT_EXPERIMENTAL_SERIALIZATION;
 
 const ptyService = new PtyService(lastPtyId, logService, reconnectConstants);
 server.registerChannel(TerminalIpcChannels.PtyHost, ProxyChannel.fromService(ptyService));

@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -57,7 +57,7 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 			const encoding = serializedFileEditorInput.encoding;
 			const mode = serializedFileEditorInput.modeId;
 
-			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, label: name, description, encoding, mode, forceFile: true }) as FileEditorInput;
+			const fileEditorInput = accessor.get(ITextEditorService).createTextEditor({ resource, label: name, description, encoding, mode, forceFile: true }) as FileEditorInput;
 			if (preferredResource) {
 				fileEditorInput.setPreferredResource(preferredResource);
 			}
@@ -71,7 +71,7 @@ export class FileEditorWorkingCopyEditorHandler extends Disposable implements IW
 
 	constructor(
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
-		@IEditorService private readonly editorService: IEditorService,
+		@ITextEditorService private readonly textEditorService: ITextEditorService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
@@ -86,7 +86,7 @@ export class FileEditorWorkingCopyEditorHandler extends Disposable implements IW
 			// but because some custom editors also leverage text file based working copies
 			// we need to do a weaker check by only comparing for the resource
 			isOpen: (workingCopy, editor) => isEqual(workingCopy.resource, editor.resource),
-			createEditor: workingCopy => this.editorService.createEditorInput({ resource: workingCopy.resource, forceFile: true })
+			createEditor: workingCopy => this.textEditorService.createTextEditor({ resource: workingCopy.resource, forceFile: true })
 		}));
 	}
 }

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -120,15 +121,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object.isDirty();
 	}
 
-	override isOrphaned() {
-		if (!this._editorModelReference) {
-			return super.isOrphaned();
-		}
-
-		return this._editorModelReference.object.isOrphaned();
-	}
-
-	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		if (this._editorModelReference) {
 
 			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
@@ -143,7 +136,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return undefined;
 	}
 
-	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
 		if (!this._editorModelReference) {
 			return undefined;
 		}
@@ -193,7 +186,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	// called when users rename a notebook document
-	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
 		if (this._editorModelReference) {
 			const contributedNotebookProviders = this._notebookService.getContributedNotebookTypes(target);
 
@@ -204,7 +197,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return undefined;
 	}
 
-	private _move(_group: GroupIdentifier, newResource: URI): { editor: IEditorInput; } {
+	private _move(_group: GroupIdentifier, newResource: URI): { editor: EditorInput; } {
 		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, this.viewType);
 		return { editor: editorInput };
 	}
@@ -241,7 +234,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 				return null;
 			}
 			this._register(this._editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			this._register(this._editorModelReference.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
 			this._register(this._editorModelReference.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 			if (this._editorModelReference.object.isDirty()) {
 				this._onDidChangeDirty.fire();
@@ -286,7 +278,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

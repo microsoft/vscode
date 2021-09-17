@@ -65,7 +65,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.rerender(element);
 	}
 
-	updateElementHeight(element: T, height: number): void {
+	updateElementHeight(element: T, height: number | undefined): void {
 		this.model.updateElementHeight(element, height);
 	}
 

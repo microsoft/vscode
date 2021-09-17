@@ -29,7 +29,6 @@ suite('HistoryService', function () {
 		const instantiationService = workbenchInstantiationService();
 
 		const part = await createEditorPart(instantiationService, disposables);
-
 		instantiationService.stub(IEditorGroupsService, part);
 
 		const editorService = instantiationService.createInstance(EditorService);

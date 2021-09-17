@@ -193,14 +193,17 @@ export interface Attributes {
 
 interface PortRange { start: number, end: number }
 
+interface HostAndPort { host: string, port: number }
+
 interface PortAttributes extends Attributes {
-	key: number | PortRange | RegExp;
+	key: number | PortRange | RegExp | HostAndPort;
 }
 
 export class PortsAttributes extends Disposable {
 	private static SETTING = 'remote.portsAttributes';
 	private static DEFAULTS = 'remote.otherPortsAttributes';
 	private static RANGE = /^(\d+)\-(\d+)$/;
+	private static HOST_AND_PORT = /^([a-z0-9\-]+):(\d{1,5})$/;
 	private portsAttributes: PortAttributes[] = [];
 	private defaultPortAttributes: Attributes | undefined;
 	private _onDidChangeAttributes = new Emitter<void>();
@@ -221,8 +224,8 @@ export class PortsAttributes extends Disposable {
 		this._onDidChangeAttributes.fire();
 	}
 
-	getAttributes(port: number, commandLine?: string): Attributes | undefined {
-		let index = this.findNextIndex(port, commandLine, this.portsAttributes, 0);
+	getAttributes(port: number, host: string, commandLine?: string): Attributes | undefined {
+		let index = this.findNextIndex(port, host, commandLine, this.portsAttributes, 0);
 		const attributes: Attributes = {
 			label: undefined,
 			onAutoForward: undefined,
@@ -246,7 +249,7 @@ export class PortsAttributes extends Disposable {
 				attributes.requireLocalPort = (attributes.requireLocalPort !== undefined) ? attributes.requireLocalPort : undefined;
 				attributes.protocol = attributes.protocol ?? found.protocol;
 			}
-			index = this.findNextIndex(port, commandLine, this.portsAttributes, index + 1);
+			index = this.findNextIndex(port, host, commandLine, this.portsAttributes, index + 1);
 		}
 		if (attributes.onAutoForward !== undefined || attributes.elevateIfNeeded !== undefined
 			|| attributes.label !== undefined || attributes.requireLocalPort !== undefined
@@ -258,23 +261,32 @@ export class PortsAttributes extends Disposable {
 		return this.getOtherAttributes();
 	}
 
-	private hasStartEnd(value: number | PortRange | RegExp): value is PortRange {
+	private hasStartEnd(value: number | PortRange | RegExp | HostAndPort): value is PortRange {
 		return ((<any>value).start !== undefined) && ((<any>value).end !== undefined);
 	}
 
-	private findNextIndex(port: number, commandLine: string | undefined, attributes: PortAttributes[], fromIndex: number): number {
+	private hasHostAndPort(value: number | PortRange | RegExp | HostAndPort): value is HostAndPort {
+		return ((<any>value).host !== undefined) && ((<any>value).port !== undefined)
+			&& isString((<any>value).host) && isNumber((<any>value).port);
+	}
+
+	private findNextIndex(port: number, host: string, commandLine: string | undefined, attributes: PortAttributes[], fromIndex: number): number {
 		if (fromIndex >= attributes.length) {
 			return -1;
 		}
+		const shouldUseHost = !isLocalhost(host) && !isAllInterfaces(host);
 		const sliced = attributes.slice(fromIndex);
 		const foundIndex = sliced.findIndex((value) => {
 			if (isNumber(value.key)) {
-				return value.key === port;
+				return shouldUseHost ? false : value.key === port;
 			} else if (this.hasStartEnd(value.key)) {
-				return port >= value.key.start && port <= value.key.end;
+				return shouldUseHost ? false : (port >= value.key.start && port <= value.key.end);
+			} else if (this.hasHostAndPort(value.key)) {
+				return (port === value.key.port) && (host === value.key.host);
 			} else {
 				return commandLine ? value.key.test(commandLine) : false;
 			}
+
 		});
 		return foundIndex >= 0 ? foundIndex + fromIndex : -1;
 	}
@@ -291,13 +303,16 @@ export class PortsAttributes extends Disposable {
 				continue;
 			}
 			const setting = (<any>settingValue)[attributesKey];
-			let key: number | { start: number, end: number } | RegExp | undefined = undefined;
+			let key: number | PortRange | RegExp | HostAndPort | undefined = undefined;
 			if (Number(attributesKey)) {
 				key = Number(attributesKey);
 			} else if (isString(attributesKey)) {
 				if (PortsAttributes.RANGE.test(attributesKey)) {
-					const match = (<string>attributesKey).match(PortsAttributes.RANGE);
+					const match = attributesKey.match(PortsAttributes.RANGE);
 					key = { start: Number(match![1]), end: Number(match![2]) };
+				} else if (PortsAttributes.HOST_AND_PORT.test(attributesKey)) {
+					const match = attributesKey.match(PortsAttributes.HOST_AND_PORT);
+					key = { host: match![1], port: Number(match![2]) };
 				} else {
 					let regTest: RegExp | undefined = undefined;
 					try {
@@ -343,6 +358,8 @@ export class PortsAttributes extends Disposable {
 				return item.key;
 			} else if (thisRef.hasStartEnd(item.key)) {
 				return item.key.start;
+			} else if (thisRef.hasHostAndPort(item.key)) {
+				return item.key.port;
 			} else {
 				return Number.MAX_VALUE;
 			}
@@ -435,7 +452,9 @@ export class TunnelModel extends Disposable {
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
 		this.tunnelService.tunnels.then(async (tunnels) => {
-			const attributes = await this.getAttributes(tunnels.map(tunnel => tunnel.tunnelRemotePort));
+			const attributes = await this.getAttributes(tunnels.map(tunnel => {
+				return { port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost };
+			}));
 			for (const tunnel of tunnels) {
 				if (tunnel.localAddress) {
 					const key = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
@@ -465,7 +484,7 @@ export class TunnelModel extends Disposable {
 				&& !mapHasAddressLocalhostOrAllInterfaces(this.inProgress, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
 				&& tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
-				const attributes = (await this.getAttributes([tunnel.tunnelRemotePort]))?.get(tunnel.tunnelRemotePort);
+				const attributes = (await this.getAttributes([{ port: tunnel.tunnelRemotePort, host: tunnel.tunnelRemoteHost }]))?.get(tunnel.tunnelRemotePort);
 				this.forwarded.set(key, {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
@@ -590,7 +609,10 @@ export class TunnelModel extends Disposable {
 
 	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnelProperties.remote.host, tunnelProperties.remote.port);
-		attributes = attributes ?? ((attributes !== null) ? (await this.getAttributes([tunnelProperties.remote.port]))?.get(tunnelProperties.remote.port) : undefined);
+		attributes = attributes ??
+			((attributes !== null)
+				? (await this.getAttributes([tunnelProperties.remote]))?.get(tunnelProperties.remote.port)
+				: undefined);
 		const localPort = (tunnelProperties.local !== undefined) ? tunnelProperties.local : tunnelProperties.remote.port;
 
 		if (!existingTunnel) {
@@ -772,7 +794,9 @@ export class TunnelModel extends Disposable {
 	private async updateAttributes() {
 		// If the label changes in the attributes, we should update it.
 		const tunnels = Array.from(this.forwarded.values());
-		const allAttributes = await this.getAttributes(tunnels.map(tunnel => tunnel.remotePort), false);
+		const allAttributes = await this.getAttributes(tunnels.map(tunnel => {
+			return { port: tunnel.remotePort, host: tunnel.remoteHost };
+		}), false);
 		if (!allAttributes) {
 			return;
 		}
@@ -797,25 +821,25 @@ export class TunnelModel extends Disposable {
 		}
 	}
 
-	async getAttributes(ports: number[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
+	async getAttributes(forwardedPorts: { host: string, port: number }[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
 		const matchingCandidates: Map<number, CandidatePort> = new Map();
 		const pidToPortsMapping: Map<number | undefined, number[]> = new Map();
-		ports.forEach(port => {
-			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], port);
+		forwardedPorts.forEach(forwardedPort => {
+			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], forwardedPort.port);
 			if (matchingCandidate) {
-				matchingCandidates.set(port, matchingCandidate);
+				matchingCandidates.set(forwardedPort.port, matchingCandidate);
 				if (!pidToPortsMapping.has(matchingCandidate.pid)) {
 					pidToPortsMapping.set(matchingCandidate.pid, []);
 				}
-				pidToPortsMapping.get(matchingCandidate.pid)?.push(port);
+				pidToPortsMapping.get(matchingCandidate.pid)?.push(forwardedPort.port);
 			}
 		});
 
 		const configAttributes: Map<number, Attributes> = new Map();
-		ports.forEach(port => {
-			const attributes = this.configPortsAttributes.getAttributes(port, matchingCandidates.get(port)?.detail);
+		forwardedPorts.forEach(forwardedPort => {
+			const attributes = this.configPortsAttributes.getAttributes(forwardedPort.port, forwardedPort.host, matchingCandidates.get(forwardedPort.port)?.detail);
 			if (attributes) {
-				configAttributes.set(port, attributes);
+				configAttributes.set(forwardedPort.port, attributes);
 			}
 		});
 		if ((this.portAttributesProviders.length === 0) || !checkProviders) {
@@ -844,10 +868,10 @@ export class TunnelModel extends Disposable {
 
 		// Merge. The config wins.
 		const mergedAttributes: Map<number, Attributes> = new Map();
-		ports.forEach(port => {
-			const config = configAttributes.get(port);
-			const provider = providedAttributes.get(port);
-			mergedAttributes.set(port, {
+		forwardedPorts.forEach(forwardedPorts => {
+			const config = configAttributes.get(forwardedPorts.port);
+			const provider = providedAttributes.get(forwardedPorts.port);
+			mergedAttributes.set(forwardedPorts.port, {
 				elevateIfNeeded: config?.elevateIfNeeded,
 				label: config?.label,
 				onAutoForward: config?.onAutoForward ?? PortsAttributes.providedActionToAction(provider?.autoForwardAction),

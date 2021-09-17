@@ -8,13 +8,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
 import { IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
@@ -32,7 +30,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Part } from 'vs/workbench/browser/part';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -50,6 +48,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -531,7 +531,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.editor.restoreCentered = this.storageService.getBoolean(Storage.CENTERED_LAYOUT_ENABLED, StorageScope.WORKSPACE, false);
 
 		// Editors to open
-		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(fileService);
+		this.state.editor.editorsToOpen = this.resolveEditorsToOpen(fileService, this.contextService);
 
 		// Panel visibility
 		this.state.panel.hidden = this.storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
@@ -544,7 +544,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Panel to restore
 		if (!this.state.panel.hidden) {
-			let panelToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId());
+			let panelToRestore = this.storageService.get(PanelPart.activePanelSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id);
 
 			if (panelToRestore) {
 				this.state.panel.panelToRestore = panelToRestore;
@@ -585,13 +585,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private resolveEditorsToOpen(fileService: IFileService): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
+	private resolveEditorsToOpen(fileService: IFileService, contextService: IWorkspaceContextService): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
 		const initialFilesToOpen = this.getInitialFilesToOpen();
 
-		// Only restore editors if we are not instructed to open files initially
-		// or when `window.restoreWindows` setting is explicitly set to `preserve`
-		const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
-		this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
+		// Restore editors based on a set of rules:
+		// - never when running in web on `tmp` scheme
+		// - not when we have files to open, unless:
+		// - always when `window.restoreWindows: preserve`
+		if (isWeb && getVirtualWorkspaceScheme(contextService.getWorkspace()) === Schemas.tmp) {
+			this.state.editor.restoreEditors = false;
+		} else {
+			const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
+			this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
+		}
 
 		// Files to open, diff or create
 		if (initialFilesToOpen) {
@@ -602,8 +608,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					const diffEditorInput: IUntypedEditorInput[] = [{
 						original: { resource: filesToDiff[0].resource },
 						modified: { resource: filesToDiff[1].resource },
-						options: { pinned: true },
-						forceFile: true
+						options: { pinned: true }
 					}];
 
 					return diffEditorInput;
@@ -828,7 +833,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			const panel = await this.panelService.openPanel(this.state.panel.panelToRestore);
 			if (!panel) {
-				await this.panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
+				await this.panelService.openPanel(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id); // fallback to default panel as needed
 			}
 
 			mark('code/didRestorePanel');
@@ -1284,15 +1289,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
 
-		const isSideBySideLayout = activeEditor
-			&& activeEditor instanceof SideBySideEditorInput
-			// DiffEditorInput inherits from SideBySideEditorInput but can still be functionally an inline editor.
-			&& (!(activeEditor instanceof DiffEditorInput) || this.configurationService.getValue('diffEditor.renderSideBySide'));
+		let isEditorSplit = false;
+		if (activeEditor instanceof DiffEditorInput) {
+			isEditorSplit = this.configurationService.getValue('diffEditor.renderSideBySide');
+		} else if (activeEditor instanceof SideBySideEditorInput) {
+			isEditorSplit = true;
+		}
 
 		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
 		if (
-			isCenteredLayoutAutoResizing
-			&& (this.editorGroupService.groups.length > 1 || isSideBySideLayout)
+			isCenteredLayoutAutoResizing &&
+			(this.editorGroupService.groups.length > 1 || isEditorSplit)
 		) {
 			smartActive = false;
 		}
@@ -1486,7 +1493,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let focusEditor = false;
 		if (hidden && this.panelService.getActivePanel()) {
 			this.panelService.hideActivePanel();
-			focusEditor = true;
+			focusEditor = isIOS ? false : true; // Do not auto focus on ios #127832
 		}
 
 		// If panel part becomes visible, show last active panel or default panel

@@ -14,7 +14,7 @@ import { ResourceMarkers, Marker, RelatedInformation, MarkerElement } from 'vs/w
 import Messages from 'vs/workbench/contrib/markers/browser/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
@@ -44,17 +44,12 @@ import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { CodeActionTriggerType } from 'vs/editor/common/modes';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { DomEmitter } from 'vs/base/browser/event';
+import { Link } from 'vs/platform/opener/browser/link';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -234,14 +229,13 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 		private readonly markersViewState: MarkersViewModel,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	templateId = TemplateId.Marker;
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.openerService, this._configurationService, this.instantiationService);
+		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.openerService, this.instantiationService);
 		return data;
 	}
 
@@ -280,8 +274,6 @@ class ToggleMultilineActionViewItem extends ActionViewItem {
 
 }
 
-type ModifierKey = 'meta' | 'ctrl' | 'alt';
-
 class MarkerWidget extends Disposable {
 
 	private readonly actionBar: ActionBar;
@@ -290,14 +282,12 @@ class MarkerWidget extends Disposable {
 	private readonly messageAndDetailsContainer: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
 
-	private _clickModifierKey: ModifierKey;
-	private _codeLink?: HTMLElement;
+	private _codeLink?: Link;
 
 	constructor(
 		private parent: HTMLElement,
 		private readonly markersViewModel: MarkersViewModel,
 		private readonly _openerService: IOpenerService,
-		private readonly _configurationService: IConfigurationService,
 		_instantiationService: IInstantiationService
 	) {
 		super();
@@ -314,8 +304,6 @@ class MarkerWidget extends Disposable {
 			}
 		}));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
-
-		this._clickModifierKey = this._getClickModifierKey();
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
@@ -331,15 +319,6 @@ class MarkerWidget extends Disposable {
 		this.renderMessageAndDetails(element, filterData);
 		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_OVER, () => this.markersViewModel.onMarkerMouseHover(element)));
 		this.disposables.add(dom.addDisposableListener(this.parent, dom.EventType.MOUSE_LEAVE, () => this.markersViewModel.onMarkerMouseLeave(element)));
-
-		this.disposables.add((this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.multiCursorModifier')) {
-				this._clickModifierKey = this._getClickModifierKey();
-				if (this._codeLink) {
-					this._codeLink.setAttribute('title', this._getCodelinkTooltip());
-				}
-			}
-		})));
 	}
 
 	private renderQuickfixActionbar(marker: Marker): void {
@@ -407,31 +386,9 @@ class MarkerWidget extends Disposable {
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code, codeMatches);
 				} else {
-					this._codeLink = dom.$('a.code-link');
-					this._codeLink.setAttribute('title', this._getCodelinkTooltip());
-
-					const codeUri = marker.code.target;
-					const codeLink = codeUri.toString();
-
-					dom.append(parent, this._codeLink);
-					this._codeLink.setAttribute('href', codeLink);
-					this._codeLink.tabIndex = 0;
-
-					const onClick = Event.chain(this._register(new DomEmitter(this._codeLink, 'click')).event)
-						.filter(e => ((this._clickModifierKey === 'meta' && e.metaKey) || (this._clickModifierKey === 'ctrl' && e.ctrlKey) || (this._clickModifierKey === 'alt' && e.altKey)))
-						.event;
-					const onEnterPress = Event.chain(this._register(new DomEmitter(this._codeLink, 'keydown')).event)
-						.map(e => new StandardKeyboardEvent(e))
-						.filter(e => e.keyCode === KeyCode.Enter)
-						.event;
-					const onOpen = Event.any<dom.EventLike>(onClick, onEnterPress);
-
-					this._register(onOpen(e => {
-						dom.EventHelper.stop(e, true);
-						this._openerService.open(codeUri, { allowCommands: true });
-					}));
-
-					const code = new HighlightedLabel(dom.append(this._codeLink, dom.$('.marker-code')), false);
+					this._codeLink = new Link({ href: marker.code.target.toString(), label: '', title: marker.code.target.toString() }, undefined, this._openerService);
+					dom.append(parent, this._codeLink.el);
+					const code = new HighlightedLabel(dom.append(this._codeLink.el, dom.$('.marker-code')), false);
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
 				}
@@ -442,30 +399,6 @@ class MarkerWidget extends Disposable {
 		lnCol.textContent = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(marker.startLineNumber, marker.startColumn);
 	}
 
-	private _getClickModifierKey(): ModifierKey {
-		const value = this._configurationService.getValue<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
-		if (value === 'ctrlCmd') {
-			return 'alt';
-		} else {
-			if (OS === OperatingSystem.Macintosh) {
-				return 'meta';
-			} else {
-				return 'ctrl';
-			}
-		}
-	}
-
-	private _getCodelinkTooltip(): string {
-		const tooltipLabel = localize('links.navigate.follow', 'Follow link');
-		const tooltipKeybinding = this._clickModifierKey === 'ctrl'
-			? localize('links.navigate.kb.meta', 'ctrl + click')
-			:
-			this._clickModifierKey === 'meta'
-				? OS === OperatingSystem.Macintosh ? localize('links.navigate.kb.meta.mac', 'cmd + click') : localize('links.navigate.kb.meta', 'ctrl + click')
-				: OS === OperatingSystem.Macintosh ? localize('links.navigate.kb.alt.mac', 'option + click') : localize('links.navigate.kb.alt', 'alt + click');
-
-		return `${tooltipLabel} (${tooltipKeybinding})`;
-	}
 }
 
 export class RelatedInformationRenderer implements ITreeRenderer<RelatedInformation, RelatedInformationFilterData, IRelatedInformationTemplateData> {
@@ -905,14 +838,3 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<MarkerElement> {
 	drop(data: IDragAndDropData, targetElement: MarkerElement, targetIndex: number, originalEvent: DragEvent): void {
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const linkFg = theme.getColor(textLinkForeground);
-	if (linkFg) {
-		collector.addRule(`.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link .marker-code > span { color: ${linkFg}; }`);
-	}
-	const activeLinkFg = theme.getColor(textLinkActiveForeground);
-	if (activeLinkFg) {
-		collector.addRule(`.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link .marker-code > span:hover { color: ${activeLinkFg}; }`);
-	}
-});

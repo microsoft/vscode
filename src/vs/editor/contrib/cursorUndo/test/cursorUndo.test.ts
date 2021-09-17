@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Selection } from 'vs/editor/common/core/selection';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { CursorUndo, CursorUndoRedoController } from 'vs/editor/contrib/cursorUndo/cursorUndo';
 import { Handler } from 'vs/editor/common/editorCommon';
-import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CursorUndo, CursorUndoRedoController } from 'vs/editor/contrib/cursorUndo/cursorUndo';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('FindController', () => {
 

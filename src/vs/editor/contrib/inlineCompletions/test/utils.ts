@@ -6,10 +6,10 @@
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletionsProvider, InlineCompletion, InlineCompletionContext } from 'vs/editor/common/modes';
+import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/modes';
 import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
@@ -110,6 +110,26 @@ export class GhostTextContext extends Disposable {
 
 	public keyboardType(text: string): void {
 		this.editor.trigger('keyboard', 'type', { text });
+	}
+
+	public cursorUp(): void {
+		CoreNavigationCommands.CursorUp.runEditorCommand(null, this.editor, null);
+	}
+
+	public cursorRight(): void {
+		CoreNavigationCommands.CursorRight.runEditorCommand(null, this.editor, null);
+	}
+
+	public cursorLeft(): void {
+		CoreNavigationCommands.CursorLeft.runEditorCommand(null, this.editor, null);
+	}
+
+	public cursorDown(): void {
+		CoreNavigationCommands.CursorDown.runEditorCommand(null, this.editor, null);
+	}
+
+	public cursorLineEnd(): void {
+		CoreNavigationCommands.CursorLineEnd.runEditorCommand(null, this.editor, null);
 	}
 
 	public leftDelete(): void {

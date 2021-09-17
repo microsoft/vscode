@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { setImmediate } from 'vs/base/common/platform';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
+import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -26,7 +28,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
@@ -36,7 +38,7 @@ import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } 
 import { labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
 import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
-import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
+import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -54,11 +56,11 @@ function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEdito
 	return false;
 }
 
-const FONT_FAMILY_VAR = `--testMessageDecorationFontFamily`;
-
 export class TestingDecorations extends Disposable implements IEditorContribution {
 	private currentUri?: URI;
 	private lastDecorations: ITestDecoration[] = [];
+	private readonly expectedWidget = new MutableDisposable<ExpectedLensContentWidget>();
+	private readonly actualWidget = new MutableDisposable<ActualLensContentWidget>();
 
 	/**
 	 * List of messages that should be hidden because an editor changed their
@@ -73,6 +75,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -112,7 +115,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		}));
 
 		const updateFontFamilyVar = () => {
-			this.editor.getContainerDomNode().style.setProperty(FONT_FAMILY_VAR, editor.getOption(EditorOption.fontFamily));
+			this.editor.getContainerDomNode().style.setProperty('--testMessageDecorationFontFamily', editor.getOption(EditorOption.fontFamily));
+			this.editor.getContainerDomNode().style.setProperty('--testMessageDecorationFontSize', `${editor.getOption(EditorOption.fontSize)}px`);
 		};
 		this._register(this.editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.fontFamily)) {
@@ -127,6 +131,12 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TestingConfigKeys.GutterEnabled)) {
+				this.setDecorations(this.currentUri);
+			}
+		}));
+
 		this._register(Event.any(
 			this.results.onResultsChanged,
 			this.testService.excluded.onTestExclusionsChanged,
@@ -136,6 +146,20 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 
 	private attachModel(uri?: URI) {
+		switch (uri && parseTestUri(uri)?.type) {
+			case TestUriType.ResultExpectedOutput:
+				this.expectedWidget.value = new ExpectedLensContentWidget(this.editor);
+				this.actualWidget.clear();
+				break;
+			case TestUriType.ResultActualOutput:
+				this.expectedWidget.clear();
+				this.actualWidget.value = new ActualLensContentWidget(this.editor);
+				break;
+			default:
+				this.expectedWidget.clear();
+				this.actualWidget.clear();
+		}
+
 		if (isOriginalInDiffEditor(this.codeEditorService, this.editor)) {
 			uri = undefined;
 		}
@@ -167,21 +191,25 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
+		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
+
 		this.editor.changeDecorations(accessor => {
 			const newDecorations: ITestDecoration[] = [];
-			for (const test of this.testService.collection.all) {
-				if (!test.item.range || test.item.uri?.toString() !== uri.toString()) {
-					continue;
-				}
+			if (gutterEnabled) {
+				for (const test of this.testService.collection.all) {
+					if (!test.item.range || test.item.uri?.toString() !== uri.toString()) {
+						continue;
+					}
 
-				const stateLookup = this.results.getStateById(test.item.extId);
-				const line = test.item.range.startLineNumber;
-				const resultItem = stateLookup?.[1];
-				const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
-				if (existing !== -1) {
-					newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
-				} else {
-					newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
+					const stateLookup = this.results.getStateById(test.item.extId);
+					const line = test.item.range.startLineNumber;
+					const resultItem = stateLookup?.[1];
+					const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
+					if (existing !== -1) {
+						newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
+					} else {
+						newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
+					}
 				}
 			}
 
@@ -278,7 +306,9 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 		const test = tests[i];
 		const resultItem = states[i];
 		const state = resultItem?.computedState ?? TestResultState.Unset;
-		hoverMessageParts.push(labelForTestInState(test.item.label, state));
+		if (hoverMessageParts.length < 10) {
+			hoverMessageParts.push(labelForTestInState(test.item.label, state));
+		}
 		computedState = maxPriority(computedState, state);
 		retired = retired || !!resultItem?.retired;
 		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
@@ -313,6 +343,114 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 		}
 	};
 };
+
+const enum LensContentWidgetVars {
+	FontFamily = 'testingDiffLensFontFamily',
+	FontFeatures = 'testingDiffLensFontFeatures',
+}
+
+abstract class TitleLensContentWidget {
+	/** @inheritdoc */
+	public readonly allowEditorOverflow = false;
+	/** @inheritdoc */
+	public readonly suppressMouseDown = true;
+
+	private readonly _domNode = dom.$('span');
+	private viewZoneId?: string;
+
+	constructor(private readonly editor: ICodeEditor) {
+		setImmediate(() => {
+			this.applyStyling();
+			this.editor.addContentWidget(this);
+		});
+	}
+
+	private applyStyling() {
+		let fontSize = this.editor.getOption(EditorOption.codeLensFontSize);
+		let height: number;
+		if (!fontSize || fontSize < 5) {
+			fontSize = (this.editor.getOption(EditorOption.fontSize) * .9) | 0;
+			height = this.editor.getOption(EditorOption.lineHeight);
+		} else {
+			height = (fontSize * Math.max(1.3, this.editor.getOption(EditorOption.lineHeight) / this.editor.getOption(EditorOption.fontSize))) | 0;
+		}
+
+		const editorFontInfo = this.editor.getOption(EditorOption.fontInfo);
+		const node = this._domNode;
+		node.classList.add('testing-diff-lens-widget');
+		node.textContent = this.getText();
+		node.style.lineHeight = `${height}px`;
+		node.style.fontSize = `${fontSize}px`;
+		node.style.fontFamily = `var(--${LensContentWidgetVars.FontFamily})`;
+		node.style.fontFeatureSettings = `var(--${LensContentWidgetVars.FontFeatures})`;
+
+		const containerStyle = this.editor.getContainerDomNode().style;
+		containerStyle.setProperty(LensContentWidgetVars.FontFamily, this.editor.getOption(EditorOption.codeLensFontFamily) ?? 'inherit');
+		containerStyle.setProperty(LensContentWidgetVars.FontFeatures, editorFontInfo.fontFeatureSettings);
+
+		this.editor.changeViewZones(accessor => {
+			if (this.viewZoneId) {
+				accessor.removeZone(this.viewZoneId);
+			}
+
+			this.viewZoneId = accessor.addZone({
+				afterLineNumber: 0,
+				domNode: document.createElement('div'),
+				heightInPx: 20,
+			});
+		});
+	}
+
+	/** @inheritdoc */
+	public abstract getId(): string;
+
+	/** @inheritdoc */
+	public getDomNode() {
+		return this._domNode;
+	}
+
+	/** @inheritdoc */
+	public dispose() {
+		this.editor.changeViewZones(accessor => {
+			if (this.viewZoneId) {
+				accessor.removeZone(this.viewZoneId);
+			}
+		});
+
+		this.editor.removeContentWidget(this);
+	}
+
+	/** @inheritdoc */
+	public getPosition(): IContentWidgetPosition {
+		return {
+			position: { column: 0, lineNumber: 0 },
+			preference: [ContentWidgetPositionPreference.ABOVE],
+		};
+	}
+
+	protected abstract getText(): string;
+}
+
+class ExpectedLensContentWidget extends TitleLensContentWidget {
+	public getId() {
+		return 'expectedTestingLens';
+	}
+
+	protected override getText() {
+		return localize('expected.title', 'Expected');
+	}
+}
+
+
+class ActualLensContentWidget extends TitleLensContentWidget {
+	public getId() {
+		return 'actualTestingLens';
+	}
+
+	protected override getText() {
+		return localize('actual.title', 'Actual');
+	}
+}
 
 abstract class RunTestDecoration extends Disposable {
 	/** @inheritdoc */
@@ -463,7 +601,7 @@ abstract class RunTestDecoration extends Disposable {
 		}
 
 		testActions.push(new Action('testing.gutter.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined,
-			() => this.commandService.executeCommand('vscode.revealTestInExplorer', test.item.extId)));
+			() => this.commandService.executeCommand('_revealTestInExplorer', test.item.extId)));
 
 		const contributed = this.getContributedTestActions(test, capabilities);
 		return { object: Separator.join(testActions, contributed.object), dispose: contributed.dispose };
@@ -586,10 +724,13 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 }
 
 class TestMessageDecoration implements ITestDecoration {
+	public static readonly inlineClassName = 'test-message-inline-content';
+
 	public id = '';
 
 	public readonly editorDecoration: IModelDeltaDecoration;
 	private readonly decorationId = `testmessage-${generateUuid()}`;
+	private readonly contentIdClass = `test-message-inline-content-id${this.decorationId}`;
 
 	constructor(
 		public readonly testMessage: ITestMessage,
@@ -597,29 +738,22 @@ class TestMessageDecoration implements ITestDecoration {
 		public readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly editorService: ICodeEditorService,
-		@IThemeService themeService: IThemeService,
 	) {
 		const severity = testMessage.type;
 		const message = typeof testMessage.message === 'string' ? removeAnsiEscapeCodes(testMessage.message) : testMessage.message;
-		const colorTheme = themeService.getColorTheme();
-		editorService.registerDecorationType('test-message-decoration', this.decorationId, {
-			after: {
-				contentText: renderStringAsPlaintext(message),
-				color: `${colorTheme.getColor(testMessageSeverityColors[severity].decorationForeground)}`,
-				fontSize: `${editor.getOption(EditorOption.fontSize)}px`,
-				fontFamily: `var(${FONT_FAMILY_VAR})`,
-				padding: `0px 12px 0px 24px`,
-			},
-		}, undefined, editor);
+		editorService.registerDecorationType('test-message-decoration', this.decorationId, {}, undefined, editor);
 
 		const options = editorService.resolveDecorationOptions(this.decorationId, true);
 		options.hoverMessage = typeof message === 'string' ? new MarkdownString().appendText(message) : message;
-		options.afterContentClassName = `${options.afterContentClassName} testing-inline-message-content`;
 		options.zIndex = 10; // todo: in spite of the z-index, this appears behind gitlens
-		options.className = `testing-inline-message-margin testing-inline-message-severity-${severity}`;
+		options.className = `testing-inline-message-severity-${severity}`;
 		options.isWholeLine = true;
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
+		options.after = {
+			content: renderStringAsPlaintext(message),
+			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
+		};
 
 		const rulerColor = severity === TestMessageType.Error
 			? overviewRulerError
@@ -629,7 +763,17 @@ class TestMessageDecoration implements ITestDecoration {
 			options.overviewRuler = { color: themeColorFromId(rulerColor), position: OverviewRulerLane.Right };
 		}
 
-		this.editorDecoration = { range: firstLineRange(location.range), options };
+		const lineLength = editor.getModel()?.getLineLength(location.range.startLineNumber);
+		const column = lineLength ? (lineLength + 1) : location.range.endColumn;
+		this.editorDecoration = {
+			options,
+			range: {
+				startLineNumber: location.range.startLineNumber,
+				startColumn: column,
+				endColumn: column,
+				endLineNumber: location.range.startLineNumber,
+			}
+		};
 	}
 
 	click(e: IEditorMouseEvent): boolean {
@@ -641,7 +785,7 @@ class TestMessageDecoration implements ITestDecoration {
 			return false;
 		}
 
-		if (e.target.element?.className.includes(this.decorationId)) {
+		if (e.target.element?.className.includes(this.contentIdClass)) {
 			TestingOutputPeekController.get(this.editor).toggle(this.messageUri);
 		}
 
@@ -652,3 +796,14 @@ class TestMessageDecoration implements ITestDecoration {
 		this.editorService.removeDecorationType(this.decorationId);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const codeLensForeground = theme.getColor(editorCodeLensForeground);
+	if (codeLensForeground) {
+		collector.addRule(`.testing-diff-lens-widget { color: ${codeLensForeground}; }`);
+	}
+
+	for (const [severity, { decorationForeground }] of Object.entries(testMessageSeverityColors)) {
+		collector.addRule(`.test-message-inline-content-s${severity} { color: ${theme.getColor(decorationForeground)} !important }`);
+	}
+});

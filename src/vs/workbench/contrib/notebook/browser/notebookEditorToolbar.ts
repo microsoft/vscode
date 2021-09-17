@@ -15,12 +15,12 @@ import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platf
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { INotebookEditorDelegate, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { GlobalToolbar, GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -58,7 +58,7 @@ export class NotebookEditorToolbar extends Disposable {
 	private _pendingLayout: IDisposable | undefined;
 
 	constructor(
-		readonly notebookEditor: INotebookEditor,
+		readonly notebookEditor: INotebookEditorDelegate,
 		readonly contextKeyService: IContextKeyService,
 		readonly domNode: HTMLElement,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -67,7 +67,7 @@ export class NotebookEditorToolbar extends Disposable {
 		@IMenuService readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@optional(ITASExperimentService) private readonly experimentService: ITASExperimentService
+		@ITASExperimentService private readonly experimentService: ITASExperimentService
 	) {
 		super();
 
@@ -77,7 +77,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
-				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditor;
+				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditorDelegate;
 				if (notebookEditor === this.notebookEditor) {
 					// this is the active editor
 					this._showNotebookActionsinEditorToolbar();

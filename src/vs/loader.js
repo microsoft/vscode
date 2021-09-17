@@ -681,13 +681,33 @@ var AMDLoader;
         };
         return BrowserScriptLoader;
     }());
+    function canUseEval(moduleManager) {
+        var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
+        try {
+            var func = (trustedTypesPolicy
+                ? self.eval(trustedTypesPolicy.createScript('', 'true'))
+                : new Function('true'));
+            func.call(self);
+            return true;
+        }
+        catch (err) {
+            return false;
+        }
+    }
     var WorkerScriptLoader = /** @class */ (function () {
         function WorkerScriptLoader() {
+            this._cachedCanUseEval = null;
         }
+        WorkerScriptLoader.prototype._canUseEval = function (moduleManager) {
+            if (this._cachedCanUseEval === null) {
+                this._cachedCanUseEval = canUseEval(moduleManager);
+            }
+            return this._cachedCanUseEval;
+        };
         WorkerScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
             var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
             var isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, self.origin.length) !== self.origin);
-            if (!isCrossOrigin) {
+            if (!isCrossOrigin && this._canUseEval(moduleManager)) {
                 // use `fetch` if possible because `importScripts`
                 // is synchronous and can lead to deadlocks on Safari
                 fetch(scriptSrc).then(function (response) {

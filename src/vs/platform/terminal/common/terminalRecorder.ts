@@ -17,13 +17,7 @@ export interface IRemoteTerminalProcessReplayEvent {
 	events: ReplayEntry[];
 }
 
-export interface ITerminalSerializer {
-	handleData(data: string): void;
-	handleResize(cols: number, rows: number): void;
-	generateReplayEvent(): IPtyHostProcessReplayEvent;
-}
-
-export class TerminalRecorder implements ITerminalSerializer {
+export class TerminalRecorder {
 
 	private _entries: RecorderEntry[];
 	private _totalDataLength: number = 0;
@@ -82,7 +76,7 @@ export class TerminalRecorder implements ITerminalSerializer {
 		}
 	}
 
-	generateReplayEvent(): IPtyHostProcessReplayEvent {
+	generateReplayEventSync(): IPtyHostProcessReplayEvent {
 		// normalize entries to one element per data array
 		this._entries.forEach((entry) => {
 			if (entry.data.length > 0) {
@@ -92,5 +86,9 @@ export class TerminalRecorder implements ITerminalSerializer {
 		return {
 			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' }))
 		};
+	}
+
+	async generateReplayEvent(): Promise<IPtyHostProcessReplayEvent> {
+		return this.generateReplayEventSync();
 	}
 }

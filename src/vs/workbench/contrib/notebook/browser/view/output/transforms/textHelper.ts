@@ -7,28 +7,28 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { DefaultEndOfLine, EndOfLinePreference, ITextBuffer } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
+import { DefaultEndOfLine, EndOfLinePreference, ITextBuffer } from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SIZE_LIMIT = 65535;
 
-function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellViewModel, outputs: string[], openerService: IOpenerService) {
+function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellViewModel, disposables: DisposableStore, openerService: IOpenerService): HTMLElement {
 	const md: IMarkdownString = {
 		value: '[show more (open the raw output data in a text editor) ...](command:workbench.action.openLargeOutput)',
 		isTrusted: true,
 		supportThemeIcons: true
 	};
 
-	const element = renderMarkdown(md, {
+	const rendered = disposables.add(renderMarkdown(md, {
 		actionHandler: {
 			callback: (content) => {
 				if (content === 'command:workbench.action.openLargeOutput') {
@@ -37,15 +37,15 @@ function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellVi
 
 				return;
 			},
-			disposeables: new DisposableStore()
+			disposables: disposables
 		}
-	});
+	}));
 
-	element.classList.add('output-show-more');
-	return element;
+	rendered.element.classList.add('output-show-more');
+	return rendered.element;
 }
 
-export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGenericCellViewModel, linesLimit: number, container: HTMLElement, outputs: string[], linkDetector: LinkDetector, openerService: IOpenerService, themeService: IThemeService) {
+export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGenericCellViewModel, linesLimit: number, container: HTMLElement, outputs: string[], disposables: DisposableStore, linkDetector: LinkDetector, openerService: IOpenerService, themeService: IThemeService) {
 	const fullLen = outputs.reduce((p, c) => {
 		return p + c.length;
 	}, 0);
@@ -63,7 +63,7 @@ export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGeneric
 			const truncatedText = buffer.getValueInRange(new Range(1, 1, sizeBufferLimitPosition.lineNumber, sizeBufferLimitPosition.column), EndOfLinePreference.TextDefined);
 			container.appendChild(handleANSIOutput(truncatedText, linkDetector, themeService, undefined));
 			// view more ...
-			container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, outputs, openerService));
+			container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, disposables, openerService));
 			return;
 		}
 	}
@@ -87,7 +87,7 @@ export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGeneric
 	pre.appendChild(handleANSIOutput(buffer.getValueInRange(new Range(1, 1, linesLimit - 5, buffer.getLineLastNonWhitespaceColumn(linesLimit - 5)), EndOfLinePreference.TextDefined), linkDetector, themeService, undefined));
 
 	// view more ...
-	container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, outputs, openerService));
+	container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, disposables, openerService));
 
 	const lineCount = buffer.getLineCount();
 	const pre2 = DOM.$('div');

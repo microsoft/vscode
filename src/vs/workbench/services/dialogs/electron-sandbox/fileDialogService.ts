@@ -22,6 +22,9 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -39,10 +42,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IModeService modeService: IModeService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService labelService: ILabelService,
-		@IPathService pathService: IPathService
+		@IPathService pathService: IPathService,
+		@ICommandService commandService: ICommandService,
+		@IEditorService editorService: IEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService,
-			configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService, pathService);
+			configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {

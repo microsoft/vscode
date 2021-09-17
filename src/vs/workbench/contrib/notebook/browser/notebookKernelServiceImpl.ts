@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
@@ -43,20 +43,19 @@ class NotebookTextModelLikeId {
 	}
 }
 
-export class NotebookKernelService implements INotebookKernelService {
+export class NotebookKernelService extends Disposable implements INotebookKernelService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _disposables = new DisposableStore();
 	private readonly _kernels = new Map<string, KernelInfo>();
 
 	private readonly _typeBindings = new LRUCache<string, string>(100, 0.7);
 	private readonly _notebookBindings = new LRUCache<string, string>(1000, 0.7);
 
-	private readonly _onDidChangeNotebookKernelBinding = new Emitter<ISelectedNotebooksChangeEvent>();
-	private readonly _onDidAddKernel = new Emitter<INotebookKernel>();
-	private readonly _onDidRemoveKernel = new Emitter<INotebookKernel>();
-	private readonly _onDidChangeNotebookAffinity = new Emitter<void>();
+	private readonly _onDidChangeNotebookKernelBinding = this._register(new Emitter<ISelectedNotebooksChangeEvent>());
+	private readonly _onDidAddKernel = this._register(new Emitter<INotebookKernel>());
+	private readonly _onDidRemoveKernel = this._register(new Emitter<INotebookKernel>());
+	private readonly _onDidChangeNotebookAffinity = this._register(new Emitter<void>());
 
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
@@ -70,11 +69,12 @@ export class NotebookKernelService implements INotebookKernelService {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
+		super();
 
 		// auto associate kernels to new notebook documents, also emit event when
 		// a notebook has been closed (but don't update the memento)
-		this._disposables.add(_notebookService.onDidAddNotebookDocument(this._tryAutoBindNotebook, this));
-		this._disposables.add(_notebookService.onWillRemoveNotebookDocument(notebook => {
+		this._register(_notebookService.onDidAddNotebookDocument(this._tryAutoBindNotebook, this));
+		this._register(_notebookService.onWillRemoveNotebookDocument(notebook => {
 			const kernelId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
 			if (kernelId) {
 				this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel: kernelId, newKernel: undefined });
@@ -96,12 +96,9 @@ export class NotebookKernelService implements INotebookKernelService {
 		}
 	}
 
-	dispose() {
-		this._disposables.dispose();
-		this._onDidChangeNotebookKernelBinding.dispose();
-		this._onDidAddKernel.dispose();
-		this._onDidRemoveKernel.dispose();
+	override dispose() {
 		this._kernels.clear();
+		super.dispose();
 	}
 
 	private _persistSoonHandle?: IDisposable;

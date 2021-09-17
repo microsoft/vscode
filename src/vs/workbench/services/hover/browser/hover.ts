@@ -30,7 +30,7 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined;
+	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
 
 	/**
 	 * Hides the hover if it was visible.
@@ -38,12 +38,16 @@ export interface IHoverService {
 	hideHover(): void;
 }
 
+export interface IHoverWidget extends IDisposable {
+	readonly isDisposed: boolean;
+}
+
 export interface IHoverOptions {
 	/**
-	 * The text to display in the primary section of the hover. The type of text determines the
+	 * The content to display in the primary section of the hover. The type of text determines the
 	 * default `hideOnHover` behavior.
 	 */
-	text: IMarkdownString | string;
+	content: IMarkdownString | string | HTMLElement;
 
 	/**
 	 * The target for the hover. This determines the position of the hover and it will only be

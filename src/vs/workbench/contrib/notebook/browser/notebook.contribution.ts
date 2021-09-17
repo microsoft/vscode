@@ -24,7 +24,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInput, IEditorSerializer, IEditorFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { isCompositeNotebookEditorInput, NotebookEditorInput, NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -50,7 +50,7 @@ import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -60,9 +60,16 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/notebookRendererMessagingServiceImpl';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 
+// Editor Controller
+import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
+import 'vs/workbench/contrib/notebook/browser/controller/executeActions';
+import 'vs/workbench/contrib/notebook/browser/controller/layoutActions';
+import 'vs/workbench/contrib/notebook/browser/controller/editActions';
+import 'vs/workbench/contrib/notebook/browser/controller/apiActions';
+
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
-import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
@@ -77,7 +84,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/contributedS
 import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
-import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
@@ -91,6 +98,8 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransfo
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
+import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/notebookKeymapServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -148,7 +157,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 		return input;
 	}
 
-	static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+	static canResolveBackup(editorInput: EditorInput, backupResource: URI): boolean {
 		return false;
 	}
 
@@ -372,7 +381,7 @@ class CellInfoContentProvider {
 		const sameStream = !outputs.find(op => op.mime !== mime);
 
 		if (sameStream) {
-			return outputs.map(opit => new TextDecoder().decode(opit.data)).join('');
+			return outputs.map(opit => opit.data.toString()).join('');
 		} else {
 			return null;
 		}
@@ -413,7 +422,7 @@ class CellInfoContentProvider {
 					metadata: output.metadata,
 					outputItems: output.outputs.map(opit => ({
 						mimeType: opit.mime,
-						data: new TextDecoder().decode(opit.data)
+						data: opit.data.toString()
 					}))
 				})));
 				const edits = format(content, undefined, {});
@@ -476,7 +485,6 @@ class NotebookEditorManager implements IWorkbenchContribution {
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
 		@INotebookService notebookService: INotebookService,
@@ -505,12 +513,12 @@ class NotebookEditorManager implements IWorkbenchContribution {
 	}
 
 	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
-		const result: IEditorInputWithOptions[] = [];
+		const result: IResourceEditorInput[] = [];
 		for (let model of models) {
-			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType })) {
+			if (model.isDirty() && !this._editorService.isOpened({ resource: model.resource, typeId: NotebookEditorInput.ID, editorId: model.viewType }) && model.resource.scheme !== Schemas.vscodeInteractive) {
 				result.push({
-					editor: NotebookEditorInput.create(this._instantiationService, model.resource, model.viewType),
-					options: { inactive: true, preserveFocus: true, pinned: true, override: EditorResolution.DISABLED }
+					resource: model.resource,
+					options: { inactive: true, preserveFocus: true, pinned: true, override: model.viewType }
 				});
 			}
 		}
@@ -607,6 +615,7 @@ registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
 registerSingleton(INotebookKernelService, NotebookKernelService, true);
 registerSingleton(INotebookExecutionService, NotebookExecutionService, true);
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, true);
+registerSingleton(INotebookKeymapService, NotebookKeymapService, true);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
@@ -643,7 +652,8 @@ const editorOptionsCustomizationSchema: IConfigurationPropertySchema = {
 		// 		}
 		// 	}
 		// }
-	]
+	],
+	tags: ['notebookLayout']
 };
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -688,7 +698,8 @@ configurationRegistry.registerConfiguration({
 		[NotebookTextDiffEditorPreview]: {
 			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
 			type: 'boolean',
-			default: true
+			default: true,
+			tags: ['notebookLayout']
 		},
 		[CellToolbarVisibility]: {
 			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
@@ -704,13 +715,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[CompactView]: {
-			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. "),
+			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. For example, when turned on, it will decrease the left margin width."),
 			type: 'boolean',
 			default: true,
 			tags: ['notebookLayout']
 		},
 		[FocusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as a cell border or a highlight bar on the left gutter"),
+			description: nls.localize('notebook.focusIndicator.description', "Controls where the focus indicator is rendered, either along the cell borders or on the left gutter"),
 			type: 'string',
 			enum: ['border', 'gutter'],
 			default: 'gutter',
@@ -773,7 +784,8 @@ configurationRegistry.registerConfiguration({
 		[TextOutputLineLimit]: {
 			description: nls.localize('notebook.textOutputLineLimit', "Control how many lines of text in a text output is rendered."),
 			type: 'number',
-			default: 30
+			default: 30,
+			tags: ['notebookLayout']
 		},
 		[NotebookCellEditorOptionsCustomizations]: editorOptionsCustomizationSchema
 	}

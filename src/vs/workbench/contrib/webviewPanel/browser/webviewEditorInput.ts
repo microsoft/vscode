@@ -5,7 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
@@ -16,6 +16,10 @@ export class WebviewInput extends EditorInput {
 
 	public override get typeId(): string {
 		return WebviewInput.typeId;
+	}
+
+	public override get editorId(): string {
+		return this.viewType;
 	}
 
 	public override get capabilities(): EditorInputCapabilities {
@@ -92,7 +96,7 @@ export class WebviewInput extends EditorInput {
 		this._iconManager.setIcons(this.id, value);
 	}
 
-	public override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		return super.matches(other) || other === this;
 	}
 

@@ -41,7 +41,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 
 		for (let i = 0; i < resources.length; i += maxConcurrent) {
 			const resourceBatch = resources.slice(i, i + maxConcurrent);
-			const documentBatch = (await Promise.all(resourceBatch.map(this.getMarkdownDocument))).filter((doc) => !!doc) as SkinnyTextDocument[];
+			const documentBatch = (await Promise.all(resourceBatch.map(x => this.getMarkdownDocument(x)))).filter((doc) => !!doc) as SkinnyTextDocument[];
 			docList.push(...documentBatch);
 		}
 		return docList;

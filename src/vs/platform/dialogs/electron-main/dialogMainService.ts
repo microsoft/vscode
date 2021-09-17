@@ -16,6 +16,7 @@ import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
 
@@ -55,7 +56,8 @@ export class DialogMainService implements IDialogMainService {
 	private readonly noWindowDialogueQueue = new Queue<MessageBoxReturnValue | SaveDialogReturnValue | OpenDialogReturnValue>();
 
 	constructor(
-		@IStateMainService private readonly stateMainService: IStateMainService
+		@IStateMainService private readonly stateMainService: IStateMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -72,7 +74,7 @@ export class DialogMainService implements IDialogMainService {
 	}
 
 	pickWorkspace(options: INativeOpenDialogOptions, window?: BrowserWindow): Promise<string[] | undefined> {
-		const title = localize('openWorkspaceTitle', "Open Workspace");
+		const title = localize('openWorkspaceTitle', "Open Workspace from File");
 		const buttonLabel = mnemonicButtonLabel(localize({ key: 'openWorkspace', comment: ['&& denotes a mnemonic'] }, "&&Open"));
 		const filters = WORKSPACE_FILTER;
 
@@ -155,7 +157,9 @@ export class DialogMainService implements IDialogMainService {
 		// prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file save dialog is already or will be showing for the window with the same configuration');
+			this.logService.error('[DialogMainService]: file save dialog is already or will be showing for the window with the same configuration');
+
+			return { canceled: true };
 		}
 
 		try {
@@ -203,7 +207,9 @@ export class DialogMainService implements IDialogMainService {
 		// prevent duplicates of the same dialog queueing at the same time
 		const fileDialogLock = this.acquireFileDialogLock(options, window);
 		if (!fileDialogLock) {
-			throw new Error('A file open dialog is already or will be showing for the window with the same configuration');
+			this.logService.error('[DialogMainService]: file open dialog is already or will be showing for the window with the same configuration');
+
+			return { canceled: true, filePaths: [] };
 		}
 
 		try {

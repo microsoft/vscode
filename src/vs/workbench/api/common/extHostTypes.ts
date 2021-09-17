@@ -1343,6 +1343,14 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.supportThemeIcons = value;
 	}
 
+	get supportHtml(): boolean | undefined {
+		return this.#delegate.supportHtml;
+	}
+
+	set supportHtml(value: boolean | undefined) {
+		this.#delegate.supportHtml = value;
+	}
+
 	appendText(value: string): vscode.MarkdownString {
 		this.#delegate.appendText(value);
 		return this;
@@ -1357,8 +1365,6 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.appendCodeblock(language ?? '', value);
 		return this;
 	}
-
-
 }
 
 @es5ClassCompat
@@ -1735,6 +1741,11 @@ export class TerminalLink implements vscode.TerminalLink {
 	}
 }
 
+export enum TerminalLocation {
+	Panel = 1,
+	Editor = 2,
+}
+
 export class TerminalProfile implements vscode.TerminalProfile {
 	constructor(
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
@@ -1762,7 +1773,7 @@ export enum TaskPanelKind {
 }
 
 @es5ClassCompat
-export class TaskGroup implements vscode.TaskGroup2 {
+export class TaskGroup implements vscode.TaskGroup {
 
 	isDefault?: boolean;
 	private _id: string;
@@ -1790,11 +1801,11 @@ export class TaskGroup implements vscode.TaskGroup2 {
 		}
 	}
 
-	constructor(id: string, _label: string) {
+	constructor(id: string, public readonly label: string) {
 		if (typeof id !== 'string') {
 			throw illegalArgument('name');
 		}
-		if (typeof _label !== 'string') {
+		if (typeof label !== 'string') {
 			throw illegalArgument('name');
 		}
 		this._id = id;
@@ -2911,9 +2922,7 @@ export class FileDecoration {
 	badge?: string;
 	tooltip?: string;
 	color?: vscode.ThemeColor;
-	priority?: number;
 	propagate?: boolean;
-
 
 	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
 		this.badge = badge;
@@ -3321,6 +3330,7 @@ export class TestRunRequest implements vscode.TestRunRequest {
 export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
+	public location?: vscode.Location;
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
@@ -3334,10 +3344,7 @@ export class TestMessage implements vscode.TestMessage {
 
 @es5ClassCompat
 export class TestTag implements vscode.TestTag {
-	constructor(
-		public readonly id: string,
-		public readonly label?: string,
-	) { }
+	constructor(public readonly id: string) { }
 }
 
 //#endregion

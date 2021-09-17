@@ -516,6 +516,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _matchOnDescription = true;
 		private _matchOnDetail = true;
 		private _sortByLabel = true;
+		private _keepScrollPosition = false;
 		private _activeItems: T[] = [];
 		private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 		private _selectedItems: T[] = [];
@@ -600,6 +601,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set sortByLabel(sortByLabel: boolean) {
 			this._sortByLabel = sortByLabel;
 			this.update({ sortByLabel });
+		}
+
+		get keepScrollPosition() {
+			return this._keepScrollPosition;
+		}
+
+		set keepScrollPosition(keepScrollPosition: boolean) {
+			this._keepScrollPosition = keepScrollPosition;
+			this.update({ keepScrollPosition });
 		}
 
 		get activeItems() {

@@ -19,7 +19,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import API from './utils/api';
-import { areServiceConfigurationsEqual, SeparateSyntaxServerConfiguration, ServiceConfigurationProvider, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
+import { areServiceConfigurationsEqual, SyntaxServerConfiguration, ServiceConfigurationProvider, TsServerLogLevel, TypeScriptServiceConfiguration } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as fileSchemes from './utils/fileSchemes';
 import { Logger } from './utils/logger';
@@ -225,7 +225,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public get capabilities() {
-		if (this._configuration.separateSyntaxServer === SeparateSyntaxServerConfiguration.ForAllRequests) {
+		if (this._configuration.useSyntaxServer === SyntaxServerConfiguration.Always) {
 			return new ClientCapabilities(
 				ClientCapability.Syntax,
 				ClientCapability.EnhancedSyntax);
@@ -681,7 +681,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			default:
 				{
-					return this.inMemoryResourcePrefix + resource.toString(true);
+					return this.inMemoryResourcePrefix + '/' + resource.scheme + resource.path;
 				}
 		}
 	}
@@ -743,6 +743,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case fileSchemes.file:
 			case fileSchemes.untitled:
 			case fileSchemes.vscodeNotebookCell:
+			case fileSchemes.memFs:
+			case fileSchemes.vscodeVfs:
 				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
 						return root.uri.fsPath;

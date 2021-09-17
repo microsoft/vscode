@@ -8,12 +8,12 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
-import { distinct, coalesce } from 'vs/base/common/arrays';
+import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -31,6 +31,8 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Promises } from 'vs/base/common/async';
+import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
+import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -98,6 +100,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly _onDidChangeGroupIndex = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupIndex = this._onDidChangeGroupIndex.event;
 
+	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
+
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
@@ -160,9 +165,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const oldPartOptions = this._partOptions;
 		const newPartOptions = getEditorPartOptions(this.configurationService, this.themeService);
 
-		this.enforcedPartOptions.forEach(enforcedPartOptions => {
+		for (const enforcedPartOptions of this.enforcedPartOptions) {
 			Object.assign(newPartOptions, enforcedPartOptions); // check for overrides
-		});
+		}
 
 		this._partOptions = newPartOptions;
 
@@ -194,6 +199,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this._activeGroup;
 	}
 
+	readonly sideGroup: IEditorSideGroup = {
+		openEditor: (editor, options) => {
+			const [group] = this.instantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
+
+			return group.openEditor(editor, options);
+		}
+	};
+
 	get groups(): IEditorGroupView[] {
 		return Array.from(this.groupViews.values());
 	}
@@ -205,6 +218,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	get orientation(): GroupOrientation {
 		return (this.gridWidget && this.gridWidget.orientation === Orientation.VERTICAL) ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
+
+	private _isReady = false;
+	get isReady(): boolean { return this._isReady; }
 
 	private whenReadyResolve: (() => void) | undefined;
 	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
@@ -387,13 +403,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Determine how many groups we need overall
 		let layoutGroupsCount = 0;
 		function countGroups(groups: GroupLayoutArgument[]): void {
-			groups.forEach(group => {
+			for (const group of groups) {
 				if (Array.isArray(group.groups)) {
 					countGroups(group.groups);
 				} else {
 					layoutGroupsCount++;
 				}
-			});
+			}
 		}
 		countGroups(layout.groups);
 
@@ -433,11 +449,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.updateContainer();
 
 		// Events for groups that got added
-		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(groupView => {
+		for (const groupView of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
 			if (!currentGroupViews.includes(groupView)) {
 				this._onDidAddGroup.fire(groupView);
 			}
-		});
+		}
 
 		// Notify group index change given layout has changed
 		this.notifyGroupIndexChange();
@@ -543,6 +559,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				case GroupChangeKind.GROUP_INDEX:
 					this._onDidChangeGroupIndex.fire(groupView);
 					break;
+				case GroupChangeKind.GROUP_LOCKED:
+					this._onDidChangeGroupLocked.fire(groupView);
+					break;
 			}
 		}));
 
@@ -624,7 +643,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
 		const groupView = this.assertGroupView(group);
-		if (this.groupViews.size === 1) {
+		if (this.count === 1) {
 			return; // Cannot remove the last root group
 		}
 
@@ -677,6 +696,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Update container
 		this.updateContainer();
+
+		// Update locked state: clear when we are at just 1 group
+		if (this.count === 1) {
+			firstOrDefault(this.groups)?.lock(false);
+		}
 
 		// Event
 		this._onDidRemoveGroup.fire(groupView);
@@ -731,21 +755,25 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
 
-		// Move/Copy editors over into target
+		// Collect editors to move/copy
+		const editors: IEditorInputWithOptions[] = [];
 		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
-		sourceView.editors.forEach(editor => {
+		for (const editor of sourceView.editors) {
 			const inactive = !sourceView.isActive(editor) || this._activeGroup !== sourceView;
 			const sticky = sourceView.isSticky(editor);
-			const editorOptions = { index: !sticky ? index : undefined /* do not set index to preserve sticky flag */, inactive, preserveFocus: inactive };
+			const options = { index: !sticky ? index : undefined /* do not set index to preserve sticky flag */, inactive, preserveFocus: inactive };
 
-			if (options?.mode === MergeGroupMode.COPY_EDITORS) {
-				sourceView.copyEditor(editor, targetView, editorOptions);
-			} else {
-				sourceView.moveEditor(editor, targetView, editorOptions);
-			}
+			editors.push({ editor, options });
 
 			index++;
-		});
+		}
+
+		// Move/Copy editors over into target
+		if (options?.mode === MergeGroupMode.COPY_EDITORS) {
+			sourceView.copyEditors(editors, targetView);
+		} else {
+			sourceView.moveEditors(editors, targetView);
+		}
 
 		// Remove source if the view is now empty and not already removed
 		if (sourceView.isEmpty && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
@@ -837,6 +865,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Signal ready
 		this.whenReadyResolve?.();
+		this._isReady = true;
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
@@ -1066,7 +1095,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private get isEmpty(): boolean {
-		return this.groupViews.size === 1 && this._activeGroup.isEmpty;
+		return this.count === 1 && this._activeGroup.isEmpty;
 	}
 
 	setBoundarySashes(sashes: IBoundarySashes): void {

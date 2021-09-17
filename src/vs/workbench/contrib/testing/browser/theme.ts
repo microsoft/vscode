@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { editorErrorForeground, editorForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorErrorForeground, editorForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -13,19 +13,19 @@ import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/c
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',
 	light: '#f14c4c',
-	hc: '#000000'
+	hc: '#f14c4c'
 }, localize('testing.iconFailed', "Color for the 'failed' icon in the test explorer."));
 
 export const testingColorIconErrored = registerColor('testing.iconErrored', {
 	dark: '#f14c4c',
 	light: '#f14c4c',
-	hc: '#000000'
+	hc: '#f14c4c'
 }, localize('testing.iconErrored', "Color for the 'Errored' icon in the test explorer."));
 
 export const testingColorIconPassed = registerColor('testing.iconPassed', {
 	dark: '#73c991',
 	light: '#73c991',
-	hc: '#000000'
+	hc: '#73c991'
 }, localize('testing.iconPassed', "Color for the 'passed' icon in the test explorer."));
 
 export const testingColorRunAction = registerColor('testing.runAction', {
@@ -37,7 +37,7 @@ export const testingColorRunAction = registerColor('testing.runAction', {
 export const testingColorIconQueued = registerColor('testing.iconQueued', {
 	dark: '#cca700',
 	light: '#cca700',
-	hc: '#000000'
+	hc: '#cca700'
 }, localize('testing.iconQueued', "Color for the 'Queued' icon in the test explorer."));
 
 export const testingColorIconUnset = registerColor('testing.iconUnset', {
@@ -55,7 +55,13 @@ export const testingColorIconSkipped = registerColor('testing.iconSkipped', {
 export const testingPeekBorder = registerColor('testing.peekBorder', {
 	dark: editorErrorForeground,
 	light: editorErrorForeground,
-	hc: editorErrorForeground,
+	hc: contrastBorder,
+}, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
+
+export const testingPeekHeaderBackground = registerColor('testing.peekHeaderBackground', {
+	dark: transparent(editorErrorForeground, 0.1),
+	light: transparent(editorErrorForeground, 0.1),
+	hc: null,
 }, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
 
 export const testMessageSeverityColors: {

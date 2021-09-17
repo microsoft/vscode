@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, INotebookEditorDelegate, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { BUILTIN_RENDERER_ID, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -48,14 +48,18 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 	}
 
 	private _warmupDocumentNow() {
-		this._notebookEditor.viewModel?.viewCells.forEach(cell => {
-			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
-				// TODO@rebornix currently we disable markdown cell rendering in webview for accessibility
-				// this._notebookEditor.createMarkupPreview(cell);
-			} else if (cell?.cellKind === CellKind.Code) {
-				this._renderCell((cell as CodeCellViewModel));
+		if (this._notebookEditor.hasModel()) {
+			for (let i = 0; i < this._notebookEditor.getLength(); i++) {
+				const cell = this._notebookEditor.cellAt(i);
+
+				if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
+					// TODO@rebornix currently we disable markdown cell rendering in webview for accessibility
+					// this._notebookEditor.createMarkupPreview(cell);
+				} else if (cell?.cellKind === CellKind.Code) {
+					this._renderCell((cell as CodeCellViewModel));
+				}
 			}
-		});
+		}
 	}
 
 	private _warmupViewportNow() {
@@ -69,10 +73,10 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 
 		const visibleRanges = this._notebookEditor.getVisibleRangesPlusViewportBelow();
 		cellRangesToIndexes(visibleRanges).forEach(index => {
-			const cell = this._notebookEditor.viewModel?.viewCells[index];
+			const cell = this._notebookEditor.cellAt(index);
 
 			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
-				this._notebookEditor.createMarkupPreview(cell);
+				(this._notebookEditor as INotebookEditorDelegate).createMarkupPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
 				this._renderCell((cell as CodeCellViewModel));
 			}
@@ -80,6 +84,10 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 	}
 
 	private _renderCell(viewCell: CodeCellViewModel) {
+		if (viewCell.metadata.outputCollapsed) {
+			return;
+		}
+
 		const outputs = viewCell.outputsViewModels;
 		for (let output of outputs) {
 			const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!, undefined);
@@ -100,7 +108,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
 				const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
 				if (renderer?.getType() === RenderOutputType.Html) {
-					const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType)[0], DOM.$(''), this._notebookEditor.viewModel.uri) as IInsetRenderOutput;
+					const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType)[0], DOM.$(''), this._notebookEditor.textModel.uri) as IInsetRenderOutput;
 					this._notebookEditor.createOutput(viewCell, renderResult, 0);
 				}
 				return;

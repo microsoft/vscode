@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -17,7 +17,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DisposableStore, IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { SymbolKind } from 'vs/editor/common/modes';
@@ -29,6 +29,7 @@ import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/edi
 import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -36,6 +37,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOutlineService private readonly outlineService: IOutlineService,
 	) {
@@ -80,7 +82,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				preserveFocus: options.preserveFocus
 			};
 
-			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
+			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
 		}
 
 		// Otherwise let parent handle it
@@ -255,6 +257,7 @@ registerAction2(class GotoSymbolAction extends Action2 {
 			id: 'workbench.action.gotoSymbol',
 			title: {
 				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				mnemonicTitle: localize({ key: 'miGotoSymbolInEditor', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in Editor..."),
 				original: 'Go to Symbol in Editor...'
 			},
 			f1: true,
@@ -262,6 +265,11 @@ registerAction2(class GotoSymbolAction extends Action2 {
 				when: undefined,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+			},
+			menu: {
+				id: MenuId.MenubarGoMenu,
+				group: '4_symbol_nav',
+				order: 1
 			}
 		});
 	}

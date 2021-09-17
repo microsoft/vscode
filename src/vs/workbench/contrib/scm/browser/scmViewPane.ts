@@ -1826,7 +1826,7 @@ class SCMInputWidget extends Disposable {
 								this.openerService.open(content, { allowCommands: typeof message !== 'string' && message.isTrusted });
 								this.contextViewService.hideContextView();
 							},
-							disposeables: disposables
+							disposables: disposables
 						},
 					});
 					element.appendChild(mdElement);

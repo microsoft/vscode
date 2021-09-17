@@ -191,6 +191,7 @@ export interface IDebugSessionOptions {
 	debugUI?: {
 		simple?: boolean;
 	};
+	startedByUser?: boolean;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -547,6 +548,7 @@ export interface IDebugConfiguration {
 	onTaskErrors: 'debugAnyway' | 'showErrors' | 'prompt' | 'abort';
 	showBreakpointsInOverviewRuler: boolean;
 	showInlineBreakpointCandidates: boolean;
+	confirmOnExit: 'always' | 'never';
 }
 
 export interface IGlobalConfig {

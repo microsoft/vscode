@@ -224,7 +224,7 @@ steps:
       set -e
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
-      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --screenshots .build/logs/smoke-tests
+      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
     timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -234,7 +234,7 @@ steps:
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
-      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote --screenshots .build/logs/smoke-tests
+      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
     timeoutInMinutes: 5
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))

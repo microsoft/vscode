@@ -34,7 +34,10 @@ const configurationEntrySchema: IJSONSchema = {
 			},
 			additionalProperties: {
 				anyOf: [
-					{ $ref: 'http://json-schema.org/draft-07/schema#' },
+					{
+						title: nls.localize('vscode.extension.contributes.configuration.properties.schema', 'Schema of the configuration property.'),
+						$ref: 'http://json-schema.org/draft-07/schema#'
+					},
 					{
 						type: 'object',
 						properties: {

@@ -219,7 +219,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return undefined;
 	}
 
-	public $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
+	public async $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
 		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
 		const parentSession = this.getSession(options.parentSessionID);
@@ -232,11 +232,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			debugUI: options.debugUI,
 			compoundRoot: parentSession?.compoundRoot
 		};
-		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
-			return success;
-		}, err => {
-			return Promise.reject(new Error(err && err.message ? err.message : 'cannot start debugging'));
-		});
+		try {
+			const saveBeforeStart = typeof options.suppressSaveBeforeStart === 'boolean' ? !options.suppressSaveBeforeStart : undefined;
+			return this.debugService.startDebugging(launch, nameOrConfig, debugOptions, saveBeforeStart);
+		} catch (err) {
+			throw new Error(err && err.message ? err.message : 'cannot start debugging');
+		}
 	}
 
 	public $setDebugSessionName(sessionId: DebugSessionUUID, name: string): void {

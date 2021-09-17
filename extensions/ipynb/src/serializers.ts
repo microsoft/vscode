@@ -94,7 +94,7 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 		case 'display_data': {
 			result = {
 				output_type: 'display_data',
-				data: output.items.reduceRight((prev: any, curr) => {
+				data: output.items.reduce((prev: any, curr) => {
 					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
 					return prev;
 				}, {}),
@@ -105,7 +105,7 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 		case 'execute_result': {
 			result = {
 				output_type: 'execute_result',
-				data: output.items.reduceRight((prev: any, curr) => {
+				data: output.items.reduce((prev: any, curr) => {
 					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
 					return prev;
 				}, {}),
@@ -118,7 +118,7 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 		case 'update_display_data': {
 			result = {
 				output_type: 'update_display_data',
-				data: output.items.reduceRight((prev: any, curr) => {
+				data: output.items.reduce((prev: any, curr) => {
 					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
 					return prev;
 				}, {}),
@@ -163,7 +163,7 @@ function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
 				unknownOutput.metadata = customMetadata.metadata;
 			}
 			if (output.items.length > 0) {
-				unknownOutput.data = output.items.reduceRight((prev: any, curr) => {
+				unknownOutput.data = output.items.reduce((prev: any, curr) => {
 					prev[curr.mime] = convertOutputMimeToJupyterOutput(curr.mime, curr.data as Uint8Array);
 					return prev;
 				}, {});
@@ -224,17 +224,38 @@ type JupyterOutput =
 	| nbformat.IError;
 
 function convertStreamOutput(output: NotebookCellOutput): JupyterOutput {
-	const outputs = output.items
+	const outputs: string[] = [];
+	output.items
 		.filter((opit) => opit.mime === CellOutputMimeTypes.stderr || opit.mime === CellOutputMimeTypes.stdout)
-		.map((opit) => convertOutputMimeToJupyterOutput(opit.mime, opit.data as Uint8Array) as string)
-		.reduceRight<string[]>((prev, curr) => prev.concat(curr), []);
+		.map((opit) => textDecoder.decode(opit.data))
+		.forEach(value => {
+			// Ensure each line is a seprate entry in an array (ending with \n).
+			const lines = value.split('\n');
+			// If the last item in `outputs` is not empty and the first item in `lines` is not empty, then concate them.
+			// As they are part of the same line.
+			if (outputs.length && lines.length && lines[0].length > 0) {
+				outputs[outputs.length - 1] = `${outputs[outputs.length - 1]}${lines.shift()!}`;
+			}
+			for (const line of lines) {
+				outputs.push(line);
+			}
+		});
+
+	for (let index = 0; index < (outputs.length - 1); index++) {
+		outputs[index] = `${outputs[index]}\n`;
+	}
+
+	// Skip last one if empty (it's the only one that could be length 0)
+	if (outputs.length && outputs[outputs.length - 1].length === 0) {
+		outputs.pop();
+	}
 
 	const streamType = getOutputStreamType(output) || 'stdout';
 
 	return {
 		output_type: 'stream',
 		name: streamType,
-		text: splitMultilineString(outputs.join(''))
+		text: outputs
 	};
 }
 
@@ -255,11 +276,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
 				return Buffer.from(value).toString('base64');
 			} else {
-				// https://developer.mozilla.org/en-US/docs/Glossary/Base64#solution_1_%E2%80%93_escaping_the_string_before_encoding_it
-				const stringValue = textDecoder.decode(value);
-				return btoa(encodeURIComponent(stringValue).replace(/%([0-9A-F]{2})/g, function (_match, p1) {
-					return String.fromCharCode(Number.parseInt('0x' + p1));
-				}));
+				return window.btoa(value.reduce((s: string, b: number) => s + String.fromCharCode(b), ''));
 			}
 		} else if (mime.toLowerCase().includes('json')) {
 			const stringValue = textDecoder.decode(value);

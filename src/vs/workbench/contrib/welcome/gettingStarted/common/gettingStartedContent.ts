@@ -91,7 +91,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openFile.title', "Open File..."),
 		description: localize('gettingStarted.openFile.description', "Open a file to start working"),
 		icon: Codicon.goToFile,
-		when: '!isWeb && !isMac',
+		when: 'isWeb || !isMac',
 		content: {
 			type: 'startEntry',
 			command: 'workbench.action.files.openFile',
@@ -102,10 +102,21 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
 		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
 		icon: Codicon.folderOpened,
-		when: '!isWeb && !isMac',
+		when: '!isWeb',
 		content: {
 			type: 'startEntry',
 			command: 'workbench.action.files.openFolder',
+		}
+	},
+	{
+		id: 'topLevelOpenFolderWeb',
+		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
+		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
+		icon: Codicon.folderOpened,
+		when: 'isWeb',
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.addRootFolder',
 		}
 	},
 	{
@@ -116,6 +127,17 @@ export const startEntries: GettingStartedStartEntryContent = [
 		content: {
 			type: 'startEntry',
 			command: 'workbench.action.showCommands',
+		}
+	},
+	{
+		id: 'topLevelShowWalkthroughs',
+		title: localize('gettingStarted.topLevelShowWalkthroughs.title', "Open a Walkthrough..."),
+		description: localize('gettingStarted.topLevelShowWalkthroughs.description', ""),
+		icon: Codicon.checklist,
+		when: 'allWalkthroughsHidden',
+		content: {
+			type: 'startEntry',
+			command: 'welcome.showAllWalkthroughs',
 		}
 	},
 ];
@@ -144,10 +166,20 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: { type: 'markdown', path: 'example_markdown_media', }
 				},
 				{
+					id: 'settingsSyncWeb',
+					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
+					description: localize('gettingStarted.settingsSync.description.interpolated', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
+					when: 'workspacePlatform == \'webworker\' && syncStatus != uninitialized',
+					completionEvents: ['onEvent:sync-enabled'],
+					media: {
+						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
+					},
+				},
+				{
 					id: 'findLanguageExtensions',
 					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
 					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
-					when: 'virtualWorkspace != \'vscode-vfs\'',
+					when: 'workspacePlatform != \'webworker\'',
 					media: {
 						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
 					},
@@ -159,19 +191,37 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
 				{
+					id: 'extensionsWeb',
+					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
+					description: localize('gettingStarted.extensions.description.interpolated', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities.\n{0}", Button(localize('browseRecommended', "Browse Recommended Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
+					when: 'workspacePlatform == \'webworker\'',
+					media: {
+						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.svg'
+					},
+				},
+				{
 					id: 'workspaceTrust',
 					title: localize('gettingStarted.workspaceTrust.title', "Safely browse and edit code"),
 					description: localize('gettingStarted.workspaceTrust.description.interpolated', "{0} lets you decide whether your project folders should **allow or restrict** automatic code execution __(required for extensions, debugging, etc)__.\nOpening a file/folder will prompt to grant trust. You can always {1} later.", Button(localize('workspaceTrust', "Workspace Trust"), 'https://github.com/microsoft/vscode-docs/blob/workspaceTrust/docs/editor/workspace-trust.md'), Button(localize('enableTrust', "enable trust"), 'command:toSide:workbench.action.manageTrustedDomain')),
-					when: 'virtualWorkspace != \'vscode-vfs\' && !isWorkspaceTrusted && workspaceFolderCount == 0',
+					when: 'workspacePlatform != \'webworker\' && !isWorkspaceTrusted && workspaceFolderCount == 0',
 					media: {
 						type: 'svg', altText: 'Workspace Trust editor in Restricted mode and a primary button for switching to Trusted mode.', path: 'workspaceTrust.svg'
 					},
 				},
 				{
+					id: 'pickAFolderTask-Web',
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
+					description: localize('gettingStarted.setup.OpenFolderWeb.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}\n{1}", Button(localize('openFolder', "Open Folder"), 'command:workbench.action.addRootFolder'), Button(localize('openRepository', "Open Repository"), 'command:remoteHub.openRepository')),
+					when: 'isWeb && workspaceFolderCount == 0',
+					media: {
+						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
+					}
+				},
+				{
 					id: 'pickAFolderTask-Mac',
 					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
 					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFileFolder')),
-					when: 'isMac && workspaceFolderCount == 0',
+					when: '!isWeb && isMac && workspaceFolderCount == 0',
 					media: {
 						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
 					}
@@ -180,7 +230,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'pickAFolderTask-Other',
 					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
 					description: localize('gettingStarted.setup.OpenFolder.description.interpolated', "You're all set to start coding. Open a project folder to get your files into VS Code.\n{0}", Button(localize('pickFolder', "Pick a Folder"), 'command:workbench.action.files.openFolder')),
-					when: '!isMac && workspaceFolderCount == 0',
+					when: '!isWeb && !isMac && workspaceFolderCount == 0',
 					media: {
 						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'
 					}
@@ -220,7 +270,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'terminal',
 					title: localize('gettingStarted.terminal.title', "Convenient built-in terminal"),
 					description: localize('gettingStarted.terminal.description.interpolated', "Quickly run shell commands and monitor build output, right next to your code.\n{0}", Button(localize('showTerminal', "Show Terminal Panel"), 'command:workbench.action.terminal.toggleTerminal')),
-					when: 'virtualWorkspace != \'vscode-vfs\' && remoteName != codespaces && !terminalIsOpen',
+					when: 'workspacePlatform != \'webworker\' && remoteName != codespaces && !terminalIsOpen',
 					media: {
 						type: 'svg', altText: 'Integrated terminal running a few npm commands', path: 'terminal.svg'
 					},
@@ -229,7 +279,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'extensions',
 					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
 					description: localize('gettingStarted.extensions.description.interpolated', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities.\n{0}", Button(localize('browseRecommended', "Browse Recommended Extensions"), 'command:workbench.extensions.action.showRecommendedExtensions')),
-					when: 'virtualWorkspace != \'vscode-vfs\'',
+					when: 'workspacePlatform != \'webworker\'',
 					media: {
 						type: 'svg', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.svg'
 					},
@@ -246,7 +296,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'settingsSync',
 					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
 					description: localize('gettingStarted.settingsSync.description.interpolated', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
-					when: 'syncStatus != uninitialized',
+					when: 'workspacePlatform != \'webworker\' && syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
 						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
@@ -283,7 +333,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'debugging',
 					title: localize('gettingStarted.debug.title', "Watch your code in action"),
 					description: localize('gettingStarted.debug.description.interpolated', "Accelerate your edit, build, test, and debug loop by setting up a launch configuration.\n{0}", Button(localize('runProject', "Run your Project"), 'command:workbench.action.debug.selectandstart')),
-					when: 'virtualWorkspace != \'vscode-vfs\' && workspaceFolderCount != 0',
+					when: 'workspacePlatform != \'webworker\' && workspaceFolderCount != 0',
 					media: {
 						type: 'svg', altText: 'Run and debug view.', path: 'debug.svg',
 					},
@@ -316,9 +366,21 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					},
 				},
 				{
+					id: 'installGit',
+					title: localize('gettingStarted.installGit.title', "Install Git"),
+					description: localize('gettingStarted.installGit.description.interpolated', "Install Git to track changes in your projects.\n{0}", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git')),
+					when: 'git.missing',
+					media: {
+						type: 'svg', altText: 'Install Git.', path: 'git.svg',
+					},
+					completionEvents: [
+						'onContext:git.state == initialized'
+					]
+				},
+				{
 					id: 'tasks',
 					title: localize('gettingStarted.tasks.title', "Automate your project tasks"),
-					when: 'workspaceFolderCount != 0 && virtualWorkspace != \'vscode-vfs\'',
+					when: 'workspaceFolderCount != 0 && workspacePlatform != \'webworker\'',
 					description: localize('gettingStarted.tasks.description.interpolated', "Create tasks for your common workflows and enjoy the integrated experience of running scripts and automatically checking results.\n{0}", Button(localize('runTasks', "Run Auto-detected Tasks"), 'command:workbench.action.tasks.runTask')),
 					media: {
 						type: 'svg', altText: 'Task runner.', path: 'runTask.svg',

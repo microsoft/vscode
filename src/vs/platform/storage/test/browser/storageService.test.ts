@@ -89,12 +89,12 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 	const logService = new NullLogService();
 
 	teardown(async () => {
-		const storage = await IndexedDBStorageDatabase.create(id, logService);
+		const storage = await IndexedDBStorageDatabase.create({ id }, logService);
 		await storage.clear();
 	});
 
 	test('Basics', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 
@@ -116,7 +116,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 
@@ -139,7 +139,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 
@@ -167,7 +167,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 
@@ -180,7 +180,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 	});
 
 	test('Clear', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 
@@ -190,13 +190,13 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		const db = await IndexedDBStorageDatabase.create(id, logService);
+		const db = await IndexedDBStorageDatabase.create({ id }, logService);
 		storage = new Storage(db);
 
 		await storage.init();
 		await db.clear();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 
@@ -209,7 +209,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 	});
 
 	test('Inserts and Deletes at the same time', async () => {
-		let storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		let storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 
@@ -219,7 +219,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 
@@ -231,7 +231,7 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 
 		await storage.close();
 
-		storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+		storage = new Storage(await IndexedDBStorageDatabase.create({ id }, logService));
 
 		await storage.init();
 

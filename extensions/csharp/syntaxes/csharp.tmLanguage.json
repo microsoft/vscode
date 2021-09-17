@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/5f62efed7a0319dc41ee2ed227577633b52312a2",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/53344c05ec5dd09e1dbc4a77a1aacd482403715a",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -1795,7 +1795,7 @@
 			]
 		},
 		"switch-expression": {
-			"begin": "(?x) (?<!\\.)\\b(switch)",
+			"begin": "(?x) (?<!\\.)\\b(switch)\\b",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.switch.cs"
@@ -3170,7 +3170,7 @@
 			]
 		},
 		"conditional-operator": {
-			"begin": "(?<!\\?)\\?(?!\\?|\\.|\\[)",
+			"begin": "(?<!\\?\\s*)\\?(?!\\?|\\.|\\[)",
 			"beginCaptures": {
 				"0": {
 					"name": "keyword.operator.conditional.question-mark.cs"
@@ -3238,7 +3238,7 @@
 			"match": "@?[_[:alpha:]][_[:alnum:]]*"
 		},
 		"cast-expression": {
-			"match": "(?x)\n(\\()\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(\\))(?=\\s*@?[_[:alnum:]\\(])",
+			"match": "(?x)\n(\\()\\s*\n(?<type_name>\n  (?:\n    (?:\n      (?:(?<identifier>@?[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name_and_type_args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type_args>\\s*<(?:[^<>]|\\g<type_args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name_and_type_args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s* # array suffix?\n      \\[\n        (?:\\s*,\\s*)* # commata for multi-dimensional arrays\n      \\]\n      \\s*\n      (?:\\?)? # arrays can be nullable reference types\n      \\s*\n    )*\n  )\n)\\s*\n(\\))(?=\\s*-*!*@?[_[:alnum:]\\(])",
 			"captures": {
 				"1": {
 					"name": "punctuation.parenthesis.open.cs"

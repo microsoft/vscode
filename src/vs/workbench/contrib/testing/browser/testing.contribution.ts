@@ -13,6 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -20,15 +21,15 @@ import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsR
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
-import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, TestingOutputPeekController, TestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
@@ -39,7 +40,6 @@ import { ITestResultService, TestResultService } from 'vs/workbench/contrib/test
 import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
@@ -104,9 +104,11 @@ viewsRegistry.registerViews([{
 }], viewContainer);
 
 allTestActions.forEach(registerAction2);
+registerAction2(OpenMessageInEditorAction);
 registerAction2(GoToPreviousMessageAction);
 registerAction2(GoToNextMessageAction);
 registerAction2(CloseTestPeek);
+registerAction2(ToggleTestingPeekHistory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingPeekOpener, LifecyclePhase.Eventually);
@@ -116,9 +118,9 @@ registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekCo
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
 
 CommandsRegistry.registerCommand({
-	id: 'vscode.revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, testId: string, focus?: boolean) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = testId;
+	id: '_revealTestInExplorer',
+	handler: async (accessor: ServicesAccessor, testId: string | ITestItem, focus?: boolean) => {
+		accessor.get(ITestExplorerFilterState).reveal.value = typeof testId === 'string' ? testId : testId.extId;
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
 	}
 });
@@ -149,14 +151,14 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTest',
-	handler: async (accessor: ServicesAccessor, extId: string, preserveFocus?: boolean) => {
+	handler: async (accessor: ServicesAccessor, extId: string) => {
 		const test = accessor.get(ITestService).collection.getNodeById(extId);
 		if (!test) {
 			return;
 		}
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
-		const editorService = accessor.get(IEditorService);
+		const openerService = accessor.get(IOpenerService);
 
 		const { range, uri } = test.item;
 		if (!uri) {
@@ -180,15 +182,10 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		await editorService.openEditor({
-			resource: uri,
-			options: {
-				selection: range
-					? { startColumn: range.startColumn, startLineNumber: range.startLineNumber }
-					: undefined,
-				preserveFocus: preserveFocus === true,
-			},
-		});
+		await openerService.open(range
+			? uri.with({ fragment: `L${range.startLineNumber}:${range.startColumn}` })
+			: uri
+		);
 	}
 });
 

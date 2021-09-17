@@ -23,3 +23,11 @@
 	opacity: 0;
 	font-size: 0;
 }
+
+.monaco-editor .ghost-text-decoration {
+	font-style: italic;
+}
+
+.monaco-editor .suggest-preview-text {
+	font-style: italic;
+}

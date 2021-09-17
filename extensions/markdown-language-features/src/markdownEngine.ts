@@ -91,8 +91,8 @@ export class MarkdownEngine {
 				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
 					try {
 						md = (await plugin)(md);
-					} catch {
-						// noop
+					} catch (e) {
+						console.error('Could not load markdown it plugin', e);
 					}
 				}
 

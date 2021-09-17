@@ -20,24 +20,24 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
 	let testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService());
 
-	test('declarative with extension dependencies => workspace', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), ['workspace']);
+	test('declarative with extension dependencies', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), ['workspace', 'web']);
 	});
 
-	test('declarative extension pack => workspace', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'] }), ['workspace']);
+	test('declarative extension pack', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'] }), ['workspace', 'web']);
 	});
 
-	test('declarative extension pack and extension dependencies => workspace', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], extensionDependencies: ['ext1', 'ext2'] }), ['workspace']);
+	test('declarative extension pack and extension dependencies', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], extensionDependencies: ['ext1', 'ext2'] }), ['workspace', 'web']);
 	});
 
 	test('declarative with unknown contribution point => workspace, web', () => {
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ contributes: <any>{ 'unknownPoint': { something: true } } }), ['workspace', 'web']);
 	});
 
-	test('declarative extension pack with unknown contribution point => workspace', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], contributes: <any>{ 'unknownPoint': { something: true } } }), ['workspace']);
+	test('declarative extension pack with unknown contribution point', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], contributes: <any>{ 'unknownPoint': { something: true } } }), ['workspace', 'web']);
 	});
 
 	test('simple declarative => ui, workspace, web', () => {
@@ -60,6 +60,10 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js', browser: 'main.browser.js', extensionKind: ['workspace'] }), ['workspace', 'web']);
 	});
 
+	test('only browser entry point with out extensionKind => web', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js' }), ['web']);
+	});
+
 	test('simple descriptive with workspace, ui extensionKind => workspace, ui, web', () => {
 		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionKind: ['workspace', 'ui'] }), ['workspace', 'ui', 'web']);
 	});
@@ -76,6 +80,14 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
 	test('extension cannot opt out from web', () => {
 		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ browser: 'main.browser.js', extensionKind: ['-web'] }), ['web']);
+	});
+
+	test('extension cannot opt into web', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web', 'workspace', 'ui'] }), ['workspace', 'ui']);
+	});
+
+	test('extension cannot opt into web only', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<any>{ main: 'main.js', extensionKind: ['web'] }), []);
 	});
 });
 

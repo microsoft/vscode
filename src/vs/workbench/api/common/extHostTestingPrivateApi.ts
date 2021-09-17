@@ -32,6 +32,7 @@ export interface ITestItemSetProp {
 	op: ExtHostTestItemEventOp.SetProp;
 	key: keyof vscode.TestItem;
 	value: any;
+	previous: any;
 }
 export interface ITestItemBulkReplace {
 	op: ExtHostTestItemEventOp.Bulk;
@@ -81,8 +82,14 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem>(
 		},
 		set(newValue: vscode.TestItem[K]) {
 			if (!equals(value, newValue)) {
+				const oldValue = value;
 				value = newValue;
-				api.listener?.({ op: ExtHostTestItemEventOp.SetProp, key, value: newValue });
+				api.listener?.({
+					op: ExtHostTestItemEventOp.SetProp,
+					key,
+					value: newValue,
+					previous: oldValue,
+				});
 			}
 		},
 	};

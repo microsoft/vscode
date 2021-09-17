@@ -656,10 +656,7 @@ export interface IEditorOptions {
  */
 export const MINIMAP_GUTTER_WIDTH = 8;
 
-/**
- * Configuration options for the diff editor.
- */
-export interface IDiffEditorOptions extends IEditorOptions {
+export interface IDiffEditorBaseOptions {
 	/**
 	 * Allow the user to resize the diff editor split view.
 	 * Defaults to true.
@@ -675,6 +672,11 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to 5000.
 	 */
 	maxComputationTime?: number;
+	/**
+	 * Maximum supported file size in MB.
+	 * Defaults to 50.
+	 */
+	maxFileSize?: number;
 	/**
 	 * Compute the diff by ignoring leading/trailing whitespace
 	 * Defaults to true.
@@ -696,11 +698,6 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	diffCodeLens?: boolean;
 	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
-	 */
-	isInEmbeddedEditor?: boolean;
-	/**
 	 * Is the diff editor should render overview ruler
 	 * Defaults to true
 	 */
@@ -709,15 +706,18 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Control the wrapping of the diff editor.
 	 */
 	diffWordWrap?: 'off' | 'on' | 'inherit';
-	/**
-	 * Aria label for original editor.
-	 */
-	originalAriaLabel?: string;
-	/**
-	 * Aria label for modified editor.
-	 */
-	modifiedAriaLabel?: string;
 }
+
+/**
+ * Configuration options for the diff editor.
+ */
+export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
+}
+
+/**
+ * @internal
+ */
+export type ValidDiffEditorBaseOptions = Readonly<Required<IDiffEditorBaseOptions>>;
 
 //#endregion
 
@@ -921,19 +921,26 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 	}
 }
 
+/**
+ * @internal
+ */
+export function clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
+	if (typeof value === 'undefined') {
+		return defaultValue;
+	}
+	let r = parseInt(value, 10);
+	if (isNaN(r)) {
+		return defaultValue;
+	}
+	r = Math.max(minimum, r);
+	r = Math.min(maximum, r);
+	return r | 0;
+}
+
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 
 	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
-		if (typeof value === 'undefined') {
-			return defaultValue;
-		}
-		let r = parseInt(value, 10);
-		if (isNaN(r)) {
-			return defaultValue;
-		}
-		r = Math.max(minimum, r);
-		r = Math.min(maximum, r);
-		return r | 0;
+		return clampedInt(value, defaultValue, minimum, maximum);
 	}
 
 	public readonly minimum: number;
@@ -2467,7 +2474,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorI
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
-					description: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
+					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
 			}
 		);
@@ -3244,18 +3251,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
-				},
-				'editor.inlineSuggest.mode': {
-					type: 'string',
-					enum: ['prefix', 'subword', 'subwordSmart'],
-					enumDescriptions: [
-						nls.localize('inlineSuggest.mode.prefix', "Only render an inline suggestion if the replace text is a prefix of the insert text."),
-						nls.localize('inlineSuggest.mode.subword', "Only render an inline suggestion if the replace text is a subword of the insert text."),
-						nls.localize('inlineSuggest.mode.subwordSmart', "Only render an inline suggestion if the replace text is a subword of the insert text, but the subword must start after the cursor."),
-					],
-					default: defaults.mode,
-					description: nls.localize('inlineSuggest.mode', "Controls which mode to use for rendering inline suggestions.")
-				},
+				}
 			}
 		);
 	}
@@ -3268,6 +3264,51 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
+		};
+	}
+}
+
+//#endregion
+
+//#region bracketPairColorization
+
+export interface IBracketPairColorizationOptions {
+	/**
+	 * Enable or disable bracket pair colorization.
+	*/
+	enabled?: boolean;
+}
+
+export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
+
+/**
+ * Configuration options for inline suggestions
+ */
+class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, InternalBracketPairColorizationOptions> {
+	constructor() {
+		const defaults: InternalBracketPairColorizationOptions = {
+			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled
+		};
+
+		super(
+			EditorOption.bracketPairColorization, 'bracketPairColorization', defaults,
+			{
+				'editor.bracketPairColorization.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use 'workbench.colorCustomizations' to override the bracket highlight colors.")
+				}
+			}
+		);
+	}
+
+	public validate(_input: any): InternalBracketPairColorizationOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IBracketPairColorizationOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
 		};
 	}
 }
@@ -3526,17 +3567,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.preview,
 					description: nls.localize('suggest.preview', "Controls whether to preview the suggestion outcome in the editor.")
-				},
-				'editor.suggest.previewMode': {
-					type: 'string',
-					enum: ['prefix', 'subword', 'subwordSmart'],
-					enumDescriptions: [
-						nls.localize('suggest.previewMode.prefix', "Only render a preview if the replace text is a prefix of the insert text."),
-						nls.localize('suggest.previewMode.subword', "Only render a preview if the replace text is a subword of the insert text."),
-						nls.localize('suggest.previewMode.subwordSmart', "Render a preview if the replace text is a subword of the insert text, or if it is a prefix of the insert text."),
-					],
-					default: defaults.previewMode,
-					description: nls.localize('suggest.previewMode', "Controls which mode to use for rendering the suggest preview.")
 				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
@@ -3896,7 +3926,8 @@ export const EDITOR_MODEL_DEFAULTS = {
 	insertSpaces: true,
 	detectIndentation: true,
 	trimAutoWhitespace: true,
-	largeFileOptimizations: true
+	largeFileOptimizations: true,
+	bracketPairColorizationOptions: { enabled: false }
 };
 
 /**
@@ -3922,6 +3953,7 @@ export const enum EditorOption {
 	autoIndent,
 	automaticLayout,
 	autoSurround,
+	bracketPairColorization,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -4172,6 +4204,7 @@ export const EditorOptions = {
 			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
+	bracketPairColorization: register(new BracketPairColorization()),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
 		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }

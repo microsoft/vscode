@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
@@ -25,7 +25,7 @@ export class GettingStartedInput extends EditorInput {
 		return GettingStartedInput.RESOURCE;
 	}
 
-	override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+	override matches(other: EditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
 		}
@@ -37,11 +37,12 @@ export class GettingStartedInput extends EditorInput {
 	}
 
 	constructor(
-		options: { selectedCategory?: string, selectedStep?: string }
+		options: { selectedCategory?: string, selectedStep?: string, showTelemetryNotice?: boolean, }
 	) {
 		super();
 		this.selectedCategory = options.selectedCategory;
 		this.selectedStep = options.selectedStep;
+		this.showTelemetryNotice = !!options.showTelemetryNotice;
 	}
 
 	override getName() {
@@ -50,4 +51,5 @@ export class GettingStartedInput extends EditorInput {
 
 	selectedCategory: string | undefined;
 	selectedStep: string | undefined;
+	showTelemetryNotice: boolean;
 }

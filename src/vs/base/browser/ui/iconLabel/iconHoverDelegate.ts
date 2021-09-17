@@ -13,14 +13,20 @@ export interface IHoverDelegateTarget extends IDisposable {
 }
 
 export interface IHoverDelegateOptions {
-	text: IMarkdownString | string;
+	content: IMarkdownString | string | HTMLElement;
 	target: IHoverDelegateTarget | HTMLElement;
 	hoverPosition?: HoverPosition;
 	showPointer?: boolean;
+	skipFadeInAnimation?: boolean;
 }
 
 export interface IHoverDelegate {
-	showHover(options: IHoverDelegateOptions): IDisposable | undefined;
+	showHover(options: IHoverDelegateOptions): IHoverWidget | undefined;
+	onDidHideHover?: () => void;
 	delay: number;
 	placement?: 'mouse' | 'element';
+}
+
+export interface IHoverWidget extends IDisposable {
+	readonly isDisposed: boolean;
 }

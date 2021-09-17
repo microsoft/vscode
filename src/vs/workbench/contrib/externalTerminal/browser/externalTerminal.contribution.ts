@@ -26,6 +26,7 @@ import { dirname, basename } from 'vs/base/common/path';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 CommandsRegistry.registerCommand({
@@ -67,7 +68,7 @@ CommandsRegistry.registerCommand({
 					}
 					opened[cwd.path] = true;
 					const instance = await integratedTerminalService.createTerminal({ config: { cwd } });
-					if (instance && (resources.length === 1 || !resource || cwd.path === resource.path || cwd.path === dirname(resource.path))) {
+					if (instance && instance.target !== TerminalLocation.Editor && (resources.length === 1 || !resource || cwd.path === resource.path || cwd.path === dirname(resource.path))) {
 						integratedTerminalService.setActiveInstance(instance);
 						terminalGroupService.showPanel(true);
 					}

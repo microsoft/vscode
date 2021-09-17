@@ -276,8 +276,11 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL);
 	}
 
-	addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
+	addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance, parentTerminalId?: number): void {
 		let instance: ITerminalInstance;
+		// if a parent terminal is provided, find it
+		// otherwise, parent is the active terminal
+		const parentIndex = parentTerminalId ? this._terminalInstances.findIndex(t => t.instanceId === parentTerminalId) : this._activeInstanceIndex;
 		if ('instanceId' in shellLaunchConfigOrInstance) {
 			instance = shellLaunchConfigOrInstance;
 		} else {
@@ -286,12 +289,12 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (this._terminalInstances.length === 0) {
 			this._terminalInstances.push(instance);
 		} else {
-			this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
+			this._terminalInstances.splice(parentIndex + 1, 0, instance);
 		}
 		this._initInstanceListeners(instance);
 
 		if (this._splitPaneContainer) {
-			this._splitPaneContainer!.split(instance, this._activeInstanceIndex + 1);
+			this._splitPaneContainer!.split(instance, parentIndex + 1);
 		}
 
 		instance.setVisible(this._isVisible);
@@ -469,15 +472,15 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			return '';
 		}
 		let title = this.terminalInstances[0].title + this._getBellTitle(this.terminalInstances[0]);
-		if (this.terminalInstances[0].shellLaunchConfig.description) {
-			title += ` (${this.terminalInstances[0].shellLaunchConfig.description})`;
+		if (this.terminalInstances[0].description) {
+			title += ` (${this.terminalInstances[0].description})`;
 		}
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			const instance = this.terminalInstances[i];
 			if (instance.title) {
 				title += `, ${instance.title + this._getBellTitle(instance)}`;
-				if (instance.shellLaunchConfig.description) {
-					title += ` (${instance.shellLaunchConfig.description})`;
+				if (instance.description) {
+					title += ` (${instance.description})`;
 				}
 			}
 		}
@@ -501,7 +504,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig);
-		this.addInstance(instance);
+		this.addInstance(instance, shellLaunchConfig.parentTerminalId);
 		this._setActiveInstance(instance);
 		return instance;
 	}

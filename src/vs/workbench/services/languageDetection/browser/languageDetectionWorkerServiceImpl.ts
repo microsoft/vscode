@@ -21,7 +21,7 @@ import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/common/services/
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
-	static readonly enablementSettingKey = 'workbench.editor.untitled.languageDetection';
+	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
 
 	_serviceBrand: undefined;
 
@@ -68,16 +68,6 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			return this.getModeId(language);
 		}
 		return undefined;
-	}
-
-	async detectLanguages(resource: URI): Promise<string[]> {
-		const languages: Array<string | undefined> = await this._languageDetectionWorkerClient.detectLanguages(resource);
-		for (let i = 0; i < languages.length; i++) {
-			const modeId = this.getModeId(languages[i]);
-			languages[i] = modeId ? modeId : undefined;
-		}
-
-		return languages.filter(<T>(l?: T): l is T => Boolean(l));
 	}
 }
 
@@ -195,10 +185,6 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 	public async detectLanguage(resource: URI): Promise<string | undefined> {
 		await this._withSyncedResources([resource]);
 		return (await this._getProxy()).detectLanguage(resource.toString());
-	}
-	public async detectLanguages(resource: URI): Promise<string[]> {
-		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguages(resource.toString());
 	}
 }
 

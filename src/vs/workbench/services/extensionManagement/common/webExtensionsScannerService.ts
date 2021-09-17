@@ -17,12 +17,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import type { IStaticExtension } from 'vs/workbench/workbench.web.api';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
-import { isString, isUndefined } from 'vs/base/common/types';
+import { isString } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -30,6 +29,11 @@ import { format2 } from 'vs/base/common/strings';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
@@ -56,7 +60,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	declare readonly _serviceBrand: undefined;
 
 	private readonly builtinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
-	private readonly staticExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 	private readonly cutomBuiltinExtensions: (string | URI)[];
 	private readonly customBuiltinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 
@@ -80,8 +83,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			this.installedExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
 			this.builtinExtensionsPromise = this.readSystemExtensions();
-			this.staticExtensionsPromise = this.readStaticExtensions();
 			this.customBuiltinExtensionsPromise = this.readCustomBuiltinExtensions();
+			this.registerActions();
 		}
 	}
 
@@ -90,21 +93,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	 */
 	private async readSystemExtensions(): Promise<IExtension[]> {
 		return this.builtinExtensionsScannerService.scanBuiltinExtensions();
-	}
-
-	/**
-	 * All extensions defined via `staticExtensions` API
-	 */
-	private async readStaticExtensions(): Promise<IExtension[]> {
-		const staticExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
-		const result: IExtension[] = [];
-		for (const e of staticExtensions) {
-			const extension = this.parseStaticExtension(e, isUndefined(e.isBuiltin) ? true : e.isBuiltin);
-			if (extension) {
-				result.push(extension);
-			}
-		}
-		return result;
 	}
 
 	/**
@@ -173,7 +161,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 
 		if (extensionIds.length) {
-			const galleryExtensions = await this.galleryService.getExtensions(extensionIds, CancellationToken.None);
+			const galleryExtensions = await this.galleryService.getExtensions(extensionIds.map(id => ({ id })), CancellationToken.None);
 			const missingExtensions = extensionIds.filter(id => !galleryExtensions.find(({ identifier }) => areSameExtensions(identifier, { id })));
 			if (missingExtensions.length) {
 				this.logService.info('Cannot find static extensions from gallery', missingExtensions);
@@ -209,23 +197,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	private parseStaticExtension(e: IStaticExtension, isBuiltin: boolean): IExtension | null {
-		const extensionLocation = URI.revive(e.extensionLocation);
-		try {
-			return {
-				identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
-				location: extensionLocation,
-				type: ExtensionType.User,
-				isBuiltin,
-				manifest: e.packageJSON,
-			};
-		} catch (error) {
-			this.logService.error(`Error while parsing extension ${extensionLocation.toString()}`);
-			this.logService.error(error);
-		}
-		return null;
-	}
-
 	async scanSystemExtensions(): Promise<IExtension[]> {
 		return this.builtinExtensionsPromise;
 	}
@@ -236,12 +207,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		// User Installed extensions
 		const installedExtensions = await this.scanInstalledExtensions();
 		for (const extension of installedExtensions) {
-			extensions.set(extension.identifier.id.toLowerCase(), extension);
-		}
-
-		// Static extensions defined through `staticExtensions` API
-		const staticExtensions = await this.staticExtensionsPromise;
-		for (const extension of staticExtensions) {
 			extensions.set(extension.identifier.id.toLowerCase(), extension);
 		}
 
@@ -521,6 +486,24 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			this.resourcesAccessQueueMap.set(file, resourceQueue);
 		}
 		return resourceQueue;
+	}
+
+	private registerActions(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
+					title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
+					category: CATEGORIES.Developer,
+					f1: true,
+					precondition: IsWebContext
+				});
+			}
+			run(serviceAccessor: ServicesAccessor): void {
+				serviceAccessor.get(IEditorService).openEditor({ resource: that.installedExtensionsResource });
+			}
+		}));
 	}
 
 }

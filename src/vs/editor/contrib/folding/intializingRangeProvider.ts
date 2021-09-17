@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { FoldingRegions, ILineRange } from 'vs/editor/contrib/folding/foldingRanges';
-import { RangeProvider } from './folding';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FoldingRegions, ILineRange } from 'vs/editor/contrib/folding/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
+import { RangeProvider } from './folding';
 
 export const ID_INIT_PROVIDER = 'init';
 

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { URI } from 'vs/base/common/uri';
-import { assertType } from 'vs/base/common/types';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),

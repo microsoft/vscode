@@ -11,7 +11,7 @@ import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Promises } from 'vs/base/node/pfs';
-import { IStorageDatabase, IStorageItemsChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
+import { isStorageItemsChangeEvent, IStorageDatabase, IStorageItemsChangeEvent, Storage } from 'vs/base/parts/storage/common/storage';
 import { ISQLiteStorageDatabaseOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
@@ -154,6 +154,12 @@ flakySuite('Storage Library', function () {
 		// Nothing happens if changing to same value
 		database.fireDidChangeItemsExternal({ deleted });
 		strictEqual(changes.size, 0);
+
+		strictEqual(isStorageItemsChangeEvent({ changed }), true);
+		strictEqual(isStorageItemsChangeEvent({ deleted }), true);
+		strictEqual(isStorageItemsChangeEvent({ changed, deleted }), true);
+		strictEqual(isStorageItemsChangeEvent(undefined), false);
+		strictEqual(isStorageItemsChangeEvent({ changed: 'yes', deleted: false }), false);
 
 		await storage.close();
 	});

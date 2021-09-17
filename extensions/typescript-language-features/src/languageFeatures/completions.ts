@@ -119,7 +119,11 @@ class MyCompletionItem extends vscode.CompletionItem {
 				if (!this.filterText) {
 					this.filterText = this.textLabel;
 				}
-				this.label += '?';
+				if (typeof this.label === 'string') {
+					this.label += '?';
+				} else {
+					this.label.label += '?';
+				}
 			}
 			if (kindModifiers.has(PConst.KindModifiers.deprecated)) {
 				this.tags = [vscode.CompletionItemTag.Deprecated];

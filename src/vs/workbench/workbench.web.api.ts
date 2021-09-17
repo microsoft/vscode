@@ -7,7 +7,6 @@ import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
@@ -22,12 +21,6 @@ import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
-}
-
-interface IStaticExtension {
-	packageJSON: IExtensionManifest;
-	extensionLocation: UriComponents;
-	isBuiltin?: boolean;
 }
 
 /**
@@ -145,7 +138,7 @@ interface IHomeIndicator {
 
 	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
-	 * icons from our Codicon icon set. For example `sync`.
+	 * icons from our Codicon icon set. For example `code`.
 	 */
 	icon: string;
 
@@ -153,6 +146,46 @@ interface IHomeIndicator {
 	 * A tooltip that will appear while hovering over the home indicator.
 	 */
 	title: string;
+}
+
+interface IWelcomeBanner {
+
+	/**
+	 * Welcome banner message to appear as text.
+	 */
+	message: string;
+
+	/**
+	 * Optional icon for the banner. This is either the URL to an icon to use
+	 * or the name of one of the existing icons from our Codicon icon set.
+	 *
+	 * If not provided a default icon will be used.
+	 */
+	icon?: string | UriComponents;
+
+	/**
+	 * Optional actions to appear as links after the welcome banner message.
+	 */
+	actions?: IWelcomeBannerAction[];
+}
+
+interface IWelcomeBannerAction {
+
+	/**
+	 * The link to open when clicking. Supports command invocation when
+	 * using the `command:<commandId>` value.
+	 */
+	href: string;
+
+	/**
+	 * The label to show for the action link.
+	 */
+	label: string;
+
+	/**
+	 * A tooltip that will appear while hovering over the action link.
+	 */
+	title?: string;
 }
 
 interface IWindowIndicator {
@@ -352,12 +385,6 @@ interface IWorkbenchConstructionOptions {
 	readonly credentialsProvider?: ICredentialsProvider;
 
 	/**
-	 * Add static extensions that cannot be uninstalled but only be disabled.
-	 * @deprecated. Use `additionalBuiltinExtensions` instead.
-	 */
-	readonly staticExtensions?: readonly IStaticExtension[];
-
-	/**
 	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
 	 * It can be one of the following:
 	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
@@ -436,6 +463,12 @@ interface IWorkbenchConstructionOptions {
 	 * Optional home indicator to appear above the hamburger menu in the activity bar.
 	 */
 	readonly homeIndicator?: IHomeIndicator;
+
+	/**
+	 * Optional welcome banner to appear above the workbench. Can be dismissed by the
+	 * user.
+	 */
+	readonly welcomeBanner?: IWelcomeBanner;
 
 	/**
 	 * Optional override for the product configuration properties.
@@ -679,10 +712,6 @@ export {
 	// Credentials
 	ICredentialsProvider,
 
-	// Static Extensions
-	IStaticExtension,
-	IExtensionManifest,
-
 	// Callbacks
 	IURLCallbackProvider,
 
@@ -718,6 +747,8 @@ export {
 
 	// Branding
 	IHomeIndicator,
+	IWelcomeBanner,
+	IWelcomeBannerAction,
 	IProductConfiguration,
 	IWindowIndicator,
 	IInitialColorTheme,

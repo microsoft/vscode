@@ -285,7 +285,19 @@ class QuickInput extends Disposable implements IQuickInput {
 			}),
 		);
 		this.ui.show(this);
+
+		// update properties in the controller that get reset in the ui.show() call
 		this.visible = true;
+		// This ensures the message/prompt gets rendered
+		this._lastValidationMessage = undefined;
+		// This ensures the input box has the right severity applied
+		this._lastSeverity = undefined;
+		if (this.buttons.length) {
+			// if there are buttons, the ui.show() clears them out of the UI so we should
+			// rerender them.
+			this.buttonsUpdated = true;
+		}
+
 		this.update();
 	}
 
@@ -312,7 +324,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
 		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
-			this.ui.title.innerText = '\u00a0;';
+			this.ui.title.innerText = '\u00a0';
 		}
 		const description = this.getDescription();
 		if (this.ui.description1.textContent !== description) {
@@ -443,6 +455,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnLabel = true;
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
+	private _keepScrollPosition = false;
 	private _itemActivation = this.ui.isScreenReaderOptimized() ? ItemActivation.NONE /* https://github.com/microsoft/vscode/issues/57501 */ : ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
@@ -515,6 +528,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		return this._items;
 	}
 
+	private get scrollTop() {
+		return this.ui.list.scrollTop;
+	}
+
+	private set scrollTop(scrollTop: number) {
+		this.ui.list.scrollTop = scrollTop;
+	}
+
 	set items(items: Array<T | IQuickPickSeparator>) {
 		this._items = items;
 		this.itemsUpdated = true;
@@ -581,6 +602,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	set autoFocusOnList(autoFocusOnList: boolean) {
 		this._autoFocusOnList = autoFocusOnList;
 		this.update();
+	}
+
+	get keepScrollPosition() {
+		return this._keepScrollPosition;
+	}
+
+	set keepScrollPosition(keepScrollPosition: boolean) {
+		this._keepScrollPosition = keepScrollPosition;
 	}
 
 	get itemActivation() {
@@ -910,6 +939,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
+		// store the scrollTop before it is reset
+		const scrollTopBefore = this.keepScrollPosition ? this.scrollTop : 0;
 		const hideInput = !!this._hideInput && this._items.length > 0;
 		this.ui.container.classList.toggle('hidden-input', hideInput && !this.description);
 		const visibilities: Visibilities = {
@@ -1009,6 +1040,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			if (this.canSelectMany) {
 				this.ui.list.focus(QuickInputListFocus.First);
 			}
+		}
+
+		// Set the scroll position to what it was before updating the items
+		if (this.keepScrollPosition) {
+			this.scrollTop = scrollTopBefore;
 		}
 	}
 }
@@ -1398,11 +1434,14 @@ export class QuickInputController extends Disposable {
 						if (index !== -1) {
 							const items = input.items.slice();
 							const removed = items.splice(index, 1);
-							const activeItems = input.activeItems.filter((ai) => ai !== removed[0]);
+							const activeItems = input.activeItems.filter(activeItem => activeItem !== removed[0]);
+							const keepScrollPositionBefore = input.keepScrollPosition;
+							input.keepScrollPosition = true;
 							input.items = items;
 							if (activeItems) {
 								input.activeItems = activeItems;
 							}
+							input.keepScrollPosition = keepScrollPositionBefore;
 						}
 					}
 				})),
@@ -1430,7 +1469,7 @@ export class QuickInputController extends Disposable {
 			input.quickNavigate = options.quickNavigate;
 			input.contextKey = options.contextKey;
 			input.busy = true;
-			Promise.all<QuickPickInput<T>[], T | undefined>([picks, options.activeItem])
+			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
 					activeItem = _activeItem;
 					input.busy = false;

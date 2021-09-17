@@ -50,7 +50,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
@@ -418,7 +418,7 @@ export class DebugService implements IDebugService {
 		const unresolvedConfig = deepClone(config);
 
 		let guess: Debugger | undefined;
-		let activeEditor: IEditorInput | undefined;
+		let activeEditor: EditorInput | undefined;
 		if (!type) {
 			activeEditor = this.editorService.activeEditor;
 			if (activeEditor && activeEditor.resource) {
@@ -526,7 +526,7 @@ export class DebugService implements IDebugService {
 	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig, unresolved: IConfig | undefined }, options?: IDebugSessionOptions): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (this.model.getSessions().some(s => s.getLabel() === session.getLabel())) {
+		if (options?.startedByUser && this.model.getSessions().some(s => s.getLabel() === session.getLabel())) {
 			// There is already a session with the same name, prompt user #127721
 			const result = await this.dialogService.confirm({ message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", session.getLabel()) });
 			if (!result.confirmed) {
@@ -586,7 +586,10 @@ export class DebugService implements IDebugService {
 			}
 
 			const errorMessage = error instanceof Error ? error.message : error;
-			await this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+			if (error.showUser !== false) {
+				// Only show the error when showUser is either not defined, or is true #128484
+				await this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+			}
 			return false;
 		}
 	}
@@ -599,7 +602,7 @@ export class DebugService implements IDebugService {
 			const launchJsonExists = !!session.root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: session.root.uri });
 			await this.telemetry.logDebugSessionStart(dbgr!, launchJsonExists);
 
-			if (forceFocus || !this.viewModel.focusedSession || session.parentSession === this.viewModel.focusedSession) {
+			if (forceFocus || !this.viewModel.focusedSession) {
 				await this.focusStackFrame(undefined, undefined, session);
 			}
 		} catch (err) {
@@ -654,8 +657,8 @@ export class DebugService implements IDebugService {
 
 			const focusedSession = this.viewModel.focusedSession;
 			if (focusedSession && focusedSession.getId() === session.getId()) {
-				const { session } = getStackFrameThreadAndSessionToFocus(this.model, undefined, undefined, undefined, focusedSession);
-				this.viewModel.setFocus(undefined, undefined, session, false);
+				const { session, thread, stackFrame } = getStackFrameThreadAndSessionToFocus(this.model, undefined, undefined, undefined, focusedSession);
+				this.viewModel.setFocus(stackFrame, thread, session, false);
 			}
 
 			if (this.model.getSessions().length === 0) {

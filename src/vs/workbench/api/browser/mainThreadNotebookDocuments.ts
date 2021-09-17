@@ -15,6 +15,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 
@@ -104,7 +105,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 				// is marked as dirty and that another event is fired
 				this._proxy.$acceptModelChanged(
 					textModel.uri,
-					eventDto,
+					new SerializableObjectWithBuffers(eventDto),
 					this._notebookEditorModelResolverService.isDirty(textModel.uri)
 				);
 

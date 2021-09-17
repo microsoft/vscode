@@ -331,8 +331,20 @@ export class CursorsController extends Disposable {
 	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent): void {
 		if (e instanceof ModelInjectedTextChangedEvent) {
 			// If injected texts change, the view positions of all cursors need to be updated.
-			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-			this.setStates(eventsCollector, 'modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
+			if (this._isHandling) {
+				// The view positions will be updated when handling finishes
+				return;
+			}
+			// setStates might remove markers, which could trigger a decoration change.
+			// If there are injected text decorations for that line, `onModelContentChanged` is emitted again
+			// and an endless recursion happens.
+			// _isHandling prevents that.
+			this._isHandling = true;
+			try {
+				this.setStates(eventsCollector, 'modelChange', CursorChangeReason.NotSet, this.getCursorStates());
+			} finally {
+				this._isHandling = false;
+			}
 		} else {
 			this._knownModelVersionId = e.versionId;
 			if (this._isHandling) {

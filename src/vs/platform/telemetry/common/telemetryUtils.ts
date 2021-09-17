@@ -8,8 +8,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -100,6 +102,49 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			});
 		}
 	});
+}
+
+/**
+ * Determines how telemetry is handled based on the current running configuration.
+ * To log telemetry locally, the client must not disable telemetry via the CLI
+ * If client is a built product and telemetry is enabled via the product.json, defer to user setting
+ * Note that when running from sources, we log telemetry locally but do not send it
+ *
+ * @param productService
+ * @param environmentService
+ * @returns NONE - telemetry is completely disabled, LOG - telemetry is logged locally but not sent, USER - verify with user setting
+ */
+export function getTelemetryLevel(productService: IProductService, environmentService: IEnvironmentService): TelemetryLevel {
+	if (environmentService.disableTelemetry || !productService.enableTelemetry) {
+		return TelemetryLevel.NONE;
+	}
+
+	if (!environmentService.isBuilt) {
+		return TelemetryLevel.LOG;
+	}
+
+	return TelemetryLevel.USER;
+}
+
+/**
+ * Determines how telemetry is handled based on the current running configuration.
+ * To log telemetry locally, the client must not disable telemetry via the CLI
+ * If client is a built product and telemetry is enabled via the product.json, defer to user setting
+ * Note that when running from sources, we log telemetry locally but do not send it
+ *
+ * @param configurationService
+ * @returns OFF, ERROR, ON
+ */
+export function getTelemetryConfiguration(configurationService: IConfigurationService): TelemetryConfiguration {
+	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
+	const oldConfig = configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
+
+	// Check old config for disablement
+	if (oldConfig !== undefined && oldConfig === false) {
+		return TelemetryConfiguration.OFF;
+	}
+
+	return newConfig ?? TelemetryConfiguration.ON;
 }
 
 export interface Properties {

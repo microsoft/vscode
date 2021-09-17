@@ -54,6 +54,7 @@ import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/brow
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -199,7 +200,8 @@ export class SettingsEditor2 extends EditorPane {
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -239,7 +241,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(configurationService.onDidChangeRestrictedSettings(e => {
-			if (e.default.length) {
+			if (e.default.length && this.currentSettingsModel) {
 				this.updateElementsByKey([...e.default]);
 			}
 		}));
@@ -307,7 +309,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.modelDisposables.clear();
 		this.modelDisposables.add(model.onDidChangeGroups(() => {
 			this.updatedConfigSchemaDelayer.trigger(() => {
-				this.onConfigUpdate(undefined, undefined, true);
+				this.onConfigUpdate(undefined, false, true);
 			});
 		}));
 		this.defaultSettingsEditorModel = model;
@@ -1025,7 +1027,7 @@ export class SettingsEditor2 extends EditorPane {
 		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
-		resolvedSettingsRoot.children!.push(resolveExtensionsSettings(dividedGroups.extension || []));
+		resolvedSettingsRoot.children!.push(await resolveExtensionsSettings(this.extensionService, dividedGroups.extension || []));
 
 		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
 			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.configurationService);

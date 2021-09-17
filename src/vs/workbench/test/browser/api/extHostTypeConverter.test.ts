@@ -104,11 +104,11 @@ suite('ExtHostTypeConverter', function () {
 		const dto = NotebookCellOutputItem.from(item);
 
 		assert.strictEqual(dto.mime, 'foo/bar');
-		assert.deepStrictEqual(dto.valueBytes, Array.from(new TextEncoder().encode('Hello')));
+		assert.deepStrictEqual(Array.from(dto.valueBytes.buffer), Array.from(new TextEncoder().encode('Hello')));
 
 		const item2 = NotebookCellOutputItem.to(dto);
 
 		assert.strictEqual(item2.mime, item.mime);
-		assert.deepStrictEqual(item2.data, item.data);
+		assert.deepStrictEqual(Array.from(item2.data), Array.from(item.data));
 	});
 });

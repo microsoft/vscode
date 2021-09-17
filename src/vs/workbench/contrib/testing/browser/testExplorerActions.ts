@@ -12,8 +12,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyGreaterExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ContextKeyExpr, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -22,14 +21,12 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import type { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -273,11 +270,11 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 						? ActionOrder.Debug
 						: ActionOrder.Coverage,
 				group: 'navigation',
-				when: ContextKeyAndExpr.create([
-					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 					TestingContextKeys.isRunning.isEqualTo(false),
 					TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
-				])
+				)
 			}],
 			category,
 			viewId: Testing.ExplorerViewId,
@@ -406,10 +403,10 @@ export class CancelTestRunAction extends Action2 {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Run,
 				group: 'navigation',
-				when: ContextKeyAndExpr.create([
-					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
-					ContextKeyEqualsExpr.create(TestingContextKeys.isRunning.serialize(), true),
-				])
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
+					ContextKeyExpr.equals(TestingContextKeys.isRunning.serialize(), true),
+				)
 			}
 		});
 	}
@@ -440,7 +437,7 @@ export class TestingViewAsListAction extends ViewAction<TestingExplorerView> {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.DisplayMode,
 				group: 'viewAs',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -465,7 +462,7 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.DisplayMode,
 				group: 'viewAs',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -491,7 +488,7 @@ export class TestingSortByStatusAction extends ViewAction<TestingExplorerView> {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Sort,
 				group: 'sortBy',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -516,7 +513,7 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Sort,
 				group: 'sortBy',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -546,7 +543,7 @@ export class ShowMostRecentOutputAction extends Action2 {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Collapse,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 			}, {
 				id: MenuId.CommandPalette,
 				when: TestingContextKeys.hasAnyResults.isEqualTo(true)
@@ -572,7 +569,7 @@ export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Collapse,
 				group: 'displayAction',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}
 		});
 	}
@@ -602,7 +599,7 @@ export class ClearTestResultsAction extends Action2 {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.ClearResults,
 				group: 'displayAction',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
 			}],
 		});
 	}
@@ -641,56 +638,6 @@ export class GoToTest extends Action2 {
 			accessor.get(ICommandService).executeCommand('vscode.revealTest', element.test.item.extId, preserveFocus);
 		}
 	}
-
-	/**
-	 * @override
-	 */
-	public runInView(accessor: ServicesAccessor, view: TestingExplorerView) {
-		const selected = view.viewModel.tree.getFocus().find(isDefined);
-		if (selected instanceof TestItemTreeElement) {
-			this.runForTest(accessor, selected.test.item, false);
-		}
-	}
-
-	/**
-	 * @override
-	 */
-	private async runForTest(accessor: ServicesAccessor, test: ITestItem, preserveFocus = true) {
-		if (!test.uri) {
-			return;
-		}
-
-		const commandService = accessor.get(ICommandService);
-		const fileService = accessor.get(IFileService);
-		const editorService = accessor.get(IEditorService);
-
-		accessor.get(ITestExplorerFilterState).reveal.value = test.extId;
-		accessor.get(ITestingPeekOpener).closeAllPeeks();
-
-		let isFile = true;
-		try {
-			if (!(await fileService.resolve(test.uri)).isFile) {
-				isFile = false;
-			}
-		} catch {
-			// ignored
-		}
-
-		if (!isFile) {
-			await commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, test.uri);
-			return;
-		}
-
-		await editorService.openEditor({
-			resource: test.uri,
-			options: {
-				selection: test.range
-					? { startColumn: test.range.startColumn, startLineNumber: test.range.startLineNumber }
-					: undefined,
-				preserveFocus,
-			},
-		});
-	}
 }
 
 abstract class ToggleAutoRun extends Action2 {
@@ -701,15 +648,15 @@ abstract class ToggleAutoRun extends Action2 {
 			id: ToggleAutoRun.ID,
 			title,
 			icon: icons.testingAutorunIcon,
-			toggled: whenToggleIs === true ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
+			toggled: whenToggleIs === true ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 			menu: {
 				id: MenuId.ViewTitle,
 				order: ActionOrder.AutoRun,
 				group: 'navigation',
-				when: ContextKeyAndExpr.create([
-					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 					TestingContextKeys.autoRun.isEqualTo(whenToggleIs)
-				])
+				)
 			}
 		});
 	}
@@ -949,10 +896,10 @@ abstract class RunOrDebugLastRun extends RunOrDebugExtsByPath {
 			...options,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: ContextKeyAndExpr.create([
+				when: ContextKeyExpr.and(
 					hasAnyTestProvider,
 					TestingContextKeys.hasAnyResults.isEqualTo(true),
-				]),
+				),
 			},
 		});
 	}
@@ -1075,7 +1022,7 @@ export class SearchForTestExtension extends Action2 {
 	public async run(accessor: ServicesAccessor) {
 		const viewletService = accessor.get(IViewletService);
 		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewlet.search('tag:testing @sort:installs');
+		viewlet.search('@category:"testing"');
 		viewlet.focus();
 	}
 }

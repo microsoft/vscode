@@ -22,7 +22,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -96,6 +96,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessTitle = this._register(new Emitter<string>());
 	readonly onProcessTitle = this._onProcessTitle.event;
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
@@ -267,7 +269,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						'terminal.integrated.cwd': this._configurationService.getValue(TerminalSettingId.Cwd) as string,
 						'terminal.integrated.detectLocale': terminalConfig.detectLocale
 					};
-					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
+					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, this._configHelper.config.unicodeVersion, shouldPersist);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._remoteTerminalService);
@@ -313,6 +315,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			newProcess.onProcessReady((e: IProcessReadyEvent) => {
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._initialCwd });
 				this._onProcessReady.fire(e);
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
@@ -323,7 +326,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}),
 			newProcess.onProcessTitleChanged(title => this._onProcessTitle.fire(title)),
 			newProcess.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type)),
-			newProcess.onProcessExit(exitCode => this._onExit(exitCode))
+			newProcess.onProcessExit(exitCode => this._onExit(exitCode)),
+			newProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire(property))
 		];
 		if (newProcess.onProcessOverrideDimensions) {
 			this._processListeners.push(newProcess.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
@@ -430,7 +434,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
-		return await localTerminalService.createProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty, shouldPersist);
+		return await localTerminalService.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, useConpty, shouldPersist);
 	}
 
 	private _setupPtyHostListeners(offProcessTerminalService: IOffProcessTerminalService) {
@@ -490,6 +494,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		return this.ptyProcessReady.then(() => this._resize(cols, rows));
+	}
+
+	async setUnicodeVersion(version: '6' | '11'): Promise<void> {
+		return this._process?.setUnicodeVersion(version);
 	}
 
 	private _resize(cols: number, rows: number) {
@@ -553,6 +561,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._latencyLastMeasured = Date.now();
 		}
 		return Promise.resolve(this._latency);
+	}
+
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		return this._process?.refreshProperty(type);
 	}
 
 	acknowledgeDataEvent(charCount: number): void {
@@ -756,6 +768,6 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	}
 
 	private _getDataFromRecorder(recorder: TerminalRecorder): string {
-		return recorder.generateReplayEvent().events.filter(e => !!e.data).map(e => e.data).join('');
+		return recorder.generateReplayEventSync().events.filter(e => !!e.data).map(e => e.data).join('');
 	}
 }

@@ -73,7 +73,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _revealFirst: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 
-	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel; }>();
+	protected _onDidDynamicOutputRendered = this._register(new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel; }>());
 	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
 
 	private _notebookOptions: NotebookOptions;
@@ -649,6 +649,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 
 		return new Promise<void>(resolve => { r = resolve; });
+	}
+
+	setScrollTop(scrollTop: number): void {
+		this._list.scrollTop = scrollTop;
 	}
 
 	triggerScroll(event: IMouseWheelEvent) {

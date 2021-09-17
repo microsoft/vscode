@@ -17,7 +17,7 @@ import { localize } from 'vs/nls';
 import { parseLogLevel } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { create, ICredentialsProvider, IHomeIndicator, IProductQualityChangeHandler, ISettingsSyncOptions, IURLCallbackProvider, IWindowIndicator, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
+import { create, ICredentialsProvider, IHomeIndicator, IProductQualityChangeHandler, ISettingsSyncOptions, IURLCallbackProvider, IWelcomeBanner, IWindowIndicator, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
 
 function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	let query: string | undefined = undefined;
@@ -390,14 +390,14 @@ class WindowIndicator implements IWindowIndicator {
 
 		// Repo
 		if (repositoryName && repositoryOwner) {
-			this.label = localize('playgroundLabelRepository', "$(remote) VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
-			this.tooltip = localize('playgroundRepositoryTooltip', "VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+			this.label = localize('playgroundLabelRepository', "$(remote) Visual Studio Code Playground: {0}/{1}", repositoryOwner, repositoryName);
+			this.tooltip = localize('playgroundRepositoryTooltip', "Visual Studio Code Playground: {0}/{1}", repositoryOwner, repositoryName);
 		}
 
 		// No Repo
 		else {
-			this.label = localize('playgroundLabel', "$(remote) VS Code Web Playground");
-			this.tooltip = localize('playgroundTooltip', "VS Code Web Playground");
+			this.label = localize('playgroundLabel', "$(remote) Visual Studio Code Playground");
+			this.tooltip = localize('playgroundTooltip', "Visual Studio Code Playground");
 		}
 	}
 }
@@ -478,6 +478,15 @@ class WindowIndicator implements IWindowIndicator {
 		title: localize('home', "Home")
 	};
 
+	// Welcome Banner
+	const welcomeBanner: IWelcomeBanner = {
+		message: localize('welcomeBannerMessage', "{0} Web. Browser based playground for testing.", product.nameShort),
+		actions: [{
+			href: 'https://github.com/microsoft/vscode',
+			label: localize('learnMore', "Learn More")
+		}]
+	};
+
 	// Window indicator (unless connected to a remote)
 	let windowIndicator: WindowIndicator | undefined = undefined;
 	if (!workspaceProvider.hasRemote()) {
@@ -514,6 +523,7 @@ class WindowIndicator implements IWindowIndicator {
 		settingsSyncOptions,
 		homeIndicator,
 		windowIndicator,
+		welcomeBanner,
 		productQualityChangeHandler,
 		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
