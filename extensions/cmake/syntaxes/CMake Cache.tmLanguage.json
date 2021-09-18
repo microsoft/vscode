@@ -1,0 +1,76 @@
+{
+  "information_for_contributors": [
+    "This file has been converted from https://github.com/textmate/cmake.tmbundle/blob/master/Syntaxes/CMake Cache.tmLanguage",
+    "If you want to provide a fix or improvement, please create a pull request against the original repository.",
+    "Once accepted there, we are happy to receive an update request."
+  ],
+  "version": "https://github.com/textmate/cmake.tmbundle/commit/1421c6ba47ba697742d615e92852cfe106e0879e",
+  "name": "CMake Cache",
+  "scopeName": "source.cache.cmake",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#assignation"
+    }
+  ],
+  "repository": {
+    "assignation": {
+      "captures": {
+        "1": {
+          "name": "variable.language.cache.cmake"
+        },
+        "2": {
+          "name": "keyword.other.argument-separator.cmake"
+        },
+        "3": {
+          "name": "constant.language.cache.cmake"
+        },
+        "4": {
+          "name": "keyword.operator.cmake"
+        },
+        "5": {
+          "name": "string.unquoted.cmake"
+        }
+      },
+      "match": "([a-zA-Z0-9_\\-\\d]+)(:)(STRING|FILE|FILEPATH|BOOL|INTERNAL|STATIC)(\\=)(.*)",
+      "name": "variable.other.cmake"
+    },
+    "comments": {
+      "patterns": [
+        {
+          "begin": "(^[ \\t]+)?(?=//|\\#)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.whitespace.comment.leading.cmake"
+            }
+          },
+          "end": "(?!\\G)",
+          "patterns": [
+            {
+              "begin": "//",
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.definition.comment.cmake"
+                }
+              },
+              "end": "\\n",
+              "name": "comment.line.double-slash.cmake"
+            },
+            {
+              "begin": "\\#",
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.definition.comment.cmake"
+                }
+              },
+              "end": "\\n",
+              "name": "comment.line.sign-line.cmake"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
