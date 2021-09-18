@@ -14,7 +14,7 @@ import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/se
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
-const PERF = false;
+const PERF = true;
 
 type FileNode = {
 	type: 'file',
@@ -184,24 +184,19 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 	}
 
-	async sayHello() {
-		console.log('saying helo!');
-		return 'hello';
-	}
-
 	private async walkFolderQuery(handle: FileSystemDirectoryHandle, queryProps: ICommonQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
 
-		const folderExcludes = glob.parse(folderQuery.excludePattern ?? {});
+		const globalFolderExcludes = glob.parse(folderQuery.excludePattern ?? {}) as unknown as (path: string) => boolean;
 
 		// For folders, only check if the folder is explicitly excluded so walking continues.
-		const isFolderExcluded = (path: string) => {
+		const isFolderExcluded = (path: string, folderExcludes: (path: string) => boolean) => {
 			if (folderExcludes(path)) { return true; }
 			if (pathExcludedInQuery(queryProps, path)) { return true; }
 			return false;
 		};
 
 		// For files ensure the full check takes place.
-		const isFileIncluded = (path: string) => {
+		const isFileIncluded = (path: string, folderExcludes: (path: string) => boolean) => {
 			if (folderExcludes(path)) { return false; }
 			if (!pathIncludedInQuery(queryProps, path)) { return false; }
 			return true;
@@ -220,12 +215,43 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		};
 
 
-		const processDirectory = (directory: FileSystemDirectoryHandle, prior: string): DirNode => {
+		const processDirectory = async (directory: FileSystemDirectoryHandle, prior: string, priorFolderExcludes: (path: string) => boolean): Promise<DirNode> => {
+
+			const ignoreFiles = await Promise.all([
+				directory.getFileHandle('.gitignore').catch(e => undefined),
+				directory.getFileHandle('.ignore').catch(e => undefined),
+			]);
+
+			let folderExcludes = priorFolderExcludes;
+
+			await Promise.all(ignoreFiles.map(async file => {
+				if (!file) { return; }
+
+				const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
+				const ignoreLines = ignoreContents.split('\n').map(line => line.trim()).filter(line => line[0] !== '#');
+				const ignoreExpression = Object.create(null);
+				for (const line of ignoreLines) {
+					ignoreExpression[line] = true;
+				}
+
+				const checker = glob.parse(ignoreExpression);
+				priorFolderExcludes = folderExcludes;
+
+				folderExcludes = (path: string) => {
+					if (checker('/' + path)) {
+						return false;
+					}
+
+					return priorFolderExcludes(path);
+				};
+			}));
+
 			return {
 				type: 'dir',
 				name: directory.name,
 				entries: (async () => {
-					const r: (DirNode | FileNode)[] = [];
+					const files: FileNode[] = [];
+					const dirs: Promise<DirNode>[] = [];
 					for await (const entry of directory.entries()) {
 						if (token.isCancellationRequested) {
 							break;
@@ -233,13 +259,13 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 						const path = prior ? prior + '/' + entry[0] : entry[0];
 
-						if (entry[1].kind === 'directory' && !isFolderExcluded(path)) {
-							r.push(processDirectory(entry[1], path));
-						} else if (entry[1].kind === 'file' && isFileIncluded(path)) {
-							r.push(proccessFile(entry[1], path));
+						if (entry[1].kind === 'directory' && !isFolderExcluded(path, folderExcludes)) {
+							dirs.push(processDirectory(entry[1], path, folderExcludes));
+						} else if (entry[1].kind === 'file' && isFileIncluded(path, folderExcludes)) {
+							files.push(proccessFile(entry[1], path));
 						}
 					}
-					return r;
+					return [...await Promise.all(dirs), ...files];
 				})()
 			};
 		};
@@ -260,69 +286,8 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 					}));
 		};
 
-		const processed = processDirectory(handle, '');
-
-		await resolveDirectory(processed, onFile);
-
-		// let entryCount = 0;
-
-		// const onDirectory = async (contents: FileSystemDirectoryHandle, isPathIncluded: (path: URI) => Boolean): Promise<void> => {
-
-		// 	// if (token?.isCancellationRequested) { return; }
-
-		// 	const processes: Promise<void>[] = [];
-
-
-		// 	if (!contents) { return; }
-
-		// 	const dirs: URI[] = [];
-
-		// 	let dirIsPathIncluded = isPathIncluded;
-
-		// 	const ignoreFiles = contents.children.filter(child => child.name === '.gitignore' || child.name === '.ignore');
-		// 	if (ignoreFiles.length) {
-		// 		await Promise.all(ignoreFiles.map(async file => {
-		// 			const ignoreContents = new TextDecoder('utf8').decode((await this.fileService.readFile(file.resource)).value.buffer);
-		// 			const ignoreLines = ignoreContents.split('\n').map(line => line.trim()).filter(line => line[0] !== '#');
-		// 			const ignoreExpression = Object.create(null);
-		// 			for (const line of ignoreLines) {
-		// 				ignoreExpression[line] = true;
-		// 			}
-		// 			const checker = parse(ignoreExpression);
-		// 			dirIsPathIncluded = (path: URI) => {
-		// 				if (checker('/' + path.path.slice(root.length))) {
-		// 					console.log(path.path.slice(root.length), 'blocked by', file.resource.path);
-		// 					return false;
-		// 				}
-		// 				return isPathIncluded(path);
-		// 			};
-		// 		}));
-		// 	}
-
-		// 	(contents.children ?? [])
-		// 		.filter(node => dirIsPathIncluded(node.resource))
-		// 		.forEach(child => {
-		// 			entryCount++;
-		// 			if (child.isFile) {
-		// 				processes.push(onFile(child.resource));
-		// 			} else if (child.isDirectory) {
-		// 				dirs.push(child.resource);
-		// 			}
-		// 		});
-
-		// 	const resolvedDirs = await this.fileService.resolveAll(dirs.map(dir => ({ resource: dir })));
-		// 	resolvedDirs.map(resolution => {
-		// 		if (resolution.stat) {
-		// 			processes.push(onDirectory(resolution.stat, dirIsPathIncluded));
-		// 		}
-		// 	});
-
-
-		// 	await Promise.all(processes);
-		// };
-
-		// await onDirectory(await this.fileService.resolve(folderQuery.folder), isPathIncluded);
-		// console.log('found', entryCount, 'entries');
+		const processed = await time('process', () => processDirectory(handle, '', globalFolderExcludes));
+		await time('resolve', () => resolveDirectory(processed, onFile));
 	}
 }
 
@@ -362,170 +327,6 @@ function pathIncludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPat
 
 	return true;
 }
-
-
-
-// export class LocalFileSystemSearch implements ISearchResultProvider {
-
-// 	private cache: { key: string, cache: ISearchComplete } | undefined;
-
-// 	constructor(@IFileService private fileService: IFileService) { }
-
-// 	async textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
-// 		return time('textSearch', async () => {
-// 			const pattern = createRegExp(query.contentPattern.pattern,
-// 				!!query.contentPattern.isRegExp, {
-// 				matchCase: query.contentPattern.isCaseSensitive,
-// 				wholeWord: query.contentPattern.isWordMatch,
-// 				multiline: true,
-// 				global: true,
-// 			});
-
-// 			const allFiles: URI[] = [];
-// 			await time('list all files', () => Promise.all(query.folderQueries.map(async fq => {
-// 				await this.walkFolderQuery(query, fq, async (file) => {
-// 					allFiles.push(file);
-// 				}, token);
-// 			})));
-
-
-// 			const allResults: IFileMatch[] = [];
-
-// 			const searchBatch = async (batch: URI[]) => {
-// 				await Promise.all(batch.map(async (file) => {
-// 					const contents = await this.fileService.readFile(file).then(fc => fc.value.buffer);
-// 					const results = getFileResults(contents, pattern, {
-// 						afterContext: query.afterContext ?? 0,
-// 						beforeContext: query.beforeContext ?? 0,
-// 						previewOptions: query.previewOptions,
-// 						remainingResultQuota: 1000,
-// 					});
-
-
-// 					if (results.length) {
-// 						const fileMatch: IFileMatch = { results, resource: file };
-// 						allResults.push(fileMatch);
-// 						onProgress?.(fileMatch);
-// 					}
-// 				}));
-// 			};
-
-// 			const batchSize = 1000;
-
-// 			for (let i = 0; i < allFiles.length; i += batchSize) {
-// 				await time('searchBatch', () => searchBatch(allFiles.slice(i, i + batchSize)));
-// 			}
-
-// 			return { messages: [], results: allResults };
-// 		});
-// 	}
-
-// 	async fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
-
-
-// 		if (query.cacheKey === this.cache?.key) { return this.cache!.cache; }
-
-// 		const results: IFileMatch[] = [];
-
-// 		await time('fileList', () => Promise.all(query.folderQueries.map(fq => {
-// 			return this.walkFolderQuery(query, fq, (file) => {
-// 				results.push({ resource: file });
-// 			}, token);
-// 		})));
-
-// 		const result = { messages: [], results: results };
-// 		this.cache = { key: query.cacheKey || '', cache: result };
-// 		return result;
-// 	}
-
-// 	async clearCache(cacheKey: string): Promise<void> {
-// 		if (this.cache?.key === cacheKey) { this.cache = undefined; }
-// 	}
-
-// 	async walkFolderQuery(queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery, onFile: (file: URI) => any, token?: CancellationToken): Promise<void> {
-
-// 		const root = folderQuery.folder.path + '/';
-
-// 		const folderExcludes = parse(folderQuery.excludePattern ?? {});
-// 		const isPathIncluded = (path: URI) => {
-// 			const relativePath = path.path.slice(root.length);
-
-// 			if (folderExcludes(relativePath)) {
-// 				console.log(path.path.slice(root.length), 'blocked by folder excludes');
-// 				return false;
-// 			}
-
-// 			if (!pathIncludedInQuery(queryProps, relativePath)) {
-// 				console.log(path.path.slice(root.length), 'blocked by query pattern');
-// 				return false;
-// 			}
-
-// 			return true;
-// 		};
-
-// 		let entryCount = 0;
-
-// 		const onDirectory = async (contents: IFileStat, isPathIncluded: (path: URI) => Boolean): Promise<void> => {
-
-// 			if (token?.isCancellationRequested) { return; }
-
-// 			const processes: Promise<void>[] = [];
-
-// 			if (contents.isDirectory) {
-// 				if (!contents.children) { return; }
-
-// 				const dirs: URI[] = [];
-
-// 				let dirIsPathIncluded = isPathIncluded;
-
-// 				const ignoreFiles = contents.children.filter(child => child.name === '.gitignore' || child.name === '.ignore');
-// 				if (ignoreFiles.length) {
-// 					await Promise.all(ignoreFiles.map(async file => {
-// 						const ignoreContents = new TextDecoder('utf8').decode((await this.fileService.readFile(file.resource)).value.buffer);
-// 						const ignoreLines = ignoreContents.split('\n').map(line => line.trim()).filter(line => line[0] !== '#');
-// 						const ignoreExpression = Object.create(null);
-// 						for (const line of ignoreLines) {
-// 							ignoreExpression[line] = true;
-// 						}
-// 						const checker = parse(ignoreExpression);
-// 						dirIsPathIncluded = (path: URI) => {
-// 							if (checker('/' + path.path.slice(root.length))) {
-// 								console.log(path.path.slice(root.length), 'blocked by', file.resource.path);
-// 								return false;
-// 							}
-// 							return isPathIncluded(path);
-// 						};
-// 					}));
-// 				}
-
-// 				(contents.children ?? [])
-// 					.filter(node => dirIsPathIncluded(node.resource))
-// 					.forEach(child => {
-// 						entryCount++;
-// 						if (child.isFile) {
-// 							processes.push(onFile(child.resource));
-// 						} else if (child.isDirectory) {
-// 							dirs.push(child.resource);
-// 						}
-// 					});
-
-// 				const resolvedDirs = await this.fileService.resolveAll(dirs.map(dir => ({ resource: dir })));
-// 				resolvedDirs.map(resolution => {
-// 					if (resolution.stat) {
-// 						processes.push(onDirectory(resolution.stat, dirIsPathIncluded));
-// 					}
-// 				});
-// 			} else {
-// 				throw Error('ondirectory called with a file resource');
-// 			}
-
-// 			await Promise.all(processes);
-// 		};
-
-// 		await onDirectory(await this.fileService.resolve(folderQuery.folder), isPathIncluded);
-// 		console.log('found', entryCount, 'entries');
-// 	}
-// }
 
 interface RegExpOptions {
 	matchCase?: boolean;
