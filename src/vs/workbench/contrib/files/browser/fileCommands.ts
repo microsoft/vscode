@@ -273,9 +273,9 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
+const lineDelimiter = isWindows ? '\r\n' : '\n';
+async function resourceUriLabelsToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
 	if (resources.length) {
-		const lineDelimiter = isWindows ? '\r\n' : '\n';
 
 		let separator: '/' | '\\' | undefined = undefined;
 		if (relative) {
@@ -290,6 +290,18 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 	}
 }
 
+/**
+ * Writes the file names (uri basename labels) of all the selected resources to the clipboard
+ */
+async function resourceUriBasenameLabelsToClipboard(resource: object | URI, accessor: ServicesAccessor) {
+	const labelService = accessor.get(ILabelService);
+	const clipboardService = accessor.get(IClipboardService);
+
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+	const fileNames = resources.map(resource => labelService.getUriBasenameLabel(resource)).join(lineDelimiter);
+	await clipboardService.writeText(fileNames);
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: EditorContextKeys.focus.toNegated(),
@@ -299,13 +311,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: COPY_NAME_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-
-		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const labelService = accessor.get(ILabelService);
-		const clipboardService = accessor.get(IClipboardService);
-		const fileNames = resources.map(resource => labelService.getUriBasenameLabel(resource)).join(lineDelimiter);
-		clipboardService.writeText(fileNames);
+		await resourceUriBasenameLabelsToClipboard(resource, accessor);
 	}
 });
 
@@ -319,7 +325,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_PATH_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+		await resourceUriLabelsToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 	}
 });
 
@@ -333,7 +339,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: COPY_RELATIVE_PATH_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
-		await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+		await resourceUriLabelsToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 	}
 });
 
@@ -347,7 +353,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+		await resourceUriLabelsToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 	}
 });
 
