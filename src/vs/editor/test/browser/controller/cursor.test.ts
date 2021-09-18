@@ -5201,9 +5201,7 @@ suite('autoClosingPairs', () => {
 				'var c = \'asd\';',
 				'var d = "asd";',
 				'var e = /*3*/	3;',
-				'var f = /** 3 */3;',
-				'var g = (3+5);',
-				'var h = { a: \'value\' };',
+				'var f = /** 3 */3;'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
 		}, (editor, model, viewModel) => {
@@ -5214,9 +5212,7 @@ suite('autoClosingPairs', () => {
 				'var c |=| \'asd\'|;|',
 				'var d |=| "asd"|;|',
 				'var e |=| /*3*/|	3;|',
-				'var f |=| /**| 3 */3;|',
-				'var g |=| (3+5)|;|',
-				'var h |=| {| a:| \'value\'| |}|;|',
+				'var f |=| /**| 3 */3;|'
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
