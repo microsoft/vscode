@@ -7,12 +7,12 @@ import * as glob from 'vs/base/common/glob';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
-import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps, ITextSearchResult, } from 'vs/workbench/services/search/common/search';
+import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
-import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { Range } from 'vs/editor/common/core/range';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
+import { createRegExp } from 'vs/workbench/services/search/common/searchRegexp';
 
 const PERF = false;
 
@@ -53,7 +53,6 @@ export function create(host: ILocalFileSearchSimpleWorkerHost): IRequestHandler 
 	return new LocalFileSearchSimpleWorker(host);
 }
 
-
 export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker, IRequestHandler {
 	_requestHandlerBrand: any;
 
@@ -63,7 +62,6 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 	cancelQuery(queryId: number): void {
 		this.cancellationTokens.get(queryId)?.cancel();
-
 	}
 
 	private registerCancellationToken(queryId: number): CancellationTokenSource {
@@ -108,13 +106,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 			const results: IFileMatch[] = [];
 
-			const pattern = createRegExp(query.contentPattern.pattern,
-				!!query.contentPattern.isRegExp, {
-				matchCase: query.contentPattern.isCaseSensitive,
-				wholeWord: query.contentPattern.isWordMatch,
-				multiline: true,
-				global: true,
-			});
+			const pattern = createRegExp(query.contentPattern);
 
 			const onGoingProcesses: Promise<void>[] = [];
 			let fileCount = 0;
@@ -128,30 +120,17 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 				fileCount++;
 
-				let text: string;
 				const contents = await file.resolve();
 				if (token.token.isCancellationRequested) {
 					return;
 				}
 
 				const bytes = new Uint8Array(contents);
-
-				if (bytes[0] === 0xff && bytes[1] === 0xfe) {
-					text = new TextDecoder('utf-16le').decode(bytes);
-				} else if (bytes[0] === 0xfe && bytes[1] === 0xff) {
-					text = new TextDecoder('utf-16be').decode(bytes);
-				} else {
-					text = new TextDecoder('utf8').decode(bytes);
-					if (text.slice(0, 1000).includes('�') && bytes.includes(0)) {
-						return;
-					}
-				}
-
-				const fileResults = getFileResults(text, pattern, {
+				const fileResults = getFileResults(bytes, pattern, {
 					afterContext: query.afterContext ?? 0,
 					beforeContext: query.beforeContext ?? 0,
 					previewOptions: query.previewOptions,
-					remainingResultQuota: 1000,
+					remainingResultQuota: query.maxResults ? (query.maxResults - resultCount) : 10000,
 				});
 
 				if (fileResults.length) {
@@ -173,8 +152,6 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			);
 
 			await time('resolveOngoingProcesses', () => Promise.all(onGoingProcesses));
-
-			console.log('searched in', fileCount, 'files');
 
 			return {
 				results,
@@ -228,13 +205,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 				if (!file) { return; }
 
 				const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
-				const ignoreLines = ignoreContents.split('\n').map(line => line.trim()).filter(line => line[0] !== '#');
-				const ignoreExpression = Object.create(null);
-				for (const line of ignoreLines) {
-					ignoreExpression[line] = true;
-				}
-
-				const checker = glob.parse(ignoreExpression);
+				const checker = parseIgnoreFile(ignoreContents);
 				priorFolderExcludes = folderExcludes;
 
 				folderExcludes = (path: string) => {
@@ -246,27 +217,29 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 				};
 			}));
 
+			const entries = new Promise<(FileNode | DirNode)[]>(async c => {
+				const files: FileNode[] = [];
+				const dirs: Promise<DirNode>[] = [];
+				for await (const entry of directory.entries()) {
+					if (token.isCancellationRequested) {
+						break;
+					}
+
+					const path = prior ? prior + '/' + entry[0] : entry[0];
+
+					if (entry[1].kind === 'directory' && !isFolderExcluded(path, folderExcludes)) {
+						dirs.push(processDirectory(entry[1], path, folderExcludes));
+					} else if (entry[1].kind === 'file' && isFileIncluded(path, folderExcludes)) {
+						files.push(proccessFile(entry[1], path));
+					}
+				}
+				c([...await Promise.all(dirs), ...files]);
+			});
+
 			return {
 				type: 'dir',
 				name: directory.name,
-				entries: (async () => {
-					const files: FileNode[] = [];
-					const dirs: Promise<DirNode>[] = [];
-					for await (const entry of directory.entries()) {
-						if (token.isCancellationRequested) {
-							break;
-						}
-
-						const path = prior ? prior + '/' + entry[0] : entry[0];
-
-						if (entry[1].kind === 'directory' && !isFolderExcluded(path, folderExcludes)) {
-							dirs.push(processDirectory(entry[1], path, folderExcludes));
-						} else if (entry[1].kind === 'file' && isFileIncluded(path, folderExcludes)) {
-							files.push(proccessFile(entry[1], path));
-						}
-					}
-					return [...await Promise.all(dirs), ...files];
-				})()
+				entries
 			};
 		};
 
@@ -291,7 +264,18 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 	}
 }
 
-function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
+export function parseIgnoreFile(ignoreContents: string) {
+	const ignoreLines = ignoreContents.split('\n').map(line => line.trim()).filter(line => line[0] !== '#');
+	const ignoreExpression = Object.create(null);
+	for (const line of ignoreLines) {
+		ignoreExpression[line] = true;
+	}
+
+	const checker = glob.parse(ignoreExpression);
+	return checker;
+}
+
+export function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
 	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
 		return true;
 	}
@@ -299,7 +283,7 @@ function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPat
 	return false;
 }
 
-function pathIncludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
+export function pathIncludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
 	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
 		return false;
 	}
@@ -327,164 +311,3 @@ function pathIncludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPat
 
 	return true;
 }
-
-interface RegExpOptions {
-	matchCase?: boolean;
-	wholeWord?: boolean;
-	multiline?: boolean;
-	global?: boolean;
-	unicode?: boolean;
-}
-
-function escapeRegExpCharacters(value: string): string {
-	return value.replace(/[-\\{}*+?|^$.[\]()#]/g, '\\$&');
-}
-
-function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (!searchString) {
-		throw new Error('Cannot create regex from empty string');
-	}
-	if (!isRegex) {
-		searchString = escapeRegExpCharacters(searchString);
-	}
-	if (options.wholeWord) {
-		if (!/\B/.test(searchString.charAt(0))) {
-			searchString = `\\b${searchString} `;
-		}
-		if (!/\B/.test(searchString.charAt(searchString.length - 1))) {
-			searchString = `${searchString} \\b`;
-		}
-	}
-	let modifiers = '';
-	if (options.global) {
-		modifiers += 'g';
-	}
-	if (!options.matchCase) {
-		modifiers += 'i';
-	}
-	if (options.multiline) {
-		modifiers += 'm';
-	}
-	if (options.unicode) {
-		modifiers += 'u';
-	}
-
-	return new RegExp(searchString, modifiers);
-}
-
-
-const getFileResults = (
-	file: string,
-	pattern: RegExp,
-	options: {
-		beforeContext: number;
-		afterContext: number;
-		previewOptions: TextSearchPreviewOptions | undefined;
-		remainingResultQuota: number;
-	},
-): ITextSearchResult[] => {
-	const results: ITextSearchResult[] = [];
-
-
-	const patternIndecies: { matchStartIndex: number; matchedText: string }[] = [];
-
-	let patternMatch: RegExpExecArray | null = null;
-	let remainingResultQuota = options.remainingResultQuota;
-	while (remainingResultQuota >= 0 && (patternMatch = pattern.exec(file))) {
-		patternIndecies.push({ matchStartIndex: patternMatch.index, matchedText: patternMatch[0] });
-		remainingResultQuota--;
-	}
-
-	if (patternIndecies.length) {
-		const contextLinesNeeded = new Set<number>();
-		const resultLines = new Set<number>();
-
-		const lineRanges: { start: number; end: number }[] = [];
-		const readLine = (lineNumber: number) => file.slice(lineRanges[lineNumber].start, lineRanges[lineNumber].end);
-
-		let prevLineEnd = 0;
-		let lineEndingMatch: RegExpExecArray | null = null;
-		const lineEndRegex = /\r?\n/g;
-		while ((lineEndingMatch = lineEndRegex.exec(file))) {
-			lineRanges.push({ start: prevLineEnd, end: lineEndingMatch.index });
-			prevLineEnd = lineEndingMatch.index + lineEndingMatch[0].length;
-		}
-		if (prevLineEnd < file.length) { lineRanges.push({ start: prevLineEnd, end: file.length }); }
-
-		let startLine = 0;
-		for (const { matchStartIndex, matchedText } of patternIndecies) {
-			if (remainingResultQuota < 0) {
-				break;
-			}
-
-			while (Boolean(lineRanges[startLine + 1]) && matchStartIndex > lineRanges[startLine].end) {
-				startLine++;
-			}
-			let endLine = startLine;
-			while (Boolean(lineRanges[endLine + 1]) && matchStartIndex + matchedText.length > lineRanges[endLine].end) {
-				endLine++;
-			}
-
-			if (options.beforeContext) {
-				for (
-					let contextLine = Math.max(0, startLine - options.beforeContext);
-					contextLine < startLine;
-					contextLine++
-				) {
-					contextLinesNeeded.add(contextLine);
-				}
-			}
-
-			let previewText = '';
-			let offset = 0;
-			for (let matchLine = startLine; matchLine <= endLine; matchLine++) {
-				let previewLine = readLine(matchLine);
-				if (options.previewOptions?.charsPerLine && previewLine.length > options.previewOptions.charsPerLine) {
-					offset = Math.max(matchStartIndex - lineRanges[startLine].start - 20, 0);
-					previewLine = previewLine.substr(offset, options.previewOptions.charsPerLine);
-				}
-				previewText += `${previewLine}\n`;
-				resultLines.add(matchLine);
-			}
-
-			const fileRange = new Range(
-				startLine,
-				matchStartIndex - lineRanges[startLine].start,
-				endLine,
-				matchStartIndex + matchedText.length - lineRanges[endLine].start,
-			);
-			const previewRange = new Range(
-				0,
-				matchStartIndex - lineRanges[startLine].start - offset,
-				endLine - startLine,
-				matchStartIndex + matchedText.length - lineRanges[endLine].start - (endLine === startLine ? offset : 0),
-			);
-
-			const match: ITextSearchResult = {
-				ranges: fileRange,
-				preview: { text: previewText, matches: previewRange },
-			};
-			results.push(match);
-
-			if (options.afterContext) {
-				for (
-					let contextLine = endLine + 1;
-					contextLine <= Math.min(endLine + options.afterContext, lineRanges.length - 1);
-					contextLine++
-				) {
-					contextLinesNeeded.add(contextLine);
-				}
-			}
-		}
-		for (const contextLine of contextLinesNeeded) {
-			if (!resultLines.has(contextLine)) {
-
-				results.push({
-					text: readLine(contextLine),
-					lineNumber: contextLine + 1,
-				});
-			}
-		}
-	}
-	return results;
-};
