@@ -63,6 +63,7 @@ export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEnt
 export interface IStatusbarViewModelEntry {
 	readonly id: string;
 	readonly name: string;
+	readonly hasCommand: boolean;
 	readonly alignment: StatusbarAlignment;
 	readonly priority: IStatusbarEntryPriority;
 	readonly container: HTMLElement;
