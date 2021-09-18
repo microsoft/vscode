@@ -488,10 +488,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private createFileQueryCache(): FileQueryCacheState {
 		return new FileQueryCacheState(
-			cacheKey => this.fileQueryBuilder.file(this.contextService.getWorkspace().folders, this.getFileQueryOptions({
-				cacheKey,
-				maxResults: AnythingQuickAccessProvider.MAX_RESULTS,
-			})),
+			cacheKey => this.fileQueryBuilder.file(this.contextService.getWorkspace().folders, this.getFileQueryOptions({ cacheKey })),
 			query => this.searchService.fileSearch(query),
 			cacheKey => this.searchService.clearCache(cacheKey),
 			this.pickState.fileQueryCache

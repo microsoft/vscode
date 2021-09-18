@@ -15,7 +15,7 @@ exports.base = [{
 
 exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/services/extensions/worker/extensionHostWorker')];
 exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
-exports.workerLocalFileSearch = [createModuleDescription('vs/workbench/services/search/worker/localFileSearch', ['vs/base/common/worker/simpleWorker'])];
+exports.workerLanguageDetection = [createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
 
 exports.workbenchDesktop = require('./vs/workbench/buildfile.desktop').collectModules();
 exports.workbenchWeb = require('./vs/workbench/buildfile.web').collectModules();

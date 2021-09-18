@@ -40,7 +40,6 @@ const vscodeEntryPoints = _.flatten([
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
 	buildfile.workbenchDesktop,
 	buildfile.code
 ]);
