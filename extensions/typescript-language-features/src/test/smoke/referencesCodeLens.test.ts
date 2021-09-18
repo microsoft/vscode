@@ -53,7 +53,7 @@ suite('TypeScript References', () => {
 		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
-	test('Should show on basic class', async () => {
+	test.skip('Should show on basic class', async () => {
 		const testDocumentUri = vscode.Uri.parse('untitled:test1.ts');
 		await createTestEditor(testDocumentUri,
 			`class Foo {}`
@@ -64,7 +64,7 @@ suite('TypeScript References', () => {
 		assert.strictEqual(codeLenses?.[0].range.start.line, 0);
 	});
 
-	test('Should show on basic class properties', async () => {
+	test.skip('Should show on basic class properties', async () => {
 		const testDocumentUri = vscode.Uri.parse('untitled:test2.ts');
 		await createTestEditor(testDocumentUri,
 			`class Foo {`,
@@ -111,4 +111,3 @@ suite('TypeScript References', () => {
 function getCodeLenses(document: vscode.Uri): Thenable<readonly vscode.CodeLens[] | undefined> {
 	return vscode.commands.executeCommand<readonly vscode.CodeLens[]>('vscode.executeCodeLensProvider', document, 100);
 }
-

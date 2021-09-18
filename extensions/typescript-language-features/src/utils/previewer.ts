@@ -49,6 +49,14 @@ function getTagBodyText(
 
 	const text = convertLinkTags(tag.text, filePathConverter);
 	switch (tag.name) {
+		case 'example':
+			// check for caption tags, fix for #79704
+			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
+			if (captionTagMatches && captionTagMatches.index === 0) {
+				return captionTagMatches[1] + '\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
+			} else {
+				return makeCodeblock(text);
+			}
 		case 'author':
 			// fix obsucated email address, #80898
 			const emailMatch = text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
@@ -58,7 +66,6 @@ function getTagBodyText(
 			} else {
 				return `${emailMatch[1]} ${emailMatch[2]}`;
 			}
-		case 'example':
 		case 'default':
 			return makeCodeblock(text);
 	}
