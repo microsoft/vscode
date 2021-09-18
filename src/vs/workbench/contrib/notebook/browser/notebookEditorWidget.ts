@@ -2905,6 +2905,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const iconForegroundColor = theme.getColor(iconForeground);
 	if (iconForegroundColor) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .codicon-debug-continue { color: ${iconForegroundColor}; }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .codicon-debug-continue { color: ${iconForegroundColor} !important; }`);
 	}
 });
