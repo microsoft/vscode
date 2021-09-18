@@ -13,6 +13,7 @@ import * as paths from 'vs/base/common/path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
 import { createRegExp } from 'vs/workbench/services/search/common/searchRegexp';
+import { parseIgnoreFile } from '../common/parseIgnoreFile';
 
 const PERF = false;
 
@@ -109,6 +110,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			const pattern = createRegExp(query.contentPattern);
 
 			const onGoingProcesses: Promise<void>[] = [];
+
 			let fileCount = 0;
 			let resultCount = 0;
 			let limitHit = false;
@@ -152,6 +154,8 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			);
 
 			await time('resolveOngoingProcesses', () => Promise.all(onGoingProcesses));
+
+			if (PERF) { console.log('Searched in', fileCount, 'files'); }
 
 			return {
 				results,
@@ -262,17 +266,6 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		const processed = await time('process', () => processDirectory(handle, '', globalFolderExcludes));
 		await time('resolve', () => resolveDirectory(processed, onFile));
 	}
-}
-
-export function parseIgnoreFile(ignoreContents: string) {
-	const ignoreLines = ignoreContents.split('\n').map(line => line.trim()).filter(line => line[0] !== '#');
-	const ignoreExpression = Object.create(null);
-	for (const line of ignoreLines) {
-		ignoreExpression[line] = true;
-	}
-
-	const checker = glob.parse(ignoreExpression);
-	return checker;
 }
 
 export function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
