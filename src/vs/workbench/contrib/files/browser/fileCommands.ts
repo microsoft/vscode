@@ -59,6 +59,7 @@ export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
 export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
 export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
+export const COPY_NAME_COMMAND_ID = 'copyFileName';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
 export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
 
@@ -288,6 +289,25 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 		await clipboardService.writeText(text);
 	}
 }
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus.toNegated(),
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_N,
+	win: {
+		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_N
+	},
+	id: COPY_NAME_COMMAND_ID,
+	handler: async (accessor, resource: URI | object) => {
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+
+		const lineDelimiter = isWindows ? '\r\n' : '\n';
+		const labelService = accessor.get(ILabelService);
+		const clipboardService = accessor.get(IClipboardService);
+		const fileNames = resources.map(resource => labelService.getUriBasenameLabel(resource)).join(lineDelimiter);
+		clipboardService.writeText(fileNames);
+	}
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
