@@ -14,7 +14,7 @@ import { TextSearchPreviewOptions } from 'vs/workbench/services/search/common/se
 import { Range } from 'vs/editor/common/core/range';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
-const PERF = true;
+const PERF = false;
 
 type FileNode = {
 	type: 'file',
