@@ -365,7 +365,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 	}
 
-	private async getDirectoryHandle(resource: URI): Promise<FileSystemDirectoryHandle | undefined> {
+	async getDirectoryHandle(resource: URI): Promise<FileSystemDirectoryHandle | undefined> {
 		const handle = this.getHandleSync(resource);
 		if (handle instanceof FileSystemDirectoryHandle) {
 			return handle;
