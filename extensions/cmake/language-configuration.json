@@ -71,7 +71,7 @@
     ]
   ],
   "indentationRules": {
-    "decreaseIndentPattern": "\\bend(function|macro|if|foreach|while)\\b|\\belse(if)?\\b|^[^(]*\\)\\s*$",
     "increaseIndentPattern": "\\b(function|macro|if|foreach|while)\\b|\\belse(if)?\\b|\\([^)]*$",
+    "decreaseIndentPattern": "\\bend(function|macro|if|foreach|while)\\b|\\belse(if)?\\b|^[^(]*\\)\\s*$",
   }
 }

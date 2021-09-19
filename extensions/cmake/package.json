@@ -8,9 +8,6 @@
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/cmake.tmbundle \"Syntaxes/CMake Listfile.tmLanguage\" \"./syntaxes/CMake Listfile.tmLanguage.json\""
-  },
   "contributes": {
     "languages": [
       {
@@ -25,28 +22,13 @@
           "CMake"
         ],
         "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "cmake-cache",
-        "filenames": [
-          "CMakeCache.txt"
-        ],
-        "aliases": [
-          "CMake Cache"
-        ],
-        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
         "language": "cmake",
         "scopeName": "source.cmake",
-        "path": "./syntaxes/CMake Listfile.tmLanguage.json"
-      },
-      {
-        "language": "cmake-cache",
-        "scopeName": "source.cmakecache",
-        "path": "./syntaxes/CMake Cache.tmLanguage.json"
+        "path": "./syntaxes/cmake.tmLanguage.json"
       }
     ]
   },
