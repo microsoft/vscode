@@ -867,7 +867,7 @@ declare namespace monaco.editor {
 	 * `domElement` should be empty (not contain other dom nodes).
 	 * The editor will read the size of `domElement`.
 	 */
-	export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
+	export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
 	export interface IDiffNavigatorOptions {
 		readonly followsCaret?: boolean;
@@ -1218,7 +1218,7 @@ declare namespace monaco.editor {
 	/**
 	 * The options to create a diff editor.
 	 */
-	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+	export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
 		/**
 		 * Initial theme to be used for rendering.
 		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
@@ -3289,10 +3289,7 @@ declare namespace monaco.editor {
 		useShadowDOM?: boolean;
 	}
 
-	/**
-	 * Configuration options for the diff editor.
-	 */
-	export interface IDiffEditorOptions extends IEditorOptions {
+	export interface IDiffEditorBaseOptions {
 		/**
 		 * Allow the user to resize the diff editor split view.
 		 * Defaults to true.
@@ -3308,6 +3305,11 @@ declare namespace monaco.editor {
 		 * Defaults to 5000.
 		 */
 		maxComputationTime?: number;
+		/**
+		 * Maximum supported file size in MB.
+		 * Defaults to 50.
+		 */
+		maxFileSize?: number;
 		/**
 		 * Compute the diff by ignoring leading/trailing whitespace
 		 * Defaults to true.
@@ -3329,11 +3331,6 @@ declare namespace monaco.editor {
 		 */
 		diffCodeLens?: boolean;
 		/**
-		 * Is the diff editor inside another editor
-		 * Defaults to false
-		 */
-		isInEmbeddedEditor?: boolean;
-		/**
 		 * Is the diff editor should render overview ruler
 		 * Defaults to true
 		 */
@@ -3342,14 +3339,12 @@ declare namespace monaco.editor {
 		 * Control the wrapping of the diff editor.
 		 */
 		diffWordWrap?: 'off' | 'on' | 'inherit';
-		/**
-		 * Aria label for original editor.
-		 */
-		originalAriaLabel?: string;
-		/**
-		 * Aria label for modified editor.
-		 */
-		modifiedAriaLabel?: string;
+	}
+
+	/**
+	 * Configuration options for the diff editor.
+	 */
+	export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
 	}
 
 	/**
@@ -4707,6 +4702,19 @@ declare namespace monaco.editor {
 		 * Defaults to an internal DOM node.
 		 */
 		overflowWidgetsDomNode?: HTMLElement;
+		/**
+		 * Aria label for original editor.
+		 */
+		originalAriaLabel?: string;
+		/**
+		 * Aria label for modified editor.
+		 */
+		modifiedAriaLabel?: string;
+		/**
+		 * Is the diff editor inside another editor
+		 * Defaults to false
+		 */
+		isInEmbeddedEditor?: boolean;
 	}
 
 	/**

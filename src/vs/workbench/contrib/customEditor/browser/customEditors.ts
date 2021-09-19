@@ -19,7 +19,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IEditorInput, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
@@ -213,7 +214,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		// If so, check all editors to see if there are any file editors open for the new resource
-		const editorsToReplace = new Map<GroupIdentifier, IEditorInput[]>();
+		const editorsToReplace = new Map<GroupIdentifier, EditorInput[]>();
 		for (const group of this.editorGroupService.groups) {
 			for (const editor of group.editors) {
 				if (this._fileEditorFactory.isFileEditor(editor)
@@ -236,7 +237,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		for (const [group, entries] of editorsToReplace) {
 			this.editorService.replaceEditors(entries.map(editor => {
-				let replacement: IEditorInput | IResourceEditorInput;
+				let replacement: EditorInput | IResourceEditorInput;
 				if (possibleEditors.defaultEditor) {
 					const viewType = possibleEditors.defaultEditor.id;
 					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType!, group);

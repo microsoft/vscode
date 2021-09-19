@@ -10,7 +10,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -100,7 +100,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}));
 	}
 
-	private _getActiveTerminalEditors(): IEditorInput[] {
+	private _getActiveTerminalEditors(): EditorInput[] {
 		return this._editorService.visibleEditors.filter(e => e instanceof TerminalEditorInput && e.terminalInstance?.instanceId);
 	}
 
@@ -163,7 +163,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (resource) {
 			await this._editorService.openEditor({
 				resource,
-				description: instance.shellLaunchConfig.description,
+				description: instance.description || instance.shellLaunchConfig.description,
 				options:
 				{
 					pinned: true,

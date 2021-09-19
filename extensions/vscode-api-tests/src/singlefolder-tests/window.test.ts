@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { join } from 'path';
-import { CancellationTokenSource, commands, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, Uri, ViewColumn, window, workspace } from 'vscode';
+import { CancellationTokenSource, commands, MarkdownString, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, Uri, ViewColumn, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
@@ -348,14 +348,12 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	test.skip('Tabs - Ensure tabs getter is correct', async () => {
-		assert.ok(workspace.workspaceFolders);
-		const workspaceRoot = workspace.workspaceFolders[0].uri;
+	test('Tabs - Ensure tabs getter is correct', async () => {
 		const [docA, docB, docC, notebookDoc] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
-			workspace.openNotebookDocument(Uri.joinPath(workspaceRoot, 'test.ipynb'))
+			workspace.openNotebookDocument('jupyter-notebook', undefined)
 		]);
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
@@ -366,14 +364,6 @@ suite('vscode API - window', () => {
 		const leftDiff = await createRandomFile();
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
-
-		// Wait for the tab change event to fire
-		await new Promise<void>((resolve) => {
-			const dispsable = window.onDidChangeTabs(() => {
-				dispsable.dispose();
-				resolve();
-			});
-		});
 
 		const tabs = window.tabs;
 		assert.strictEqual(tabs.length, 5);
@@ -393,16 +383,8 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
 	});
 
-	test.skip('Tabs - ensure active tab is correct', async () => {
+	test('Tabs - ensure active tab is correct', async () => {
 
-		function createActiveTabListenerPromise(): Promise<void> {
-			return new Promise<void>((resolve) => {
-				const dispsable = window.onDidChangeActiveTab(() => {
-					dispsable.dispose();
-					resolve();
-				});
-			});
-		}
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -410,24 +392,20 @@ suite('vscode API - window', () => {
 		]);
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
-		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docA.uri.toString());
 
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
-		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docB.uri.toString());
 
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
-		await createActiveTabListenerPromise();
 		assert.ok(window.activeTab);
 		assert.strictEqual(window.activeTab.resource?.toString(), docC.uri.toString());
 
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
-		await createActiveTabListenerPromise();
 
 		assert.ok(!window.activeTab);
 
@@ -735,6 +713,10 @@ suite('vscode API - window', () => {
 		assert.strictEqual(statusBarEntryWithoutId.name, undefined);
 		statusBarEntryWithoutId.name = 'Test Name';
 		assert.strictEqual(statusBarEntryWithoutId.name, 'Test Name');
+		statusBarEntryWithoutId.tooltip = 'Tooltip';
+		assert.strictEqual(statusBarEntryWithoutId.tooltip, 'Tooltip');
+		statusBarEntryWithoutId.tooltip = new MarkdownString('**bold**');
+		assert.strictEqual(statusBarEntryWithoutId.tooltip.value, '**bold**');
 
 		const statusBarEntryWithId = window.createStatusBarItem('testId', StatusBarAlignment.Right, 200);
 		assert.strictEqual(statusBarEntryWithId.alignment, StatusBarAlignment.Right);

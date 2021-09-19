@@ -25,10 +25,10 @@ import { DefineKeybindingWidget, KeybindingsSearchWidget } from 'vs/workbench/co
 import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
+import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -50,6 +50,11 @@ import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+
+type KeybindingEditorActionClassification = {
+	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	command: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+};
 
 const $ = DOM.$;
 
@@ -186,7 +191,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		try {
 			const key = await this.defineKeybindingWidget.define();
 			if (key) {
-				this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
+				this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command);
 				await this.updateKeybinding(keybindingEntry, key, keybindingEntry.keybindingItem.when, add);
 			}
 		} catch (error) {
@@ -221,7 +226,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	async removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
-			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
+			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command);
 			try {
 				await this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
 				this.focus();
@@ -234,7 +239,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
+		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command);
 		try {
 			await this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
 			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
@@ -249,7 +254,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async copyKeybinding(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
+		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
 			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() || '' : '',
 			command: keybinding.keybindingItem.command
@@ -262,13 +267,13 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	async copyKeybindingCommand(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
+		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, keybinding.keybindingItem.command);
 		await this.clipboardService.writeText(keybinding.keybindingItem.command);
 	}
 
-	private async copyKeybindingCommandTitle(keybinding: IKeybindingItemEntry): Promise<void> {
+	async copyKeybindingCommandTitle(keybinding: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybinding);
-		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
+		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, keybinding.keybindingItem.command);
 		await this.clipboardService.writeText(keybinding.keybindingItem.commandLabel);
 	}
 
@@ -489,9 +494,10 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		)) as WorkbenchTable<IKeybindingItemEntry>;
 
 		this._register(this.keybindingsTable.onContextMenu(e => this.onContextMenu(e)));
-		this._register(this.keybindingsTable.onDidChangeFocus(e => this.onFocusChange(e)));
+		this._register(this.keybindingsTable.onDidChangeFocus(e => this.onFocusChange()));
 		this._register(this.keybindingsTable.onDidFocus(() => {
 			this.keybindingsTable.getHTMLElement().classList.add('focused');
+			this.onFocusChange();
 		}));
 		this._register(this.keybindingsTable.onDidBlur(() => {
 			this.keybindingsTable.getHTMLElement().classList.remove('focused');
@@ -680,9 +686,9 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		}
 	}
 
-	private onFocusChange(e: IListEvent<IKeybindingItemEntry>): void {
+	private onFocusChange(): void {
 		this.keybindingFocusContextKey.reset();
-		const element = e.elements[0];
+		const element = this.keybindingsTable.getFocusedElements()[0];
 		if (!element) {
 			return;
 		}
@@ -798,9 +804,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		return this.latestEmptyFilters.filter(filterText => (cumulativeSize += filterText.length) <= 8192);
 	}
 
-	private reportKeybindingAction(action: string, command: string, keybinding: ResolvedKeybinding | string): void {
-		// __GDPR__TODO__ Need to move off dynamic event names and properties as they cannot be registered statically
-		this.telemetryService.publicLog(action, { command, keybinding: keybinding ? (typeof keybinding === 'string' ? keybinding : keybinding.getUserSettingsLabel()) : '' });
+	private reportKeybindingAction(action: string, command: string): void {
+		this.telemetryService.publicLog2<{ action: string, command: string }, KeybindingEditorActionClassification>('keybindingsEditor.action', { command, action });
 	}
 
 	private onKeybindingEditingError(error: any): void {

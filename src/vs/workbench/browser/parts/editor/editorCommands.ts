@@ -7,7 +7,8 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, GroupIdentifier, TextCompareEditorActiveContext, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, EditorInputCapabilities, isEditorIdentifier, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, GroupIdentifier, TextCompareEditorActiveContext, SideBySideEditorActiveContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorGroupColumn, columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -30,6 +31,7 @@ import { EditorResolution, IEditorOptions, ITextEditorOptions } from 'vs/platfor
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -41,12 +43,13 @@ export const CLOSE_EDITOR_GROUP_COMMAND_ID = 'workbench.action.closeGroup';
 export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOtherEditors';
 
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
+export const COPY_ACTIVE_EDITOR_COMMAND_ID = 'copyActiveEditor';
 export const LAYOUT_EDITOR_GROUPS_COMMAND_ID = 'layoutEditorGroups';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const TOGGLE_KEEP_EDITORS_COMMAND_ID = 'workbench.action.toggleKeepEditors';
-export const TOGGLE_LOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalToggleEditorGroupLock';
-export const LOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalLockEditorGroup';
-export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.experimentalUnlockEditorGroup';
+export const TOGGLE_LOCK_GROUP_COMMAND_ID = 'workbench.action.toggleEditorGroupLock';
+export const LOCK_GROUP_COMMAND_ID = 'workbench.action.lockEditorGroup';
+export const UNLOCK_GROUP_COMMAND_ID = 'workbench.action.unlockEditorGroup';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 export const REOPEN_WITH_COMMAND_ID = 'workbench.action.reopenWithEditor';
 
@@ -86,13 +89,13 @@ export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
 export const API_OPEN_WITH_EDITOR_COMMAND_ID = '_workbench.openWith';
 
-export interface ActiveEditorMoveArguments {
+export interface ActiveEditorMoveCopyArguments {
 	to: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
 	by: 'tab' | 'group';
 	value: number;
 }
 
-const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean {
+const isActiveEditorMoveCopyArg = function (arg: ActiveEditorMoveCopyArguments): boolean {
 	if (!isObject(arg)) {
 		return false;
 	}
@@ -112,145 +115,174 @@ const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean
 	return true;
 };
 
-function registerActiveEditorMoveCommand(): void {
+function registerActiveEditorMoveCopyCommand(): void {
+
+	const moveCopyJSONSchema: IJSONSchema = {
+		'type': 'object',
+		'required': ['to'],
+		'properties': {
+			'to': {
+				'type': 'string',
+				'enum': ['left', 'right']
+			},
+			'by': {
+				'type': 'string',
+				'enum': ['tab', 'group']
+			},
+			'value': {
+				'type': 'number'
+			}
+		}
+	};
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: MOVE_ACTIVE_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveActiveEditor(args, accessor),
+		handler: (accessor, args) => moveCopyActiveEditor(true, args, accessor),
 		description: {
 			description: localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
 				{
 					name: localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
 					description: localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move (by tab or by group).\n\t* 'value': Number value providing how many positions or an absolute position to move."),
-					constraint: isActiveEditorMoveArg,
-					schema: {
-						'type': 'object',
-						'required': ['to'],
-						'properties': {
-							'to': {
-								'type': 'string',
-								'enum': ['left', 'right']
-							},
-							'by': {
-								'type': 'string',
-								'enum': ['tab', 'group']
-							},
-							'value': {
-								'type': 'number'
-							}
-						},
-					}
+					constraint: isActiveEditorMoveCopyArg,
+					schema: moveCopyJSONSchema
 				}
 			]
 		}
 	});
-}
 
-function moveActiveEditor(args: ActiveEditorMoveArguments = Object.create(null), accessor: ServicesAccessor): void {
-	args.to = args.to || 'right';
-	args.by = args.by || 'tab';
-	args.value = typeof args.value === 'number' ? args.value : 1;
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: COPY_ACTIVE_EDITOR_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: EditorContextKeys.editorTextFocus,
+		primary: 0,
+		handler: (accessor, args) => moveCopyActiveEditor(false, args, accessor),
+		description: {
+			description: localize('editorCommand.activeEditorCopy.description', "Copy the active editor by groups"),
+			args: [
+				{
+					name: localize('editorCommand.activeEditorCopy.arg.name', "Active editor copy argument"),
+					description: localize('editorCommand.activeEditorCopy.arg.description', "Argument Properties:\n\t* 'to': String value providing where to copy.\n\t* 'value': Number value providing how many positions or an absolute position to copy."),
+					constraint: isActiveEditorMoveCopyArg,
+					schema: moveCopyJSONSchema
+				}
+			]
+		}
+	});
 
-	const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-	if (activeEditorPane) {
-		switch (args.by) {
-			case 'tab':
-				return moveActiveTab(args, activeEditorPane, accessor);
-			case 'group':
-				return moveActiveEditorToGroup(args, activeEditorPane, accessor);
+	function moveCopyActiveEditor(isMove: boolean, args: ActiveEditorMoveCopyArguments = Object.create(null), accessor: ServicesAccessor): void {
+		args.to = args.to || 'right';
+		args.by = args.by || 'tab';
+		args.value = typeof args.value === 'number' ? args.value : 1;
+
+		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+		if (activeEditorPane) {
+			switch (args.by) {
+				case 'tab':
+					if (isMove) {
+						return moveActiveTab(args, activeEditorPane);
+					}
+					break;
+				case 'group':
+					return moveCopyActiveEditorToGroup(isMove, args, activeEditorPane, accessor);
+			}
 		}
 	}
-}
 
-function moveActiveTab(args: ActiveEditorMoveArguments, control: IVisibleEditorPane, accessor: ServicesAccessor): void {
-	const group = control.group;
-	let index = group.getIndexOfEditor(control.input);
-	switch (args.to) {
-		case 'first':
-			index = 0;
-			break;
-		case 'last':
-			index = group.count - 1;
-			break;
-		case 'left':
-			index = index - args.value;
-			break;
-		case 'right':
-			index = index + args.value;
-			break;
-		case 'center':
-			index = Math.round(group.count / 2) - 1;
-			break;
-		case 'position':
-			index = args.value - 1;
-			break;
+	function moveActiveTab(args: ActiveEditorMoveCopyArguments, control: IVisibleEditorPane): void {
+		const group = control.group;
+		let index = group.getIndexOfEditor(control.input);
+		switch (args.to) {
+			case 'first':
+				index = 0;
+				break;
+			case 'last':
+				index = group.count - 1;
+				break;
+			case 'left':
+				index = index - args.value;
+				break;
+			case 'right':
+				index = index + args.value;
+				break;
+			case 'center':
+				index = Math.round(group.count / 2) - 1;
+				break;
+			case 'position':
+				index = args.value - 1;
+				break;
+		}
+
+		index = index < 0 ? 0 : index >= group.count ? group.count - 1 : index;
+		group.moveEditor(control.input, group, { index });
 	}
 
-	index = index < 0 ? 0 : index >= group.count ? group.count - 1 : index;
-	group.moveEditor(control.input, group, { index });
-}
+	function moveCopyActiveEditorToGroup(isMove: boolean, args: ActiveEditorMoveCopyArguments, control: IVisibleEditorPane, accessor: ServicesAccessor): void {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
 
-function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IVisibleEditorPane, accessor: ServicesAccessor): void {
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	const configurationService = accessor.get(IConfigurationService);
+		const sourceGroup = control.group;
+		let targetGroup: IEditorGroup | undefined;
 
-	const sourceGroup = control.group;
-	let targetGroup: IEditorGroup | undefined;
+		switch (args.to) {
+			case 'left':
+				targetGroup = editorGroupService.findGroup({ direction: GroupDirection.LEFT }, sourceGroup);
+				if (!targetGroup) {
+					targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.LEFT);
+				}
+				break;
+			case 'right':
+				targetGroup = editorGroupService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup);
+				if (!targetGroup) {
+					targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.RIGHT);
+				}
+				break;
+			case 'up':
+				targetGroup = editorGroupService.findGroup({ direction: GroupDirection.UP }, sourceGroup);
+				if (!targetGroup) {
+					targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.UP);
+				}
+				break;
+			case 'down':
+				targetGroup = editorGroupService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup);
+				if (!targetGroup) {
+					targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.DOWN);
+				}
+				break;
+			case 'first':
+				targetGroup = editorGroupService.findGroup({ location: GroupLocation.FIRST }, sourceGroup);
+				break;
+			case 'last':
+				targetGroup = editorGroupService.findGroup({ location: GroupLocation.LAST }, sourceGroup);
+				break;
+			case 'previous':
+				targetGroup = editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, sourceGroup);
+				break;
+			case 'next':
+				targetGroup = editorGroupService.findGroup({ location: GroupLocation.NEXT }, sourceGroup);
+				if (!targetGroup) {
+					targetGroup = editorGroupService.addGroup(sourceGroup, preferredSideBySideGroupDirection(configurationService));
+				}
+				break;
+			case 'center':
+				targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[(editorGroupService.count / 2) - 1];
+				break;
+			case 'position':
+				targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[args.value - 1];
+				break;
+		}
 
-	switch (args.to) {
-		case 'left':
-			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.LEFT }, sourceGroup);
-			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.LEFT);
+		if (targetGroup) {
+			if (isMove) {
+				sourceGroup.moveEditor(control.input, targetGroup);
+			} else if (sourceGroup.id !== targetGroup.id) {
+				sourceGroup.copyEditor(control.input, targetGroup);
 			}
-			break;
-		case 'right':
-			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup);
-			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.RIGHT);
-			}
-			break;
-		case 'up':
-			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.UP }, sourceGroup);
-			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.UP);
-			}
-			break;
-		case 'down':
-			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup);
-			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.DOWN);
-			}
-			break;
-		case 'first':
-			targetGroup = editorGroupService.findGroup({ location: GroupLocation.FIRST }, sourceGroup);
-			break;
-		case 'last':
-			targetGroup = editorGroupService.findGroup({ location: GroupLocation.LAST }, sourceGroup);
-			break;
-		case 'previous':
-			targetGroup = editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, sourceGroup);
-			break;
-		case 'next':
-			targetGroup = editorGroupService.findGroup({ location: GroupLocation.NEXT }, sourceGroup);
-			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, preferredSideBySideGroupDirection(configurationService));
-			}
-			break;
-		case 'center':
-			targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[(editorGroupService.count / 2) - 1];
-			break;
-		case 'position':
-			targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[args.value - 1];
-			break;
-	}
-
-	if (targetGroup) {
-		sourceGroup.moveEditor(control.input, targetGroup);
-		targetGroup.focus();
+			targetGroup.focus();
+		}
 	}
 }
 
@@ -677,7 +709,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
 
 	// Split editor (if it can be split)
-	let editorToCopy: IEditorInput | undefined;
+	let editorToCopy: EditorInput | undefined;
 	if (context && typeof context.editorIndex === 'number') {
 		editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
 	} else {
@@ -1324,7 +1356,7 @@ function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, co
 	return undefined;
 }
 
-function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor?: IEditorInput } {
+function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor?: EditorInput } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
@@ -1387,7 +1419,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 }
 
 export function setup(): void {
-	registerActiveEditorMoveCommand();
+	registerActiveEditorMoveCopyCommand();
 	registerEditorGroupsLayoutCommand();
 	registerDiffEditorCommands();
 	registerOpenEditorAPICommands();

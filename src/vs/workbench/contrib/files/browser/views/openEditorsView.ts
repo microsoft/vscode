@@ -13,7 +13,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorInput, Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -344,7 +345,7 @@ export class OpenEditorsView extends ViewPane {
 		return this.elements;
 	}
 
-	private getIndex(group: IEditorGroup, editor: IEditorInput | undefined | null): number {
+	private getIndex(group: IEditorGroup, editor: EditorInput | undefined | null): number {
 		if (!editor) {
 			return this.elements.findIndex(e => !(e instanceof OpenEditor) && e.id === group.id);
 		}

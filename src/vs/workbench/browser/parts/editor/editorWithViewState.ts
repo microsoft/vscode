@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IEditorMemento, IEditorCloseEvent, IEditorInput, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorMemento, IEditorCloseEvent, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -86,7 +86,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		super.saveState();
 	}
 
-	private updateEditorViewState(input: IEditorInput | undefined): void {
+	private updateEditorViewState(input: EditorInput | undefined): void {
 		if (!input || !this.tracksEditorViewState(input)) {
 			return; // ensure we have an input to handle view state for
 		}
@@ -112,7 +112,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		}
 	}
 
-	private shouldRestoreEditorViewState(input: IEditorInput, context?: IEditorOpenContext): boolean {
+	private shouldRestoreEditorViewState(input: EditorInput, context?: IEditorOpenContext): boolean {
 
 		// new editor: check with workbench.editor.restoreViewState setting
 		if (context?.newInGroup) {
@@ -150,7 +150,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 		this.viewState.saveEditorState(this.group, resource, editorViewState);
 	}
 
-	protected loadEditorViewState(input: IEditorInput | undefined, context?: IEditorOpenContext): T | undefined {
+	protected loadEditorViewState(input: EditorInput | undefined, context?: IEditorOpenContext): T | undefined {
 		if (!input || !this.group) {
 			return undefined; // we need valid input
 		}
@@ -196,7 +196,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	 * Subclasses need to ensure that the editor input is expected
 	 * for the editor.
 	 */
-	protected abstract tracksEditorViewState(input: IEditorInput): boolean;
+	protected abstract tracksEditorViewState(input: EditorInput): boolean;
 
 	/**
 	 * Whether view state should be tracked even when the editor is
@@ -212,7 +212,7 @@ export abstract class AbstractEditorWithViewState<T extends object> extends Edit
 	/**
 	 * Asks to return the `URI` to associate with the view state.
 	 */
-	protected abstract toEditorViewStateResource(input: IEditorInput): URI | undefined;
+	protected abstract toEditorViewStateResource(input: EditorInput): URI | undefined;
 
 	//#endregion
 }

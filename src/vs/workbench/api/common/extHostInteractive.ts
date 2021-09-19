@@ -17,7 +17,7 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _commands: ExtHostCommands
 	) {
-		const apiCommand = new ApiCommand(
+		const openApiCommand = new ApiCommand(
 			'interactive.open',
 			'_interactive.open',
 			'Open interactive window and return notebook editor and input URI',
@@ -35,7 +35,7 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 				return { notebookUri: URI.revive(v.notebookUri), inputUri: URI.revive(v.inputUri) };
 			})
 		);
-		this._commands.registerApiCommand(apiCommand);
+		this._commands.registerApiCommand(openApiCommand);
 	}
 
 	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents) {

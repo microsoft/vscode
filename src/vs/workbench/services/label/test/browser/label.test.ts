@@ -303,4 +303,12 @@ suite('workspace at FSP root', () => {
 			assert.strictEqual(generated, label);
 		});
 	});
+
+	test('relative label with explicit path separator', () => {
+		let generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true, separator: '/' });
+		assert.strictEqual(generated, 'some/folder/test.txt');
+
+		generated = labelService.getUriLabel(URI.parse('myscheme://myauthority/some/folder/test.txt'), { relative: true, separator: '\\' });
+		assert.strictEqual(generated, 'some\\folder\\test.txt');
+	});
 });

@@ -9,7 +9,7 @@ import * as Errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, TelemetryConfiguration } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
@@ -198,7 +198,7 @@ suite('TelemetryService', () => {
 		});
 	});
 
-	test('enableTelemetry on by default', sinonTestFn(function () {
+	test('telemetry on by default', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, new TestConfigurationService());
 
@@ -766,7 +766,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Telemetry Service sends events when enableTelemetry is on', sinonTestFn(function () {
+	test('Telemetry Service sends events when telemetry is on', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, new TestConfigurationService());
 
@@ -778,7 +778,7 @@ suite('TelemetryService', () => {
 
 	test('Telemetry Service checks with config service', function () {
 
-		let enableTelemetry = false;
+		let telemetryLevel = TelemetryConfiguration.OFF;
 		let emitter = new Emitter<any>();
 
 		let testAppender = new TestTelemetryAppender();
@@ -787,19 +787,17 @@ suite('TelemetryService', () => {
 		}, new class extends TestConfigurationService {
 			override onDidChangeConfiguration = emitter.event;
 			override getValue() {
-				return {
-					enableTelemetry: enableTelemetry
-				} as any;
+				return telemetryLevel as any;
 			}
 		}());
 
 		assert.strictEqual(service.isOptedIn, false);
 
-		enableTelemetry = true;
+		telemetryLevel = TelemetryConfiguration.ON;
 		emitter.fire({});
 		assert.strictEqual(service.isOptedIn, true);
 
-		enableTelemetry = false;
+		telemetryLevel = TelemetryConfiguration.ERROR;
 		emitter.fire({});
 		assert.strictEqual(service.isOptedIn, false);
 

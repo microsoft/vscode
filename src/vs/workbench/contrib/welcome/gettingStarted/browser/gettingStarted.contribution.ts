@@ -235,12 +235,10 @@ class WorkbenchConfigurationContribution {
 	private async registerConfigs(_experimentSevice: ITASExperimentService) {
 		const preferReduced = await _experimentSevice.getTreatment('welcomePage.preferReducedMotion').catch(e => false);
 		if (preferReduced) {
-			configurationRegistry.deregisterConfigurations([prefersStandardMotionConfig]);
-			configurationRegistry.registerConfiguration(prefersReducedMotionConfig);
+			configurationRegistry.updateConfigurations({ add: [prefersReducedMotionConfig], remove: [prefersStandardMotionConfig] });
 		}
 		else {
-			configurationRegistry.deregisterConfigurations([prefersReducedMotionConfig]);
-			configurationRegistry.registerConfiguration(prefersStandardMotionConfig);
+			configurationRegistry.updateConfigurations({ add: [prefersStandardMotionConfig], remove: [prefersReducedMotionConfig] });
 		}
 	}
 }

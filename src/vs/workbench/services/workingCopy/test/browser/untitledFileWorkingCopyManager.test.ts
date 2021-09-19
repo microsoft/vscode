@@ -36,7 +36,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService
+			accessor.environmentService, accessor.dialogService, accessor.decorationsService
 		);
 	});
 
@@ -277,7 +277,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService
 			);
 
 			const untitled1OriginalType = await manager.untitled.resolve();
@@ -299,7 +299,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService
 			);
 
 			const result = await manager.untitled.resolve();

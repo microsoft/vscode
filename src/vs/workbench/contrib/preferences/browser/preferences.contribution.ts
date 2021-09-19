@@ -26,7 +26,8 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorFactoryRegistry, IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/contrib/files/common/files';
 import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keybindingsEditor';
@@ -34,7 +35,7 @@ import { ConfigureLanguageBasedSettingsAction } from 'vs/workbench/contrib/prefe
 import { SettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 import { preferencesOpenSettingsIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { SettingsEditor2, SettingsFocusContext } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
-import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesContribution } from 'vs/workbench/contrib/preferences/common/preferencesContribution';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -85,22 +86,22 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 
 class KeybindingsEditorInputSerializer implements IEditorSerializer {
 
-	canSerialize(editorInput: IEditorInput): boolean {
+	canSerialize(editorInput: EditorInput): boolean {
 		return true;
 	}
 
-	serialize(editorInput: IEditorInput): string {
+	serialize(editorInput: EditorInput): string {
 		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService): IEditorInput {
+	deserialize(instantiationService: IInstantiationService): EditorInput {
 		return instantiationService.createInstance(KeybindingsEditorInput);
 	}
 }
 
 class SettingsEditor2InputSerializer implements IEditorSerializer {
 
-	canSerialize(editorInput: IEditorInput): boolean {
+	canSerialize(editorInput: EditorInput): boolean {
 		return true;
 	}
 
@@ -525,7 +526,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 					run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
 						args = sanitizeOpenSettingsArgs(args);
-						return accessor.get(IPreferencesService).openRemoteSettings(args);
+						return accessor.get(IPreferencesService).openRemoteSettings({ jsonEditor: true, ...args });
 					}
 				});
 			});
@@ -1073,6 +1074,19 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					await editorPane.copyKeybindingCommand(editorPane.activeKeybindingEntry!);
+				}
+			}
+		});
+
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE,
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
+			primary: 0,
+			handler: async (accessor, args: any) => {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof KeybindingsEditor) {
+					await editorPane.copyKeybindingCommandTitle(editorPane.activeKeybindingEntry!);
 				}
 			}
 		});

@@ -4768,6 +4768,104 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents an item of a type hierarchy, like a class or an interface.
+	 */
+	export class TypeHierarchyItem {
+		/**
+		 * The name of this item.
+		 */
+		name: string;
+
+		/**
+		 * The kind of this item.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * Tags for this item.
+		 */
+		tags?: ReadonlyArray<SymbolTag>;
+
+		/**
+		 * More detail for this item, e.g. the signature of a function.
+		 */
+		detail?: string;
+
+		/**
+		 * The resource identifier of this item.
+		 */
+		uri: Uri;
+
+		/**
+		 * The range enclosing this symbol not including leading/trailing whitespace
+		 * but everything else, e.g. comments and code.
+		 */
+		range: Range;
+
+		/**
+		 * The range that should be selected and revealed when this symbol is being
+		 * picked, e.g. the name of a class. Must be contained by the {@link TypeHierarchyItem.range range}-property.
+		 */
+		selectionRange: Range;
+
+		/**
+		 * Creates a new type hierarchy item.
+		 *
+		 * @param kind The kind of the item.
+		 * @param name The name of the item.
+		 * @param detail The details of the item.
+		 * @param uri The Uri of the item.
+		 * @param range The whole range of the item.
+		 * @param selectionRange The selection range of the item.
+		 */
+		constructor(kind: SymbolKind, name: string, detail: string, uri: Uri, range: Range, selectionRange: Range);
+	}
+
+	/**
+	 * The type hierarchy provider interface describes the contract between extensions
+	 * and the type hierarchy feature.
+	 */
+	export interface TypeHierarchyProvider {
+
+		/**
+		 * Bootstraps type hierarchy by returning the item that is denoted by the given document
+		 * and position. This item will be used as entry into the type graph. Providers should
+		 * return `undefined` or `null` when there is no item at the given location.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @returns One or multiple type hierarchy items or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		prepareTypeHierarchy(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<TypeHierarchyItem | TypeHierarchyItem[]>;
+
+		/**
+		 * Provide all supertypes for an item, e.g all types from which a type is derived/inherited. In graph terms this describes directed
+		 * and annotated edges inside the type graph, e.g the given item is the starting node and the result is the nodes
+		 * that can be reached.
+		 *
+		 * @param item The hierarchy item for which super types should be computed.
+		 * @param token A cancellation token.
+		 * @returns A set of direct supertypes or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideTypeHierarchySupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+
+		/**
+		 * Provide all subtypes for an item, e.g all types which are derived/inherited from the given item. In
+		 * graph terms this describes directed and annotated edges inside the type graph, e.g the given item is the starting
+		 * node and the result is the nodes that can be reached.
+		 *
+		 * @param item The hierarchy item for which subtypes should be computed.
+		 * @param token A cancellation token.
+		 * @returns A set of direct subtypes or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideTypeHierarchySubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+	}
+
+	/**
 	 * Represents a list of ranges that can be edited together along with a word pattern to describe valid range contents.
 	 */
 	export class LinkedEditingRanges {
@@ -5761,6 +5859,11 @@ declare module 'vscode' {
 		readonly exitStatus: TerminalExitStatus | undefined;
 
 		/**
+		 * The current state of the {@link Terminal}.
+		 */
+		readonly state: TerminalState;
+
+		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
 		 * (shell) of the terminal.
 		 *
@@ -5787,6 +5890,27 @@ declare module 'vscode' {
 		 * Dispose and free associated resources.
 		 */
 		dispose(): void;
+	}
+
+	/**
+	 * Represents the state of a {@link Terminal}.
+	 */
+	export interface TerminalState {
+		/**
+		 * Whether the {@link Terminal} has been interacted with. Interaction means that the
+		 * terminal has sent data to the process which depending on the terminal's _mode_. By
+		 * default input is sent when a key is pressed or when a command or extension sends text,
+		 * but based on the terminal's mode it can also happen on:
+		 *
+		 * - a pointer click event
+		 * - a pointer scroll event
+		 * - a pointer move event
+		 * - terminal focus in/out
+		 *
+		 * For more information on events that can send data see "DEC Private Mode Set (DECSET)" on
+		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
+		 */
+		readonly isInteractedWith: boolean;
 	}
 
 	/**
@@ -8563,6 +8687,11 @@ declare module 'vscode' {
 		 * An {@link Event} which fires when a terminal is disposed.
 		 */
 		export const onDidCloseTerminal: Event<Terminal>;
+
+		/**
+		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
+		 */
+		export const onDidChangeTerminalState: Event<Terminal>;
 
 		/**
 		 * Represents the current window's state.
@@ -11521,6 +11650,15 @@ declare module 'vscode' {
 		export function registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyProvider): Disposable;
 
 		/**
+		 * Register a type hierarchy provider.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A type hierarchy provider.
+		 * @return {@link Disposable Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerTypeHierarchyProvider(selector: DocumentSelector, provider: TypeHierarchyProvider): Disposable;
+
+		/**
 		 * Register a linked editing range provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
@@ -13901,6 +14039,25 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Tags can be associated with {@link TestItem TestItems} and
+	 * {@link TestRunProfile TestRunProfiles}. A profile with a tag can only
+	 * execute tests that include that tag in their {@link TestItem.tags} array.
+	 */
+	export class TestTag {
+		/**
+		 * ID of the test tag. `TestTag` instances with the same ID are considered
+		 * to be identical.
+		 */
+		readonly id: string;
+
+		/**
+		 * Creates a new TestTag instance.
+		 * @param id ID of the test tag.
+		 */
+		constructor(id: string);
+	}
+
+	/**
 	 * A TestRunProfile describes one way to execute tests in a {@link TestController}.
 	 */
 	export interface TestRunProfile {
@@ -13929,6 +14086,12 @@ declare module 'vscode' {
 		 * user can configure this.
 		 */
 		isDefault: boolean;
+
+		/**
+		 * Associated tag for the profile. If this is set, only {@link TestItem}
+		 * instances with the same tag will be eligible to execute in this profile.
+		 */
+		tag?: TestTag;
 
 		/**
 		 * If this method is present, a configuration gear will be present in the
@@ -13997,10 +14160,11 @@ declare module 'vscode' {
 		 * @param kind Configures what kind of execution this profile manages.
 		 * @param runHandler Function called to start a test run.
 		 * @param isDefault Whether this is the default action for its kind.
+		 * @param tag Profile test tag.
 		 * @returns An instance of a {@link TestRunProfile}, which is automatically
 		 * associated with this controller.
 		 */
-		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean): TestRunProfile;
+		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
@@ -14183,8 +14347,11 @@ declare module 'vscode' {
 		 * such as colors and text styles, are supported.
 		 *
 		 * @param output Output text to append.
+		 * @param location Indicate that the output was logged at the given
+		 * location.
+		 * @param test Test item to associate the output with.
 		 */
-		appendOutput(output: string): void;
+		appendOutput(output: string, location?: Location, test?: TestItem): void;
 
 		/**
 		 * Signals that the end of the test run. Any tests included in the run whose
@@ -14270,6 +14437,12 @@ declare module 'vscode' {
 		 * aren't yet included in another item's {@link children}.
 		 */
 		readonly parent?: TestItem;
+
+		/**
+		 * Tags associated with this test item. May be used in combination with
+		 * {@link TestRunProfile.tags}, or simply as an organizational feature.
+		 */
+		tags: readonly TestTag[];
 
 		/**
 		 * Indicates whether this test item may have children discovered by resolving.

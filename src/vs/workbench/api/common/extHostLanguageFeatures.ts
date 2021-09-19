@@ -17,7 +17,7 @@ import * as extHostProtocol from './extHost.protocol';
 import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
-import { isFalsyOrEmpty, isNonEmptyArray, coalesce, asArray } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { isArray, isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -1522,7 +1522,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	private static _handlePool: number = 0;
 
-	private readonly _uriTransformer: IURITransformer | null;
+	private readonly _uriTransformer: IURITransformer;
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
 	private _documents: ExtHostDocuments;
 	private _commands: ExtHostCommands;
@@ -1533,7 +1533,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
-		uriTransformer: IURITransformer | null,
+		uriTransformer: IURITransformer,
 		documents: ExtHostDocuments,
 		commands: ExtHostCommands,
 		diagnostics: ExtHostDiagnostics,
@@ -1550,35 +1550,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector): Array<extHostProtocol.IDocumentFilterDto> {
-		return coalesce(asArray(selector).map(sel => this._doTransformDocumentSelector(sel)));
-	}
-
-	private _doTransformDocumentSelector(selector: string | vscode.DocumentFilter): extHostProtocol.IDocumentFilterDto | undefined {
-		if (typeof selector === 'string') {
-			return {
-				$serialized: true,
-				language: selector
-			};
-		}
-
-		if (selector) {
-			return {
-				$serialized: true,
-				language: selector.language,
-				scheme: this._transformScheme(selector.scheme),
-				pattern: typeof selector.pattern === 'undefined' ? undefined : typeConvert.GlobPattern.from(selector.pattern),
-				exclusive: selector.exclusive
-			};
-		}
-
-		return undefined;
-	}
-
-	private _transformScheme(scheme: string | undefined): string | undefined {
-		if (this._uriTransformer && typeof scheme === 'string') {
-			return this._uriTransformer.transformOutgoingScheme(scheme);
-		}
-		return scheme;
+		return typeConvert.DocumentSelector.from(selector, this._uriTransformer);
 	}
 
 	private _createDisposable(handle: number): Disposable {

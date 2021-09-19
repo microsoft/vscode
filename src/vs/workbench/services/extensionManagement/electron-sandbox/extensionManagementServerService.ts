@@ -15,9 +15,6 @@ import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/ex
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getTargetPlatformFromOS, CURRENT_TARGET_PLATFORM, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getErrorMessage } from 'vs/base/common/errors';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -33,25 +30,17 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILogService logService: ILogService,
 	) {
 		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
 
-		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local"), targetPlatform: CURRENT_TARGET_PLATFORM };
+		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
 			const extensionManagementService = instantiationService.createInstance(NativeRemoteExtensionManagementService, remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer);
-			let remoteTargetPlatform = TargetPlatform.UNKNOWN;
-			remoteAgentService.getEnvironment().then(remoteEnvironment => {
-				if (remoteEnvironment) {
-					remoteTargetPlatform = getTargetPlatformFromOS(remoteEnvironment.os, remoteEnvironment.arch);
-				}
-			}, error => logService.error('Error while resolving remote target platform', getErrorMessage(error)));
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,
 				get label() { return labelService.getHostLabel(Schemas.vscodeRemote, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); },
-				get targetPlatform() { return remoteTargetPlatform; }
 			};
 		}
 	}

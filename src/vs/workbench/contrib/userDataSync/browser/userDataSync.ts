@@ -33,7 +33,8 @@ import {
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorInput, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
@@ -696,7 +697,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}) as DiffEditorInput[];
 	}
 
-	private getAllConflictsEditorInputs(): IEditorInput[] {
+	private getAllConflictsEditorInputs(): EditorInput[] {
 		return this.editorService.editors.filter(input => {
 			const resource = input instanceof DiffEditorInput ? input.primary.resource : input.resource;
 			return resource && getSyncResourceFromLocalPreview(resource!, this.environmentService) !== undefined;

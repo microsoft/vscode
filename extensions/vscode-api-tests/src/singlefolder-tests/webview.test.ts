@@ -240,7 +240,7 @@ const testDocument = workspaceFile('bower.json');
 	});
 
 
-	test.skip('webviews should only be able to load resources from workspace by default', async () => {
+	test('webviews should only be able to load resources from workspace by default', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
 			viewColumn: vscode.ViewColumn.One
 		}, {
@@ -255,7 +255,8 @@ const testDocument = workspaceFile('bower.json');
 					img.addEventListener('load', () => {
 						vscode.postMessage({ value: true });
 					});
-					img.addEventListener('error', () => {
+					img.addEventListener('error', (e) => {
+						console.log(e);
 						vscode.postMessage({ value: false });
 					});
 					img.src = message.data.src;
@@ -270,6 +271,7 @@ const testDocument = workspaceFile('bower.json');
 
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
+			console.log(imagePath);
 			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual(response.value, true);
 		}
@@ -325,7 +327,7 @@ const testDocument = workspaceFile('bower.json');
 		}
 	});
 
-	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => {
+	test('webviews using hard-coded old style vscode-resource uri should work', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [workspaceFile('sub')]
