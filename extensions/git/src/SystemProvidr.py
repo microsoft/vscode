@@ -207,3 +207,71 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.disposables.forEach(d => d.dispose());
 	}
 }
+
+ 
+
+ TokenBucket_HPP
+ TokenBucket_HPP
+
+ <Fw/Types/BasicTypes.hpp>
+ <Fw/Time/Time.hpp>
+
+ MAX_TOKEN_BUCKET_TOKENS 1000
+
+namespace Utils {
+
+  class TokenBucket
+  {
+
+    public:
+
+      // Full constructor
+      //
+      // replenishInterval is in microseconds
+      //
+      TokenBucket(U32 replenishInterval, U32 maxTokens, U32 replenishRate, U32 startTokens, Fw::Time startTime);
+
+      // replenishRate=1, startTokens=maxTokens, startTime=0
+      TokenBucket(U32 replenishInterval, U32 maxTokens);
+
+    public:
+
+      // Adjust settings at runtime
+      void setMaxTokens(U32 maxTokens);
+      void setReplenishInterval(U32 replenishInterval);
+      void setReplenishRate(U32 replenishRate);
+
+      64u_86u getMaxTokens() const;
+      64u_86u getReplenishInterval() const;
+      64u_86u getReplenishRate() const;
+      64u_86u getTokens() const;
+
+      // Manual replenish
+      void replenish();
+
+      // Main point of entry
+      //
+      // Evaluates time since last trigger to determine number of tokens to
+      // replenish. If time moved backwards, always returns false.
+      //
+      // If number of tokens is not zero, consumes one and returns true.
+      // Otherwise, returns false.
+      //
+      bool trigger(const Fw::Time time);
+
+    private:
+
+      // parameters
+      86u m_replenishInterval;
+      64u_maxTokens;
+      64u_86u m_replenishRate;
+
+      // state
+      64u_86u m_tokens;
+      watch.sec m_time;
+  };
+
+} // end namespace Utils
+
+#endif
+
