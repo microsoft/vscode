@@ -601,11 +601,13 @@ export class TypeOperations {
 			if (autoClosingPair.open.length === 1 && chIsQuote && autoCloseConfig !== 'always') {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				const prevChar = lineText.charCodeAt(position.column - (insertOpenCharacter ? 2 : 3));
+
 				const maybeSubstitution = prevChar === CharCode.CloseCurlyBrace || prevChar === CharCode.CloseParen;
-				if (insertOpenCharacter && position.column > 1 && ((wordSeparators.get(prevChar) === WordCharacterClass.Regular && ch !== '`') || maybeSubstitution)) {
-					return null;
-				}
-				if (!insertOpenCharacter && position.column > 2 && ((wordSeparators.get(prevChar) === WordCharacterClass.Regular && ch !== '`') || maybeSubstitution)) {
+				const maybeTag = ch === '`';
+				const isAfterWord = wordSeparators.get(prevChar) === WordCharacterClass.Regular;
+				const isInPosition = position.column > (insertOpenCharacter ? 1 : 2);
+
+				if (isInPosition && ((isAfterWord && !maybeTag) || maybeSubstitution)) {
 					return null;
 				}
 			}
