@@ -603,11 +603,11 @@ export class TypeOperations {
 				const prevChar = lineText.charCodeAt(position.column - (insertOpenCharacter ? 2 : 3));
 
 				const maybeSubstitution = prevChar === CharCode.CloseCurlyBrace || prevChar === CharCode.CloseParen;
-				const maybeTag = ch === '`';
+				const maybeTagged = ch === '`';
 				const isAfterWord = wordSeparators.get(prevChar) === WordCharacterClass.Regular;
-				const isInPosition = position.column > (insertOpenCharacter ? 1 : 2);
+				const isNotStart = position.column > (insertOpenCharacter ? 1 : 2);
 
-				if (isInPosition && ((isAfterWord && !maybeTag) || maybeSubstitution)) {
+				if (isNotStart && ((isAfterWord && !maybeTagged) || maybeSubstitution)) {
 					return null;
 				}
 			}
