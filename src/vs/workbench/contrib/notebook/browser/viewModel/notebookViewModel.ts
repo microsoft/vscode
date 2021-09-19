@@ -11,10 +11,9 @@ import { clamp } from 'vs/base/common/numbers';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IModelDecorationOptions, IModelDeltaDecoration, IReadonlyTextBuffer, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -31,7 +30,7 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, ICell, INotebookSearchOptions, IOutputDto, ISelectionState, NotebookCellMetadata, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export interface INotebookEditorViewState {
@@ -589,8 +588,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return index + 1;
 	}
 
-	hasCell(handle: number) {
-		return this._handleToViewCellMapping.has(handle);
+	hasCell(cell: ICellViewModel) {
+		return this._handleToViewCellMapping.has(cell.handle);
 	}
 
 	getVersionId() {
@@ -774,58 +773,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 	}
 
-	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[], synchronous: boolean, pushUndoStop: boolean = true, previouslyPrimary: number | null = null, previouslyFocused: ICellViewModel[] = []): CellViewModel {
-		const beforeSelections = previouslyFocused.map(e => e.handle);
-		const endSelections: ISelectionState = { kind: SelectionStateType.Index, focus: { start: index, end: index + 1 }, selections: [{ start: index, end: index + 1 }] };
-		this._notebook.applyEdits([
-			{
-				editType: CellEditType.Replace,
-				index,
-				count: 0,
-				cells: [
-					{
-						cellKind: type,
-						language: language,
-						mime: undefined,
-						outputs: outputs,
-						metadata: metadata,
-						source: source
-					}
-				]
-			}
-		], synchronous, { kind: SelectionStateType.Handle, primary: previouslyPrimary, selections: beforeSelections }, () => endSelections, undefined);
-		return this._viewCells[index];
-	}
-
-	deleteCell(index: number, synchronous: boolean, pushUndoStop: boolean = true) {
-		const focusSelectionIndex = this.getFocus()?.start ?? null;
-		let endPrimarySelection: number | null = null;
-
-		if (index === focusSelectionIndex) {
-			if (focusSelectionIndex < this.length - 1) {
-				endPrimarySelection = this._viewCells[focusSelectionIndex + 1].handle;
-			} else if (focusSelectionIndex === this.length - 1 && this.length > 1) {
-				endPrimarySelection = this._viewCells[focusSelectionIndex - 1].handle;
-			}
-		}
-
-		let endSelections: number[] = this.selectionHandles.filter(handle => handle !== endPrimarySelection && handle !== this._viewCells[index]?.handle);
-
-		this._notebook.applyEdits([
-			{
-				editType: CellEditType.Replace,
-				index: index,
-				count: 1,
-				cells: []
-			}],
-			synchronous,
-			{ kind: SelectionStateType.Index, focus: this.getFocus(), selections: this.getSelections() },
-			() => ({ kind: SelectionStateType.Handle, primary: endPrimarySelection, selections: endSelections }),
-			undefined,
-			pushUndoStop
-		);
-	}
-
 	/**
 	 *
 	 * @param index
@@ -849,65 +796,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		], synchronous, { kind: SelectionStateType.Index, focus: this.getFocus(), selections: this.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: { start: newIdx, end: newIdx + 1 }, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
 		return true;
-	}
-
-	private _pushIfAbsent(positions: IPosition[], p: IPosition) {
-		const last = positions.length > 0 ? positions[positions.length - 1] : undefined;
-		if (!last || last.lineNumber !== p.lineNumber || last.column !== p.column) {
-			positions.push(p);
-		}
-	}
-
-	/**
-	 * Add split point at the beginning and the end;
-	 * Move end of line split points to the beginning of the next line;
-	 * Avoid duplicate split points
-	 */
-	private _splitPointsToBoundaries(splitPoints: IPosition[], textBuffer: IReadonlyTextBuffer): IPosition[] | null {
-		const boundaries: IPosition[] = [];
-		const lineCnt = textBuffer.getLineCount();
-		const getLineLen = (lineNumber: number) => {
-			return textBuffer.getLineLength(lineNumber);
-		};
-
-		// split points need to be sorted
-		splitPoints = splitPoints.sort((l, r) => {
-			const lineDiff = l.lineNumber - r.lineNumber;
-			const columnDiff = l.column - r.column;
-			return lineDiff !== 0 ? lineDiff : columnDiff;
-		});
-
-		for (let sp of splitPoints) {
-			if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.column !== 1 /** empty line */ && sp.lineNumber < lineCnt) {
-				sp = new Position(sp.lineNumber + 1, 1);
-			}
-			this._pushIfAbsent(boundaries, sp);
-		}
-
-		if (boundaries.length === 0) {
-			return null;
-		}
-
-		// boundaries already sorted and not empty
-		const modelStart = new Position(1, 1);
-		const modelEnd = new Position(lineCnt, getLineLen(lineCnt) + 1);
-		return [modelStart, ...boundaries, modelEnd];
-	}
-
-	computeCellLinesContents(cell: ICellViewModel, splitPoints: IPosition[]): string[] | null {
-		const rangeBoundaries = this._splitPointsToBoundaries(splitPoints, cell.textBuffer);
-		if (!rangeBoundaries) {
-			return null;
-		}
-		const newLineModels: string[] = [];
-		for (let i = 1; i < rangeBoundaries.length; i++) {
-			const start = rangeBoundaries[i - 1];
-			const end = rangeBoundaries[i];
-
-			newLineModels.push(cell.textBuffer.getValueInRange(new Range(start.lineNumber, start.column, end.lineNumber, end.column), EndOfLinePreference.TextDefined));
-		}
-
-		return newLineModels;
 	}
 
 	getEditorViewState(): INotebookEditorViewState {

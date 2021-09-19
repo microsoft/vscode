@@ -327,7 +327,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				const cell = this.element(i);
 				if (cell.cellKind === CellKind.Code) {
-					if (this._viewModel!.hasCell(cell.handle)) {
+					if (this._viewModel!.hasCell(cell)) {
 						hiddenOutputs.push(...cell?.outputsViewModels);
 					} else {
 						deletedOutputs.push(...cell?.outputsViewModels);
@@ -447,9 +447,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const selectionsLeft = [];
-		this.getSelectedElements().map(el => el.handle).forEach(handle => {
-			if (this._viewModel!.hasCell(handle)) {
-				selectionsLeft.push(handle);
+		this.getSelectedElements().forEach(el => {
+			if (this._viewModel!.hasCell(el)) {
+				selectionsLeft.push(el.handle);
 			}
 		});
 

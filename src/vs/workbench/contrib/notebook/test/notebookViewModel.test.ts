@@ -15,7 +15,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { insertCellAtIndex, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -57,7 +57,7 @@ suite('NotebookViewModel', () => {
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell), 1);
 
-				viewModel.deleteCell(1, true);
+				runDeleteAction(editor, viewModel.cellAt(1)!);
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
 				assert.strictEqual(viewModel.getCellIndex(cell), -1);
@@ -129,7 +129,7 @@ suite('NotebookViewModel', () => {
 				const cell = insertCellAtIndex(viewModel, insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
 
 				const addedCellIndex = viewModel.getCellIndex(cell);
-				viewModel.deleteCell(addedCellIndex, true);
+				runDeleteAction(editor, viewModel.cellAt(addedCellIndex)!);
 
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
 				const cell2 = insertCellAtIndex(viewModel, secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
@@ -192,7 +192,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 3
 				});
 
-				viewModel.deleteCell(0, true);
+				runDeleteAction(editor, viewModel.cellAt(0)!);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
@@ -206,14 +206,14 @@ suite('NotebookViewModel Decorations', () => {
 					end: 3
 				});
 
-				viewModel.deleteCell(3, true);
+				runDeleteAction(editor, viewModel.cellAt(3)!);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 2
 				});
 
-				viewModel.deleteCell(1, true);
+				runDeleteAction(editor, viewModel.cellAt(1)!);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 0,
 
