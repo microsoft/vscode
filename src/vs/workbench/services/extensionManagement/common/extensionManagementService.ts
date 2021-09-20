@@ -299,6 +299,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				}
 			}
 			await this.checkForWorkspaceTrust(manifest);
+			await this.checkInstallingExtensionPackOnWeb(gallery, manifest);
 			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
@@ -389,11 +390,35 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			});
 
 			if (trustState === undefined) {
-				return Promise.reject(canceled());
+				throw canceled();
+			}
+		}
+	}
+
+	private async checkInstallingExtensionPackOnWeb(extension: IGalleryExtension, manifest: IExtensionManifest): Promise<void> {
+		if (!manifest.extensionPack?.length) {
+			return;
+		}
+
+		if (this.servers.length !== 1 || this.servers[0] !== this.extensionManagementServerService.webExtensionManagementServer) {
+			return;
+		}
+
+		const nonWebExtensions = [];
+		const extensions = await this.extensionGalleryService.getExtensions(manifest.extensionPack.map(id => ({ id })), CancellationToken.None);
+		for (const extension of extensions) {
+			if (!(await this.servers[0].extensionManagementService.canInstall(extension))) {
+				nonWebExtensions.push(extension);
 			}
 		}
 
-		return Promise.resolve();
+		if (nonWebExtensions.length) {
+			const { choice } = await this.dialogService.show(Severity.Info, localize('non web extensions', "'{0}' has extensions which are not available in {1}. Would you like to install it anyways?", extension.displayName || extension.identifier.id, localize('VS Code for Web', "{0} for the Web", this.productService.nameLong)),
+				[localize('install', "Install"), localize('cancel', "Cancel")], { cancelId: 2 });
+			if (choice !== 0) {
+				throw canceled();
+			}
+		}
 	}
 
 	registerParticipant() { throw new Error('Not Supported'); }
