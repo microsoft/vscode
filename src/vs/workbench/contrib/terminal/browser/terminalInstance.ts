@@ -71,6 +71,8 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { isSafari } from 'vs/base/browser/browser';
 import { ISeparator, template } from 'vs/base/common/labels';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -134,6 +136,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
+	private _scrollable: DomScrollableElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
@@ -752,8 +755,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 		this._xtermElement = document.createElement('div');
+		this._scrollable = new DomScrollableElement(this._xtermElement, {
+			vertical: ScrollbarVisibility.Visible,
+			horizontal: ScrollbarVisibility.Visible,
+			useShadows: true
+		});
+		this._scrollable.getDomNode().style.overflow = '';
+		this._scrollable.getDomNode().style.position = '';
 
-		this._wrapperElement.appendChild(this._xtermElement);
+		this._wrapperElement.appendChild(this._scrollable.getDomNode());
 		this._container.appendChild(this._wrapperElement);
 
 		const xterm = await this._xtermReadyPromise;
@@ -1923,6 +1933,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				await this._resize();
 				this._hasWrappedLines = true;
 			}
+			this._scrollable?.setScrollDimensions({ width: this._fixedCols });
 		} else {
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
