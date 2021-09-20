@@ -755,15 +755,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 		this._xtermElement = document.createElement('div');
-		this._scrollable = new DomScrollableElement(this._xtermElement, {
-			vertical: ScrollbarVisibility.Visible,
-			horizontal: ScrollbarVisibility.Visible,
-			useShadows: true
-		});
-		this._scrollable.getDomNode().style.overflow = '';
-		this._scrollable.getDomNode().style.position = '';
 
-		this._wrapperElement.appendChild(this._scrollable.getDomNode());
 		this._container.appendChild(this._wrapperElement);
 
 		const xterm = await this._xtermReadyPromise;
@@ -777,6 +769,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!xterm.element || !xterm.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
+
+		this._scrollable = new DomScrollableElement(this._xtermElement, {
+			vertical: ScrollbarVisibility.Hidden,
+			horizontal: ScrollbarVisibility.Auto,
+			alwaysConsumeMouseWheel: true
+		});
+
+		this._wrapperElement.appendChild(this._scrollable.getDomNode());
+		this._scrollable.setScrollDimensions({ width: this._container.parentElement?.clientWidth });
 
 		this._setAriaLabel(xterm, this._instanceId, this._title);
 
@@ -1921,9 +1922,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		if (!this._hasWrappedLines) {
-			// TODO: only relevant lines - scrollback or viewport?
 			let maxCols = 0;
-			for (let i = 0; i < this._xterm.buffer.active.length; i++) {
+			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
 				const lineWidth = this._getLineWidth(i, this._xterm.buffer.active);
 				maxCols = Math.max(maxCols, lineWidth.width || 0);
 				i = lineWidth.newIndex;
@@ -1933,7 +1933,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				await this._resize();
 				this._hasWrappedLines = true;
 			}
-			this._scrollable?.setScrollDimensions({ width: this._fixedCols });
+			this._scrollable?.scanDomNode();
 		} else {
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
