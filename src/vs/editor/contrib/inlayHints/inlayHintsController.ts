@@ -9,6 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { LRUCache } from 'vs/base/common/map';
 import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -54,6 +55,25 @@ export async function getInlayHints(model: ITextModel, ranges: Range[], token: C
 	return datas;
 }
 
+class InlayHintsCache {
+
+	private readonly _entries = new LRUCache<string, InlayHintsData[]>(50);
+
+	get(model: ITextModel): InlayHintsData[] | undefined {
+		const key = InlayHintsCache._key(model);
+		return this._entries.get(key);
+	}
+
+	set(model: ITextModel, value: InlayHintsData[]): void {
+		const key = InlayHintsCache._key(model);
+		this._entries.set(key, value);
+	}
+
+	private static _key(model: ITextModel): string {
+		return `${model.uri.toString()}/${model.getVersionId()}`;
+	}
+}
+
 export class InlayHintsController implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlayHints';
@@ -61,6 +81,8 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 2500);
+
+	private readonly _cache = new InlayHintsCache();
 
 	private _decorationsTypeIds: string[] = [];
 	private _decorationIds: string[] = [];
@@ -104,6 +126,12 @@ export class InlayHintsController implements IEditorContribution {
 			return;
 		}
 
+		// iff possible, quickly update from cache
+		const cached = this._cache.get(model);
+		if (cached) {
+			this._updateHintsDecorators(cached);
+		}
+
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
 
@@ -113,12 +141,9 @@ export class InlayHintsController implements IEditorContribution {
 			const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
 			const result = await getInlayHints(model, visibleRanges, cts.token);
 
-			// update moving average
-			const newDelay = this._getInlayHintsDelays.update(model, Date.now() - t1);
-			scheduler.delay = newDelay;
-
-			// render hints
+			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
 			this._updateHintsDecorators(result);
+			this._cache.set(model, result);
 
 		}, this._getInlayHintsDelays.get(model));
 
