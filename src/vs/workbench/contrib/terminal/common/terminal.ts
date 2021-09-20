@@ -154,7 +154,7 @@ export interface ITerminalConfiguration {
 	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
-	cursorStyle: 'block' | 'underline' | 'bar';
+	cursorStyle: 'block' | 'underline' | 'line';
 	cursorWidth: number;
 	drawBoldTextInBrightColors: boolean;
 	fastScrollSensitivity: number;

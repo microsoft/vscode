@@ -615,7 +615,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			lineHeight: font.lineHeight,
 			minimumContrastRatio: config.minimumContrastRatio,
 			cursorBlink: config.cursorBlinking,
-			cursorStyle: config.cursorStyle,
+			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
 			cursorWidth: config.cursorWidth,
 			bellStyle: 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
