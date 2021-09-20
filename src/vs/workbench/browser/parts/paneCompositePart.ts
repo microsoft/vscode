@@ -57,7 +57,7 @@ export interface IPaneCompositePart {
 	getLastActivePaneCompositeId(): string;
 }
 
-export class PaneCompositePartService implements IPaneCompositePartService {
+export class PaneCompositeParts implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
 	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
@@ -101,4 +101,4 @@ export class PaneCompositePartService implements IPaneCompositePartService {
 	}
 }
 
-registerSingleton(IPaneCompositePartService, PaneCompositePartService);
+registerSingleton(IPaneCompositePartService, PaneCompositeParts);
