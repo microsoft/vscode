@@ -101,7 +101,7 @@ import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quic
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
 import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewsService, IView, ViewContainer, ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
+import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
@@ -610,8 +610,8 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		this.parts.set(ViewContainerLocation.Panel, new TestPanelPart());
 		this.parts.set(ViewContainerLocation.Sidebar, new TestSideBarPart());
 
-		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; })));
-		this.onDidPaneCompositeClose = Event.any(...ViewContainerLocations.map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; })));
+		this.onDidPaneCompositeOpen = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; }))));
+		this.onDidPaneCompositeClose = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; }))));
 	}
 
 	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
