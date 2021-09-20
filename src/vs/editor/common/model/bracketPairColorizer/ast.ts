@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { tail } from 'vs/base/common/arrays';
-import { DenseKeyProvider, SmallImmutableSet } from './smallImmutableSet';
+import { SmallImmutableSet } from './smallImmutableSet';
 import { lengthAdd, lengthZero, Length, lengthHash } from './length';
 
 export const enum AstNodeKind {
@@ -20,7 +20,7 @@ export type AstNode = PairAstNode | ListAstNode | BracketAstNode | InvalidBracke
 abstract class BaseAstNode {
 	abstract readonly kind: AstNodeKind;
 	abstract readonly children: readonly AstNode[];
-	abstract readonly unopenedBrackets: SmallImmutableSet<number>;
+	abstract readonly missingBracketIds: SmallImmutableSet<number>;
 
 	/**
 	 * In case of a list, determines the height of the (2,3) tree.
@@ -55,7 +55,6 @@ abstract class BaseAstNode {
 
 export class PairAstNode extends BaseAstNode {
 	public static create(
-		category: number,
 		openingBracket: BracketAstNode,
 		child: AstNode | null,
 		closingBracket: BracketAstNode | null
@@ -71,7 +70,7 @@ export class PairAstNode extends BaseAstNode {
 			children.push(closingBracket);
 		}
 
-		return new PairAstNode(length, category, children, child ? child.unopenedBrackets : SmallImmutableSet.getEmpty());
+		return new PairAstNode(length, children, child ? child.missingBracketIds : SmallImmutableSet.getEmpty());
 	}
 
 	get kind(): AstNodeKind.Pair {
@@ -82,7 +81,7 @@ export class PairAstNode extends BaseAstNode {
 	}
 
 	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
+		openedBracketIds: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	) {
 		if (this.closingBracket === null) {
@@ -96,7 +95,7 @@ export class PairAstNode extends BaseAstNode {
 			return false;
 		}
 
-		if (expectedClosingCategories.intersects(this.unopenedBrackets)) {
+		if (openedBracketIds.intersects(this.missingBracketIds)) {
 			return false;
 		}
 
@@ -105,7 +104,6 @@ export class PairAstNode extends BaseAstNode {
 
 	flattenLists(): PairAstNode {
 		return PairAstNode.create(
-			this.category,
 			this.openingBracket.flattenLists(),
 			this.child && this.child.flattenLists(),
 			this.closingBracket && this.closingBracket.flattenLists()
@@ -138,9 +136,8 @@ export class PairAstNode extends BaseAstNode {
 
 	private constructor(
 		length: Length,
-		public readonly category: number,
 		public readonly children: readonly AstNode[],
-		public readonly unopenedBrackets: SmallImmutableSet<number>
+		public readonly missingBracketIds: SmallImmutableSet<number>
 	) {
 		super(length);
 	}
@@ -148,9 +145,8 @@ export class PairAstNode extends BaseAstNode {
 	clone(): PairAstNode {
 		return new PairAstNode(
 			this.length,
-			this.category,
 			clone(this.children),
-			this.unopenedBrackets
+			this.missingBracketIds
 		);
 	}
 }
@@ -172,10 +168,10 @@ export class ListAstNode extends BaseAstNode {
 			return new ListAstNode(lengthZero, 0, items, SmallImmutableSet.getEmpty());
 		} else {
 			let length = items[0].length;
-			let unopenedBrackets = items[0].unopenedBrackets;
+			let unopenedBrackets = items[0].missingBracketIds;
 			for (let i = 1; i < items.length; i++) {
 				length = lengthAdd(length, items[i].length);
-				unopenedBrackets = unopenedBrackets.merge(items[i].unopenedBrackets);
+				unopenedBrackets = unopenedBrackets.merge(items[i].missingBracketIds);
 			}
 			return new ListAstNode(length, items[0].listHeight + 1, items, unopenedBrackets);
 		}
@@ -187,7 +183,7 @@ export class ListAstNode extends BaseAstNode {
 	get children(): readonly AstNode[] {
 		return this._items;
 	}
-	get unopenedBrackets(): SmallImmutableSet<number> {
+	get missingBracketIds(): SmallImmutableSet<number> {
 		return this._unopenedBrackets;
 	}
 
@@ -201,7 +197,7 @@ export class ListAstNode extends BaseAstNode {
 	}
 
 	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
+		openedBracketIds: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	): boolean {
 		if (this._items.length === 0) {
@@ -209,7 +205,7 @@ export class ListAstNode extends BaseAstNode {
 			return true;
 		}
 
-		if (expectedClosingCategories.intersects(this.unopenedBrackets)) {
+		if (openedBracketIds.intersects(this.missingBracketIds)) {
 			return false;
 		}
 
@@ -219,7 +215,7 @@ export class ListAstNode extends BaseAstNode {
 		}
 
 		return lastChild.canBeReused(
-			expectedClosingCategories,
+			openedBracketIds,
 			endLineDidChange
 		);
 	}
@@ -238,7 +234,7 @@ export class ListAstNode extends BaseAstNode {
 	}
 
 	clone(): ListAstNode {
-		return new ListAstNode(this.length, this.listHeight, clone(this._items), this.unopenedBrackets);
+		return new ListAstNode(this.length, this.listHeight, clone(this._items), this.missingBracketIds);
 	}
 
 	private handleChildrenChanged(): void {
@@ -248,10 +244,10 @@ export class ListAstNode extends BaseAstNode {
 		}
 
 		let length = items[0].length;
-		let unopenedBrackets = items[0].unopenedBrackets;
+		let unopenedBrackets = items[0].missingBracketIds;
 		for (let i = 1; i < items.length; i++) {
 			length = lengthAdd(length, items[i].length);
-			unopenedBrackets = unopenedBrackets.merge(items[i].unopenedBrackets);
+			unopenedBrackets = unopenedBrackets.merge(items[i].missingBracketIds);
 		}
 		this._length = length;
 		this._unopenedBrackets = unopenedBrackets;
@@ -372,12 +368,12 @@ export class TextAstNode extends BaseAstNode {
 	get children(): readonly AstNode[] {
 		return emptyArray;
 	}
-	get unopenedBrackets(): SmallImmutableSet<number> {
+	get missingBracketIds(): SmallImmutableSet<number> {
 		return SmallImmutableSet.getEmpty();
 	}
 
 	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
+		openedBracketIds: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	) {
 		// Don't reuse text from a line that got changed.
@@ -422,7 +418,7 @@ export class BracketAstNode extends BaseAstNode {
 		return emptyArray;
 	}
 
-	get unopenedBrackets(): SmallImmutableSet<number> {
+	get missingBracketIds(): SmallImmutableSet<number> {
 		return SmallImmutableSet.getEmpty();
 	}
 
@@ -456,18 +452,18 @@ export class InvalidBracketAstNode extends BaseAstNode {
 		return emptyArray;
 	}
 
-	public readonly unopenedBrackets: SmallImmutableSet<number>;
+	public readonly missingBracketIds: SmallImmutableSet<number>;
 
-	constructor(category: number, length: Length, denseKeyProvider: DenseKeyProvider<number>) {
+	constructor(closingBrackets: SmallImmutableSet<number>, length: Length) {
 		super(length);
-		this.unopenedBrackets = SmallImmutableSet.getEmpty().add(category, denseKeyProvider);
+		this.missingBracketIds = closingBrackets;
 	}
 
 	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
+		openedBracketIds: SmallImmutableSet<number>,
 		endLineDidChange: boolean
 	) {
-		return !expectedClosingCategories.intersects(this.unopenedBrackets);
+		return !openedBracketIds.intersects(this.missingBracketIds);
 	}
 
 	flattenLists(): InvalidBracketAstNode {

@@ -33,12 +33,12 @@ suite('Bracket Pair Colorizer - mergeItems', () => {
 			}
 		}
 
-		if (!node1.unopenedBrackets.equals(node2.unopenedBrackets)) {
+		if (!node1.missingBracketIds.equals(node2.missingBracketIds)) {
 			return false;
 		}
 
 		if (node1.kind === AstNodeKind.Pair && node2.kind === AstNodeKind.Pair) {
-			return node1.category === node2.category;
+			return true;
 		} else if (node1.kind === node2.kind) {
 			return true;
 		}

@@ -120,8 +120,8 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 	private initialAstWithoutTokens: AstNode | undefined;
 	private astWithTokens: AstNode | undefined;
 
-	private readonly brackets = new LanguageAgnosticBracketTokens([]);
-	private readonly denseKeyProvider = new DenseKeyProvider<number>();
+	private readonly denseKeyProvider = new DenseKeyProvider<string>();
+	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider);
 
 	public didLanguageChange(languageId: LanguageId): boolean {
 		return this.brackets.didLanguageChange(languageId);
@@ -159,7 +159,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 			// There are no token information yet
 			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageIdentifier().id);
 			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
-			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, this.denseKeyProvider);
+			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined);
 			this.astWithTokens = this.initialAstWithoutTokens.clone();
 		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
 			// Skip the initial ast, as there is no flickering.
@@ -196,7 +196,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 		const isPure = false;
 		const previousAstClone = isPure ? previousAst?.clone() : previousAst;
 		const tokenizer = new TextBufferTokenizer(this.textModel, this.brackets);
-		const result = parseDocument(tokenizer, edits, previousAstClone, this.denseKeyProvider);
+		const result = parseDocument(tokenizer, edits, previousAstClone);
 		return result;
 	}
 
