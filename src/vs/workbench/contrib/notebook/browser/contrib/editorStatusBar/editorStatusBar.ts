@@ -214,7 +214,7 @@ registerAction2(class extends Action2 {
 		if (extId) {
 			view?.search(`@id:${extId}`);
 		} else {
-			const pascalCased = viewType.split(/[^a-z0-9]/i).map(uppercaseFirstLetter).join('');
+			const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
 			view?.search(`@tag:notebookKernel${pascalCased}`);
 		}
 	}
