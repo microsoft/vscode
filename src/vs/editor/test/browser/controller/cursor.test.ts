@@ -5196,27 +5196,17 @@ suite('autoClosingPairs', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
 			text: [
-				'var a = [];',
-				'var b = `asd`;',
-				'var c = \'asd\';',
-				'var d = "asd";',
-				'var e = /*3*/	3;',
-				'var f = /** 3 */3;',
-				'var g = (3+5);',
-				'var h = { a: \'value\' };',
+				`const a = `,
+				`const b = [];`,
+				`const c = 'asd`
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
 		}, (editor, model, viewModel) => {
 
 			let autoClosePositions = [
-				'var a |=| [|]|;|',
-				'var b |=| `asd`|;|',
-				'var c |=| \'asd\'|;|',
-				'var d |=| "asd"|;|',
-				'var e |=| /*3*/|	3;|',
-				'var f |=| /**| 3 */3;|',
-				'var g |=| (3+5)|;|',
-				'var h |=| {| a:| \'value\'| |}|;|',
+				`const a |=| |`,
+				`const b |=| [|]|;|`,
+				`const c |=| 'asd`
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
