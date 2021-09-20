@@ -1857,7 +1857,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.toggleWrapping', "Toggle Wrapping"), original: 'Toggle Wrapping' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.isOpen
+				precondition: TerminalContextKeys.isOpen,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.KEY_Z,
+					weight: KeybindingWeight.EditorContrib
+				}
 			});
 		}
 		async run(accessor: ServicesAccessor) {

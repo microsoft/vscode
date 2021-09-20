@@ -31,7 +31,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme, IBufferLine } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -1907,19 +1907,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async toggleWrapping(): Promise<void> {
-		if (!this._xterm) {
+		if (!this._xterm?.buffer.active) {
 			return;
 		}
 		if (!this._hasWrappedLines) {
 			// TODO: only relevant lines - scrollback or viewport?
 			let maxCols = 0;
-			console.log(this._xterm.buffer.active);
 			for (let i = 0; i < this._xterm.buffer.active.length; i++) {
-				maxCols = Math.max(maxCols, this._getLineWidth(this._xterm.buffer.active.getLine(i)) || 0);
+				const lineWidth = this._getLineWidth(i, this._xterm.buffer.active);
+				maxCols = Math.max(maxCols, lineWidth.width || 0);
+				i = lineWidth.newIndex;
 			}
-			this._fixedCols = maxCols;
-			await this._resize();
-			this._hasWrappedLines = true;
+			if (maxCols > this.cols) {
+				this._fixedCols = maxCols;
+				await this._resize();
+				this._hasWrappedLines = true;
+			}
 		} else {
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
@@ -1928,26 +1931,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _getLineWidth(line?: IBufferLine): number {
-		let charCount = 0;
-		if (line?.isWrapped) {
-			//TODO: while next one is wrapped, add line length
-			// and return object which has linesCovered offset
-			// indicating how many indices have been accounted for
-			charCount += line.length;
-			console.log('wrapped');
-		}
-		if (!line) {
-			return 0;
-		}
-		for (let i = 0; i < line.length; i++) {
-			const cell = line.getCell(i);
-			if (!cell) {
-				return charCount;
+	private _getLineWidth(index: number, buffer: IBuffer): { width: number, newIndex: number } {
+		let width = 0;
+		let line = buffer.getLine(index);
+		let newIndex = index;
+		while (line?.isWrapped) {
+			width += line.length;
+			for (let i = 0; i < line.length; i++) {
+				const cell = line.getCell(i);
+				width += cell?.getWidth() || 0;
 			}
-			charCount += cell.getWidth();
+			newIndex++;
+			line = buffer.getLine(newIndex);
 		}
-		return charCount;
+		return { width, newIndex };
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
