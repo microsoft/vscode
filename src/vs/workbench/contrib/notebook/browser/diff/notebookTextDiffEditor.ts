@@ -105,7 +105,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
 		this._revealFirst = true;
-		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
+		this._outputRenderer = this.instantiationService.createInstance(OutputRenderer, this);
 	}
 
 	toggleNotebookCellSelection(cell: IGenericCellViewModel) {

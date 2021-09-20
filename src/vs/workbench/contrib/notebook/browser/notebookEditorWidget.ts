@@ -383,10 +383,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		const that = this;
-		this._outputRenderer = this._register(new OutputRenderer({
+		this._outputRenderer = this._register(this.instantiationService.createInstance(OutputRenderer, {
 			get creationOptions() { return that.creationOptions; },
 			getCellOutputLayoutInfo: that._getCellOutputLayoutInfo.bind(that)
-		}, this.instantiationService));
+		}));
 		this._scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
