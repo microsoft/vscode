@@ -127,7 +127,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		};
 
 		const ptyHostDebug = parsePtyHostPort(this._environmentService.args, this._environmentService.isBuilt);
-		console.log('ptyHostDebug', ptyHostDebug.port, ptyHostDebug.break);
 		if (ptyHostDebug) {
 			if (ptyHostDebug.break && ptyHostDebug.port) {
 				opts.debugBrk = ptyHostDebug.port;
