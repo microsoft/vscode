@@ -879,11 +879,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return ret;
 	}
 
-
-	/**
-	 * Search in notebook text model
-	 * @param value
-	 */
+	//#region Find
 	find(value: string, options: INotebookSearchOptions): CellFindMatchWithIndex[] {
 		const matches: CellFindMatchWithIndex[] = [];
 		this._viewCells.forEach((cell, index) => {
@@ -936,7 +932,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
-	async withElement(element: SingleModelEditStackElement | MultiModelEditStackElement, callback: () => Promise<void>) {
+	//#endregion
+
+	//#region Undo/Redo
+
+	private async _withElement(element: SingleModelEditStackElement | MultiModelEditStackElement, callback: () => Promise<void>) {
 		const viewCells = this._viewCells.filter(cell => element.matchesResource(cell.uri));
 		const refs = await Promise.all(viewCells.map(cell => this._textModelService.createModelReference(cell.uri)));
 		await callback();
@@ -952,7 +952,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const element = editStack.past.length ? editStack.past[editStack.past.length - 1] : undefined;
 
 		if (element && element instanceof SingleModelEditStackElement || element instanceof MultiModelEditStackElement) {
-			await this.withElement(element, async () => {
+			await this._withElement(element, async () => {
 				await this._undoService.undo(this.uri);
 			});
 
@@ -972,7 +972,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const element = editStack.future[0];
 
 		if (element && element instanceof SingleModelEditStackElement || element instanceof MultiModelEditStackElement) {
-			await this.withElement(element, async () => {
+			await this._withElement(element, async () => {
 				await this._undoService.redo(this.uri);
 			});
 
@@ -983,6 +983,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		return [];
 	}
+
+	//#endregion
 
 	equal(notebook: NotebookTextModel) {
 		return this._notebook === notebook;
