@@ -98,20 +98,18 @@ registerAction2(class extends Action2 {
 		const logService = accessor.get(ILogService);
 		const viewletService = accessor.get(IViewletService);
 
-		let editor;
-		if (context !== undefined) {
-			if ('notebookEditorId' in context) {
-				const editorId = context.notebookEditorId;
-				const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
-					const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
-					return notebookEditor?.getId() === editorId;
-				});
-				editor = getNotebookEditorFromEditorPane(matchingEditor);
-			} else if ('notebookEditor' in context) {
-				editor = context?.notebookEditor;
-			} else {
-				editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-			}
+		let editor: INotebookEditor | undefined;
+		if (context !== undefined && 'notebookEditorId' in context) {
+			const editorId = context.notebookEditorId;
+			const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
+				const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
+				return notebookEditor?.getId() === editorId;
+			});
+			editor = getNotebookEditorFromEditorPane(matchingEditor);
+		} else if (context !== undefined && 'notebookEditor' in context) {
+			editor = context?.notebookEditor;
+		} else {
+			editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		}
 
 		if (!editor || !editor.hasModel()) {
