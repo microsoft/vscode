@@ -87,8 +87,8 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 			const queryId = this.queryId++;
 			queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-			const handle = await this.fileSystemProvider.getDirectoryHandle(fq.folder);
-			if (!handle) {
+			const handle = await this.fileSystemProvider.getHandle(fq.folder);
+			if (!handle || handle.kind !== 'directory') {
 				console.error('Could not get directory handle for ', fq);
 				return;
 			}
@@ -131,8 +131,8 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 			const queryId = this.queryId++;
 			queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-			const handle = await this.fileSystemProvider.getDirectoryHandle(fq.folder);
-			if (!handle) {
+			const handle = await this.fileSystemProvider.getHandle(fq.folder);
+			if (!handle || handle.kind !== 'directory') {
 				console.error('Could not get directory handle for ', fq);
 				return;
 			}
