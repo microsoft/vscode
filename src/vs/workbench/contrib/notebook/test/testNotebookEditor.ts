@@ -48,6 +48,8 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { Mimes } from 'vs/base/common/mime';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -242,7 +244,35 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override focusElement() { }
 		override setCellEditorSelection() { }
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
-		override getOutputRenderer() { return new OutputRenderer(notebookEditor, instantiationService); }
+		override getOutputRenderer() {
+			return new OutputRenderer({
+				creationOptions: notebookEditor.creationOptions,
+				getCellOutputLayoutInfo() {
+					return {
+						height: 100,
+						width: 100,
+						fontInfo: new FontInfo({
+							zoomLevel: 0,
+							pixelRatio: 1,
+							fontFamily: 'mockFont',
+							fontWeight: 'normal',
+							fontSize: 14,
+							fontFeatureSettings: EditorFontLigatures.OFF,
+							lineHeight: 19,
+							letterSpacing: 1.5,
+							isMonospace: true,
+							typicalHalfwidthCharacterWidth: 10,
+							typicalFullwidthCharacterWidth: 20,
+							canUseHalfwidthRightwardsArrow: true,
+							spaceWidth: 10,
+							middotWidth: 10,
+							wsmiddotWidth: 10,
+							maxDigitWidth: 10,
+						}, true)
+					};
+				}
+			}, instantiationService);
+		}
 		override async layoutNotebookCell() { }
 		override async removeInset() { }
 		override async focusNotebookCell() { }

@@ -610,20 +610,22 @@ export interface INotebookEditor {
 }
 
 /**
- * Editor delegate shared by the notebook editor and diff editor
+ * Notebook Editor Delegate for output rendering
  */
-export interface ICommonNotebookEditorDelegate {
+export interface INotebookDelegateForOutput {
 	readonly creationOptions: INotebookEditorCreationOptions;
 	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
-	setScrollTop(scrollTop: number): void;
-	/**
-	 * Trigger the editor to scroll from scroll event programmatically
-	 */
-	triggerScroll(event: IMouseWheelEvent): void;
-	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+}
+
+/**
+ * Notebook Editor Delegate for back layer webview
+ */
+export interface INotebookDelegateForWebview {
+	readonly creationOptions: INotebookEditorCreationOptions;
 	getCellById(cellId: string): IGenericCellViewModel | undefined;
-	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
+	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
+	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
@@ -633,6 +635,8 @@ export interface ICommonNotebookEditorDelegate {
 	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
 	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
 	didEndDragMarkupCell(cellId: string): void;
+	setScrollTop(scrollTop: number): void;
+	triggerScroll(event: IMouseWheelEvent): void;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
@@ -648,7 +652,7 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 /**
  * A mix of public interface and internal one (used by internal rendering code, e.g., cellRenderer)
  */
-export interface INotebookEditorDelegate extends INotebookEditor, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell'> {
+export interface INotebookEditorDelegate extends INotebookEditor {
 	hasModel(): this is IActiveNotebookEditorDelegate;
 
 	readonly creationOptions: INotebookEditorCreationOptions;
@@ -667,9 +671,10 @@ export interface INotebookEditorDelegate extends INotebookEditor, Omit<ICommonNo
 	 */
 	hideInset(output: IDisplayOutputViewModel): void;
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
+	getCellById(cellId: string): ICellViewModel | undefined;
 }
 
-export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate, Omit<ICommonNotebookEditorDelegate, 'focusNotebookCell'> {
+export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
 	_getViewModel(): NotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
