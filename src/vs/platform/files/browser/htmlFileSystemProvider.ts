@@ -307,7 +307,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		return URI.from({ scheme: Schemas.file, path: `/${handle.name}`, query: handleId });
 	}
 
-	private async getHandle(resource: URI): Promise<FileSystemHandle | undefined> {
+	async getHandle(resource: URI): Promise<FileSystemHandle | undefined> {
 
 		// First: try to find a well known handle first
 		let handle = this.getHandleSync(resource);
