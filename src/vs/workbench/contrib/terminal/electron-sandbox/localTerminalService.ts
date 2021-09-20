@@ -166,13 +166,11 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
-			console.log(`Try attach ` + id);
 			await this._localPtyService.attachToProcess(id);
 			const pty = this._instantiationService.createInstance(LocalPty, id, true);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
-			console.log(`Couldn't attach to process ${e.message}`);
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
 		}
 		return undefined;
