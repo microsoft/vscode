@@ -622,7 +622,7 @@ export class TestViewletService implements IViewletService {
 export class TestPanelService implements IPanelService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPaneCompositeOpen = new Emitter<{ panel: IPaneComposite, focus: boolean; }>().event;
+	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
 	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
 
 	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }

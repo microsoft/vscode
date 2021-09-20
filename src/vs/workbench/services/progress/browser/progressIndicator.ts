@@ -166,7 +166,7 @@ export abstract class CompositeScope extends Disposable {
 		this._register(this.viewsService.onDidChangeViewVisibility(e => e.visible ? this.onScopeOpened(e.id) : this.onScopeClosed(e.id)));
 
 		this._register(this.viewletService.onDidPaneCompositeOpen(viewlet => this.onScopeOpened(viewlet.getId())));
-		this._register(this.panelService.onDidPaneCompositeOpen(({ panel }) => this.onScopeOpened(panel.getId())));
+		this._register(this.panelService.onDidPaneCompositeOpen(panel => this.onScopeOpened(panel.getId())));
 
 		this._register(this.viewletService.onDidPaneCompositeClose(viewlet => this.onScopeClosed(viewlet.getId())));
 		this._register(this.panelService.onDidPaneCompositeClose(panel => this.onScopeClosed(panel.getId())));

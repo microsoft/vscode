@@ -72,7 +72,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		// View Container Visibility
 		this._register(this.viewletService.onDidPaneCompositeOpen(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: true, location: ViewContainerLocation.Sidebar })));
-		this._register(this.panelService.onDidPaneCompositeOpen(e => this._onDidChangeViewContainerVisibility.fire({ id: e.panel.getId(), visible: true, location: ViewContainerLocation.Panel })));
+		this._register(this.panelService.onDidPaneCompositeOpen(panel => this._onDidChangeViewContainerVisibility.fire({ id: panel.getId(), visible: true, location: ViewContainerLocation.Panel })));
 		this._register(this.viewletService.onDidPaneCompositeClose(viewlet => this._onDidChangeViewContainerVisibility.fire({ id: viewlet.getId(), visible: false, location: ViewContainerLocation.Sidebar })));
 		this._register(this.panelService.onDidPaneCompositeClose(panel => this._onDidChangeViewContainerVisibility.fire({ id: panel.getId(), visible: false, location: ViewContainerLocation.Panel })));
 

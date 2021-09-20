@@ -86,7 +86,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 	//#endregion
 
-	get onDidPaneCompositeOpen(): Event<{ panel: IPaneComposite, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite as IPaneComposite, focus: compositeOpen.focus })); }
+	get onDidPaneCompositeOpen(): Event<IPaneComposite> { return Event.map(this.onDidCompositeOpen.event, compositeEvent => <IPaneComposite>compositeEvent.composite); }
 	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
 	private activePanelContextKey: IContextKey<string>;
@@ -346,7 +346,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this._register(this.registry.onDidDeregister(panel => this.onDidDeregisterPanel(panel.id)));
 
 		// Activate on panel open
-		this._register(this.onDidPaneCompositeOpen(({ panel }) => this.onPanelOpen(panel)));
+		this._register(this.onDidPaneCompositeOpen(panel => this.onPanelOpen(panel)));
 
 		// Deactivate on panel close
 		this._register(this.onDidPaneCompositeClose(this.onPanelClose, this));
