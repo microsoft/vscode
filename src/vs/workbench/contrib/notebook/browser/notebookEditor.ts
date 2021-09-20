@@ -153,11 +153,8 @@ export class NotebookEditor extends EditorPane {
 
 		if (!visible) {
 			this._saveEditorViewState(this.input);
-			if (this.input && this._widget.value) {
-				// the widget is not transfered to other editor inputs
-				this._widget.value.onWillHide();
-			}
 		}
+		this._widget.value?.setVisible(visible);
 	}
 
 	override focus() {
@@ -185,9 +182,7 @@ export class NotebookEditor extends EditorPane {
 
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
-		if (this._widget.value) {
-			this._widget.value.onWillHide();
-		}
+		this._widget.value?.setVisible(false);
 
 		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
 		this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
@@ -225,12 +220,13 @@ export class NotebookEditor extends EditorPane {
 
 		const viewState = this._loadNotebookEditorViewState(input);
 
-		this._widget.value?.setParentContextKeyService(this._contextKeyService);
+		this._widget.value!.setParentContextKeyService(this._contextKeyService);
 		await this._widget.value!.setModel(model.notebook, viewState);
 		const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
 		await this._widget.value!.setOptions({ ...options, isReadOnly });
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 		this._widgetDisposableStore.add(this._widget.value!.onDidBlur(() => this._onDidBlurWidget.fire()));
+		this._widget.value!.setVisible(this.isVisible());
 
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
 			containsGroup: (group) => this.group?.id === group.id
@@ -297,7 +293,7 @@ export class NotebookEditor extends EditorPane {
 
 		if (this._widget.value) {
 			this._saveEditorViewState(this.input);
-			this._widget.value.onWillHide();
+			this._widget.value.setVisible(false);
 		}
 		super.clearInput();
 	}

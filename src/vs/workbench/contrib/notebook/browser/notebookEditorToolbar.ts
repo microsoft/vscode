@@ -336,12 +336,6 @@ export class NotebookEditorToolbar extends Disposable {
 
 	layout(dimension: DOM.Dimension) {
 		this._dimension = dimension;
-
-		if (!this._useGlobalToolbar) {
-			this.domNode.style.display = 'none';
-		} else {
-			this.domNode.style.display = 'flex';
-		}
 		this._computeSizes();
 	}
 

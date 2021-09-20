@@ -420,7 +420,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.layoutService.container.appendChild(this._overlayContainer);
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
-		this._isVisible = true;
 		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
@@ -1407,7 +1406,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		await this._resolveWebview();
 
 		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet
-		this._webview!.element.style.visibility = 'hidden';
+		this._list.layout(0, 0);
 		// warm up can take around 200ms to load markdown libraries, etc.
 		await this._warmupViewport(viewModel, viewState);
 
@@ -1419,7 +1418,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		 *   - markdown cell -> request to webview to (10ms, basically just latency between UI and iframe)
 		 *   - code cell -> render in place
 		 */
-		this._list.layout(0, 0);
 		this._list.attachViewModel(viewModel);
 
 		// now the list widget has a correct contentHeight/scrollHeight
@@ -1427,8 +1425,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		// after setting scroll top, the list view will update `top` of the scrollable element, e.g. `top: -584px`
 		this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
 		this._debug('finish initial viewport warmup and view state restore.');
-		this._webview!.element.style.visibility = 'visible';
-
 	}
 
 	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
@@ -1593,11 +1589,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		if (dimension.width <= 0 || dimension.height <= 0) {
-			this.onWillHide();
-			return;
-		}
-
 		if (shadowElement) {
 			const containerRect = shadowElement.getBoundingClientRect();
 
@@ -1630,7 +1621,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (newCellListHeight - 50)) : topInserToolbarHeight });
 		}
 
-		this._overlayContainer.style.visibility = 'visible';
 		this._overlayContainer.style.display = 'block';
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
@@ -1654,7 +1644,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#region Focus tracker
 	focus() {
-		this._isVisible = true;
 		this._editorFocus.set(true);
 
 		if (this._webviewFocused) {
@@ -1678,12 +1667,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._onDidFocusEditorWidget.fire();
 	}
 
-	onWillHide() {
-		this._isVisible = false;
-		this._editorFocus.set(false);
-		this._overlayContainer.style.visibility = 'hidden';
-		this._overlayContainer.style.left = '-50000px';
-		this._notebookTopToolbarContainer.style.display = 'none';
+	setVisible(visible: boolean) {
+		this._isVisible = visible;
+		if (visible) {
+			this._overlayContainer.style.visibility = 'visible';
+		} else {
+			this._editorFocus.set(false);
+			this._overlayContainer.style.visibility = 'hidden';
+		}
 	}
 
 	updateEditorFocus() {

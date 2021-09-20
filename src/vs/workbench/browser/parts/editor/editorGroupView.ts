@@ -54,6 +54,7 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -148,7 +149,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@ILogService private readonly logService: ILogService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(themeService);
 
@@ -506,7 +508,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Show active editor (intentionally not using async to keep
 		// `restoreEditors` from executing in same stack)
 		return this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options).then(() => {
-
+			// Update visibility when restored as the editor start as visible but
+			// could be hidden if panel is maximized
+			this.onDidVisibilityChange(this.layoutService.isVisible(Parts.EDITOR_PART));
 			// Set focused now if this is the active group and focus has
 			// not changed meanwhile. This prevents focus from being
 			// stolen accidentally on startup when the user already

@@ -101,7 +101,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	// --- group-based editor borrowing...
 
 	private _disposeWidget(widget: NotebookEditorWidget): void {
-		widget.onWillHide();
+		widget.setVisible(false);
 		const domNode = widget.getDomNode();
 		widget.dispose();
 		domNode.remove();
