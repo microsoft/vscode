@@ -19,8 +19,8 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IContentDecorationRenderOptions, IDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { InlayHint, InlayHintsProvider, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -191,16 +191,18 @@ export class InlayHintsController implements IEditorContribution {
 		const fontFamilyVar = '--inlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
+		const model = this._editor.getModel()!;
+
 		for (const { list: hints } of hintsData) {
 
 			for (let j = 0; j < hints.length && newDecorationsData.length < MAX_DECORATORS; j++) {
+
 				const { text, position, whitespaceBefore, whitespaceAfter } = hints[j];
 				const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
 				const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
-
 				const massagedText = fixSpace(text);
 
-				const beforeInjectedText = {
+				const contentOptions: IContentDecorationRenderOptions = {
 					contentText: massagedText,
 					backgroundColor: `${backgroundColor}`,
 					color: `${fontColor}`,
@@ -209,11 +211,29 @@ export class InlayHintsController implements IEditorContribution {
 					fontFamily: `var(${fontFamilyVar})`,
 					padding: `0px ${(fontSize / 4) | 0}px`,
 					borderRadius: `${(fontSize / 4) | 0}px`,
-					verticalAlign: 'middle',
-					affectsLetterSpacing: true
+					verticalAlign: 'middle'
 				};
-				const key = 'inlayHints-' + hash(beforeInjectedText).toString(16);
-				this._codeEditorService.registerDecorationType('inlay-hints-controller', key, { beforeInjectedText }, undefined, this._editor);
+
+				let renderOptions: IDecorationRenderOptions = { beforeInjectedText: { ...contentOptions, affectsLetterSpacing: true } };
+
+				let range = Range.fromPositions(position);
+				let word = model.getWordAtPosition(position);
+				let usesWordRange = false;
+				if (word) {
+					if (word.endColumn === position.column) {
+						// change decoration to after
+						range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
+						renderOptions.afterInjectedText = renderOptions.beforeInjectedText;
+						renderOptions.beforeInjectedText = undefined;
+						usesWordRange = true;
+					} else if (word.startColumn === position.column) {
+						range = new Range(position.lineNumber, word.startColumn, position.lineNumber, position.column);
+						usesWordRange = true;
+					}
+				}
+
+				const key = 'inlayHints-' + hash(renderOptions).toString(16);
+				this._codeEditorService.registerDecorationType('inlay-hints-controller', key, renderOptions, undefined, this._editor);
 
 				// decoration types are ref-counted which means we only need to
 				// call register und remove equally often
@@ -221,8 +241,12 @@ export class InlayHintsController implements IEditorContribution {
 
 				const options = this._codeEditorService.resolveDecorationOptions(key, true);
 				newDecorationsData.push({
-					range: Range.fromPositions(position),
-					options
+					range,
+					options: {
+						...options,
+						showIfCollapsed: !usesWordRange,
+						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+					}
 				});
 			}
 		}
