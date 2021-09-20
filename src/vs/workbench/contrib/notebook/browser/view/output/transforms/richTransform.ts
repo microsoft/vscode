@@ -16,11 +16,11 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ICellOutputViewModel, INotebookDelegateForOutput, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOutputItemDto, TextOutputLineLimit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutputTransformContribution as IOutputRendererContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { INotebookDelegateForOutput, IOutputTransformContribution as IOutputRendererContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 
 class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {

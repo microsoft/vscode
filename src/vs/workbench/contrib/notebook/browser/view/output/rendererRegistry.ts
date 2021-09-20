@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookDelegateForOutput } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { INotebookDelegateForOutput, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 export type IOutputTransformCtor = IConstructorSignature1<INotebookDelegateForOutput, IOutputTransformContribution>;
 

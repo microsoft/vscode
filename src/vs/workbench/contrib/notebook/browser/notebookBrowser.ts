@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -599,36 +598,6 @@ export interface INotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
-}
-
-/**
- * Notebook Editor Delegate for output rendering
- */
-export interface INotebookDelegateForOutput {
-	readonly creationOptions: INotebookEditorCreationOptions;
-	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
-}
-
-/**
- * Notebook Editor Delegate for back layer webview
- */
-export interface INotebookDelegateForWebview {
-	readonly creationOptions: INotebookEditorCreationOptions;
-	getCellById(cellId: string): IGenericCellViewModel | undefined;
-	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
-	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
-	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
-	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
-	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
-	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
-	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
-	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
-	didEndDragMarkupCell(cellId: string): void;
-	setScrollTop(scrollTop: number): void;
-	triggerScroll(event: IMouseWheelEvent): void;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {

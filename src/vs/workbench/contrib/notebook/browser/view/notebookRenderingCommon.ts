@@ -20,7 +20,7 @@ import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCom
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
-import { ICellOutputViewModel, ICellViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICellViewModel, IGenericCellViewModel, INotebookCellOutputLayoutInfo, INotebookEditorCreationOptions, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 export interface INotebookCellList {
 	isDisposed: boolean;
@@ -149,4 +149,12 @@ export interface IOutputTransformContribution {
 	 * directly into the container element.
 	 */
 	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput;
+}
+
+/**
+ * Notebook Editor Delegate for output rendering
+ */
+export interface INotebookDelegateForOutput {
+	readonly creationOptions: INotebookEditorCreationOptions;
+	getCellOutputLayoutInfo(cell: IGenericCellViewModel): INotebookCellOutputLayoutInfo;
 }
