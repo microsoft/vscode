@@ -1795,7 +1795,7 @@
 			]
 		},
 		"switch-expression": {
-			"begin": "(?x) (?<!\\.)\\b(switch)\\b",
+			"begin": "(?x) (?<!\\.)\\b(switch)\\b\\s*(?=\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.switch.cs"
