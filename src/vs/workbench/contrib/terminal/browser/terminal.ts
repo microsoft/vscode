@@ -189,6 +189,11 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getDefaultProfileName(): string;
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
+	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
+}
+
+export interface ITerminalServiceNativeDelegate {
+	getWindowCount(): Promise<number>;
 }
 
 /**

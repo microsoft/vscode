@@ -225,11 +225,13 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		if (serializedState) {
 			try {
 				await this._localPtyService.reviveTerminalProcesses(serializedState);
+				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit
 				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				if (layoutInfo) {
 					await this._localPtyService.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch {
 				// no-op
