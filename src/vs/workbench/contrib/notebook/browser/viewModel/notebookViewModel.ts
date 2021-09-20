@@ -30,7 +30,7 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export interface INotebookEditorViewState {
@@ -771,31 +771,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 			return -1;
 		}
-	}
-
-	/**
-	 *
-	 * @param index
-	 * @param length
-	 * @param newIdx in an index scheme for the state of the tree after the current cell has been "removed"
-	 * @param synchronous
-	 * @param pushedToUndoStack
-	 */
-	moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean = true): boolean {
-		const viewCell = this.viewCells[index] as CellViewModel;
-		if (!viewCell) {
-			return false;
-		}
-
-		this._notebook.applyEdits([
-			{
-				editType: CellEditType.Move,
-				index,
-				length,
-				newIdx
-			}
-		], synchronous, { kind: SelectionStateType.Index, focus: this.getFocus(), selections: this.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: { start: newIdx, end: newIdx + 1 }, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
-		return true;
 	}
 
 	getEditorViewState(): INotebookEditorViewState {

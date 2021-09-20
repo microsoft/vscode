@@ -65,56 +65,6 @@ suite('NotebookViewModel', () => {
 		);
 	});
 
-	test('move cells down', async function () {
-		await withTestNotebook(
-			[
-				['//a', 'javascript', CellKind.Code, [], {}],
-				['//b', 'javascript', CellKind.Code, [], {}],
-				['//c', 'javascript', CellKind.Code, [], {}],
-			],
-			(editor, viewModel) => {
-				viewModel.moveCellToIdx(0, 1, 0, true);
-				// no-op
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//b');
-
-				viewModel.moveCellToIdx(0, 1, 1, true);
-				// b, a, c
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//c');
-
-				viewModel.moveCellToIdx(0, 1, 2, true);
-				// a, c, b
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//c');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//b');
-			}
-		);
-	});
-
-	test('move cells up', async function () {
-		await withTestNotebook(
-			[
-				['//a', 'javascript', CellKind.Code, [], {}],
-				['//b', 'javascript', CellKind.Code, [], {}],
-				['//c', 'javascript', CellKind.Code, [], {}],
-			],
-			(editor, viewModel) => {
-				viewModel.moveCellToIdx(1, 1, 0, true);
-				// b, a, c
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//a');
-
-				viewModel.moveCellToIdx(2, 1, 0, true);
-				// c, b, a
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//c');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//a');
-			}
-		);
-	});
-
 	test('index', async function () {
 		await withTestNotebook(
 			[
