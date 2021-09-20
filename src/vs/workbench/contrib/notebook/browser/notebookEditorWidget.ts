@@ -1265,7 +1265,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			setScrollTop(scrollTop: number) { that._listViewInfoAccessor.setScrollTop(scrollTop); },
 			triggerScroll(event: IMouseWheelEvent) { that._listViewInfoAccessor.triggerScroll(event); },
 			getCellByInfo: that.getCellByInfo.bind(that),
-			getCellById: that.getCellById.bind(that),
+			getCellById: that._getCellById.bind(that),
 			toggleNotebookCellSelection: that._toggleNotebookCellSelection.bind(that),
 			focusNotebookCell: that.focusNotebookCell.bind(that),
 			focusNextNotebookCell: that.focusNextNotebookCell.bind(that),
@@ -2356,10 +2356,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this.viewModel?.viewCells.find(vc => vc.handle === cellHandle) as CodeCellViewModel;
 	}
 
-	getCellById(cellId: string): ICellViewModel | undefined {
-		return this.viewModel?.viewCells.find(vc => vc.id === cellId);
-	}
-
 	getCellByHandle(handle: number): ICellViewModel | undefined {
 		return this.viewModel?.getCellByHandle(handle);
 	}
@@ -2464,8 +2460,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
+	private _getCellById(cellId: string): ICellViewModel | undefined {
+		return this.viewModel?.viewCells.find(vc => vc.id === cellId);
+	}
+
 	private _updateMarkupCellHeight(cellId: string, height: number, isInit: boolean) {
-		const cell = this.getCellById(cellId);
+		const cell = this._getCellById(cellId);
 		if (cell && cell instanceof MarkupCellViewModel) {
 			const { bottomToolbarGap } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 			this._debug('updateMarkdownCellHeight', cell.handle, height + bottomToolbarGap, isInit);
@@ -2474,7 +2474,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _setMarkupCellEditState(cellId: string, editState: CellEditState): void {
-		const cell = this.getCellById(cellId);
+		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			this.revealInView(cell);
 			cell.updateEditState(editState, 'setMarkdownCellEditState');
@@ -2482,28 +2482,28 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
-		const cell = this.getCellById(cellId);
+		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.startExplicitDrag(cell, event.dragOffsetY);
 		}
 	}
 
 	private _didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
-		const cell = this.getCellById(cellId);
+		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.explicitDrag(cell, event.dragOffsetY);
 		}
 	}
 
 	private _didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void {
-		const cell = this.getCellById(cellId);
+		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.explicitDrop(cell, event);
 		}
 	}
 
 	private _didEndDragMarkupCell(cellId: string): void {
-		const cell = this.getCellById(cellId);
+		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.endExplicitDrag(cell);
 		}

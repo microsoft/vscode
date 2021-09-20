@@ -662,7 +662,6 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 	 */
 	hideInset(output: IDisplayOutputViewModel): void;
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]): void;
-	getCellById(cellId: string): ICellViewModel | undefined;
 }
 
 export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
