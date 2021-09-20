@@ -17,12 +17,12 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { getRemoteName, getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isNative } from 'vs/base/common/platform';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
@@ -93,7 +93,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super();
@@ -235,8 +235,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.layoutService.onDidChangeCenteredLayout(centered => this.isCenteredLayoutContext.set(centered)));
 		this._register(this.layoutService.onDidChangePanelPosition(position => this.panelPositionContext.set(position)));
 
-		this._register(this.viewletService.onDidPaneCompositeClose(() => this.updateSideBarContextKeys()));
-		this._register(this.viewletService.onDidPaneCompositeOpen(() => this.updateSideBarContextKeys()));
+		this._register(this.paneCompositeService.onDidPaneCompositeClose(() => this.updateSideBarContextKeys()));
+		this._register(this.paneCompositeService.onDidPaneCompositeOpen(() => this.updateSideBarContextKeys()));
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => {
 			this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART));

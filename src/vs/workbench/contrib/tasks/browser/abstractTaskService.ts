@@ -35,7 +35,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
 
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -83,6 +82,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { Schemas } from 'vs/base/common/network';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -239,7 +239,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IMarkerService protected readonly markerService: IMarkerService,
 		@IOutputService protected readonly outputService: IOutputService,
-		@IPanelService private readonly panelService: IPanelService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -1633,7 +1633,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected createTerminalTaskSystem(): ITaskSystem {
 		return new TerminalTaskSystem(
-			this.terminalService, this.terminalGroupService, this.outputService, this.panelService, this.viewsService, this.markerService,
+			this.terminalService, this.terminalGroupService, this.outputService, this.paneCompositeService, this.viewsService, this.markerService,
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,

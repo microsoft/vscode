@@ -6,11 +6,9 @@
 import { localize } from 'vs/nls';
 import { IQuickPickSeparator, IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IViewDescriptorService, IViewsService, ViewContainer } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { matchesFuzzy } from 'vs/base/common/filters';
@@ -22,6 +20,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -32,13 +31,12 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 	static PREFIX = 'view ';
 
 	constructor(
-		@IViewletService private readonly viewletService: IViewletService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
-		@IPanelService private readonly panelService: IPanelService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(ViewQuickAccessProvider.PREFIX, {
@@ -116,25 +114,25 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		};
 
 		// Viewlets
-		const viewlets = this.viewletService.getPaneComposites();
+		const viewlets = this.paneCompositeService.getPaneComposites(ViewContainerLocation.Sidebar);
 		for (const viewlet of viewlets) {
 			if (this.includeViewContainer(viewlet)) {
 				viewEntries.push({
 					label: viewlet.name,
 					containerLabel: localize('views', "Side Bar"),
-					accept: () => this.viewletService.openPaneComposite(viewlet.id, true)
+					accept: () => this.paneCompositeService.openPaneComposite(viewlet.id, ViewContainerLocation.Sidebar, true)
 				});
 			}
 		}
 
 		// Panels
-		const panels = this.panelService.getPaneComposites();
+		const panels = this.paneCompositeService.getPaneComposites(ViewContainerLocation.Panel);
 		for (const panel of panels) {
 			if (this.includeViewContainer(panel)) {
 				viewEntries.push({
 					label: panel.name,
 					containerLabel: localize('panels', "Panel"),
-					accept: () => this.panelService.openPaneComposite(panel.id, true)
+					accept: () => this.paneCompositeService.openPaneComposite(panel.id, ViewContainerLocation.Panel, true)
 				});
 			}
 		}

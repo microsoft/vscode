@@ -6,7 +6,6 @@
 import 'vs/css!./media/auxiliaryBarPart';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -18,7 +17,6 @@ import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/pane
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IAuxiliaryBarService } from 'vs/workbench/services/auxiliaryBar/browser/auxiliaryBarService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
@@ -146,5 +144,3 @@ registerThemingParticipant((theme, collector) => {
 	// 	`);
 	// }
 });
-
-registerSingleton(IAuxiliaryBarService, AuxiliaryBarPart);

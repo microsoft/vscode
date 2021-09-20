@@ -39,14 +39,11 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 
 
 //#region --- workbench parts
-
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import 'vs/workbench/browser/parts/editor/editorPart';
 import 'vs/workbench/browser/parts/activitybar/activitybarPart';
-import 'vs/workbench/browser/parts/panel/panelPart';
-import 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
+import 'vs/workbench/browser/part/paneCompositePart';
 import 'vs/workbench/browser/parts/banner/bannerPart';
-import 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import 'vs/workbench/browser/parts/views/viewsService';
 

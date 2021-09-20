@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
+import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
@@ -20,6 +20,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ViewContainerLocationToString, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
@@ -51,7 +52,7 @@ class FocusPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPanelService private readonly panelService: IPanelService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
@@ -65,7 +66,7 @@ class FocusPanelAction extends Action {
 		}
 
 		// Focus into active panel
-		let panel = this.panelService.getActivePaneComposite();
+		let panel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (panel) {
 			panel.focus();
 		}
@@ -123,13 +124,13 @@ export class PanelActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IPanelService private readonly panelService: IPanelService
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService
 	) {
 		super(activity);
 	}
 
 	override async run(): Promise<void> {
-		await this.panelService.openPaneComposite(this.activity.id, true);
+		await this.paneCompositeService.openPaneComposite(this.activity.id, ViewContainerLocation.Panel, true);
 		this.activate();
 	}
 
@@ -142,9 +143,9 @@ export class PlaceHolderPanelActivityAction extends PanelActivityAction {
 
 	constructor(
 		id: string,
-		@IPanelService panelService: IPanelService
+		@IPaneCompositeService paneCompositeService: IPaneCompositeService
 	) {
-		super({ id, name: id }, panelService);
+		super({ id, name: id }, paneCompositeService);
 	}
 }
 
@@ -164,14 +165,14 @@ export class SwitchPanelViewAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService private readonly panelService: IPanelService
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService
 	) {
 		super(id, name);
 	}
 
 	override async run(offset: number): Promise<void> {
-		const pinnedPanels = this.panelService.getPinnedPaneComposites();
-		const activePanel = this.panelService.getActivePaneComposite();
+		const pinnedPanels = (this.paneCompositeService.getPartByLocation(ViewContainerLocation.Panel) as IPanelPart).getPinnedPaneComposites();
+		const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (!activePanel) {
 			return;
 		}
@@ -183,7 +184,7 @@ export class SwitchPanelViewAction extends Action {
 			}
 		}
 		if (typeof targetPanelId === 'string') {
-			await this.panelService.openPaneComposite(targetPanelId, true);
+			await this.paneCompositeService.openPaneComposite(targetPanelId, ViewContainerLocation.Panel, true);
 		}
 	}
 }
@@ -196,9 +197,9 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService panelService: IPanelService
+		@IPaneCompositeService paneCompositeService: IPaneCompositeService
 	) {
-		super(id, name, panelService);
+		super(id, name, paneCompositeService);
 	}
 
 	override run(): Promise<void> {
@@ -214,9 +215,9 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 	constructor(
 		id: string,
 		name: string,
-		@IPanelService panelService: IPanelService
+		@IPaneCompositeService paneCompositeService: IPaneCompositeService
 	) {
-		super(id, name, panelService);
+		super(id, name, paneCompositeService);
 	}
 
 	override run(): Promise<void> {

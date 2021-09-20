@@ -8,7 +8,6 @@ import 'vs/css!./media/progressService';
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
@@ -23,9 +22,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventHelper } from 'vs/base/browser/dom';
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -33,10 +32,9 @@ export class ProgressService extends Disposable implements IProgressService {
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IPanelService private readonly panelService: IPanelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -49,12 +47,13 @@ export class ProgressService extends Disposable implements IProgressService {
 	async withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
 		const { location } = options;
 		if (typeof location === 'string') {
-			if (this.viewletService.getProgressIndicator(location)) {
-				return this.withViewletProgress(location, task, { ...options, location });
-			}
 
-			if (this.panelService.getProgressIndicator(location)) {
-				return this.withPanelProgress(location, task, { ...options, location });
+			const viewContainer = this.viewDescriptorService.getViewContainerById(location);
+			if (viewContainer) {
+				const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+				if (viewContainerLocation) {
+					return this.withPaneCompositeProgress(location, viewContainerLocation, task, { ...options, location });
+				}
 			}
 
 			if (this.viewsService.getViewProgressIndicator(location)) {
@@ -77,11 +76,11 @@ export class ProgressService extends Disposable implements IProgressService {
 				// the front when clicking.
 				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, silent: true, location: ProgressLocation.Notification }, task, onDidCancel);
 			case ProgressLocation.Explorer:
-				return this.withViewletProgress('workbench.view.explorer', task, { ...options, location });
+				return this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Scm:
-				return this.withViewletProgress('workbench.view.scm', task, { ...options, location });
+				return this.withPaneCompositeProgress('workbench.view.scm', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Extensions:
-				return this.withViewletProgress('workbench.view.extensions', task, { ...options, location });
+				return this.withPaneCompositeProgress('workbench.view.extensions', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Dialog:
 				return this.withDialogProgress(options, task, onDidCancel);
 			default:
@@ -407,13 +406,15 @@ export class ProgressService extends Disposable implements IProgressService {
 		return progressStateModel.promise;
 	}
 
-	private withViewletProgress<P extends Promise<R>, R = unknown>(viewletId: string, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
+	private withPaneCompositeProgress<P extends Promise<R>, R = unknown>(paneCompositeId: string, viewContainerLocation: ViewContainerLocation, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
 
 		// show in viewlet
-		const promise = this.withCompositeProgress(this.viewletService.getProgressIndicator(viewletId), task, options);
+		const promise = this.withCompositeProgress(this.paneCompositeService.getProgressIndicator(paneCompositeId, viewContainerLocation), task, options);
 
 		// show on activity bar
-		this.showOnActivityBar<P, R>(viewletId, options, promise);
+		if (viewContainerLocation === ViewContainerLocation.Sidebar) {
+			this.showOnActivityBar<P, R>(paneCompositeId, options, promise);
+		}
 
 		return promise;
 	}
@@ -463,12 +464,6 @@ export class ProgressService extends Disposable implements IProgressService {
 			clearTimeout(delayHandle);
 			dispose(activityProgress);
 		});
-	}
-
-	private withPanelProgress<P extends Promise<R>, R = unknown>(panelid: string, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
-
-		// show in panel
-		return this.withCompositeProgress(this.panelService.getProgressIndicator(panelid), task, options);
 	}
 
 	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator | undefined, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {

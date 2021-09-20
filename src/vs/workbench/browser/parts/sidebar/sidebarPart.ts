@@ -8,7 +8,7 @@ import 'vs/workbench/browser/parts/sidebar/sidebarActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { PaneCompositeRegistry, Extensions as ViewletExtensions, PaneCompositeDescriptor, PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ISideBarPart } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/viewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -26,7 +26,6 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
@@ -34,7 +33,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
-export class SidebarPart extends CompositePart<PaneComposite> implements IViewletService {
+export class SidebarPart extends CompositePart<PaneComposite> implements ISideBarPart {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -303,5 +302,3 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IViewle
 		};
 	}
 }
-
-registerSingleton(IViewletService, SidebarPart);

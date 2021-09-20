@@ -10,7 +10,6 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
@@ -47,6 +46,8 @@ import { toAction } from 'vs/base/common/actions';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 // Commands
 
@@ -334,12 +335,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 CommandsRegistry.registerCommand({
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
-		const viewletService = accessor.get(IViewletService);
+		const paneCompositeService = accessor.get(IPaneCompositeService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
-		const viewlet = (await viewletService.openPaneComposite(VIEWLET_ID, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
+		const viewlet = (await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, false))?.getViewPaneContainer() as ExplorerViewPaneContainer;
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
 			const explorerView = viewlet.getExplorerView();
@@ -589,8 +590,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.LeftArrow,
 	id: PREVIOUS_COMPRESSED_FOLDER,
 	handler: (accessor) => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActivePaneComposite();
+		const paneCompositeService = accessor.get(IPaneCompositeService);
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -608,8 +609,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.RightArrow,
 	id: NEXT_COMPRESSED_FOLDER,
 	handler: (accessor) => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActivePaneComposite();
+		const paneCompositeService = accessor.get(IPaneCompositeService);
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -627,8 +628,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Home,
 	id: FIRST_COMPRESSED_FOLDER,
 	handler: (accessor) => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActivePaneComposite();
+		const paneCompositeService = accessor.get(IPaneCompositeService);
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;
@@ -646,8 +647,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.End,
 	id: LAST_COMPRESSED_FOLDER,
 	handler: (accessor) => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = viewletService.getActivePaneComposite();
+		const paneCompositeService = accessor.get(IPaneCompositeService);
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		if (viewlet?.getId() !== VIEWLET_ID) {
 			return;

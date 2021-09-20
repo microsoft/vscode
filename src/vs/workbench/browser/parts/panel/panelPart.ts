@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
+import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -30,7 +30,6 @@ import { Dimension, trackFocus, EventHelper, $ } from 'vs/base/browser/dom';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
@@ -57,7 +56,7 @@ interface IPlaceholderViewContainer {
 	name?: string;
 }
 
-export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPanelService {
+export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPanelPart {
 	protected abstract pinnedPanelsKey: string;
 	protected abstract placeholdeViewContainersKey: string;
 
@@ -636,12 +635,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 			if (panel) {
 				compositeActions = {
-					activityAction: new PanelActivityAction(assertIsDefined(this.getPaneComposite(compositeId)), this),
+					activityAction: this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId))),
 					pinnedAction: new ToggleCompositePinnedAction(this.getPaneComposite(compositeId), this.compositeBar)
 				};
 			} else {
 				compositeActions = {
-					activityAction: new PlaceHolderPanelActivityAction(compositeId, this),
+					activityAction: this.instantiationService.createInstance(PlaceHolderPanelActivityAction, compositeId),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -959,5 +958,3 @@ registerThemingParticipant((theme, collector) => {
 		`);
 	}
 });
-
-registerSingleton(IPanelService, PanelPart);

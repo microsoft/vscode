@@ -17,8 +17,6 @@ import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, p
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -50,7 +48,7 @@ import { Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { Schemas } from 'vs/base/common/network';
-import { IAuxiliaryBarService } from 'vs/workbench/services/auxiliaryBar/browser/auxiliaryBarService';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -173,9 +171,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
 	private editorGroupService!: IEditorGroupsService;
-	private panelService!: IPanelService;
+	private paneCompositeService!: IPaneCompositeService;
 	private titleService!: ITitleService;
-	private viewletService!: IViewletService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private contextService!: IWorkspaceContextService;
 	private workingCopyBackupService!: IWorkingCopyBackupService;
@@ -271,15 +268,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Parts
 		this.editorService = accessor.get(IEditorService);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
-		this.panelService = accessor.get(IPanelService);
-		this.viewletService = accessor.get(IViewletService);
+		this.paneCompositeService = accessor.get(IPaneCompositeService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
 		this.activityBarService = accessor.get(IActivityBarService);
 		this.statusBarService = accessor.get(IStatusbarService);
 		accessor.get(IBannerService);
-		accessor.get(IAuxiliaryBarService);
 
 		// Listeners
 		this.registerLayoutListeners();
@@ -824,9 +819,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestoreViewlet');
 
-			const viewlet = await this.viewletService.openPaneComposite(this.state.sideBar.viewletToRestore);
+			const viewlet = await this.paneCompositeService.openPaneComposite(this.state.sideBar.viewletToRestore, ViewContainerLocation.Sidebar);
 			if (!viewlet) {
-				await this.viewletService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
+				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar); // fallback to default viewlet as needed
 			}
 
 			mark('code/didRestoreViewlet');
@@ -844,9 +839,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestorePanel');
 
-			const panel = await this.panelService.openPaneComposite(this.state.panel.panelToRestore);
+			const panel = await this.paneCompositeService.openPaneComposite(this.state.panel.panelToRestore, ViewContainerLocation.Panel);
 			if (!panel) {
-				await this.panelService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id); // fallback to default panel as needed
+				await this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id, ViewContainerLocation.Panel); // fallback to default panel as needed
 			}
 
 			mark('code/didRestorePanel');
@@ -915,13 +910,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.editorGroupService.activeGroup.focus();
 				break;
 			case Parts.PANEL_PART:
-				const activePanel = this.panelService.getActivePaneComposite();
+				const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 				if (activePanel) {
 					activePanel.focus();
 				}
 				break;
 			case Parts.SIDEBAR_PART:
-				const activeViewlet = this.viewletService.getActivePaneComposite();
+				const activeViewlet = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 				if (activeViewlet) {
 					activeViewlet.focus();
 				}
@@ -1465,11 +1460,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
-		if (hidden && this.viewletService.getActivePaneComposite()) {
-			this.viewletService.hideActivePaneComposite();
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Sidebar);
 
 			// Pass Focus to Editor or Panel if Sidebar is now hidden
-			const activePanel = this.panelService.getActivePaneComposite();
+			const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
 				activePanel.focus();
 			} else {
@@ -1478,12 +1473,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
-		else if (!hidden && !this.viewletService.getActivePaneComposite()) {
-			const viewletToOpen = this.viewletService.getLastActivePaneCompositeId();
+		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
+			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
-				const viewlet = this.viewletService.openPaneComposite(viewletToOpen, true);
+				const viewlet = this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar, true);
 				if (!viewlet) {
-					this.viewletService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, true);
+					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, ViewContainerLocation.Sidebar, true);
 				}
 			}
 		}
@@ -1521,14 +1516,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// If panel part becomes hidden, also hide the current active panel if any
 		let focusEditor = false;
-		if (hidden && this.panelService.getActivePaneComposite()) {
-			this.panelService.hideActivePaneComposite();
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
 			focusEditor = isIOS ? false : true; // Do not auto focus on ios #127832
 		}
 
 		// If panel part becomes visible, show last active panel or default panel
-		else if (!hidden && !this.panelService.getActivePaneComposite()) {
-			let panelToOpen: string | undefined = this.panelService.getLastActivePaneCompositeId();
+		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+			let panelToOpen: string | undefined = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel);
 			const hasViews = (id: string): boolean => {
 				const viewContainer = this.viewDescriptorService.getViewContainerById(id);
 				if (!viewContainer) {
@@ -1553,7 +1548,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			if (panelToOpen) {
 				const focus = !skipLayout;
-				this.panelService.openPaneComposite(panelToOpen, focus);
+				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel, focus);
 			}
 		}
 

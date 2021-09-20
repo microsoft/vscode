@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties, IExperimentActionPromptCommand, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -14,12 +13,14 @@ import { language } from 'vs/base/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class ExperimentalPrompts extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IExperimentService private readonly experimentService: IExperimentService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -72,7 +73,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 					if (command.externalLink) {
 						this.openerService.open(URI.parse(command.externalLink));
 					} else if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
-						this.viewletService.openPaneComposite('workbench.view.extensions', true)
+						this.paneCompositeService.openPaneComposite('workbench.view.extensions', ViewContainerLocation.Sidebar, true)
 							.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 							.then(viewlet => {
 								if (viewlet) {

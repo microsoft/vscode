@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
+import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
 import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
@@ -12,6 +12,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 class ViewContainerActivityByView extends Disposable {
 
@@ -63,7 +64,7 @@ export class ActivityService implements IActivityService {
 	private viewActivities = new Map<string, IViewActivity>();
 
 	constructor(
-		@IPanelService private readonly panelService: IPanelService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@IActivityBarService private readonly activityBarService: IActivityBarService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -75,7 +76,7 @@ export class ActivityService implements IActivityService {
 			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			switch (location) {
 				case ViewContainerLocation.Panel:
-					return this.panelService.showActivity(viewContainer.id, badge, clazz);
+					return (this.paneCompositeService.getPartByLocation(ViewContainerLocation.Panel) as IPanelPart).showActivity(viewContainer.id, badge, clazz);
 				case ViewContainerLocation.Sidebar:
 					return this.activityBarService.showActivity(viewContainer.id, badge, clazz, priority);
 			}

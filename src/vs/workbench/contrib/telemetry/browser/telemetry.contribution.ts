@@ -18,13 +18,14 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { hash } from 'vs/base/common/hash';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 type TelemetryData = {
 	mimeType: string;
@@ -57,13 +58,13 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IViewletService viewletService: IViewletService,
+		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
 
 		const { filesToOpenOrCreate, filesToDiff } = environmentService.configuration;
-		const activeViewlet = viewletService.getActivePaneComposite();
+		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
 		type WindowSizeFragment = {
 			innerHeight: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };

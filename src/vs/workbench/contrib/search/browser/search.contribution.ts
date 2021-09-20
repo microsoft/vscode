@@ -54,8 +54,8 @@ import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browse
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ISearchConfiguration, SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -326,7 +326,7 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: Constants.RevealInSideBarForSearchResults,
 	handler: (accessor, args: any) => {
-		const viewletService = accessor.get(IViewletService);
+		const paneCompositeService = accessor.get(IPaneCompositeService);
 		const explorerService = accessor.get(IExplorerService);
 		const contextService = accessor.get(IWorkspaceContextService);
 
@@ -345,7 +345,7 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		viewletService.openPaneComposite(VIEWLET_ID_FILES, false).then((viewlet) => {
+		paneCompositeService.openPaneComposite(VIEWLET_ID_FILES, ViewContainerLocation.Sidebar, false).then((viewlet) => {
 			if (!viewlet) {
 				return;
 			}

@@ -30,11 +30,12 @@ import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
@@ -150,8 +151,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					});
 				}
 				run = (accessor: ServicesAccessor, input: string) => {
-					const viewletService = accessor.get(IViewletService);
-					return viewletService.openPaneComposite(VIEWLET_ID, true).then(viewlet => {
+					const paneCompositeService = accessor.get(IPaneCompositeService);
+					return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
 						if (viewlet) {
 							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`tag:"remote-menu"`);
 							viewlet.focus();

@@ -21,6 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CodeCellRenderTemplate, ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -31,8 +32,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -88,7 +88,7 @@ export class CellOutputElement extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 	) {
 		super();
 
@@ -438,7 +438,7 @@ export class CellOutputElement extends Disposable {
 	}
 
 	private async _showJupyterExtension() {
-		const viewlet = await this.viewletService.openPaneComposite(EXTENSION_VIEWLET_ID, true);
+		const viewlet = await this.paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
 	}

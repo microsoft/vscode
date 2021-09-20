@@ -24,7 +24,6 @@ import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditS
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -53,6 +52,7 @@ import { extUri } from 'vs/base/common/resources';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 suite('MainThreadEditors', () => {
 
@@ -155,7 +155,7 @@ suite('MainThreadEditors', () => {
 		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 
 		});
-		services.set(IPanelService, new class extends mock<IPanelService>() implements IPanelService {
+		services.set(IPaneCompositeService, new class extends mock<IPaneCompositeService>() implements IPaneCompositeService {
 			override onDidPaneCompositeOpen = Event.None;
 			override onDidPaneCompositeClose = Event.None;
 			override getActivePaneComposite() {

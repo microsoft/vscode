@@ -19,7 +19,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IPanelService } from 'vs/workbench/services/panel/browser/panelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
@@ -28,6 +27,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -85,7 +85,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			null!,
 			editorGroupService,
 			null!,
-			new class extends mock<IPanelService>() implements IPanelService {
+			new class extends mock<IPaneCompositeService>() implements IPaneCompositeService {
 				override onDidPaneCompositeOpen = Event.None;
 				override onDidPaneCompositeClose = Event.None;
 				override getActivePaneComposite() {

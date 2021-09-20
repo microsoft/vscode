@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 
-export const IViewletService = createDecorator<IViewletService>('viewletService');
-
-export interface IViewletService extends IPaneCompositeService {
+export interface ISideBarPart extends IPaneCompositePart {
 
 	readonly _serviceBrand: undefined;
 

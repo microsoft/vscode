@@ -20,7 +20,6 @@ import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService,
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkspaceSupportTypeMessage } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -62,6 +61,8 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -1545,7 +1546,7 @@ export class ShowRecommendedExtensionAction extends Action {
 
 	constructor(
 		extensionId: string,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(ShowRecommendedExtensionAction.ID, ShowRecommendedExtensionAction.LABEL, undefined, false);
@@ -1553,7 +1554,7 @@ export class ShowRecommendedExtensionAction extends Action {
 	}
 
 	override run(): Promise<any> {
-		return this.viewletService.openPaneComposite(VIEWLET_ID, true)
+		return this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
 				viewlet.search(`@id:${this.extensionId}`);
@@ -1579,7 +1580,7 @@ export class InstallRecommendedExtensionAction extends Action {
 
 	constructor(
 		extensionId: string,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 	) {
@@ -1588,7 +1589,7 @@ export class InstallRecommendedExtensionAction extends Action {
 	}
 
 	override async run(): Promise<any> {
-		const viewlet = await this.viewletService.openPaneComposite(VIEWLET_ID, true);
+		const viewlet = await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 		const viewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		viewPaneContainer.search(`@id:${this.extensionId}`);
 		viewPaneContainer.focus();
@@ -1655,13 +1656,13 @@ export class SearchExtensionsAction extends Action {
 
 	constructor(
 		private readonly searchValue: string,
-		@IViewletService private readonly viewletService: IViewletService
+		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService
 	) {
 		super('extensions.searchExtensions', localize('search recommendations', "Search Extensions"), undefined, true);
 	}
 
 	override async run(): Promise<void> {
-		const viewPaneContainer = (await this.viewletService.openPaneComposite(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		const viewPaneContainer = (await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		viewPaneContainer.search(this.searchValue);
 		viewPaneContainer.focus();
 	}
@@ -2539,9 +2540,9 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 }
 
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
-	const viewletService = accessor.get(IViewletService);
+	const paneCompositeService = accessor.get(IPaneCompositeService);
 
-	return viewletService.openPaneComposite(VIEWLET_ID, true)
+	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 		.then(viewlet => {
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
@@ -2550,9 +2551,9 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForL
 });
 
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWithIds', function (accessor: ServicesAccessor, extensionIds: string[]) {
-	const viewletService = accessor.get(IViewletService);
+	const paneCompositeService = accessor.get(IPaneCompositeService);
 
-	return viewletService.openPaneComposite(VIEWLET_ID, true)
+	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 		.then(viewlet => {
 			const query = extensionIds
