@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchResultProvider, ISearchService, ITextQuery, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkerClient, logOnceWebWorkerWarning, SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
@@ -24,6 +24,7 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
 
 export class RemoteSearchService extends SearchService {
 	constructor(
@@ -76,78 +77,97 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 
 	async textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {
-		const queryDisposables = new DisposableStore();
+		try {
+			const queryDisposables = new DisposableStore();
 
-		const proxy = await this._getOrCreateWorker().getProxyObject();
-		const results: IFileMatch[] = [];
+			const proxy = await this._getOrCreateWorker().getProxyObject();
+			const results: IFileMatch[] = [];
 
-		let limitHit = false;
+			let limitHit = false;
 
-		await Promise.all(query.folderQueries.map(async fq => {
-			const queryId = this.queryId++;
-			queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
+			await Promise.all(query.folderQueries.map(async fq => {
+				const queryId = this.queryId++;
+				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-			const handle = await this.fileSystemProvider.getHandle(fq.folder);
-			if (!handle || handle.kind !== 'directory') {
-				console.error('Could not get directory handle for ', fq);
-				return;
-			}
-
-			const reviveMatch = (result: IFileMatch<UriComponents>): IFileMatch => ({
-				resource: URI.revive(result.resource),
-				results: result.results
-			});
-
-			queryDisposables.add(this.onDidRecieveTextSearchMatch(e => {
-				if (e.queryId === queryId) {
-					onProgress?.(reviveMatch(e.match));
+				const handle = await this.fileSystemProvider.getHandle(fq.folder);
+				if (!handle || handle.kind !== 'directory') {
+					console.error('Could not get directory handle for ', fq);
+					return;
 				}
+
+				const reviveMatch = (result: IFileMatch<UriComponents>): IFileMatch => ({
+					resource: URI.revive(result.resource),
+					results: result.results
+				});
+
+				queryDisposables.add(this.onDidRecieveTextSearchMatch(e => {
+					if (e.queryId === queryId) {
+						onProgress?.(reviveMatch(e.match));
+					}
+				}));
+
+				const folderResults = await proxy.searchDirectory(handle, query, fq, queryId);
+				for (const folderResult of folderResults.results) {
+					results.push(reviveMatch(folderResult));
+				}
+
+				if (folderResults.limitHit) {
+					limitHit = true;
+				}
+
 			}));
 
-			const folderResults = await proxy.searchDirectory(handle, query, fq, queryId);
-			for (const folderResult of folderResults.results) {
-				results.push(reviveMatch(folderResult));
-			}
-
-			if (folderResults.limitHit) {
-				limitHit = true;
-			}
-		}));
-
-		queryDisposables.dispose();
-		const result = { messages: [], results, limitHit };
-
-		return result;
+			queryDisposables.dispose();
+			const result = { messages: [], results, limitHit };
+			return result;
+		} catch (e) {
+			console.error('Error performing web worker text search', e);
+			return {
+				results: [],
+				messages: [{
+					text: localize('errorSearchText', "Unable to search with Web Worker text searcher"), type: TextSearchCompleteMessageType.Warning
+				}],
+			};
+		}
 	}
 
-
 	async fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
-		const queryDisposables = new DisposableStore();
-		let limitHit = false;
+		try {
+			const queryDisposables = new DisposableStore();
+			let limitHit = false;
 
-		const proxy = await this._getOrCreateWorker().getProxyObject();
-		const results: IFileMatch[] = [];
-		await Promise.all(query.folderQueries.map(async fq => {
-			const queryId = this.queryId++;
-			queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
+			const proxy = await this._getOrCreateWorker().getProxyObject();
+			const results: IFileMatch[] = [];
+			await Promise.all(query.folderQueries.map(async fq => {
+				const queryId = this.queryId++;
+				queryDisposables.add(token?.onCancellationRequested(e => this.cancelQuery(queryId)) || Disposable.None);
 
-			const handle = await this.fileSystemProvider.getHandle(fq.folder);
-			if (!handle || handle.kind !== 'directory') {
-				console.error('Could not get directory handle for ', fq);
-				return;
-			}
+				const handle = await this.fileSystemProvider.getHandle(fq.folder);
+				if (!handle || handle.kind !== 'directory') {
+					console.error('Could not get directory handle for ', fq);
+					return;
+				}
 
-			const folderResults = await proxy.listDirectory(handle, query, fq, queryId);
-			for (const folderResult of folderResults.results) {
-				results.push({ resource: URI.joinPath(fq.folder, folderResult) });
-			}
-			if (folderResults.limitHit) { limitHit = true; }
-		}));
+				const folderResults = await proxy.listDirectory(handle, query, fq, queryId);
+				for (const folderResult of folderResults.results) {
+					results.push({ resource: URI.joinPath(fq.folder, folderResult) });
+				}
+				if (folderResults.limitHit) { limitHit = true; }
+			}));
 
-		queryDisposables.dispose();
+			queryDisposables.dispose();
 
-		const result = { messages: [], results, limitHit };
-		return result;
+			const result = { messages: [], results, limitHit };
+			return result;
+		} catch (e) {
+			console.error('Error performing web worker file search', e);
+			return {
+				results: [],
+				messages: [{
+					text: localize('errorSearchFile', "Unable to search with Web Worker file searcher"), type: TextSearchCompleteMessageType.Warning
+				}],
+			};
+		}
 	}
 
 	async clearCache(cacheKey: string): Promise<void> {
