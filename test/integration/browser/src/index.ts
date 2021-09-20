@@ -66,9 +66,9 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5f19eee5dc9588ca96192f89587b5878b7d7180d"],["skipWelcome","true"]]`;
 
 	if (path.extname(testWorkspaceUri) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
+		await page.goto(`${endpoint.href}?workspace=${testWorkspaceUri}&payload=${payloadParam}`);
 	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspaceUri}&payload=${payloadParam}`);
+		await page.goto(`${endpoint.href}?folder=${testWorkspaceUri}&payload=${payloadParam}`);
 	}
 
 	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {

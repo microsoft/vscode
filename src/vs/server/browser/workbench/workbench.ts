@@ -3,17 +3,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from 'vs/base/browser/browser';
+import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { request } from 'vs/base/parts/request/browser/request';
 import { localize } from 'vs/nls';
 import { parseLogLevel } from 'vs/platform/log/common/log';
 import { defaultWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { create, ICredentialsProvider, IHomeIndicator, IProductQualityChangeHandler, IWindowIndicator, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
+import { create, Disposable, ICredentialsProvider, IHomeIndicator, IProductQualityChangeHandler, IURLCallbackProvider, IWindowIndicator, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
 
 function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	let query: string | undefined = undefined;
@@ -156,6 +158,86 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 		await request({
 			url: doCreateUri('/auth/logout', queryValues).toString(true)
 		}, CancellationToken.None);
+	}
+}
+
+class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
+
+	static readonly FETCH_INTERVAL = 500; 			// fetch every 500ms
+	static readonly FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
+
+	static readonly QUERY_KEYS = {
+		REQUEST_ID: 'vscode-requestId',
+		SCHEME: 'vscode-scheme',
+		AUTHORITY: 'vscode-authority',
+		PATH: 'vscode-path',
+		QUERY: 'vscode-query',
+		FRAGMENT: 'vscode-fragment'
+	};
+
+	private readonly _onCallback = this._register(new Emitter<URI>());
+	readonly onCallback = this._onCallback.event;
+
+	create(options?: Partial<UriComponents>): URI {
+		const queryValues: Map<string, string> = new Map();
+
+		const requestId = generateUuid();
+		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
+
+		const { scheme, authority, path, query, fragment } = options ? options : { scheme: undefined, authority: undefined, path: undefined, query: undefined, fragment: undefined };
+
+		if (scheme) {
+			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.SCHEME, scheme);
+		}
+
+		if (authority) {
+			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.AUTHORITY, authority);
+		}
+
+		if (path) {
+			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.PATH, path);
+		}
+
+		if (query) {
+			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.QUERY, query);
+		}
+
+		if (fragment) {
+			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.FRAGMENT, fragment);
+		}
+
+		// Start to poll on the callback being fired
+		this.periodicFetchCallback(requestId, Date.now());
+
+		return doCreateUri('/callback', queryValues);
+	}
+
+	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
+
+		// Ask server for callback results
+		const queryValues: Map<string, string> = new Map();
+		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
+
+		const result = await request({
+			url: doCreateUri('/fetch-callback', queryValues).toString(true)
+		}, CancellationToken.None);
+
+		// Check for callback results
+		const content = await streamToBuffer(result.stream);
+		if (content.byteLength > 0) {
+			try {
+				this._onCallback.fire(URI.revive(JSON.parse(content.toString())));
+			} catch (error) {
+				console.error(error);
+			}
+
+			return; // done
+		}
+
+		// Continue fetching unless we hit the timeout
+		if (Date.now() - startTime < PollingURLCallbackProvider.FETCH_TIMEOUT) {
+			setTimeout(() => this.periodicFetchCallback(requestId, startTime), PollingURLCallbackProvider.FETCH_INTERVAL);
+		}
 	}
 }
 
@@ -411,6 +493,7 @@ class WindowIndicator implements IWindowIndicator {
 		windowIndicator,
 		productQualityChangeHandler,
 		workspaceProvider,
+		urlCallbackProvider: new PollingURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()
 	});
 })();

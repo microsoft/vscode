@@ -7,5 +7,8 @@ else
 	ROOT=$(dirname $(dirname $(dirname $(readlink -f $0))))
 fi
 
+export NODE_ENV=development
+export VSCODE_DEV=1
+
 SERVER_SCRIPT="$ROOT/out/server.js"
 exec /usr/bin/env node "$SERVER_SCRIPT" "$@"

@@ -18,7 +18,7 @@ import { isPromiseCanceledError, onUnexpectedError, setUnexpectedErrorHandler } 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
+import { dirname, join } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ReadableStreamEventPayload } from 'vs/base/common/stream';
@@ -73,7 +73,7 @@ import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/
 export type IRawURITransformerFactory = (remoteAuthority: string) => IRawURITransformer;
 export const IRawURITransformerFactory = createDecorator<IRawURITransformerFactory>('rawURITransformerFactory');
 
-const APP_ROOT = path.join(__dirname, '..', '..', '..', '..');
+const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
 const uriTransformerPath = path.join(APP_ROOT, 'out/serverUriTransformer');
 const rawURITransformerFactory: IRawURITransformerFactory = <any>require.__$__nodeRequire(uriTransformerPath);
 
@@ -174,6 +174,28 @@ function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCo
 	res.end(errorMessage);
 }
 
+function getFirstQueryValue(parsedUrl: url.UrlWithParsedQuery, key: string) {
+	const result = parsedUrl.query[key];
+	return Array.isArray(result) ? result[0] : result;
+}
+
+function getFirstQueryValues(parsedUrl: url.UrlWithParsedQuery, ignoreKeys?: string[]) {
+	const queryValues = new Map();
+
+	for (const key in parsedUrl.query) {
+		if (ignoreKeys && ignoreKeys.indexOf(key) >= 0) {
+			continue;
+		}
+
+		const value = getFirstQueryValue(parsedUrl, key);
+		if (typeof value === 'string') {
+			queryValues.set(key, value);
+		}
+	}
+
+	return queryValues;
+}
+
 async function serveFile(logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, filePath: string, responseHeaders: http.OutgoingHttpHeaders = {}) {
 	try {
 
@@ -198,7 +220,7 @@ async function serveFile(logService: ILogService, req: http.IncomingMessage, res
 		// Data
 		fs.createReadStream(filePath).pipe(res);
 	} catch (error) {
-		logService.error(error.toString());
+		logService.error(error);
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
 		return res.end('Not found');
 	}
@@ -225,6 +247,57 @@ async function handleRoot(req: http.IncomingMessage, resp: http.ServerResponse, 
 	});
 	return resp.end(entryPointContent);
 }
+
+const mapCallbackUriToRequestId = new Map<string, string>();
+async function handleCallback(logService: ILogService, req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery) {
+	const wellKnownKeys = ['vscode-requestId', 'vscode-scheme', 'vscode-authority', 'vscode-path', 'vscode-query', 'vscode-fragment'];
+	const [requestId, vscodeScheme, vscodeAuthority, vscodePath, vscodeQuery, vscodeFragment] = wellKnownKeys.map(key => {
+		const value = getFirstQueryValue(parsedUrl, key);
+		if (value) {
+			return decodeURIComponent(value);
+		}
+
+		return value;
+	});
+
+	if (!requestId) {
+		res.writeHead(400, { 'Content-Type': 'text/plain' });
+		return res.end(`Bad request.`);
+	}
+
+	// merge over additional query values that we got
+	let query = vscodeQuery;
+	let index = 0;
+	getFirstQueryValues(parsedUrl, wellKnownKeys).forEach((value, key) => {
+		if (!query) {
+			query = '';
+		}
+
+		const prefix = (index++ === 0) ? '' : '&';
+		query += `${prefix}${key}=${value}`;
+	});
+
+	// add to map of known callbacks
+	mapCallbackUriToRequestId.set(requestId, JSON.stringify({ scheme: vscodeScheme || product.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }));
+	return serveFile(logService, req, res, FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath, { 'Content-Type': 'text/html' });
+}
+
+async function handleFetchCallback(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery) {
+	const requestId = getFirstQueryValue(parsedUrl, 'vscode-requestId');
+	if (!requestId) {
+		res.writeHead(400, { 'Content-Type': 'text/plain' });
+		return res.end(`Bad request.`);
+	}
+
+	const knownCallbackUri = mapCallbackUriToRequestId.get(requestId);
+	if (knownCallbackUri) {
+		mapCallbackUriToRequestId.delete(requestId);
+	}
+
+	res.writeHead(200, { 'Content-Type': 'text/json' });
+	return res.end(knownCallbackUri);
+}
+
 
 interface ServerParsedArgs extends NativeParsedArgs {
 	port?: string
@@ -253,13 +326,14 @@ export interface IServerOptions {
 }
 
 export async function main(options: IServerOptions): Promise<void> {
-	const devMode = !!process.env['VSCODE_DEV'];
 	const connectionToken = generateUuid();
 
 	const parsedArgs = parseArgs(process.argv, SERVER_OPTIONS);
 	parsedArgs['user-data-dir'] = URI.file(path.join(os.homedir(), product.dataFolderName)).fsPath;
 	const productService = { _serviceBrand: undefined, ...product };
 	const environmentService = new NativeEnvironmentService(parsedArgs, productService);
+
+	const devMode = !environmentService.isBuilt;
 
 	// see src/vs/code/electron-main/main.ts#142
 	const bufferLogService = new BufferLogService();
@@ -613,6 +687,15 @@ export async function main(options: IServerOptions): Promise<void> {
 				if (pathname === '/') {
 					return handleRoot(req, res, devMode ? options.mainDev || WEB_MAIN_DEV : options.main || WEB_MAIN, environmentService);
 				}
+
+				if (pathname === '/callback') {
+					return handleCallback(logService, req, res, parsedUrl);
+				}
+
+				if (pathname === '/fetch-callback') {
+					return handleFetchCallback(req, res, parsedUrl);
+				}
+
 				if (pathname === '/manifest.json') {
 					res.writeHead(200, { 'Content-Type': 'application/json' });
 					return res.end(JSON.stringify({
@@ -634,7 +717,6 @@ export async function main(options: IServerOptions): Promise<void> {
 				}
 				//#region static end
 
-				// TODO uri callbacks ?
 				logService.error(`${req.method} ${req.url} not found`);
 				return serveError(req, res, 404, 'Not found.');
 			} catch (error) {
