@@ -2364,11 +2364,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	getCellIndex(cell: ICellViewModel) {
-		return this.getCellIndexByHandle(cell.handle);
-	}
-
-	getCellIndexByHandle(handle: number): number | undefined {
-		return this.viewModel?.getCellIndexByHandle(handle);
+		return this.viewModel?.getCellIndexByHandle(cell.handle);
 	}
 
 	getNextVisibleCellIndex(index: number): number | undefined {

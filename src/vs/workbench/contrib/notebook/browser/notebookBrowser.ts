@@ -605,7 +605,6 @@ export interface INotebookEditor {
 	cellAt(index: number): ICellViewModel | undefined;
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
-	getCellIndexByHandle(handle: number): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
 }
 
@@ -645,7 +644,6 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 	getFocus(): ICellRange;
 	cellAt(index: number): ICellViewModel;
 	getCellIndex(cell: ICellViewModel): number;
-	getCellIndexByHandle(handle: number): number;
 	getNextVisibleCellIndex(index: number): number;
 }
 
@@ -680,7 +678,6 @@ export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
 	getFocus(): ICellRange;
 	cellAt(index: number): ICellViewModel;
 	getCellIndex(cell: ICellViewModel): number;
-	getCellIndexByHandle(handle: number): number;
 	getNextVisibleCellIndex(index: number): number;
 }
 
