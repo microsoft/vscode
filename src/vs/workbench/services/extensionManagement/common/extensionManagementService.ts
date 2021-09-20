@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED, InstallVSIXOptions, InstallExtensionResult, TargetPlatform
+	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED, InstallVSIXOptions, InstallExtensionResult, TargetPlatform, ExtensionManagementError
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -413,7 +413,11 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		if (nonWebExtensions.length) {
-			const { choice } = await this.dialogService.show(Severity.Info, localize('non web extensions', "'{0}' has extensions which are not available in {1}. Would you like to install it anyways?", extension.displayName || extension.identifier.id, localize('VS Code for Web', "{0} for the Web", this.productService.nameLong)),
+			const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
+			if (nonWebExtensions.length === extensions.length) {
+				throw new ExtensionManagementError('Not supported in Web', INSTALL_ERROR_NOT_SUPPORTED);
+			}
+			const { choice } = await this.dialogService.show(Severity.Info, localize('non web extensions', "'{0}' contains extensions which are not available in {1}. Would you like to install it anyways?", extension.displayName || extension.identifier.id, productName),
 				[localize('install', "Install"), localize('cancel', "Cancel")], { cancelId: 2 });
 			if (choice !== 0) {
 				throw canceled();
