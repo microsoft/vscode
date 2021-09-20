@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { uppercaseFirstLetter } from 'vs/base/common/strings';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -172,7 +173,7 @@ registerAction2(class extends Action2 {
 				}
 				{ return res; }
 			});
-			if (!all.length && KERNEL_EXTENSIONS.get(notebook.viewType)) {
+			if (!all.length) {
 				picks.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
@@ -206,12 +207,16 @@ registerAction2(class extends Action2 {
 		return false;
 	}
 
-	private async _showKernelExtension(paneCompositeService: IPaneCompositePartService, viewType: string) {
+	private async _showKernelExtension(paneCompositePartService: IPaneCompositePartService, viewType: string) {
+		const viewlet = await paneCompositePartService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+
 		const extId = KERNEL_EXTENSIONS.get(viewType);
 		if (extId) {
-			const viewlet = await paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-			const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 			view?.search(`@id:${extId}`);
+		} else {
+			const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
+			view?.search(`@tag:notebookKernel${pascalCased}`);
 		}
 	}
 });
