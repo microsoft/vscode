@@ -772,12 +772,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._scrollable = new DomScrollableElement(this._xtermElement, {
 			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Auto,
-			alwaysConsumeMouseWheel: true
+			horizontal: ScrollbarVisibility.Visible,
+			alwaysConsumeMouseWheel: true,
+			listenOnDomNode: xterm.textarea
 		});
 
+		this._scrollable.setScrollDimensions(
+			{
+				width: this._container.parentElement?.clientWidth,
+				scrollWidth: this._container.parentElement?.clientWidth,
+				height: 10
+			});
+
+		this._scrollable.getDomNode().style.overflow = '';
 		this._wrapperElement.appendChild(this._scrollable.getDomNode());
-		this._scrollable.setScrollDimensions({ width: this._container.parentElement?.clientWidth });
 
 		this._setAriaLabel(xterm, this._instanceId, this._title);
 
@@ -1921,7 +1929,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm?.buffer.active) {
 			return;
 		}
-		if (!this._hasWrappedLines) {
+		if (this._hasWrappedLines) {
+			this._hasWrappedLines = false;
+			this._fixedCols = undefined;
+			this._fixedRows = undefined;
+			await this._resize();
+			this._scrollable?.setScrollDimensions(
+				{
+					width: this._container?.parentElement?.clientWidth,
+					scrollWidth: 0,
+					height: 10
+				});
+		} else {
 			let maxCols = 0;
 			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
 				const lineWidth = this._getLineWidth(i, this._xterm.buffer.active);
@@ -1932,13 +1951,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._fixedCols = maxCols;
 				await this._resize();
 				this._hasWrappedLines = true;
+				this._scrollable?.setScrollDimensions(
+					{
+						width: this._container?.parentElement?.clientWidth,
+						scrollWidth: maxCols + (this._container?.parentElement?.clientWidth || 0),
+						height: 10
+					});
 			}
-			this._scrollable?.scanDomNode();
-		} else {
-			this._fixedCols = undefined;
-			this._fixedRows = undefined;
-			await this._resize();
-			this._hasWrappedLines = false;
 		}
 	}
 
