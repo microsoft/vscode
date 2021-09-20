@@ -284,6 +284,7 @@ class SharedProcessMain extends Disposable {
 					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 				},
 					configurationService,
+					environmentService,
 					logService,
 					telemetryService
 				)

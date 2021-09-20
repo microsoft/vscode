@@ -88,6 +88,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensionTestsPath': { type: 'string' },
 	'debugId': { type: 'string' },
 	'debugRenderer': { type: 'boolean' },
+	'inspect-ptyhost': { type: 'string' },
+	'inspect-brk-ptyhost': { type: 'string' },
 	'inspect-search': { type: 'string', deprecates: 'debugSearch' },
 	'inspect-brk-search': { type: 'string', deprecates: 'debugBrkSearch' },
 	'export-default-configuration': { type: 'string' },
