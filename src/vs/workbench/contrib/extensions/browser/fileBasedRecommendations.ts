@@ -30,6 +30,8 @@ import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { disposableTimeout } from 'vs/base/common/async';
+import { isWeb } from 'vs/base/common/platform';
+import { IFileService } from 'vs/platform/files/common/files';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -99,6 +101,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -154,9 +157,22 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 	private onModelAdded(model: ITextModel): void {
 		const uri = model.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(model.uri)?.notebook : model.uri;
-		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
-		if (!uri || !supportedSchemes.includes(uri.scheme)) {
+		if (!uri) {
 			return;
+		}
+
+		/* In Web, recommend only when the file can be handled */
+		if (isWeb) {
+			if (!this.fileService.canHandleResource(uri)) {
+				return;
+			}
+		}
+
+		/* In Desktop, recommend only for files with these schemes */
+		else {
+			if (![Schemas.untitled, Schemas.file, Schemas.vscodeRemote].includes(uri.scheme)) {
+				return;
+			}
 		}
 
 		this.promptRecommendationsForModel(model);

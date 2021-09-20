@@ -522,7 +522,15 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor can split into 2 in the same
 	 * editor group.
 	 */
-	CanSplitInGroup = 1 << 5
+	CanSplitInGroup = 1 << 5,
+
+	/**
+	 * Signals that the editor wants it's description to be
+	 * visible when presented to the user. By default, a UI
+	 * component may decide to hide the description portion
+	 * for brevity.
+	 */
+	ForceDescription = 1 << 6
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput;

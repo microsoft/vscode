@@ -11,6 +11,7 @@ import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
+import { isNumber } from 'vs/base/common/types';
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
@@ -63,7 +64,28 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 		this._id = id;
 		this._alignment = alignment;
-		this._priority = priority;
+		this._priority = this.validatePriority(priority);
+	}
+
+	private validatePriority(priority?: number): number | undefined {
+		if (!isNumber(priority)) {
+			return undefined; // using this method to catch `NaN` too!
+		}
+
+		// Our RPC mechanism use JSON to serialize data which does
+		// not support `Infinity` so we need to fill in the number
+		// equivalent as close as possible.
+		// https://github.com/microsoft/vscode/issues/133317
+
+		if (priority === Number.POSITIVE_INFINITY) {
+			return Number.MAX_VALUE;
+		}
+
+		if (priority === Number.NEGATIVE_INFINITY) {
+			return -Number.MAX_VALUE;
+		}
+
+		return priority;
 	}
 
 	public get id(): string {

@@ -9,7 +9,7 @@ import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget, IHoverWidg
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isFunction, isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -93,9 +93,9 @@ class UpdatableHoverWidget implements IDisposable {
 	private show(content: ResolvedMarkdownTooltipContent): void {
 		const oldHoverWidget = this._hoverWidget;
 
-		if (content) {
+		if (this.hasContent(content)) {
 			const hoverOptions: IHoverDelegateOptions = {
-				content: content,
+				content,
 				target: this.target,
 				showPointer: this.hoverDelegate.placement === 'element',
 				hoverPosition: HoverPosition.BELOW,
@@ -105,6 +105,18 @@ class UpdatableHoverWidget implements IDisposable {
 			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions);
 		}
 		oldHoverWidget?.dispose();
+	}
+
+	private hasContent(content: ResolvedMarkdownTooltipContent): content is NonNullable<ResolvedMarkdownTooltipContent> {
+		if (!content) {
+			return false;
+		}
+
+		if (isMarkdownString(content)) {
+			return this.hasContent(content.value);
+		}
+
+		return true;
 	}
 
 	get isDisposed() {

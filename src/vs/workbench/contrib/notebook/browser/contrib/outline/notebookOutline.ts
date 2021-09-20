@@ -160,6 +160,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 	renderElement(node: ITreeNode<OutlineEntry, FuzzyScore>, _index: number, template: NotebookOutlineTemplate, _height: number | undefined): void {
 		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
+			labelEscapeNewLines: true,
 			extraClasses: []
 		};
 

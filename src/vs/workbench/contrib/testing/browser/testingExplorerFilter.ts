@@ -89,7 +89,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				value: this.state.text.value,
 				placeholderText: localize('testExplorerFilter', "Filter (e.g. text, !exclude, @tag)"),
 			},
-			history: this.history.get([]),
+			history: this.history.get([])
 		}));
 		this._register(attachSuggestEnabledInputBoxStyler(input, this.themeService));
 

@@ -29,6 +29,8 @@ import { BaseActionViewItem, ActionViewItem } from 'vs/base/browser/ui/actionbar
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
 
 export interface IMarkersFiltersChangeEvent {
 	filterText?: boolean;
@@ -245,6 +247,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	private focusContextKey: IContextKey<boolean>;
 	private readonly filtersAction: IAction;
 	private actionbar: ActionBar | null = null;
+	private keybindingService;
 
 	constructor(
 		action: IAction,
@@ -252,9 +255,11 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(null, action);
+		this.keybindingService = keybindingService;
 		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
 		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
@@ -319,7 +324,8 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
-			history: this.markersView.filters.filterHistory
+			history: this.markersView.filters.filterHistory,
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
 		}));
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.markersView.filters.filterText;
