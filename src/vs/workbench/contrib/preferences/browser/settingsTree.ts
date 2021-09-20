@@ -402,9 +402,9 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
 		for (const value of extGroupTree.values()) {
-			if (value.settings) {
+			for (const child of value.children!) {
 				// Sort the individual settings
-				value.settings.sort((a, b) => {
+				child.settings?.sort((a, b) => {
 					return compareNullableIntegers(a.order, b.order);
 				});
 			}
