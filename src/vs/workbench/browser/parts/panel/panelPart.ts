@@ -11,7 +11,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
-import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -41,6 +40,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IComposite } from 'vs/workbench/common/composite';
+import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 
 interface ICachedPanel {
 	id: string;
@@ -56,7 +56,7 @@ interface IPlaceholderViewContainer {
 	name?: string;
 }
 
-export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPanelPart {
+export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPaneCompositePart, IPaneCompositeSelectorPart {
 	protected abstract pinnedPanelsKey: string;
 	protected abstract placeholdeViewContainersKey: string;
 

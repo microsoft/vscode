@@ -59,13 +59,11 @@ import { Dimension, IDimension } from 'vs/base/browser/dom';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
-import { ISideBarPart } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
-import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
@@ -141,7 +139,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -653,7 +651,7 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 	}
 }
 
-export class TestSideBarPart implements ISideBarPart {
+export class TestSideBarPart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
 
 	onDidViewletRegisterEmitter = new Emitter<PaneCompositeDescriptor>();
@@ -661,8 +659,6 @@ export class TestSideBarPart implements ISideBarPart {
 	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
-	onDidPaneCompositeRegister = this.onDidViewletRegisterEmitter.event;
-	onDidPaneCompositeDeregister = this.onDidViewletDeregisterEmitter.event;
 	onDidPaneCompositeOpen = this.onDidViewletOpenEmitter.event;
 	onDidPaneCompositeClose = this.onDidViewletCloseEmitter.event;
 
@@ -678,7 +674,7 @@ export class TestSideBarPart implements ISideBarPart {
 	dispose() { }
 }
 
-export class TestPanelPart implements IPanelPart {
+export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
 	declare readonly _serviceBrand: undefined;
 
 	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;

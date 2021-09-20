@@ -8,7 +8,6 @@ import 'vs/workbench/browser/parts/sidebar/sidebarActions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { PaneCompositeRegistry, Extensions as ViewletExtensions, PaneCompositeDescriptor, PaneComposite } from 'vs/workbench/browser/panecomposite';
-import { ISideBarPart } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/viewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -32,8 +31,9 @@ import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 
-export class SidebarPart extends CompositePart<PaneComposite> implements ISideBarPart {
+export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCompositePart {
 
 	declare readonly _serviceBrand: undefined;
 
