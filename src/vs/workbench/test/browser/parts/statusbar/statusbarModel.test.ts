@@ -16,13 +16,13 @@ suite('Workbench status bar model', () => {
 
 		assert.strictEqual(model.entries.length, 0);
 
-		const entry1 = { id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 3, secondary: 1 }, container, labelContainer: container };
+		const entry1 = { id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 3, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry1);
-		const entry2 = { id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 2, secondary: 1 }, container, labelContainer: container };
+		const entry2 = { id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry2);
-		const entry3 = { id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container };
+		const entry3 = { id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry3);
-		const entry4 = { id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container };
+		const entry4 = { id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry4);
 
 		assert.strictEqual(model.entries.length, 4);
@@ -76,9 +76,9 @@ suite('Workbench status bar model', () => {
 
 		assert.strictEqual(model.entries.length, 0);
 
-		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 2 }, container, labelContainer: container });
-		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 3 }, container, labelContainer: container });
+		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 2 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 3 }, container, labelContainer: container, hasCommand: false });
 
 		const entries = model.entries;
 		assert.strictEqual(entries[0].id, '3');
@@ -92,9 +92,9 @@ suite('Workbench status bar model', () => {
 
 		assert.strictEqual(model.entries.length, 0);
 
-		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
+		model.add({ id: '1', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: '2', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: '3', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 
 		const entries = model.entries;
 		assert.strictEqual(entries[0].id, '1');
@@ -107,10 +107,10 @@ suite('Workbench status bar model', () => {
 		const model = new StatusbarViewModel(new TestStorageService());
 
 		// Existing reference, Alignment: left
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
+		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 
-		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'a', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container };
+		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'a', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry);
 
 		let entries = model.entries;
@@ -122,7 +122,7 @@ suite('Workbench status bar model', () => {
 		model.remove(entry);
 
 		// Existing reference, Alignment: right
-		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'a', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container };
+		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'a', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry);
 
 		entries = model.entries;
@@ -137,10 +137,10 @@ suite('Workbench status bar model', () => {
 		const model = new StatusbarViewModel(new TestStorageService());
 
 		// Non-Existing reference, Alignment: left
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
+		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 
-		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container };
+		let entry = { id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry);
 
 		let entries = model.entries;
@@ -152,7 +152,7 @@ suite('Workbench status bar model', () => {
 		model.remove(entry);
 
 		// Non-Existing reference, Alignment: right
-		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container };
+		entry = { id: 'c', alignment: StatusbarAlignment.RIGHT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.RIGHT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry);
 
 		entries = model.entries;
@@ -166,9 +166,9 @@ suite('Workbench status bar model', () => {
 		const container = document.createElement('div');
 		const model = new StatusbarViewModel(new TestStorageService());
 
-		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container });
+		model.add({ id: 'a', alignment: StatusbarAlignment.LEFT, name: '1', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: 'b', alignment: StatusbarAlignment.LEFT, name: '2', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: 'c', alignment: StatusbarAlignment.LEFT, name: '3', priority: { primary: { id: 'not-existing', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 
 		let entries = model.entries;
 		assert.strictEqual(entries.length, 3);
@@ -176,7 +176,7 @@ suite('Workbench status bar model', () => {
 		assert.strictEqual(entries[1].id, 'b');
 		assert.strictEqual(entries[2].id, 'c');
 
-		const entry = { id: 'not-existing', alignment: StatusbarAlignment.LEFT, name: 'not-existing', priority: { primary: 3, secondary: 1 }, container, labelContainer: container };
+		const entry = { id: 'not-existing', alignment: StatusbarAlignment.LEFT, name: 'not-existing', priority: { primary: 3, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(entry);
 
 		entries = model.entries;
@@ -199,16 +199,16 @@ suite('Workbench status bar model', () => {
 		const container = document.createElement('div');
 		const model = new StatusbarViewModel(new TestStorageService());
 
-		model.add({ id: '1-left', alignment: StatusbarAlignment.LEFT, name: '1-left', priority: { primary: 2, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: '2-left', alignment: StatusbarAlignment.LEFT, name: '2-left', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
+		model.add({ id: '1-left', alignment: StatusbarAlignment.LEFT, name: '1-left', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: '2-left', alignment: StatusbarAlignment.LEFT, name: '2-left', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 
-		model.add({ id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 2, secondary: 1 }, container, labelContainer: container });
-		model.add({ id: '2-right', alignment: StatusbarAlignment.RIGHT, name: '2-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container });
+		model.add({ id: '1-right', alignment: StatusbarAlignment.RIGHT, name: '1-right', priority: { primary: 2, secondary: 1 }, container, labelContainer: container, hasCommand: false });
+		model.add({ id: '2-right', alignment: StatusbarAlignment.RIGHT, name: '2-right', priority: { primary: 1, secondary: 1 }, container, labelContainer: container, hasCommand: false });
 
 		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 2);
 		assert.strictEqual(model.getEntries(StatusbarAlignment.RIGHT).length, 2);
 
-		const relativeEntryLeft = { id: 'relative', alignment: StatusbarAlignment.LEFT, name: 'relative', priority: { primary: { id: '1-right', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container };
+		const relativeEntryLeft = { id: 'relative', alignment: StatusbarAlignment.LEFT, name: 'relative', priority: { primary: { id: '1-right', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(relativeEntryLeft);
 
 		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 3);
@@ -217,7 +217,7 @@ suite('Workbench status bar model', () => {
 
 		model.remove(relativeEntryLeft);
 
-		const relativeEntryRight = { id: 'relative', alignment: StatusbarAlignment.RIGHT, name: 'relative', priority: { primary: { id: '1-right', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container };
+		const relativeEntryRight = { id: 'relative', alignment: StatusbarAlignment.RIGHT, name: 'relative', priority: { primary: { id: '1-right', alignment: StatusbarAlignment.LEFT }, secondary: 1 }, container, labelContainer: container, hasCommand: false };
 		model.add(relativeEntryRight);
 
 		assert.strictEqual(model.getEntries(StatusbarAlignment.LEFT).length, 2);

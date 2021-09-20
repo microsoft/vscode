@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -40,7 +40,7 @@ import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/pa
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
-import { withNullAsUndefined, assertAllDefined, assertIsDefined } from 'vs/base/common/types';
+import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -56,11 +56,12 @@ import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/edito
 interface IEditorInputLabel {
 	name?: string;
 	description?: string;
+	forceDescription?: boolean;
 	title?: string;
 	ariaLabel?: string;
 }
 
-type AugmentedLabel = IEditorInputLabel & { editor: EditorInput };
+type IEditorInputLabelAndEditor = IEditorInputLabel & { editor: EditorInput };
 
 export class TabsTitleControl extends TitleControl {
 
@@ -218,7 +219,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// New file when double clicking on tabs container (but not tabs)
-		[TouchEventType.Tap, EventType.DBLCLICK].forEach(eventType => {
+		for (const eventType of [TouchEventType.Tap, EventType.DBLCLICK]) {
 			this._register(addDisposableListener(tabsContainer, eventType, (e: MouseEvent | GestureEvent) => {
 				if (eventType === EventType.DBLCLICK) {
 					if (e.target !== tabsContainer) {
@@ -245,7 +246,7 @@ export class TabsTitleControl extends TitleControl {
 					}
 				}, this.group.id);
 			}));
-		});
+		}
 
 		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, e => {
@@ -784,7 +785,7 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		// Double click: either pin or toggle maximized
-		[TouchEventType.Tap, EventType.DBLCLICK].forEach(eventType => {
+		for (const eventType of [TouchEventType.Tap, EventType.DBLCLICK]) {
 			disposables.add(addDisposableListener(tab, eventType, (e: MouseEvent | GestureEvent) => {
 				if (eventType === EventType.DBLCLICK) {
 					EventHelper.stop(e);
@@ -799,7 +800,7 @@ export class TabsTitleControl extends TitleControl {
 					this.group.pinEditor(editor);
 				}
 			}));
-		});
+		}
 
 		// Context menu
 		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, e => {
@@ -953,11 +954,12 @@ export class TabsTitleControl extends TitleControl {
 		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
-		const labels = this.group.editors.map((editor, index) => ({
+		const labels: IEditorInputLabelAndEditor[] = this.group.editors.map((editor, index) => ({
 			editor,
 			name: editor.getName(),
 			description: editor.getDescription(verbosity),
-			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG)),
+			forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
+			title: editor.getTitle(Verbosity.LONG),
 			ariaLabel: computeEditorAriaLabel(editor, index, this.group, this.editorGroupService.count)
 		}));
 
@@ -969,63 +971,68 @@ export class TabsTitleControl extends TitleControl {
 		this.tabLabels = labels;
 	}
 
-	private shortenTabLabels(labels: AugmentedLabel[]): void {
+	private shortenTabLabels(labels: IEditorInputLabelAndEditor[]): void {
 
 		// Gather duplicate titles, while filtering out invalid descriptions
-		const mapTitleToDuplicates = new Map<string, AugmentedLabel[]>();
+		const mapNameToDuplicates = new Map<string, IEditorInputLabelAndEditor[]>();
 		for (const label of labels) {
 			if (typeof label.description === 'string') {
-				getOrSet(mapTitleToDuplicates, label.name, []).push(label);
+				getOrSet(mapNameToDuplicates, label.name, []).push(label);
 			} else {
 				label.description = '';
 			}
 		}
 
-		// Identify duplicate titles and shorten descriptions
-		mapTitleToDuplicates.forEach(duplicateTitles => {
+		// Identify duplicate names and shorten descriptions
+		for (const [, duplicateLabels] of mapNameToDuplicates) {
 
 			// Remove description if the title isn't duplicated
-			if (duplicateTitles.length === 1) {
-				duplicateTitles[0].description = '';
+			// and we have no indication to enforce description
+			if (duplicateLabels.length === 1 && !duplicateLabels[0].forceDescription) {
+				duplicateLabels[0].description = '';
 
-				return;
+				continue;
 			}
 
 			// Identify duplicate descriptions
-			const mapDescriptionToDuplicates = new Map<string, AugmentedLabel[]>();
-			for (const label of duplicateTitles) {
-				getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
+			const mapDescriptionToDuplicates = new Map<string, IEditorInputLabelAndEditor[]>();
+			for (const duplicateLabel of duplicateLabels) {
+				getOrSet(mapDescriptionToDuplicates, duplicateLabel.description, []).push(duplicateLabel);
 			}
 
 			// For editors with duplicate descriptions, check whether any long descriptions differ
 			let useLongDescriptions = false;
-			mapDescriptionToDuplicates.forEach((duplicateDescriptions, name) => {
-				if (!useLongDescriptions && duplicateDescriptions.length > 1) {
-					const [first, ...rest] = duplicateDescriptions.map(({ editor }) => editor.getDescription(Verbosity.LONG));
+			for (const [, duplicateLabels] of mapDescriptionToDuplicates) {
+				if (!useLongDescriptions && duplicateLabels.length > 1) {
+					const [first, ...rest] = duplicateLabels.map(({ editor }) => editor.getDescription(Verbosity.LONG));
 					useLongDescriptions = rest.some(description => description !== first);
 				}
-			});
+			}
 
 			// If so, replace all descriptions with long descriptions
 			if (useLongDescriptions) {
 				mapDescriptionToDuplicates.clear();
-				duplicateTitles.forEach(label => {
-					label.description = label.editor.getDescription(Verbosity.LONG);
-					getOrSet(mapDescriptionToDuplicates, label.description, []).push(label);
-				});
+				for (const duplicateLabel of duplicateLabels) {
+					duplicateLabel.description = duplicateLabel.editor.getDescription(Verbosity.LONG);
+					getOrSet(mapDescriptionToDuplicates, duplicateLabel.description, []).push(duplicateLabel);
+				}
 			}
 
 			// Obtain final set of descriptions
 			const descriptions: string[] = [];
-			mapDescriptionToDuplicates.forEach((_, description) => descriptions.push(description));
+			for (const [description] of mapDescriptionToDuplicates) {
+				descriptions.push(description);
+			}
 
-			// Remove description if all descriptions are identical
+			// Remove description if all descriptions are identical unless forced
 			if (descriptions.length === 1) {
 				for (const label of mapDescriptionToDuplicates.get(descriptions[0]) || []) {
-					label.description = '';
+					if (!label.forceDescription) {
+						label.description = '';
+					}
 				}
 
-				return;
+				continue;
 			}
 
 			// Shorten descriptions
@@ -1035,7 +1042,7 @@ export class TabsTitleControl extends TitleControl {
 					label.description = shortenedDescriptions[index];
 				}
 			});
-		});
+		}
 	}
 
 	private getLabelConfigFlags(value: string | undefined) {
@@ -1096,21 +1103,21 @@ export class TabsTitleControl extends TitleControl {
 
 		// Settings
 		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
-		['off', 'left', 'right'].forEach(option => {
+		for (const option of ['off', 'left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsVisibility === option);
-		});
+		}
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
-		['fit', 'shrink'].forEach(option => {
+		for (const option of ['fit', 'shrink']) {
 			tabContainer.classList.toggle(`sizing-${option}`, tabSizing === option);
-		});
+		}
 
 		tabContainer.classList.toggle('has-icon', options.showIcons && options.hasIcons);
 
 		tabContainer.classList.toggle('sticky', isTabSticky);
-		['normal', 'compact', 'shrink'].forEach(option => {
+		for (const option of ['normal', 'compact', 'shrink']) {
 			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
-		});
+		}
 
 		// Sticky compact/shrink tabs need a position to remain at their location
 		// when scrolling to stay in view (requirement for position: sticky)
