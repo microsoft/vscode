@@ -324,10 +324,28 @@ suite('CellRange', function () {
 		assert.deepStrictEqual(cellIndexesToRanges([10, 9]), [{ start: 9, end: 11 }]);
 	});
 
-	test('reduceCellRanges', function () {
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 2, end: 3 }]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 2, end: 3 }, { start: 0, end: 2 }]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 1 }, { start: 2, end: 3 }]), [{ start: 0, end: 1 }, { start: 2, end: 3 }]);
+	test('Reduce ranges', function () {
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 1 }, { start: 1, end: 2 }]), [{ start: 0, end: 2 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 1, end: 3 }]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 1, end: 3 }, { start: 0, end: 2 }]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 4, end: 5 }]), [{ start: 0, end: 2 }, { start: 4, end: 5 }]);
+
+		assert.deepStrictEqual(reduceCellRanges([
+			{ start: 0, end: 1 },
+			{ start: 1, end: 2 },
+			{ start: 4, end: 6 }
+		]), [
+			{ start: 0, end: 2 },
+			{ start: 4, end: 6 }
+		]);
+
+		assert.deepStrictEqual(reduceCellRanges([
+			{ start: 0, end: 1 },
+			{ start: 1, end: 3 },
+			{ start: 3, end: 4 }
+		]), [
+			{ start: 0, end: 4 }
+		]);
 	});
 });
 
