@@ -29,14 +29,16 @@ suite('TestExplorerFilterState', () => {
 	test('filters simple globs', () => {
 		t.setText('hello, !world');
 		assert.deepStrictEqual(t.globList, [{ text: 'hello', include: true }, { text: 'world', include: false }]);
-		assert.deepStrictEqual(t.onlyTags, new Set());
+		assert.deepStrictEqual(t.includeTags, new Set());
+		assert.deepStrictEqual(t.excludeTags, new Set());
 		assertFilteringFor(termFiltersOff);
 	});
 
 	test('filters to patterns', () => {
 		t.setText('@doc');
 		assert.deepStrictEqual(t.globList, []);
-		assert.deepStrictEqual(t.onlyTags, new Set());
+		assert.deepStrictEqual(t.includeTags, new Set());
+		assert.deepStrictEqual(t.excludeTags, new Set());
 		assertFilteringFor({
 			...termFiltersOff,
 			[TestFilterTerm.CurrentDoc]: true,
@@ -44,16 +46,18 @@ suite('TestExplorerFilterState', () => {
 	});
 
 	test('filters to tags', () => {
-		t.setText('@hello:world');
+		t.setText('@hello:world !@foo:bar');
 		assert.deepStrictEqual(t.globList, []);
-		assert.deepStrictEqual(t.onlyTags, new Set(['hello\0world']));
+		assert.deepStrictEqual(t.includeTags, new Set(['hello\0world']));
+		assert.deepStrictEqual(t.excludeTags, new Set(['foo\0bar']));
 		assertFilteringFor(termFiltersOff);
 	});
 
 	test('filters to mixed terms and tags', () => {
-		t.setText('@hello:world foo, !bar @doc');
+		t.setText('@hello:world foo, !bar @doc !@foo:bar');
 		assert.deepStrictEqual(t.globList, [{ text: 'foo', include: true }, { text: 'bar', include: false }]);
-		assert.deepStrictEqual(t.onlyTags, new Set(['hello\0world']));
+		assert.deepStrictEqual(t.includeTags, new Set(['hello\0world']));
+		assert.deepStrictEqual(t.excludeTags, new Set(['foo\0bar']));
 		assertFilteringFor({
 			...termFiltersOff,
 			[TestFilterTerm.CurrentDoc]: true,
@@ -63,12 +67,14 @@ suite('TestExplorerFilterState', () => {
 	test('parses quotes', () => {
 		t.setText('@hello:"world" @foo:\'bar\' baz');
 		assert.deepStrictEqual(t.globList, [{ text: 'baz', include: true }]);
-		assert.deepStrictEqual([...t.onlyTags], ['hello\0world', 'foo\0bar']);
+		assert.deepStrictEqual([...t.includeTags], ['hello\0world', 'foo\0bar']);
+		assert.deepStrictEqual(t.excludeTags, new Set());
 	});
 
 	test('parses quotes with escapes', () => {
 		t.setText('@hello:"world\\"1" foo');
 		assert.deepStrictEqual(t.globList, [{ text: 'foo', include: true }]);
-		assert.deepStrictEqual([...t.onlyTags], ['hello\0world"1']);
+		assert.deepStrictEqual([...t.includeTags], ['hello\0world"1']);
+		assert.deepStrictEqual(t.excludeTags, new Set());
 	});
 });

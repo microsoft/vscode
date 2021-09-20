@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditState, CellFocusMode, MarkdownCellRenderTemplate, ICellViewModel, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellViewModel, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,6 +23,7 @@ import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 
 export class StatefulMarkdownCell extends Disposable {
