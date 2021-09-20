@@ -4,17 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getRanges, ICellViewModel, reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getRanges, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 suite('notebookBrowser', () => {
-	test('Reduce ranges', function () {
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 1 }, { start: 1, end: 2 }]), [{ start: 0, end: 2 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 1, end: 3 }]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 1, end: 3 }, { start: 0, end: 2 }]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 4, end: 5 }]), [{ start: 0, end: 2 }, { start: 4, end: 5 }]);
-	});
-
 	suite('getRanges', function () {
 		const predicate = (cell: ICellViewModel) => cell.cellKind === CellKind.Code;
 

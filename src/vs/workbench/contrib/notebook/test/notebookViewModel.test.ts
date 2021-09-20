@@ -16,7 +16,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { insertCellAtIndex, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
@@ -207,25 +206,6 @@ suite('NotebookViewModel Decorations', () => {
 				});
 			}
 		);
-	});
-
-	test('reduce range', async function () {
-		assert.deepStrictEqual(reduceCellRanges([
-			{ start: 0, end: 1 },
-			{ start: 1, end: 2 },
-			{ start: 4, end: 6 }
-		]), [
-			{ start: 0, end: 2 },
-			{ start: 4, end: 6 }
-		]);
-
-		assert.deepStrictEqual(reduceCellRanges([
-			{ start: 0, end: 1 },
-			{ start: 1, end: 2 },
-			{ start: 3, end: 4 }
-		]), [
-			{ start: 0, end: 4 }
-		]);
 	});
 
 	test('diff hidden ranges', async function () {
