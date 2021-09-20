@@ -22,7 +22,7 @@ jobs:
       - uses: github/codespaces-precache@v1.0.1
         with:
           target: ppe
-          regions: WestUs2
+          regions: WestUs2 SouthEastAsia
           sku_name: standardLinux32gb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
