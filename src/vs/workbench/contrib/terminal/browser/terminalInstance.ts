@@ -697,7 +697,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._xtermTypeAhead = this._register(this._instantiationService.createInstance(TypeAheadAddon, this._processManager, this._configHelper));
 		this._xterm.loadAddon(this._xtermTypeAhead);
-		this._userHome = (await this._pathService.userHome()).fsPath;
+		this._pathService.userHome().then(userHome => {
+			this._userHome = userHome.fsPath;
+		});
 		return xterm;
 	}
 
