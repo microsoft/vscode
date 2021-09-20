@@ -45,7 +45,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, getTelemetryLevel, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 
@@ -89,7 +89,10 @@ class CliMain extends Disposable {
 			await this.doRun(environmentService, extensionManagementCLIService, fileService);
 
 			// Flush the remaining data in AI adapter (with 1s timeout)
-			return raceTimeout(combinedAppender(...appenders).flush(), 1000);
+			await Promise.all(appenders.map(a => {
+				raceTimeout(a.flush(), 1000);
+			}));
+			return;
 		});
 	}
 
@@ -156,7 +159,7 @@ class CliMain extends Disposable {
 			const { appRoot, extensionsPath, installSourcePath } = environmentService;
 
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(...appenders),
+				appenders,
 				sendErrorTelemetry: false,
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;

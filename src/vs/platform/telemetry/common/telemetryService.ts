@@ -16,7 +16,7 @@ import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfigurati
 import { getTelemetryConfiguration, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
-	appender: ITelemetryAppender;
+	appenders: ITelemetryAppender[];
 	sendErrorTelemetry?: boolean;
 	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
@@ -29,7 +29,7 @@ export class TelemetryService implements ITelemetryService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _appender: ITelemetryAppender;
+	private _appenders: ITelemetryAppender[];
 	private _commonProperties: Promise<{ [name: string]: any; }>;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
@@ -45,7 +45,7 @@ export class TelemetryService implements ITelemetryService {
 		config: ITelemetryServiceConfig,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
-		this._appender = config.appender;
+		this._appenders = config.appenders;
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
 		this._userOptIn = true;
@@ -155,7 +155,7 @@ export class TelemetryService implements ITelemetryService {
 				return undefined;
 			});
 
-			this._appender.log(eventName, data);
+			this._appenders.forEach(a => a.log(eventName, data));
 
 		}, err => {
 			// unsure what to do now...

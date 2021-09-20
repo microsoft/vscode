@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
@@ -56,18 +55,12 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 }
 
 export interface ITelemetryAppender {
+	minimumTelemetryLevel: TelemetryLevel;
 	log(eventName: string, data: any): void;
 	flush(): Promise<any>;
 }
 
-export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
-	return {
-		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		flush: () => Promises.settled(appenders.map(a => a.flush())),
-	};
-}
-
-export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
+export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null), minimumTelemetryLevel: TelemetryLevel.NONE };
 
 
 /* __GDPR__FRAGMENT__

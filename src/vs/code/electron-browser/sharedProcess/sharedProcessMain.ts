@@ -65,7 +65,7 @@ import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } fr
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, getTelemetryLevel, ITelemetryAppender, NullAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, ITelemetryAppender, NullAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -211,21 +211,22 @@ class SharedProcessMain extends Disposable {
 		// Telemetry
 		let telemetryService: ITelemetryService;
 		let telemetryAppender: ITelemetryAppender;
+		const appenders: ITelemetryAppender[] = [];
 		let telemetryLevel = getTelemetryLevel(productService, environmentService);
 		if (telemetryLevel >= TelemetryLevel.LOG) {
 			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
-
+			appenders.push(telemetryAppender);
 			const { appRoot, extensionsPath, installSourcePath } = environmentService;
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey && telemetryLevel >= TelemetryLevel.USER) {
 				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
-				telemetryAppender = combinedAppender(appInsightsAppender, telemetryAppender);
+				appenders.push(appInsightsAppender);
 			}
 
 			telemetryService = new TelemetryService({
-				appender: telemetryAppender,
+				appenders,
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: [appRoot, extensionsPath]

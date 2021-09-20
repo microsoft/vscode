@@ -6,6 +6,7 @@
 import * as appInsights from 'applicationinsights';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { mixin } from 'vs/base/common/objects';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
 async function getClient(aiKey: string): Promise<appInsights.TelemetryClient> {
@@ -39,6 +40,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 
 	private _aiClient: string | appInsights.TelemetryClient | undefined;
 	private _asyncAIClient: Promise<appInsights.TelemetryClient> | null;
+	public readonly minimumTelemetryLevel = TelemetryLevel.USER;
 
 	constructor(
 		private _eventPrefix: string,

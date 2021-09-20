@@ -11,10 +11,10 @@ import { ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, ITelemetryAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
@@ -23,6 +23,7 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 	private _aiClient: ApplicationInsights | undefined;
 	private _aiClientLoaded = false;
 	private _telemetryCache: { eventName: string, data: any }[] = [];
+	public readonly minimumTelemetryLevel = TelemetryLevel.USER;
 
 	constructor(private _eventPrefix: string, aiKey: string) {
 		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
@@ -94,6 +95,10 @@ class WebTelemetryAppender implements ITelemetryAppender {
 	flush(): Promise<void> {
 		return this._appender.flush();
 	}
+
+	get minimumTelemetryLevel(): TelemetryLevel {
+		return this._appender.minimumTelemetryLevel;
+	}
 }
 
 export class TelemetryService extends Disposable implements ITelemetryService {
@@ -115,9 +120,9 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 		if (!!productService.enableTelemetry && productService.aiConfig?.asimovKey && environmentService.isBuilt) {
 			// If remote server is present send telemetry through that, else use the client side appender
-			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new WebAppInsightsAppender('monacoworkbench', productService.aiConfig?.asimovKey);
+			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService), minimumTelemetryLevel: TelemetryLevel.USER } : new WebAppInsightsAppender('monacoworkbench', productService.aiConfig?.asimovKey);
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)),
+				appenders: [new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)],
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: false,
 			};
