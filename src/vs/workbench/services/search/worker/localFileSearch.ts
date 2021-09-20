@@ -77,6 +77,8 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		let limitHit = false;
 		let count = 0;
 
+		const max = query.maxResults || 512;
+
 		const filePatternMatcher = query.filePattern
 			? (name: string) => query.filePattern!.split('').every(c => name.includes(c))
 			: (name: string) => true;
@@ -88,7 +90,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 			count++;
 
-			if (query.maxResults && count > query.maxResults) {
+			if (max && count > max) {
 				limitHit = true;
 				token.cancel();
 			}
