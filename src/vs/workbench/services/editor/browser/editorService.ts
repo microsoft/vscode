@@ -142,7 +142,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Fire event to outside parties
 		this._onDidActiveEditorChange.fire();
-		this._onDidEditorsChange.fire([{ groupId: activeGroup.id, editor: this.lastActiveEditor, kind: GroupChangeKind.EDITOR_ACTIVE }]);
 	}
 
 	private registerGroupListeners(group: IEditorGroupView): void {
@@ -151,6 +150,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		groupDisposables.add(group.onDidGroupChange(e => {
 			switch (e.kind) {
 				case GroupChangeKind.EDITOR_ACTIVE:
+					if (group.activeEditor) {
+						this._onDidEditorsChange.fire([{ groupId: group.id, editor: group.activeEditor, kind: GroupChangeKind.EDITOR_ACTIVE }]);
+					}
 					this.handleActiveEditorChange(group);
 					this._onDidVisibleEditorsChange.fire();
 					break;

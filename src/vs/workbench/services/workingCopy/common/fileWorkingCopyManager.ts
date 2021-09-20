@@ -213,7 +213,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			private registerListeners(): void {
 
 				// Creates
-				this._register(this.stored.onDidCreate(workingCopy => {
+				this._register(this.stored.onDidResolve(workingCopy => {
 					if (workingCopy.isReadonly() || workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN)) {
 						this._onDidChange.fire([workingCopy.resource]);
 					}

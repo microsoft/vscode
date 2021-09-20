@@ -567,21 +567,10 @@ export interface INotebookEditor {
 	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
-	 * Get the view height of a cell (from the list view)
-	 */
-	getViewHeight(cell: ICellViewModel): number;
-
-	/**
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
 	 */
 	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined;
-
-	/**
-	 * @param startIndex Inclusive
-	 * @param endIndex Exclusive
-	 */
-	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel>;
 
 	/**
 	 * Set hidden areas on cell text models.

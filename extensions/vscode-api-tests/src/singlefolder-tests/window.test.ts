@@ -349,24 +349,17 @@ suite('vscode API - window', () => {
 
 	//#region Tabs API tests
 	test('Tabs - Ensure tabs getter is correct', async () => {
-		const docA = await workspace.openTextDocument(await createRandomFile());
-		const docB = await workspace.openTextDocument(await createRandomFile());
-		const docC = await workspace.openTextDocument(await createRandomFile());
-		// Add back actual notebook doc once stuck promise is figured out
-		//const notebookDoc = await workspace.openNotebookDocument(await createRandomFile('', undefined, '.vsctestnb'));
-		const notebookDoc = await workspace.openTextDocument(await createRandomFile());
-		// const [docA, docB, docC, notebookDoc] = await Promise.all([
-		// 	workspace.openTextDocument(await createRandomFile()),
-		// 	workspace.openTextDocument(await createRandomFile()),
-		// 	workspace.openTextDocument(await createRandomFile()),
-		// 	workspace.openNotebookDocument(await createRandomFile('', undefined, '.vsctestnb'))
-		// ]);
+		const [docA, docB, docC, notebookDoc] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openNotebookDocument('jupyter-notebook', undefined)
+		]);
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
-		await window.showTextDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
-		//await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
+		await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
 
 		const leftDiff = await createRandomFile();
 		const rightDiff = await createRandomFile();

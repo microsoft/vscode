@@ -947,9 +947,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			case TextFileEditorModelState.ERROR:
 				return this.inErrorMode;
 			case TextFileEditorModelState.ORPHAN:
-				if (this.resource.fsPath === '/Users/bpasero/Desktop/tab-labels/deleted.txt' || this.resource.fsPath === '/Users/bpasero/Desktop/tab-labels/deleted-readonly.txt') {
-					return true;
-				}
 				return this.inOrphanMode;
 			case TextFileEditorModelState.PENDING_SAVE:
 				return this.saveSequentializer.hasPending();
@@ -1042,10 +1039,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean {
-		if (this.resource.fsPath === '/Users/bpasero/Desktop/tab-labels/readonly.txt' || this.resource.fsPath === '/Users/bpasero/Desktop/tab-labels/deleted-readonly.txt') {
-			return true;
-		}
-
 		return this.lastResolvedFileStat?.readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 

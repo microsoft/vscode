@@ -36,7 +36,7 @@ import {
 	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
 	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoRowsRightAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
 	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction, CloseEditorInAllGroupsAction, NavigateToLastEditLocationAction, ToggleGroupSizesAction, ShowAllEditorsByMostRecentlyUsedAction,
-	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction, ReOpenInTextEditorAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction, ToggleEditorTypeAction
+	QuickAccessPreviousRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorInGroupAction, OpenNextRecentlyUsedEditorInGroupAction, QuickAccessLeastRecentlyUsedEditorAction, QuickAccessLeastRecentlyUsedEditorInGroupAction, ReOpenInTextEditorAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction, ToggleEditorTypeAction, SplitEditorToAboveGroupAction, SplitEditorToBelowGroupAction, SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID,
@@ -218,6 +218,14 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToLeftGroup
 registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToRightGroupAction), 'View: Move Editor into Right Group', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToAboveGroupAction), 'View: Move Editor into Above Group', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToBelowGroupAction), 'View: Move Editor into Below Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToPreviousGroupAction), 'View: Split Editor into Previous Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToNextGroupAction), 'View: Split Editor into Next Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToFirstGroupAction), 'View: Split Editor into First Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToLastGroupAction), 'View: Split Editor into Last Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToLeftGroupAction), 'View: Split Editor into Left Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToRightGroupAction), 'View: Split Editor into Right Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToAboveGroupAction), 'View: Split Editor into Above Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorToBelowGroupAction), 'View: Split Editor into Below Group', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusActiveGroupAction), 'View: Focus Active Editor Group', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusFirstGroupAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus First Editor Group', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLastGroupAction), 'View: Focus Last Editor Group', CATEGORIES.View.value);

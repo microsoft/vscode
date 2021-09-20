@@ -22,7 +22,7 @@ export class CapabilitiesStatus extends Disposable {
 
 		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.capabilities', jsTsLanguageModes));
 
-		this._statusItem.name = localize('capabilitiesStatus.name', "IntelliSense IntelliSense Status");
+		this._statusItem.name = localize('capabilitiesStatus.name', "IntelliSense Status");
 
 		this._register(this._client.onTsServerStarted(() => this.update()));
 		this._register(this._client.onDidChangeCapabilities(() => this.update()));

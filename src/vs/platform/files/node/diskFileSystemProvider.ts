@@ -290,7 +290,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && this.canFlush) {
 				try {
-					await Promises.fdatasync(fd);
+					await Promises.fdatasync(fd); // https://github.com/microsoft/vscode/issues/9589
 				} catch (error) {
 					// In some exotic setups it is well possible that node fails to sync
 					// In that case we disable flushing and log the error to our logger

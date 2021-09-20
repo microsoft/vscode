@@ -151,7 +151,9 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontSize]: {
 			description: localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			type: 'number',
-			default: isMacintosh ? 12 : 14
+			default: isMacintosh ? 12 : 14,
+			minimum: 6,
+			maximum: 100
 		},
 		[TerminalSettingId.LetterSpacing]: {
 			description: localize('terminal.integrated.letterSpacing', "Controls the letter spacing of the terminal, this is an integer value which represents the amount of additional pixels to add between characters."),
@@ -416,16 +418,6 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
 			type: 'string',
 			default: ' ()[]{}\',"`─'
-		},
-		[TerminalSettingId.TitleMode]: {
-			description: localize('terminal.integrated.titleMode', "Determines how the terminal's title is set, this shows up in the terminal's tab or dropdown entry."),
-			type: 'string',
-			enum: ['executable', 'sequence'],
-			markdownEnumDescriptions: [
-				localize('titleMode.executable', "The title is set by the terminal, the name of the detected foreground process will be used."),
-				localize('titleMode.sequence', "The title is set by the process via an escape sequence, this is useful if your shell dynamically sets the title.")
-			],
-			default: 'executable'
 		},
 		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),

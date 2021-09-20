@@ -157,7 +157,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		} else {
 			const [first] = model.combined;
-			let text: string = '$(info)';
+			let text: string = '$(check-all)';
 			if (first.severity === Severity.Error) {
 				text = '$(error)';
 			} else if (first.severity === Severity.Warning) {
@@ -279,7 +279,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
 		return {
-			name: item.name,
+			name: localize('name.pattern', '{0} (Language Status)', item.name),
 			text: item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,

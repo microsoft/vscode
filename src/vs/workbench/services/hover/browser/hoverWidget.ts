@@ -463,7 +463,7 @@ class CompositeMouseTracker extends Widget {
 	private _isMouseIn: boolean = false;
 	private _mouseTimeout: number | undefined;
 
-	private readonly _onMouseOut = new Emitter<void>();
+	private readonly _onMouseOut = this._register(new Emitter<void>());
 	get onMouseOut(): Event<void> { return this._onMouseOut.event; }
 
 	constructor(

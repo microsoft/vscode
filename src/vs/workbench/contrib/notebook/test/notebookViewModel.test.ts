@@ -15,7 +15,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { insertCellAtIndex, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -57,60 +57,10 @@ suite('NotebookViewModel', () => {
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell), 1);
 
-				viewModel.deleteCell(1, true);
+				runDeleteAction(editor, viewModel.cellAt(1)!);
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
 				assert.strictEqual(viewModel.getCellIndex(cell), -1);
-			}
-		);
-	});
-
-	test('move cells down', async function () {
-		await withTestNotebook(
-			[
-				['//a', 'javascript', CellKind.Code, [], {}],
-				['//b', 'javascript', CellKind.Code, [], {}],
-				['//c', 'javascript', CellKind.Code, [], {}],
-			],
-			(editor, viewModel) => {
-				viewModel.moveCellToIdx(0, 1, 0, true);
-				// no-op
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//b');
-
-				viewModel.moveCellToIdx(0, 1, 1, true);
-				// b, a, c
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//c');
-
-				viewModel.moveCellToIdx(0, 1, 2, true);
-				// a, c, b
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//a');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//c');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//b');
-			}
-		);
-	});
-
-	test('move cells up', async function () {
-		await withTestNotebook(
-			[
-				['//a', 'javascript', CellKind.Code, [], {}],
-				['//b', 'javascript', CellKind.Code, [], {}],
-				['//c', 'javascript', CellKind.Code, [], {}],
-			],
-			(editor, viewModel) => {
-				viewModel.moveCellToIdx(1, 1, 0, true);
-				// b, a, c
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//a');
-
-				viewModel.moveCellToIdx(2, 1, 0, true);
-				// c, b, a
-				assert.strictEqual(viewModel.cellAt(0)?.getText(), '//c');
-				assert.strictEqual(viewModel.cellAt(1)?.getText(), '//b');
-				assert.strictEqual(viewModel.cellAt(2)?.getText(), '//a');
 			}
 		);
 	});
@@ -129,7 +79,7 @@ suite('NotebookViewModel', () => {
 				const cell = insertCellAtIndex(viewModel, insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
 
 				const addedCellIndex = viewModel.getCellIndex(cell);
-				viewModel.deleteCell(addedCellIndex, true);
+				runDeleteAction(editor, viewModel.cellAt(addedCellIndex)!);
 
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
 				const cell2 = insertCellAtIndex(viewModel, secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
@@ -192,7 +142,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 3
 				});
 
-				viewModel.deleteCell(0, true);
+				runDeleteAction(editor, viewModel.cellAt(0)!);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
@@ -206,14 +156,14 @@ suite('NotebookViewModel Decorations', () => {
 					end: 3
 				});
 
-				viewModel.deleteCell(3, true);
+				runDeleteAction(editor, viewModel.cellAt(3)!);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 2
 				});
 
-				viewModel.deleteCell(1, true);
+				runDeleteAction(editor, viewModel.cellAt(1)!);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 0,
 
@@ -370,18 +320,18 @@ suite('NotebookViewModel API', () => {
 				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor, viewModel) => {
-				assert.strictEqual(viewModel.getCells().length, 3);
-				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 1 }).map(cell => cell.getText()), ['# header a']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 2 }).map(cell => cell.getText()), ['# header a', 'var b = 1;']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 3 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 0, end: 4 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 1, end: 4 }).map(cell => cell.getText()), ['var b = 1;', '# header b']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 2, end: 4 }).map(cell => cell.getText()), ['# header b']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 3, end: 4 }).map(cell => cell.getText()), []);
+				assert.strictEqual(viewModel.getCellsInRange().length, 3);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 1 }).map(cell => cell.getText()), ['# header a']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 2 }).map(cell => cell.getText()), ['# header a', 'var b = 1;']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 3 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 0, end: 4 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 1, end: 4 }).map(cell => cell.getText()), ['var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 2, end: 4 }).map(cell => cell.getText()), ['# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 3, end: 4 }).map(cell => cell.getText()), []);
 
 				// no one should use an invalid range but `getCells` should be able to handle that.
-				assert.deepStrictEqual(viewModel.getCells({ start: -1, end: 1 }).map(cell => cell.getText()), ['# header a']);
-				assert.deepStrictEqual(viewModel.getCells({ start: 3, end: 0 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: -1, end: 1 }).map(cell => cell.getText()), ['# header a']);
+				assert.deepStrictEqual(viewModel.getCellsInRange({ start: 3, end: 0 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
 			}
 		);
 	});

@@ -575,10 +575,6 @@ class Launch extends AbstractLaunch implements ILaunch {
 			}
 		}
 
-		if (content === '') {
-			return { editor: null, created: false };
-		}
-
 		const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);
 		let startLineNumber = 1;
 		for (let i = 0; i < index; i++) {

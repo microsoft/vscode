@@ -21,7 +21,6 @@ export class MainThreadEditorTabs {
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
 	private _currentlyActiveTab: { groupId: number, tab: IEditorTabDto } | undefined = undefined;
-	private _oldTabModel: IEditorTabDto[] = [];
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -111,7 +110,7 @@ export class MainThreadEditorTabs {
 		if (movedTab === undefined) {
 			return;
 		}
-		this._tabModel.get(event.groupId)?.splice(event.oldEditorIndex, 0, movedTab[0]);
+		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 0, movedTab[0]);
 		movedTab[0].isActive = (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive({ resource: URI.revive(movedTab[0].resource), options: { override: movedTab[0].editorId } });
 		// Update the currently active tab
 		if (movedTab[0].isActive) {
@@ -123,7 +122,7 @@ export class MainThreadEditorTabs {
 	}
 
 	private _onDidGroupActivate(event: IEditorsChangeEvent): void {
-		if (event.kind !== GroupChangeKind.GROUP_INDEX) {
+		if (event.kind !== GroupChangeKind.GROUP_INDEX && event.kind !== GroupChangeKind.EDITOR_ACTIVE) {
 			return;
 		}
 		this._findAndUpdateActiveTab();
@@ -146,22 +145,26 @@ export class MainThreadEditorTabs {
 		}, this);
 	}
 
-	/**
-	 * Helper function to compare previous tab model to current one
-	 * @param current The current tab model to compare to the previous mode
-	 * @returns True if they're equivalent, false otherwise
-	 */
-	private _compareTabsModel(current: IEditorTabDto[]): boolean {
-		if (this._oldTabModel.length !== current.length) {
-			return false;
-		}
-		for (let i = 0; i < current.length; i++) {
-			if (this._oldTabModel[i].resource !== current[i].resource && this._oldTabModel[i].editorId !== current[i].editorId) {
-				return false;
-			}
-		}
-		return true;
-	}
+	// TODOD @lramos15 Remove this after done finishing the tab model code
+	// private _eventArrayToString(events: IEditorsChangeEvent[]): void {
+	// 	let eventString = '[';
+	// 	events.forEach(event => {
+	// 		switch (event.kind) {
+	// 			case GroupChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX, '; break;
+	// 			case GroupChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE, '; break;
+	// 			case GroupChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN, '; break;
+	// 			case GroupChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN, '; break;
+	// 			case GroupChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE, '; break;
+	// 			case GroupChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE, '; break;
+	// 			case GroupChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL, '; break;
+	// 			case GroupChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE, '; break;
+	// 			case GroupChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED, '; break;
+	// 			default: eventString += 'UNKNOWN, '; break;
+	// 		}
+	// 	});
+	// 	eventString += ']';
+	// 	console.log(eventString);
+	// }
 
 	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
 		events.forEach(event => {
@@ -173,6 +176,7 @@ export class MainThreadEditorTabs {
 				case GroupChangeKind.EDITOR_CLOSE:
 					this._onDidTabClose(event);
 					break;
+				case GroupChangeKind.EDITOR_ACTIVE:
 				case GroupChangeKind.GROUP_ACTIVE:
 					if (this._editorGroupsService.activeGroup.id !== event.groupId) {
 						return;
@@ -193,9 +197,6 @@ export class MainThreadEditorTabs {
 		// Flatten the map into a singular array to send the ext host
 		let allTabs: IEditorTabDto[] = [];
 		this._tabModel.forEach((tabs) => allTabs = allTabs.concat(tabs));
-		if (!this._compareTabsModel(allTabs)) {
-			this._proxy.$acceptEditorTabs(allTabs);
-			this._oldTabModel = allTabs;
-		}
+		this._proxy.$acceptEditorTabs(allTabs);
 	}
 }

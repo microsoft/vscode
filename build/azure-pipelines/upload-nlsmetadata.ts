@@ -11,6 +11,7 @@ import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 import * as merge from 'gulp-merge-json';
+import * as gzip from 'gulp-gzip';
 const azure = require('gulp-azure-storage');
 
 const root = path.dirname(path.dirname(__dirname));
@@ -30,6 +31,7 @@ function main() {
 		vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
 		.pipe(merge({
 			fileName: 'combined.nls.metadata.json',
+			jsonSpace: '',
 			edit: (parsedJson, file) => {
 				let key;
 				if (file.base === 'out-vscode-min') {
@@ -82,6 +84,7 @@ function main() {
 				return { [key]: parsedJson };
 			},
 		}))
+		.pipe(gzip({ append: false }))
 		.pipe(vfs.dest('./nlsMetadata'))
 		.pipe(es.through(function (data: Vinyl) {
 			console.log(`Uploading ${data.path}`);
@@ -93,7 +96,11 @@ function main() {
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: 'nlsmetadata',
-			prefix: commit + '/'
+			prefix: commit + '/',
+			contentSettings: {
+				contentEncoding: 'gzip',
+				cacheControl: 'max-age=31536000, public'
+			}
 		}));
 }
 

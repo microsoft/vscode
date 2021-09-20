@@ -5,14 +5,14 @@
 
 import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast';
 import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
-import { DenseKeyProvider, SmallImmutableSet } from './smallImmutableSet';
+import { SmallImmutableSet } from './smallImmutableSet';
 import { lengthGetLineCount, lengthIsZero, lengthLessThanEqual } from './length';
 import { concat23Trees } from './concat23Trees';
 import { NodeReader } from './nodeReader';
-import { Tokenizer, TokenKind } from './tokenizer';
+import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer';
 
-export function parseDocument(tokenizer: Tokenizer, edits: TextEditInfo[], oldNode: AstNode | undefined, denseKeyProvider: DenseKeyProvider<number>): AstNode {
-	const parser = new Parser(tokenizer, edits, oldNode, denseKeyProvider);
+export function parseDocument(tokenizer: Tokenizer, edits: TextEditInfo[], oldNode: AstNode | undefined): AstNode {
+	const parser = new Parser(tokenizer, edits, oldNode);
 	return parser.parseDocument();
 }
 
@@ -40,7 +40,6 @@ class Parser {
 		private readonly tokenizer: Tokenizer,
 		edits: TextEditInfo[],
 		oldNode: AstNode | undefined,
-		private readonly denseKeyProvider: DenseKeyProvider<number>,
 	) {
 		this.oldNodeReader = oldNode ? new NodeReader(oldNode) : undefined;
 		this.positionMapper = new BeforeEditPositionMapper(edits, tokenizer.length);
@@ -59,7 +58,7 @@ class Parser {
 	}
 
 	private parseList(
-		expectedClosingCategories: SmallImmutableSet<number>,
+		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
 	): AstNode | null {
 		const items = new Array<AstNode>();
 
@@ -68,12 +67,12 @@ class Parser {
 			if (
 				!token ||
 				(token.kind === TokenKind.ClosingBracket &&
-					expectedClosingCategories.has(token.category, this.denseKeyProvider))
+					token.bracketIds.intersects(openedBracketIds))
 			) {
 				break;
 			}
 
-			const child = this.parseChild(expectedClosingCategories);
+			const child = this.parseChild(openedBracketIds);
 			if (child.kind === AstNodeKind.List && child.children.length === 0) {
 				continue;
 			}
@@ -86,7 +85,7 @@ class Parser {
 	}
 
 	private parseChild(
-		expectingClosingCategories: SmallImmutableSet<number>,
+		openedBracketIds: SmallImmutableSet<number>,
 	): AstNode {
 		if (this.oldNodeReader) {
 			const maxCacheableLength = this.positionMapper.getDistanceToNextChange(this.tokenizer.offset);
@@ -97,7 +96,7 @@ class Parser {
 					}
 
 					const endLineDidChange = lengthGetLineCount(curNode.length) === lengthGetLineCount(maxCacheableLength);
-					const canBeReused = curNode.canBeReused(expectingClosingCategories, endLineDidChange);
+					const canBeReused = curNode.canBeReused(openedBracketIds, endLineDidChange);
 					return canBeReused;
 				});
 
@@ -115,31 +114,29 @@ class Parser {
 
 		switch (token.kind) {
 			case TokenKind.ClosingBracket:
-				return new InvalidBracketAstNode(token.category, token.length, this.denseKeyProvider);
+				return new InvalidBracketAstNode(token.bracketIds, token.length);
 
 			case TokenKind.Text:
 				return token.astNode as TextAstNode;
 
 			case TokenKind.OpeningBracket:
-				const set = expectingClosingCategories.add(token.category, this.denseKeyProvider);
+				const set = openedBracketIds.merge(token.bracketIds);
 				const child = this.parseList(set);
 
 				const nextToken = this.tokenizer.peek();
 				if (
 					nextToken &&
 					nextToken.kind === TokenKind.ClosingBracket &&
-					nextToken.category === token.category
+					(nextToken.bracketId === token.bracketId || nextToken.bracketIds.intersects(token.bracketIds))
 				) {
 					this.tokenizer.read();
 					return PairAstNode.create(
-						token.category,
 						token.astNode as BracketAstNode,
 						child,
 						nextToken.astNode as BracketAstNode
 					);
 				} else {
 					return PairAstNode.create(
-						token.category,
 						token.astNode as BracketAstNode,
 						child,
 						null

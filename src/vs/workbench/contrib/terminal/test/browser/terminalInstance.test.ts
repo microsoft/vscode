@@ -17,7 +17,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { basename } from 'path';
 
-function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
+function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalInstance, 'shellLaunchConfig' | 'userHome' | 'cwd' | 'initialCwd' | 'processName' | 'sequence' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'> {
 	return {
 		shellLaunchConfig: {},
 		cwd: 'cwd',
@@ -29,6 +29,7 @@ function createInstance(partial?: Partial<ITerminalInstance>): Pick<ITerminalIns
 		capabilities: isWindows ? [] : [ProcessCapability.CwdDetection],
 		title: '',
 		description: '',
+		userHome: undefined,
 		...partial
 	};
 }
@@ -183,6 +184,7 @@ suite('Workbench - TerminalInstance', () => {
 				strictEqual(terminalLabelComputer.description, 'root2');
 			}
 		});
+		//TODO: enable and test userHome
 		test.skip('should hide cwdFolder in empty workspaces when cwd matches the workspace\'s default cwd ($HOME or $HOMEDRIVE$HOMEPATH)', async () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } }, cwd: ROOT_1 } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);

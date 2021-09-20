@@ -179,11 +179,11 @@ export class ListViewInfoAccessor extends Disposable {
 			return [];
 		}
 
-		return this.list.viewModel.getCells(range);
+		return this.list.viewModel.getCellsInRange(range);
 	}
 
 	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
-		return this.list.viewModel?.getCells(range) ?? [];
+		return this.list.viewModel?.getCellsInRange(range) ?? [];
 	}
 
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
@@ -1229,9 +1229,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._outputFocus.set(false);
 				this.updateEditorFocus();
 
-				if (!this._overlayContainer.contains(document.activeElement)) {
-					this._webviewFocused = false;
-				}
+				this._webviewFocused = false;
 			}));
 
 			this._localStore.add(this._webview.webview.onDidFocus(() => {
@@ -1829,10 +1827,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex);
 	}
 
-	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel> {
-		return this._listViewInfoAccessor.getCellsFromViewRange(startIndex, endIndex);
-	}
-
 	getCellsInRange(range?: ICellRange): ReadonlyArray<ICellViewModel> {
 		return this._listViewInfoAccessor.getCellsInRange(range);
 	}
@@ -1899,7 +1893,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const existingDecorations = this._decortionKeyToIds.get(key) || [];
-		const newDecorations = this.viewModel.getCells(range).map(cell => ({
+		const newDecorations = this.viewModel.getCellsInRange(range).map(cell => ({
 			handle: cell.handle,
 			options: { className: decorationRule.className, outputClassName: decorationRule.className, topClassName: decorationRule.topClassName }
 		}));
@@ -2911,6 +2905,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const iconForegroundColor = theme.getColor(iconForeground);
 	if (iconForegroundColor) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .codicon-debug-continue { color: ${iconForegroundColor}; }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .codicon-debug-continue { color: ${iconForegroundColor} !important; }`);
 	}
 });
