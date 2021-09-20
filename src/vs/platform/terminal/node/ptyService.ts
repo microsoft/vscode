@@ -111,7 +111,7 @@ export class PtyService extends Disposable implements IPtyService {
 						processDetails: await this._buildProcessDetails(persistentProcessId, persistentProcess),
 						processLaunchOptions: persistentProcess.processLaunchOptions,
 						unicodeVersion: persistentProcess.unicodeVersion,
-						replayEvent: await (persistentProcess as any)._serializer.generateReplayEvent(),
+						replayEvent: await persistentProcess.serializeNormalBuffer(),
 						timestamp: Date.now()
 					});
 				}));
