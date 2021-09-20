@@ -42,7 +42,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 interface WorkspaceFolderConfigurationResult {
 	workspaceFolder: IWorkspaceFolder;
@@ -54,7 +54,7 @@ export class TaskService extends AbstractTaskService {
 	constructor(@IConfigurationService configurationService: IConfigurationService,
 		@IMarkerService markerService: IMarkerService,
 		@IOutputService outputService: IOutputService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IViewsService viewsService: IViewsService,
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,

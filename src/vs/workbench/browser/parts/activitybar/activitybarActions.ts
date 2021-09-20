@@ -36,7 +36,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class ViewContainerActivityAction extends ActivityAction {
@@ -47,7 +47,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -345,7 +345,7 @@ class SwitchSideBarViewAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const activityBarService = accessor.get(IActivityBarService);
-		const paneCompositeService = accessor.get(IPaneCompositeService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
 		const visibleViewletIds = activityBarService.getVisibleViewContainerIds();
 

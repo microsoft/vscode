@@ -33,7 +33,7 @@ import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 /**
@@ -48,7 +48,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,

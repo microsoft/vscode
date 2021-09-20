@@ -29,7 +29,7 @@ import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/no
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 registerAction2(class extends Action2 {
@@ -97,7 +97,7 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const labelService = accessor.get(ILabelService);
 		const logService = accessor.get(ILogService);
-		const paneCompositeService = accessor.get(IPaneCompositeService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
 		let editor: INotebookEditor | undefined;
 		if (context !== undefined && 'notebookEditorId' in context) {
@@ -206,7 +206,7 @@ registerAction2(class extends Action2 {
 		return false;
 	}
 
-	private async _showKernelExtension(paneCompositeService: IPaneCompositeService, viewType: string) {
+	private async _showKernelExtension(paneCompositeService: IPaneCompositePartService, viewType: string) {
 		const extId = KERNEL_EXTENSIONS.get(viewType);
 		if (extId) {
 			const viewlet = await paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);

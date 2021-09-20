@@ -15,7 +15,7 @@ import { language } from 'vs/base/common/platform';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class ConfigureLocaleAction extends Action {
@@ -29,7 +29,7 @@ export class ConfigureLocaleAction extends Action {
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IHostService private readonly hostService: IHostService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IProductService private readonly productService: IProductService
 	) {

@@ -36,7 +36,7 @@ import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 const category = CATEGORIES.Test;
 
@@ -1020,7 +1020,7 @@ export class SearchForTestExtension extends Action2 {
 	}
 
 	public async run(accessor: ServicesAccessor) {
-		const paneCompositeService = accessor.get(IPaneCompositeService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = (await paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		viewlet.search('@category:"testing"');
 		viewlet.focus();

@@ -49,7 +49,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { BrowserFileUpload, FileDownload } from 'vs/workbench/contrib/files/browser/fileImportExport';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -560,7 +560,7 @@ export class FocusFilesExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
 	) {
 		super(id, label);
 	}

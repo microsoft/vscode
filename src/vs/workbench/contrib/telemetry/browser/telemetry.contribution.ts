@@ -24,7 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { hash } from 'vs/base/common/hash';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 type TelemetryData = {
@@ -58,7 +58,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super();

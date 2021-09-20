@@ -14,7 +14,7 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export interface IPaneCompositePart {
 
@@ -57,7 +57,7 @@ export interface IPaneCompositePart {
 	getLastActivePaneCompositeId(): string;
 }
 
-export class PaneCompositeService implements IPaneCompositeService {
+export class PaneCompositePartService implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
 	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
@@ -101,4 +101,4 @@ export class PaneCompositeService implements IPaneCompositeService {
 	}
 }
 
-registerSingleton(IPaneCompositeService, PaneCompositeService);
+registerSingleton(IPaneCompositePartService, PaneCompositePartService);

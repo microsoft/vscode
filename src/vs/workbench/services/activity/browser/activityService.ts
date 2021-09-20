@@ -12,7 +12,7 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 class ViewContainerActivityByView extends Disposable {
 
@@ -64,7 +64,7 @@ export class ActivityService implements IActivityService {
 	private viewActivities = new Map<string, IViewActivity>();
 
 	constructor(
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IActivityBarService private readonly activityBarService: IActivityBarService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService

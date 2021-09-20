@@ -27,7 +27,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -42,7 +42,7 @@ class UXState {
 	private readonly _activePanel: string | undefined;
 
 	constructor(
-		@IPaneCompositeService private readonly _paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		this._activePanel = _paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)?.getId();
@@ -91,7 +91,7 @@ class BulkEditPreviewContribution {
 	private _activeSession: PreviewSession | undefined;
 
 	constructor(
-		@IPaneCompositeService private readonly _paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IDialogService private readonly _dialogService: IDialogService,

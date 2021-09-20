@@ -9,7 +9,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IProgressRunner, IProgressIndicator, emptyProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IViewsService } from 'vs/workbench/common/views';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export class ProgressBarIndicator extends Disposable implements IProgressIndicator {
 
@@ -151,7 +151,7 @@ namespace ProgressIndicatorState {
 export abstract class CompositeScope extends Disposable {
 
 	constructor(
-		private paneCompositeService: IPaneCompositeService,
+		private paneCompositeService: IPaneCompositePartService,
 		private viewsService: IViewsService,
 		private scopeId: string
 	) {
@@ -193,7 +193,7 @@ export class CompositeProgressIndicator extends CompositeScope implements IProgr
 		progressbar: ProgressBar,
 		scopeId: string,
 		isActive: boolean,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IViewsService viewsService: IViewsService
 	) {
 		super(paneCompositeService, viewsService, scopeId);

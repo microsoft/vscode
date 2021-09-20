@@ -15,7 +15,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 abstract class BaseNavigationAction extends Action {
@@ -25,7 +25,7 @@ abstract class BaseNavigationAction extends Action {
 		label: string,
 		protected direction: Direction,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IPaneCompositeService protected paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService protected paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
 	) {
 		super(id, label);
@@ -136,7 +136,7 @@ class NavigateLeftAction extends BaseNavigationAction {
 		id: string,
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super(id, label, Direction.Left, editorGroupService, paneCompositeService, layoutService);
@@ -152,7 +152,7 @@ class NavigateRightAction extends BaseNavigationAction {
 		id: string,
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super(id, label, Direction.Right, editorGroupService, paneCompositeService, layoutService);
@@ -168,7 +168,7 @@ class NavigateUpAction extends BaseNavigationAction {
 		id: string,
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super(id, label, Direction.Up, editorGroupService, paneCompositeService, layoutService);
@@ -184,7 +184,7 @@ class NavigateDownAction extends BaseNavigationAction {
 		id: string,
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super(id, label, Direction.Down, editorGroupService, paneCompositeService, layoutService);

@@ -52,7 +52,7 @@ import { extUri } from 'vs/base/common/resources';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 suite('MainThreadEditors', () => {
 
@@ -155,7 +155,7 @@ suite('MainThreadEditors', () => {
 		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 
 		});
-		services.set(IPaneCompositeService, new class extends mock<IPaneCompositeService>() implements IPaneCompositeService {
+		services.set(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() implements IPaneCompositePartService {
 			override onDidPaneCompositeOpen = Event.None;
 			override onDidPaneCompositeClose = Event.None;
 			override getActivePaneComposite() {

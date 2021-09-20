@@ -52,7 +52,7 @@ import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -85,7 +85,7 @@ export class DebugService implements IDebugService {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@INotificationService private readonly notificationService: INotificationService,

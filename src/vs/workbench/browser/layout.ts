@@ -48,7 +48,7 @@ import { Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { Schemas } from 'vs/base/common/network';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -171,7 +171,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
 	private editorGroupService!: IEditorGroupsService;
-	private paneCompositeService!: IPaneCompositeService;
+	private paneCompositeService!: IPaneCompositePartService;
 	private titleService!: ITitleService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private contextService!: IWorkspaceContextService;
@@ -268,7 +268,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Parts
 		this.editorService = accessor.get(IEditorService);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
-		this.paneCompositeService = accessor.get(IPaneCompositeService);
+		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);

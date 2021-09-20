@@ -22,7 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class StartupTimings implements IWorkbenchContribution {
@@ -32,7 +32,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		@ITimerService private readonly _timerService: ITimerService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IPaneCompositeService private readonly _paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,

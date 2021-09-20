@@ -27,7 +27,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -85,7 +85,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			null!,
 			editorGroupService,
 			null!,
-			new class extends mock<IPaneCompositeService>() implements IPaneCompositeService {
+			new class extends mock<IPaneCompositePartService>() implements IPaneCompositePartService {
 				override onDidPaneCompositeOpen = Event.None;
 				override onDidPaneCompositeClose = Event.None;
 				override getActivePaneComposite() {

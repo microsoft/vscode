@@ -20,7 +20,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ViewContainerLocationToString, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
@@ -52,7 +52,7 @@ class FocusPanelAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label);
@@ -124,7 +124,7 @@ export class PanelActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
 	) {
 		super(activity);
 	}
@@ -143,7 +143,7 @@ export class PlaceHolderPanelActivityAction extends PanelActivityAction {
 
 	constructor(
 		id: string,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 	) {
 		super({ id, name: id }, paneCompositeService);
 	}
@@ -165,7 +165,7 @@ export class SwitchPanelViewAction extends Action {
 	constructor(
 		id: string,
 		name: string,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
 	) {
 		super(id, name);
 	}
@@ -197,7 +197,7 @@ export class PreviousPanelViewAction extends SwitchPanelViewAction {
 	constructor(
 		id: string,
 		name: string,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 	) {
 		super(id, name, paneCompositeService);
 	}
@@ -215,7 +215,7 @@ export class NextPanelViewAction extends SwitchPanelViewAction {
 	constructor(
 		id: string,
 		name: string,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 	) {
 		super(id, name, paneCompositeService);
 	}

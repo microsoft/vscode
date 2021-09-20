@@ -11,9 +11,9 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 
-export const IPaneCompositeService = createDecorator<IPaneCompositeService>('paneCompositeService');
+export const IPaneCompositePartService = createDecorator<IPaneCompositePartService>('paneCompositePartService');
 
-export interface IPaneCompositeService {
+export interface IPaneCompositePartService {
 
 	readonly _serviceBrand: undefined;
 

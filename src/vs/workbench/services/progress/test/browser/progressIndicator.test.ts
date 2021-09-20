@@ -10,7 +10,7 @@ import { TestSideBarPart, TestViewsService, TestPaneCompositeService } from 'vs/
 import { Event } from 'vs/base/common/event';
 import { IView, IViewPaneContainer, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 class TestViewlet implements IPaneComposite {
 
@@ -33,7 +33,7 @@ class TestViewlet implements IPaneComposite {
 class TestCompositeScope extends CompositeScope {
 	isActive: boolean = false;
 
-	constructor(paneCompositeService: IPaneCompositeService, viewsService: IViewsService, scopeId: string) {
+	constructor(paneCompositeService: IPaneCompositePartService, viewsService: IViewsService, scopeId: string) {
 		super(paneCompositeService, viewsService, scopeId);
 	}
 

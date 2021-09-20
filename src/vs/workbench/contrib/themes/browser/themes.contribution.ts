@@ -20,7 +20,7 @@ import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThe
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class SelectColorThemeAction extends Action {
@@ -34,7 +34,7 @@ export class SelectColorThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
 	) {
 		super(id, label);
 	}
@@ -107,7 +107,7 @@ abstract class AbstractIconThemeAction extends Action {
 		label: string,
 		private readonly quickInputService: IQuickInputService,
 		private readonly extensionGalleryService: IExtensionGalleryService,
-		private readonly paneCompositeService: IPaneCompositeService
+		private readonly paneCompositeService: IPaneCompositePartService
 
 	) {
 		super(id, label);
@@ -188,7 +188,7 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 
 	) {
 		super(id, label, quickInputService, extensionGalleryService, paneCompositeService);
@@ -219,7 +219,7 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 
 	) {
 		super(id, label, quickInputService, extensionGalleryService, paneCompositeService);
@@ -254,7 +254,7 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 	return [];
 }
 
-function openExtensionViewlet(paneCompositeService: IPaneCompositeService, query: string) {
+function openExtensionViewlet(paneCompositeService: IPaneCompositePartService, query: string) {
 	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
 		if (viewlet) {
 			(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);

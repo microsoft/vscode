@@ -50,7 +50,7 @@ import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/comm
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -207,7 +207,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private terminalService: ITerminalService,
 		private terminalGroupService: ITerminalGroupService,
 		private outputService: IOutputService,
-		private paneCompositeService: IPaneCompositeService,
+		private paneCompositeService: IPaneCompositePartService,
 		private viewsService: IViewsService,
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,

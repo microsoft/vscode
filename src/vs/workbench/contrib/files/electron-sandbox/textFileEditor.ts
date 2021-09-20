@@ -24,7 +24,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 /**
  * An implementation of editor for file system resources.
@@ -34,7 +34,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService fileService: IFileService,
-		@IPaneCompositeService paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,

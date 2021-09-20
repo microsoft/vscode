@@ -22,7 +22,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/plat
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 // --- Close Side Bar
 
@@ -499,7 +499,7 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const activityBarService = accessor.get(IActivityBarService);
-		const panelPart = accessor.get(IPaneCompositeService).getPartByLocation(ViewContainerLocation.Panel) as IPanelPart;
+		const panelPart = accessor.get(IPaneCompositePartService).getPartByLocation(ViewContainerLocation.Panel) as IPanelPart;
 
 		const focusedViewId = FocusedViewContext.getValue(contextKeyService);
 		let viewId: string;
@@ -621,7 +621,7 @@ class MoveFocusedViewAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const dialogService = accessor.get(IDialogService);
 		const activityBarService = accessor.get(IActivityBarService);
-		const panelPart = accessor.get(IPaneCompositeService).getPartByLocation(ViewContainerLocation.Panel) as IPanelPart;
+		const panelPart = accessor.get(IPaneCompositePartService).getPartByLocation(ViewContainerLocation.Panel) as IPanelPart;
 
 		const focusedViewId = viewId || FocusedViewContext.getValue(contextKeyService);
 

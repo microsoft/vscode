@@ -12,7 +12,7 @@ import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtensio
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
@@ -20,7 +20,7 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 	static PREFIX = 'ext install ';
 
 	constructor(
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionsService: IExtensionManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -97,7 +97,7 @@ export class ManageExtensionsQuickAccessProvider extends PickerQuickAccessProvid
 
 	static PREFIX = 'ext ';
 
-	constructor(@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService) {
+	constructor(@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService) {
 		super(ManageExtensionsQuickAccessProvider.PREFIX);
 	}
 
@@ -109,7 +109,7 @@ export class ManageExtensionsQuickAccessProvider extends PickerQuickAccessProvid
 	}
 }
 
-async function openExtensionsViewlet(paneCompositeService: IPaneCompositeService, search = ''): Promise<void> {
+async function openExtensionsViewlet(paneCompositeService: IPaneCompositePartService, search = ''): Promise<void> {
 	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 	const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 	view?.search(search);

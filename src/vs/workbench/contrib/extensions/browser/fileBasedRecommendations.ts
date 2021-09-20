@@ -31,7 +31,7 @@ import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { disposableTimeout } from 'vs/base/common/async';
 import { isWeb } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 type FileExtensionSuggestionClassification = {
@@ -93,7 +93,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IPaneCompositeService private readonly paneCompositeService: IPaneCompositeService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IProductService productService: IProductService,

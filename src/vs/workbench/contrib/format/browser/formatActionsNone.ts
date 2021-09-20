@@ -15,10 +15,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IPaneCompositeService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 
-async function showExtensionQuery(paneCompositeService: IPaneCompositeService, query: string) {
+async function showExtensionQuery(paneCompositeService: IPaneCompositePartService, query: string) {
 	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 	if (viewlet) {
 		(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
@@ -48,7 +48,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		}
 
 		const commandService = accessor.get(ICommandService);
-		const paneCompositeService = accessor.get(IPaneCompositeService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const notificationService = accessor.get(INotificationService);
 		const dialogService = accessor.get(IDialogService);
 
