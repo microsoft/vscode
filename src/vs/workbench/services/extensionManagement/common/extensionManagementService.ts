@@ -299,7 +299,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				}
 			}
 			await this.checkForWorkspaceTrust(manifest);
-			await this.checkInstallingExtensionPackOnWeb(gallery, manifest);
+			if (!installOptions.donotIncludePackAndDependencies) {
+				await this.checkInstallingExtensionPackOnWeb(gallery, manifest);
+			}
 			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
