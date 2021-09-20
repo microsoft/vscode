@@ -138,8 +138,8 @@ export class InlayHintsController implements IEditorContribution {
 			const cts = new CancellationTokenSource();
 			this._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 
-			const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
-			const result = await getInlayHints(model, visibleRanges, cts.token);
+			const ranges = this._getHintsRanges();
+			const result = await getInlayHints(model, ranges, cts.token);
 
 			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
 			this._updateHintsDecorators(result);
@@ -162,6 +162,22 @@ export class InlayHintsController implements IEditorContribution {
 				providerListener.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
 			}
 		}
+	}
+
+	private _getHintsRanges(): Range[] {
+		const extra = 30;
+		const model = this._editor.getModel()!;
+		const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
+		const result: Range[] = [];
+		for (const range of visibleRanges.sort(Range.compareRangesUsingStarts)) {
+			const extendedRange = model.validateRange(new Range(range.startLineNumber - extra, range.startColumn, range.endLineNumber + extra, range.endColumn));
+			if (result.length === 0 || !Range.areIntersectingOrTouching(result[result.length - 1], extendedRange)) {
+				result.push(extendedRange);
+			} else {
+				result[result.length - 1] = Range.plusRange(result[result.length - 1], extendedRange);
+			}
+		}
+		return result;
 	}
 
 	private _updateHintsDecorators(hintsData: InlayHintsData[]): void {
