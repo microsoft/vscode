@@ -196,8 +196,8 @@ export class InlayHintsController implements IEditorContribution {
 					verticalAlign: 'middle',
 					affectsLetterSpacing: true
 				};
-				const key = 'inlayHints-' + hash(before).toString(16);
-				this._codeEditorService.registerDecorationType('inlay-hints-controller', key, beforeInjectedText, undefined, this._editor);
+				const key = 'inlayHints-' + hash(beforeInjectedText).toString(16);
+				this._codeEditorService.registerDecorationType('inlay-hints-controller', key, { beforeInjectedText }, undefined, this._editor);
 
 				// decoration types are ref-counted which means we only need to
 				// call register und remove equally often
