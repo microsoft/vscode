@@ -410,7 +410,6 @@ export interface INotebookEditor {
 	readonly activeKernel: INotebookKernel | undefined;
 	//#endregion
 
-	// from the old IEditor
 	getLength(): number;
 	getSelections(): ICellRange[];
 	setSelections(selections: ICellRange[]): void;
@@ -559,6 +558,7 @@ export interface INotebookEditor {
 	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
+	 * Convert the view range to model range
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
 	 */
@@ -569,17 +569,32 @@ export interface INotebookEditor {
 	 */
 	setHiddenAreas(_ranges: ICellRange[]): boolean;
 
+	/**
+	 * Set selectiosn on the text editor attached to the cell
+	 */
+
 	setCellEditorSelection(cell: ICellViewModel, selection: Range): void;
+
+	/**
+	 *Change the decorations on the notebook cell list
+	 */
 
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[];
 
 	/**
-	 * Change the decorations on cells.
+	 * Change the decorations on cell editors.
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
+	/**
+	 * Set decoration key on cells in the range
+	 */
 	setEditorDecorations(key: string, range: ICellRange): void;
+
+	/**
+	 * Remove decoration key from the notebook editor
+	 */
 	removeEditorDecorations(key: string): void;
 
 	/**
@@ -805,7 +820,7 @@ export function getRanges(cells: ICellViewModel[], included: (cell: ICellViewMod
 
 export function cellRangeToViewCells(editor: IActiveNotebookEditor, ranges: ICellRange[]) {
 	const cells: ICellViewModel[] = [];
-	ranges.forEach(range => {
+	reduceCellRanges(ranges).forEach(range => {
 		cells.push(...editor.getCellsInRange(range));
 	});
 
