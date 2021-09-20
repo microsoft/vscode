@@ -9,12 +9,15 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
+import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IDisposable } from 'vs/workbench/workbench.web.api';
 
 export interface IPaneCompositePart {
 
@@ -57,21 +60,48 @@ export interface IPaneCompositePart {
 	getLastActivePaneCompositeId(): string;
 }
 
+export interface IPaneCompositeSelectorPart {
+	/**
+	 * Returns id of pinned view containers following the visual order.
+	 */
+	getPinnedPaneCompositeIds(): string[];
+
+	/**
+	 * Returns id of visible view containers following the visual order.
+	 */
+	getVisiblePaneCompositeIds(): string[];
+
+	/**
+	 * Show an activity in a viewlet.
+	 */
+	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
+}
+
 export class PaneCompositeParts implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
 	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
 	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
 
-	private parts = new Map<ViewContainerLocation, IPaneCompositePart>();
+	private paneCompositeParts = new Map<ViewContainerLocation, IPaneCompositePart>();
+	private paneCompositeSelectorParts = new Map<ViewContainerLocation, IPaneCompositeSelectorPart>();
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
-		this.parts.set(ViewContainerLocation.Panel, instantiationService.createInstance(PanelPart));
-		this.parts.set(ViewContainerLocation.Sidebar, instantiationService.createInstance(SidebarPart));
-		this.parts.set(ViewContainerLocation.AuxiliaryBar, instantiationService.createInstance(AuxiliaryBarPart));
+		const panelPart = instantiationService.createInstance(PanelPart);
+		const sideBarPart = instantiationService.createInstance(SidebarPart);
+		const auxiliaryBarPart = instantiationService.createInstance(AuxiliaryBarPart);
+		const activityBarPart = instantiationService.createInstance(ActivitybarPart, sideBarPart);
 
-		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; })));
-		this.onDidPaneCompositeClose = Event.any(...ViewContainerLocations.map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; })));
+		this.paneCompositeParts.set(ViewContainerLocation.Panel, panelPart);
+		this.paneCompositeParts.set(ViewContainerLocation.Sidebar, sideBarPart);
+		this.paneCompositeParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
+
+		this.paneCompositeSelectorParts.set(ViewContainerLocation.Panel, panelPart);
+		this.paneCompositeSelectorParts.set(ViewContainerLocation.Sidebar, activityBarPart);
+		this.paneCompositeSelectorParts.set(ViewContainerLocation.AuxiliaryBar, auxiliaryBarPart);
+
+		this.onDidPaneCompositeOpen = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; })));
+		this.onDidPaneCompositeClose = Event.any(...ViewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; })));
 	}
 
 	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
@@ -86,6 +116,15 @@ export class PaneCompositeParts implements IPaneCompositePartService {
 	getPaneComposites(viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor[] {
 		return this.getPartByLocation(viewContainerLocation).getPaneComposites();
 	}
+
+	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		return this.getSelectorPartByLocation(viewContainerLocation).getPinnedPaneCompositeIds();
+	}
+
+	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		return this.getSelectorPartByLocation(viewContainerLocation).getVisiblePaneCompositeIds();
+	}
+
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {
 		return this.getPartByLocation(viewContainerLocation).getProgressIndicator(id);
 	}
@@ -96,8 +135,16 @@ export class PaneCompositeParts implements IPaneCompositePartService {
 		return this.getPartByLocation(viewContainerLocation).getLastActivePaneCompositeId();
 	}
 
-	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
-		return assertIsDefined(this.parts.get(viewContainerLocation));
+	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+		return this.getSelectorPartByLocation(viewContainerLocation).showActivity(id, badge, clazz, priority);
+	}
+
+	private getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
+		return assertIsDefined(this.paneCompositeParts.get(viewContainerLocation));
+	}
+
+	private getSelectorPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositeSelectorPart {
+		return assertIsDefined(this.paneCompositeSelectorParts.get(viewContainerLocation));
 	}
 }
 

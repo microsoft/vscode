@@ -29,7 +29,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Part } from 'vs/workbench/browser/part';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
@@ -49,6 +48,7 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { Schemas } from 'vs/base/common/network';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -178,7 +178,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private workingCopyBackupService!: IWorkingCopyBackupService;
 	private notificationService!: INotificationService;
 	private themeService!: IThemeService;
-	private activityBarService!: IActivityBarService;
 	private statusBarService!: IStatusbarService;
 	private logService!: ILogService;
 
@@ -272,7 +271,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
-		this.activityBarService = accessor.get(IActivityBarService);
 		this.statusBarService = accessor.get(IStatusbarService);
 		accessor.get(IBannerService);
 
@@ -922,7 +920,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 				break;
 			case Parts.ACTIVITYBAR_PART:
-				this.activityBarService.focusActivityBar();
+				(this.getPart(Parts.ACTIVITYBAR_PART) as ActivitybarPart).focus();
 				break;
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();

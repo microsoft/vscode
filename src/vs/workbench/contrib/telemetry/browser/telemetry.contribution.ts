@@ -8,7 +8,6 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWo
 import { LifecyclePhase, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -51,7 +50,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IActivityBarService activityBarService: IActivityBarService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorService editorService: IEditorService,
 		@IKeybindingService keybindingsService: IKeybindingService,
@@ -112,7 +110,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
 			theme: themeService.getColorTheme().id,
 			language,
-			pinnedViewlets: activityBarService.getPinnedViewContainerIds(),
+			pinnedViewlets: paneCompositeService.getPinnedPaneCompositeIds(ViewContainerLocation.Sidebar),
 			restoredViewlet: activeViewlet ? activeViewlet.getId() : undefined,
 			restoredEditors: editorService.visibleEditors.length,
 			startupKind: lifecycleService.startupKind

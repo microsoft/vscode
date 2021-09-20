@@ -9,7 +9,8 @@ import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IBadge } from 'vs/workbench/services/activity/common/activity';
 
 export const IPaneCompositePartService = createDecorator<IPaneCompositePartService>('paneCompositePartService');
 
@@ -41,6 +42,16 @@ export interface IPaneCompositePartService {
 	getPaneComposites(viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor[];
 
 	/**
+	 * Returns id of pinned view containers following the visual order.
+	 */
+	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
+
+	/**
+	 * Returns id of visible view containers following the visual order.
+	 */
+	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[];
+
+	/**
 	 * Returns the progress indicator for the side bar.
 	 */
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined;
@@ -55,5 +66,8 @@ export interface IPaneCompositePartService {
 	 */
 	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string;
 
-	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart;
+	/**
+	 * Show an activity in a viewlet.
+	 */
+	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable;
 }

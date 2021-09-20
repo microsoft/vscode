@@ -636,6 +636,18 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		return this.getPartByLocation(viewContainerLocation).getLastActivePaneCompositeId();
 	}
 
+	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
 		return assertIsDefined(this.parts.get(viewContainerLocation));
 	}
@@ -675,7 +687,8 @@ export class TestPanelPart implements IPanelPart {
 	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
 	getPaneComposite(id: string): any { return activeViewlet; }
 	getPaneComposites() { return []; }
-	getPinnedPaneComposites() { return []; }
+	getPinnedPaneCompositeIds() { return []; }
+	getVisiblePaneCompositeIds() { return []; }
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }

@@ -548,11 +548,18 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			});
 	}
 
-	getPinnedPaneComposites(): PaneCompositeDescriptor[] {
+	getPinnedPaneCompositeIds(): string[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
 		return this.getPaneComposites()
 			.filter(p => pinnedCompositeIds.includes(p.id))
-			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
+			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id))
+			.map(p => p.id);
+	}
+
+	getVisiblePaneCompositeIds(): string[] {
+		return this.compositeBar.getVisibleComposites()
+			.filter(v => this.getActivePaneComposite()?.getId() === v.id || this.compositeBar.isPinned(v.id))
+			.map(v => v.id);
 	}
 
 	getActivePaneComposite(): IPaneComposite | undefined {

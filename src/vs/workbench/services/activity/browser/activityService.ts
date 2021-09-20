@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
 import { IActivityService, IActivity } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
@@ -65,7 +63,6 @@ export class ActivityService implements IActivityService {
 
 	constructor(
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IActivityBarService private readonly activityBarService: IActivityBarService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
@@ -74,11 +71,8 @@ export class ActivityService implements IActivityService {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
 		if (viewContainer) {
 			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			switch (location) {
-				case ViewContainerLocation.Panel:
-					return (this.paneCompositeService.getPartByLocation(ViewContainerLocation.Panel) as IPanelPart).showActivity(viewContainer.id, badge, clazz);
-				case ViewContainerLocation.Sidebar:
-					return this.activityBarService.showActivity(viewContainer.id, badge, clazz, priority);
+			if (location !== null) {
+				return this.paneCompositeService.showActivity(viewContainer.id, location, badge, clazz, priority);
 			}
 		}
 		return Disposable.None;
@@ -111,11 +105,11 @@ export class ActivityService implements IActivityService {
 	}
 
 	showAccountsActivity({ badge, clazz, priority }: IActivity): IDisposable {
-		return this.activityBarService.showActivity(ACCOUNTS_ACTIVITY_ID, badge, clazz, priority);
+		return this.paneCompositeService.showActivity(ACCOUNTS_ACTIVITY_ID, ViewContainerLocation.Sidebar, badge, clazz, priority);
 	}
 
 	showGlobalActivity({ badge, clazz, priority }: IActivity): IDisposable {
-		return this.activityBarService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
+		return this.paneCompositeService.showActivity(GLOBAL_ACTIVITY_ID, ViewContainerLocation.Sidebar, badge, clazz, priority);
 	}
 }
 

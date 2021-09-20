@@ -20,8 +20,6 @@ import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
-import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 // --- Close Side Bar
@@ -498,8 +496,7 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const contextKeyService = accessor.get(IContextKeyService);
-		const activityBarService = accessor.get(IActivityBarService);
-		const panelPart = accessor.get(IPaneCompositePartService).getPartByLocation(ViewContainerLocation.Panel) as IPanelPart;
+		const paneCompositePartService = accessor.get(IPaneCompositePartService);
 
 		const focusedViewId = FocusedViewContext.getValue(contextKeyService);
 		let viewId: string;
@@ -508,7 +505,7 @@ registerAction2(class extends Action2 {
 			viewId = focusedViewId;
 		}
 
-		viewId = await this.getView(quickInputService, activityBarService, viewDescriptorService, panelPart, viewId!);
+		viewId = await this.getView(quickInputService, viewDescriptorService, paneCompositePartService, viewId!);
 
 		if (!viewId) {
 			return;
@@ -518,10 +515,10 @@ registerAction2(class extends Action2 {
 		instantiationService.invokeFunction(accessor => moveFocusedViewAction.run(accessor, viewId));
 	}
 
-	private getViewItems(activityBarService: IActivityBarService, viewDescriptorService: IViewDescriptorService, panelPart: IPanelPart): Array<IQuickPickItem | IQuickPickSeparator> {
+	private getViewItems(viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService): Array<IQuickPickItem | IQuickPickSeparator> {
 		const results: Array<IQuickPickItem | IQuickPickSeparator> = [];
 
-		const viewlets = activityBarService.getVisibleViewContainerIds();
+		const viewlets = paneCompositePartService.getVisiblePaneCompositeIds(ViewContainerLocation.Sidebar);
 		viewlets.forEach(viewletId => {
 			const container = viewDescriptorService.getViewContainerById(viewletId)!;
 			const containerModel = viewDescriptorService.getViewContainerModel(container);
@@ -545,9 +542,9 @@ registerAction2(class extends Action2 {
 			});
 		});
 
-		const panels = panelPart.getPinnedPaneComposites();
+		const panels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.Panel);
 		panels.forEach(panel => {
-			const container = viewDescriptorService.getViewContainerById(panel.id)!;
+			const container = viewDescriptorService.getViewContainerById(panel)!;
 			const containerModel = viewDescriptorService.getViewContainerModel(container);
 
 			let hasAddedView = false;
@@ -572,10 +569,10 @@ registerAction2(class extends Action2 {
 		return results;
 	}
 
-	private async getView(quickInputService: IQuickInputService, activityBarService: IActivityBarService, viewDescriptorService: IViewDescriptorService, panelService: IPanelPart, viewId?: string): Promise<string> {
+	private async getView(quickInputService: IQuickInputService, viewDescriptorService: IViewDescriptorService, paneCompositePartService: IPaneCompositePartService, viewId?: string): Promise<string> {
 		const quickPick = quickInputService.createQuickPick();
 		quickPick.placeholder = localize('moveFocusedView.selectView', "Select a View to Move");
-		quickPick.items = this.getViewItems(activityBarService, viewDescriptorService, panelService);
+		quickPick.items = this.getViewItems(viewDescriptorService, paneCompositePartService);
 		quickPick.selectedItems = quickPick.items.filter(item => (item as IQuickPickItem).id === viewId) as IQuickPickItem[];
 
 		return new Promise((resolve, reject) => {
@@ -620,8 +617,7 @@ class MoveFocusedViewAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const dialogService = accessor.get(IDialogService);
-		const activityBarService = accessor.get(IActivityBarService);
-		const panelPart = accessor.get(IPaneCompositePartService).getPartByLocation(ViewContainerLocation.Panel) as IPanelPart;
+		const paneCompositePartService = accessor.get(IPaneCompositePartService);
 
 		const focusedViewId = viewId || FocusedViewContext.getValue(contextKeyService);
 
@@ -664,7 +660,7 @@ class MoveFocusedViewAction extends Action2 {
 			label: localize('sidebar', "Side Bar")
 		});
 
-		const pinnedViewlets = activityBarService.getVisibleViewContainerIds();
+		const pinnedViewlets = paneCompositePartService.getVisiblePaneCompositeIds(ViewContainerLocation.Sidebar);
 		items.push(...pinnedViewlets
 			.filter(viewletId => {
 				if (viewletId === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
@@ -685,19 +681,19 @@ class MoveFocusedViewAction extends Action2 {
 			label: localize('panel', "Panel")
 		});
 
-		const pinnedPanels = panelPart.getPinnedPaneComposites();
+		const pinnedPanels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.Panel);
 		items.push(...pinnedPanels
 			.filter(panel => {
-				if (panel.id === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
+				if (panel === viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
 					return false;
 				}
 
-				return !viewDescriptorService.getViewContainerById(panel.id)!.rejectAddedViews;
+				return !viewDescriptorService.getViewContainerById(panel)!.rejectAddedViews;
 			})
 			.map(panel => {
 				return {
-					id: panel.id,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel.id)!)!.title
+					id: panel,
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
 				};
 			}));
 

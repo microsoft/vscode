@@ -10,7 +10,6 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor, MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { IPanelPart } from 'vs/workbench/services/panel/browser/panelService';
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
@@ -171,15 +170,15 @@ export class SwitchPanelViewAction extends Action {
 	}
 
 	override async run(offset: number): Promise<void> {
-		const pinnedPanels = (this.paneCompositeService.getPartByLocation(ViewContainerLocation.Panel) as IPanelPart).getPinnedPaneComposites();
+		const pinnedPanels = this.paneCompositeService.getPinnedPaneCompositeIds(ViewContainerLocation.Panel);
 		const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (!activePanel) {
 			return;
 		}
 		let targetPanelId: string | undefined;
 		for (let i = 0; i < pinnedPanels.length; i++) {
-			if (pinnedPanels[i].id === activePanel.getId()) {
-				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length].id;
+			if (pinnedPanels[i] === activePanel.getId()) {
+				targetPanelId = pinnedPanels[(i + pinnedPanels.length + offset) % pinnedPanels.length];
 				break;
 			}
 		}

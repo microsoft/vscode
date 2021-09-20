@@ -20,7 +20,6 @@ import { ActivityAction, ActivityActionViewItem, IActivityHoverOptions, IComposi
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -38,6 +37,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -47,7 +47,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	constructor(
 		activity: IActivity,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		private readonly paneCompositePart: IPaneCompositePart,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -72,7 +72,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		this.lastRun = now;
 
 		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-		const activeViewlet = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
+		const activeViewlet = this.paneCompositePart.getActivePaneComposite();
 		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
 
 		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
@@ -80,7 +80,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 			switch (focusBehavior) {
 				case 'focus':
 					this.logAction('refocus');
-					this.paneCompositeService.openPaneComposite(this.activity.id, ViewContainerLocation.Sidebar, focus);
+					this.paneCompositePart.openPaneComposite(this.activity.id, focus);
 					break;
 				case 'toggle':
 				default:
@@ -94,7 +94,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		}
 
 		this.logAction('show');
-		await this.paneCompositeService.openPaneComposite(this.activity.id, ViewContainerLocation.Sidebar, focus);
+		await this.paneCompositePart.openPaneComposite(this.activity.id, focus);
 
 		return this.activate();
 	}
@@ -344,10 +344,9 @@ class SwitchSideBarViewAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const activityBarService = accessor.get(IActivityBarService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
-		const visibleViewletIds = activityBarService.getVisibleViewContainerIds();
+		const visibleViewletIds = paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.Sidebar);
 
 		const activeViewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		if (!activeViewlet) {
@@ -403,10 +402,9 @@ registerAction2(
 		}
 
 		async run(accessor: ServicesAccessor): Promise<void> {
-			const activityBarService = accessor.get(IActivityBarService);
 			const layoutService = accessor.get(IWorkbenchLayoutService);
 			layoutService.setActivityBarHidden(false);
-			activityBarService.focusActivityBar();
+			layoutService.focusPart(Parts.ACTIVITYBAR_PART);
 		}
 	});
 
