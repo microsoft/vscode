@@ -15,7 +15,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, INotebookCellStatusBarItem, NotebookCellInternalMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { ICellRange, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -706,52 +706,6 @@ export interface CellViewModelStateChangeEvent {
 	readonly cellLineNumberChanged?: boolean;
 }
 
-export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {
-	a = reduceCellRanges(a);
-	b = reduceCellRanges(b);
-	if (a.length !== b.length) {
-		return false;
-	}
-
-	for (let i = 0; i < a.length; i++) {
-		if (a[i].start !== b[i].start || a[i].end !== b[i].end) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-
-/**
- * @param _ranges
- */
-export function reduceCellRanges(_ranges: ICellRange[]): ICellRange[] {
-	if (!_ranges.length) {
-		return [];
-	}
-
-	const ranges = _ranges.sort((a, b) => a.start - b.start);
-	const result: ICellRange[] = [];
-	let currentRangeStart = ranges[0].start;
-	let currentRangeEnd = ranges[0].end + 1;
-
-	for (let i = 0, len = ranges.length; i < len; i++) {
-		const range = ranges[i];
-
-		if (range.start > currentRangeEnd) {
-			result.push({ start: currentRangeStart, end: currentRangeEnd - 1 });
-			currentRangeStart = range.start;
-			currentRangeEnd = range.end + 1;
-		} else if (range.end + 1 > currentRangeEnd) {
-			currentRangeEnd = range.end + 1;
-		}
-	}
-
-	result.push({ start: currentRangeStart, end: currentRangeEnd - 1 });
-	return result;
-}
-
 export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
 	if (!hiddenRanges.length) {
 		return cells;
@@ -823,7 +777,7 @@ export function expandCellRangesWithHiddenCells(editor: INotebookEditor, ranges:
 		}
 	});
 
-	return reduceRanges(modelRanges);
+	return reduceCellRanges(modelRanges);
 }
 
 /**

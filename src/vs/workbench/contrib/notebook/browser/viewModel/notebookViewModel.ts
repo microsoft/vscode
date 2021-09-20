@@ -31,7 +31,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean; };
@@ -417,13 +417,13 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				const selections = cellIndexesToRanges(state.selections.map(sel => this.getCellIndexByHandle(sel)))
 					.map(range => this.validateRange(range))
 					.filter(range => range !== null) as ICellRange[];
-				this._selectionCollection.setState(primarySelection, reduceRanges(selections), true, source);
+				this._selectionCollection.setState(primarySelection, reduceCellRanges(selections), true, source);
 			} else {
 				const primarySelection = this.validateRange(state.focus);
 				const selections = state.selections
 					.map(range => this.validateRange(range))
 					.filter(range => range !== null) as ICellRange[];
-				this._selectionCollection.setState(primarySelection, reduceRanges(selections), true, source);
+				this._selectionCollection.setState(primarySelection, reduceCellRanges(selections), true, source);
 			}
 		}
 	}
