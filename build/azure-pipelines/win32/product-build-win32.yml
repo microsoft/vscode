@@ -108,6 +108,14 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+      exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" }
+    displayName: Download Electron
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
     displayName: Build
@@ -135,8 +143,8 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install" }
-    displayName: Download Electron and Playwright
+      exec { yarn npm-run-all -lp "playwright-install" }
+    displayName: Download Playwright
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |

@@ -103,7 +103,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			private registerListeners(): void {
 
 				// Creates
-				this._register(this.files.onDidCreate(model => {
+				this._register(this.files.onDidResolve(({ model }) => {
 					if (model.isReadonly() || model.hasState(TextFileEditorModelState.ORPHAN)) {
 						this._onDidChange.fire([model.resource]);
 					}

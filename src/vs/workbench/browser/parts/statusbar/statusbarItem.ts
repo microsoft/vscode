@@ -44,6 +44,10 @@ export class StatusbarEntryItem extends Disposable {
 		return assertIsDefined(this.entry).name;
 	}
 
+	get hasCommand(): boolean {
+		return typeof this.entry?.command !== 'undefined';
+	}
+
 	constructor(
 		private container: HTMLElement,
 		entry: IStatusbarEntry,

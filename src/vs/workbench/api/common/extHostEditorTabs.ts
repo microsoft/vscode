@@ -63,6 +63,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				isActive: dto.isActive
 			});
 		});
+		this._tabs = this._tabs.sort((t1, t2) => t1.viewColumn - t2.viewColumn);
 		const oldActiveTab = this._activeTab;
 		this._activeTab = activeIndex === -1 ? undefined : this._tabs[activeIndex];
 		if (this._activeTab !== oldActiveTab) {

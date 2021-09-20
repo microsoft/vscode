@@ -2113,12 +2113,12 @@ export class ReOpenInTextEditorAction extends Action {
 		}
 
 		// Replace the current editor with the text editor
-		await this.editorService.replaceEditors([
+		await group.replaceEditors([
 			{
 				editor: activeEditorPane.input,
 				replacement: activeEditorPane.input,
 				options: { ...options, override: DEFAULT_EDITOR_ASSOCIATION.id },
 			}
-		], group);
+		]);
 	}
 }
