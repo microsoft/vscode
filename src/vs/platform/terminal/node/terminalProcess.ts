@@ -163,7 +163,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// This option will force conpty to not redraw the whole viewport on launch
 			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
-		const osRelease = os.release().split('.');
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
 			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
@@ -182,7 +181,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
 			});
-		} else if (isLinux || (osRelease.length > 0 && parseInt(osRelease[0]) < 20)) {
+		}
+		// Enable the cwd detection capability if the process supports it
+		if (isLinux || isMacintosh) {
 			this.capabilities.push(ProcessCapability.CwdDetection);
 		}
 	}
