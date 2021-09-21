@@ -123,9 +123,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 	}
 
 	dispose(): void {
-		this._extHosts.forEach((extHost) => {
-			extHost.kill();
-		});
+		// Intentionally not killing the extension host processes
 	}
 
 	private _getExtHost(id: string): ExtensionHostProcess {
