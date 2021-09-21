@@ -149,7 +149,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 					toLength(r.toLineNumber - r.fromLineNumber + 1, 0)
 				)
 			);
-			this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens);
+			this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
 			if (!this.initialAstWithoutTokens) {
 				this.didChangeDecorationsEmitter.fire();
 			}
@@ -159,16 +159,16 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 			// There are no token information yet
 			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageIdentifier().id);
 			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
-			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined);
-			this.astWithTokens = this.initialAstWithoutTokens.clone();
+			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, true);
+			this.astWithTokens = this.initialAstWithoutTokens;
 		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
 			// Skip the initial ast, as there is no flickering.
 			// Directly create the tree with token information.
 			this.initialAstWithoutTokens = undefined;
-			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined);
+			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined, false);
 		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.InProgress) {
-			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined);
-			this.astWithTokens = this.initialAstWithoutTokens.clone();
+			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined, true);
+			this.astWithTokens = this.initialAstWithoutTokens;
 		}
 	}
 
@@ -182,21 +182,21 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 			);
 		}).reverse();
 
-		this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens);
+		this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
 		if (this.initialAstWithoutTokens) {
-			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(edits, this.initialAstWithoutTokens);
+			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(edits, this.initialAstWithoutTokens, false);
 		}
 	}
 
 	/**
 	 * @pure (only if isPure = true)
 	*/
-	private parseDocumentFromTextBuffer(edits: TextEditInfo[], previousAst: AstNode | undefined): AstNode {
+	private parseDocumentFromTextBuffer(edits: TextEditInfo[], previousAst: AstNode | undefined, immutable: boolean): AstNode {
 		// Is much faster if `isPure = false`.
 		const isPure = false;
-		const previousAstClone = isPure ? previousAst?.clone() : previousAst;
+		const previousAstClone = isPure ? previousAst?.deepClone() : previousAst;
 		const tokenizer = new TextBufferTokenizer(this.textModel, this.brackets);
-		const result = parseDocument(tokenizer, edits, previousAstClone);
+		const result = parseDocument(tokenizer, edits, previousAstClone, immutable);
 		return result;
 	}
 
@@ -236,11 +236,37 @@ function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: 
 	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
 		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
 		result.push(new BracketInfo(range, level - 1, true));
-	} else {
-		if (node.kind === AstNodeKind.Pair) {
-			level++;
-		}
+	} else if (node.kind === AstNodeKind.List) {
 		for (const child of node.children) {
+			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
+			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
+				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+			}
+			nodeOffsetStart = nodeOffsetEnd;
+		}
+	} else if (node.kind === AstNodeKind.Pair) {
+		// Don't use node.children here to improve performance
+		level++;
+
+		{
+			const child = node.openingBracket;
+			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
+			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
+				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+			}
+			nodeOffsetStart = nodeOffsetEnd;
+		}
+
+		if (node.child) {
+			const child = node.child;
+			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
+			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
+				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+			}
+			nodeOffsetStart = nodeOffsetEnd;
+		}
+		if (node.closingBracket) {
+			const child = node.closingBracket;
 			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
 			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
 				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);

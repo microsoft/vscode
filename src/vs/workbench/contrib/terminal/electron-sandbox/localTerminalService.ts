@@ -166,13 +166,11 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> {
 		try {
-			console.log(`Try attach ` + id);
 			await this._localPtyService.attachToProcess(id);
 			const pty = this._instantiationService.createInstance(LocalPty, id, true);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
-			console.log(`Couldn't attach to process ${e.message}`);
 			this._logService.trace(`Couldn't attach to process ${e.message}`);
 		}
 		return undefined;
@@ -227,11 +225,13 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		if (serializedState) {
 			try {
 				await this._localPtyService.reviveTerminalProcesses(serializedState);
+				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit
 				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				if (layoutInfo) {
 					await this._localPtyService.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch {
 				// no-op

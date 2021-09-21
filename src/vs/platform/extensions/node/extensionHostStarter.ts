@@ -11,6 +11,7 @@ import { ChildProcess, fork } from 'child_process';
 import { FileAccess } from 'vs/base/common/network';
 import { StringDecoder } from 'string_decoder';
 import * as platform from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ExtensionHostProcess extends Disposable {
 
@@ -32,7 +33,8 @@ class ExtensionHostProcess extends Disposable {
 	private _process: ChildProcess | null = null;
 
 	constructor(
-		public readonly id: string
+		public readonly id: string,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 	}
@@ -43,6 +45,8 @@ class ExtensionHostProcess extends Disposable {
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
 		this._process = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost', '--skipWorkspaceStorageLock'], opts);
+
+		this._logService.info(`Starting extension host with pid ${this._process.pid}.`);
 
 		const stdoutDecoder = new StringDecoder('utf-8');
 		this._process.stdout?.on('data', (chunk) => {
@@ -76,6 +80,8 @@ class ExtensionHostProcess extends Disposable {
 			return false;
 		}
 
+		this._logService.info(`Enabling inspect port on extension host with pid ${this._process.pid}.`);
+
 		interface ProcessExt {
 			_debugProcess?(n: number): any;
 		}
@@ -95,7 +101,11 @@ class ExtensionHostProcess extends Disposable {
 	}
 
 	kill(): void {
-		this._process!.kill();
+		if (!this._process) {
+			return;
+		}
+		this._logService.info(`Killing extension host with pid ${this._process.pid}.`);
+		this._process.kill();
 	}
 }
 
@@ -106,14 +116,14 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	private readonly _extHosts: Map<string, ExtensionHostProcess>;
 
-	constructor() {
+	constructor(
+		@ILogService private readonly _logService: ILogService
+	) {
 		this._extHosts = new Map<string, ExtensionHostProcess>();
 	}
 
 	dispose(): void {
-		this._extHosts.forEach((extHost) => {
-			extHost.kill();
-		});
+		// Intentionally not killing the extension host processes
 	}
 
 	private _getExtHost(id: string): ExtensionHostProcess {
@@ -146,7 +156,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	async createExtensionHost(): Promise<{ id: string; }> {
 		const id = String(++ExtensionHostStarter._lastId);
-		const extHost = new ExtensionHostProcess(id);
+		const extHost = new ExtensionHostProcess(id, this._logService);
 		this._extHosts.set(id, extHost);
 		extHost.onExit(() => {
 			setTimeout(() => {

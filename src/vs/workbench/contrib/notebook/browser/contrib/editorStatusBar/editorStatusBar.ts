@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { uppercaseFirstLetter } from 'vs/base/common/strings';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -18,6 +19,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import type { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -28,8 +30,8 @@ import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/no
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -96,22 +98,20 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const labelService = accessor.get(ILabelService);
 		const logService = accessor.get(ILogService);
-		const viewletService = accessor.get(IViewletService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
-		let editor;
-		if (context !== undefined) {
-			if ('notebookEditorId' in context) {
-				const editorId = context.notebookEditorId;
-				const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
-					const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
-					return notebookEditor?.getId() === editorId;
-				});
-				editor = getNotebookEditorFromEditorPane(matchingEditor);
-			} else if ('notebookEditor' in context) {
-				editor = context?.notebookEditor;
-			} else {
-				editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-			}
+		let editor: INotebookEditor | undefined;
+		if (context !== undefined && 'notebookEditorId' in context) {
+			const editorId = context.notebookEditorId;
+			const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
+				const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
+				return notebookEditor?.getId() === editorId;
+			});
+			editor = getNotebookEditorFromEditorPane(matchingEditor);
+		} else if (context !== undefined && 'notebookEditor' in context) {
+			editor = context?.notebookEditor;
+		} else {
+			editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		}
 
 		if (!editor || !editor.hasModel()) {
@@ -173,7 +173,7 @@ registerAction2(class extends Action2 {
 				}
 				{ return res; }
 			});
-			if (!all.length && KERNEL_EXTENSIONS.get(notebook.viewType)) {
+			if (!all.length) {
 				picks.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
@@ -193,7 +193,7 @@ registerAction2(class extends Action2 {
 
 			if (pick) {
 				if (pick.id === 'install') {
-					await this._showKernelExtension(viewletService, notebook.viewType);
+					await this._showKernelExtension(paneCompositeService, notebook.viewType);
 				} else if ('kernel' in pick) {
 					newKernel = pick.kernel;
 				}
@@ -207,12 +207,16 @@ registerAction2(class extends Action2 {
 		return false;
 	}
 
-	private async _showKernelExtension(viewletService: IViewletService, viewType: string) {
+	private async _showKernelExtension(paneCompositePartService: IPaneCompositePartService, viewType: string) {
+		const viewlet = await paneCompositePartService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+
 		const extId = KERNEL_EXTENSIONS.get(viewType);
 		if (extId) {
-			const viewlet = await viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
-			const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 			view?.search(`@id:${extId}`);
+		} else {
+			const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
+			view?.search(`@tag:notebookKernel${pascalCased}`);
 		}
 	}
 });

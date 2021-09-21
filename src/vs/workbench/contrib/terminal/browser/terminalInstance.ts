@@ -627,7 +627,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			lineHeight: font.lineHeight,
 			minimumContrastRatio: config.minimumContrastRatio,
 			cursorBlink: config.cursorBlinking,
-			cursorStyle: config.cursorStyle,
+			cursorStyle: config.cursorStyle === 'line' ? 'bar' : config.cursorStyle,
 			cursorWidth: config.cursorWidth,
 			bellStyle: 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
@@ -1226,25 +1226,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._shellLaunchConfig.name) {
 				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
-				// Only listen for process title changes when a name is not provided
-				if (this._configHelper.config.tabs.title.includes('${sequence}') || this._configHelper.config.tabs.description.includes('${sequence}')) {
-					// Set the title to the first event if the sequence hasn't set it yet
-					Event.once(this._processManager.onProcessTitle)(e => {
-						if (!this._title) {
-							this.refreshTabLabels(e, TitleEventSource.Sequence);
-						}
+				// Listen to xterm.js' sequence title change event, trigger this async to ensure
+				// _xtermReadyPromise is ready constructed since this is called from the ctor
+				setTimeout(() => {
+					this._xtermReadyPromise.then(xterm => {
+						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
 					});
-					// Listen to xterm.js' sequence title change event, trigger this async to ensure
-					// _xtermReadyPromise is ready constructed since this is called from the ctor
-					setTimeout(() => {
-						this._xtermReadyPromise.then(xterm => {
-							this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
-						});
-					});
-				} else {
-					this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
-					this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.refreshTabLabels(title ? title : '', TitleEventSource.Process));
-				}
+				});
+				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
+				this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.refreshTabLabels(title ? title : '', TitleEventSource.Process));
 			}
 		});
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
@@ -1848,9 +1838,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// On Windows, some shells will fire this with the full path which we want to trim
 				// to show just the file name. This should only happen if the title looks like an
 				// absolute Windows file path
-				if (this._processManager.os === OperatingSystem.Windows && title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
-					title = path.win32.parse(title).name;
-					this._sequence = title;
+				this._sequence = title;
+				if (this._processManager.os === OperatingSystem.Windows) {
+					if (title.match(/^[a-zA-Z]:\\.+\.[a-zA-Z]{1,3}/)) {
+						title = path.win32.parse(title).name;
+						this._sequence = title;
+					} else {
+						this._sequence = undefined;
+					}
 				}
 				break;
 		}

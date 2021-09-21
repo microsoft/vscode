@@ -468,7 +468,15 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected getBackgroundColor(): string {
-		return this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND;
+		switch (this.viewDescriptorService.getViewLocationById(this.id)) {
+			case ViewContainerLocation.Panel:
+				return PANEL_BACKGROUND;
+			case ViewContainerLocation.Sidebar:
+			case ViewContainerLocation.AuxiliaryBar:
+				return SIDE_BAR_BACKGROUND;
+		}
+
+		return SIDE_BAR_BACKGROUND;
 	}
 
 	focus(): void {

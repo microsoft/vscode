@@ -101,6 +101,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		// - the path uses wrong casing
 		// - the path is a symbolic link
 		// We have to detect this case and massage the events to correct this.
+		// Note: Other platforms do not seem to have these path issues.
 		let realBasePathDiffers = false;
 		let realBasePathLength = request.path.length;
 		if (isMacintosh) {

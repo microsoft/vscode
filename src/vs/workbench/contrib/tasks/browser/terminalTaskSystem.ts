@@ -42,7 +42,6 @@ import {
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -51,6 +50,7 @@ import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/comm
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -207,7 +207,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private terminalService: ITerminalService,
 		private terminalGroupService: ITerminalGroupService,
 		private outputService: IOutputService,
-		private panelService: IPanelService,
+		private paneCompositeService: IPaneCompositePartService,
 		private viewsService: IViewsService,
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
@@ -328,15 +328,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (this.previousTerminalInstance) {
 					this.terminalService.setActiveInstance(this.previousTerminalInstance);
 				}
-				this.panelService.openPanel(this.previousPanelId);
+				this.paneCompositeService.openPaneComposite(this.previousPanelId, ViewContainerLocation.Panel);
 			} else {
-				this.panelService.hideActivePanel();
+				this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
 			}
 			this.previousPanelId = undefined;
 			this.previousTerminalInstance = undefined;
 		} else {
 			if (isTerminalInPanel) {
-				this.previousPanelId = this.panelService.getActivePanel()?.getId();
+				this.previousPanelId = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)?.getId();
 				if (this.previousPanelId === TERMINAL_VIEW_ID) {
 					this.previousTerminalInstance = this.terminalService.activeInstance ?? undefined;
 				}

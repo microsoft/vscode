@@ -5,49 +5,52 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { NotImplementedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
+import { mock } from 'vs/base/test/common/mock';
+import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { NullCommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { ICellViewModel, IActiveNotebookEditorDelegate, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, SelectionStateType, } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { mock } from 'vs/base/test/common/mock';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
+import { IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { Mimes } from 'vs/base/common/mime';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -242,13 +245,40 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override focusElement() { }
 		override setCellEditorSelection() { }
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
-		override getOutputRenderer() { return new OutputRenderer(notebookEditor, instantiationService); }
+		override getOutputRenderer() {
+			return new OutputRenderer({
+				creationOptions: notebookEditor.creationOptions,
+				getCellOutputLayoutInfo() {
+					return {
+						height: 100,
+						width: 100,
+						fontInfo: new FontInfo({
+							zoomLevel: 0,
+							pixelRatio: 1,
+							fontFamily: 'mockFont',
+							fontWeight: 'normal',
+							fontSize: 14,
+							fontFeatureSettings: EditorFontLigatures.OFF,
+							lineHeight: 19,
+							letterSpacing: 1.5,
+							isMonospace: true,
+							typicalHalfwidthCharacterWidth: 10,
+							typicalFullwidthCharacterWidth: 20,
+							canUseHalfwidthRightwardsArrow: true,
+							spaceWidth: 10,
+							middotWidth: 10,
+							wsmiddotWidth: 10,
+							maxDigitWidth: 10,
+						}, true)
+					};
+				}
+			}, instantiationService, NullCommandService);
+		}
 		override async layoutNotebookCell() { }
 		override async removeInset() { }
 		override async focusNotebookCell() { }
 		override cellAt(index: number) { return viewModel.cellAt(index)!; }
 		override getCellIndex(cell: ICellViewModel) { return viewModel.getCellIndex(cell); }
-		override getCellIndexByHandle(handle: number) { return viewModel.getCellIndexByHandle(handle); }
 		override getCellsInRange(range?: ICellRange) { return viewModel.getCellsInRange(range); }
 		override getNextVisibleCellIndex(index: number) { return viewModel.getNextVisibleCellIndex(index); }
 		getControl() { return this; }

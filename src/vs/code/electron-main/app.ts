@@ -65,10 +65,10 @@ import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
 import { IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, machineIdKey, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { NullTelemetryService, getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { NullTelemetryService, getTelemetryLevel, getTelemetryConfiguration } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
@@ -981,7 +981,8 @@ export class CodeApplication extends Disposable {
 			const argvString = argvContent.value.toString();
 			const argvJSON = JSON.parse(stripComments(argvString));
 			if (argvJSON['enable-crash-reporter'] === undefined) {
-				const enableCrashReporterSetting = this.configurationService.getValue('telemetry.enableCrashReporter');
+				const telemetryConfig = getTelemetryConfiguration(this.configurationService);
+				const enableCrashReporterSetting = telemetryConfig === TelemetryConfiguration.ON || telemetryConfig === TelemetryConfiguration.ERROR;
 				const enableCrashReporter = typeof enableCrashReporterSetting === 'boolean' ? enableCrashReporterSetting : true;
 				const additionalArgvContent = [
 					'',

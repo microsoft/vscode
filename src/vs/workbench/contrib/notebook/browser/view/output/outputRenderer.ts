@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
+import { Button } from 'vs/base/browser/ui/button/button';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ICellOutputViewModel, ICommonNotebookEditorDelegate, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { dispose } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookDelegateForOutput, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 
 export class OutputRenderer {
 
 	private readonly _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
 
 	constructor(
-		private readonly notebookEditor: ICommonNotebookEditorDelegate,
-		private readonly instantiationService: IInstantiationService
+		private readonly notebookEditor: INotebookDelegateForOutput,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandservice: ICommandService,
 	) {
 	}
 	dispose(): void {
@@ -51,6 +55,27 @@ export class OutputRenderer {
 		return { type: RenderOutputType.Mainframe };
 	}
 
+	private _renderSearchForMimetype(container: HTMLElement, mimeType: string): IRenderOutput {
+		const disposable = new DisposableStore();
+
+		const contentNode = document.createElement('p');
+		contentNode.innerText = localize('noRenderer.1', "No renderer could be found for mimetype \"{0}\", but one might be available on the Marketplace.", mimeType);
+
+		const button = new Button(container);
+		button.label = localize('noRenderer.search', 'Search Marketplace');
+		button.element.style.maxWidth = `200px`;
+		disposable.add(button.onDidClick(() => this.commandservice.executeCommand('workbench.extensions.search', `@tag:notebookRenderer ${mimeType}`)));
+		disposable.add(button);
+
+		container.appendChild(contentNode);
+		container.appendChild(button.element);
+
+		return {
+			type: RenderOutputType.Mainframe,
+			disposable,
+		};
+	}
+
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
 		this._initialize();
 		if (!viewModel.model.outputs.length) {
@@ -63,12 +88,12 @@ export class OutputRenderer {
 		}
 		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
 			if (preferredMimeType) {
-				return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for mimetype: {0}", preferredMimeType));
+				return this._renderSearchForMimetype(container, preferredMimeType);
 			}
 		}
 		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
 		if (!renderer) {
-			return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for mimetype: {0}", preferredMimeType));
+			return this._renderSearchForMimetype(container, preferredMimeType);
 		}
 		const first = viewModel.model.outputs.find(op => op.mime === preferredMimeType);
 		if (!first) {

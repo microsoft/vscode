@@ -37,7 +37,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import { BaseCellRenderTemplate, CodeCellLayoutInfo, CodeCellRenderTemplate, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate, isCodeCellRenderTemplate, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellLayoutInfo, EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CodeCellRenderTemplate, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
@@ -428,7 +429,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
 		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, cellEditorOptions.getValue(element.internalMetadata), this.renderedEditors,);
 		elementDisposables.add(markdownCell);
-		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(cellEditorOptions.getValue(element.internalMetadata))));
+		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
 
 		templateData.statusBar.update(toolbarContext);
 	}
@@ -999,8 +1000,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language);
 		elementDisposables.add(cellEditorOptions);
-		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getValue(element.internalMetadata))));
-		templateData.editor.updateOptions(cellEditorOptions.getValue(element.internalMetadata));
+		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata))));
+		templateData.editor.updateOptions(cellEditorOptions.getUpdatedValue(element.internalMetadata));
 
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 

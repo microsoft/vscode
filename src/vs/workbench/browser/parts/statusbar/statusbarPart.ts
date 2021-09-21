@@ -86,8 +86,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			private readonly hoverService: IHoverService
 		) { }
 
-		showHover(options: IHoverDelegateOptions): IHoverWidget | undefined {
-			return this.hoverService.showHover(options);
+		showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+			return this.hoverService.showHover(options, focus);
 		}
 
 		onDidHideHover(): void {
