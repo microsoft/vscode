@@ -2232,8 +2232,14 @@ declare module 'vscode' {
 		 */
 		readonly label: string;
 
+
 		/**
-		 * The position of the tab
+		 * The index of the tab within the view column
+		 */
+		readonly index: number;
+
+		/**
+		 * The column the tab belongs to
 		 */
 		readonly viewColumn: ViewColumn;
 
@@ -2255,6 +2261,23 @@ declare module 'vscode' {
 		 * Dictated by being the selected tab in the active group
 		 */
 		readonly isActive: boolean;
+
+		/**
+		 * Closes the tab object
+		 */
+		close(): void;
+
+		/**
+		 * Sets the label of the tab
+		 */
+		setLabel(label: string): void;
+
+		/**
+		 * Moves the tab to the new index and view column
+		 * @param index The new index of the tab within the current group
+		 * @param viewColumn The new view column of the tab.
+		 */
+		move(index: number, viewColumn: ViewColumn): void;
 	}
 
 	export namespace window {
@@ -2281,6 +2304,13 @@ declare module 'vscode' {
 		 * has changed.
 		 */
 		export const onDidChangeActiveTab: Event<Tab | undefined>;
+
+		/**
+		 * Opens a tab
+		 * @param tab The object representing the tab you want to open
+		 * @returns The opened tab
+		 */
+		export function openTab(tab: Exclude<Tab, Function>): Thenable<Tab>;
 
 	}
 
