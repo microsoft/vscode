@@ -32,10 +32,12 @@ import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { IRawURITransformerFactory } from 'vs/server/node/server.main';
 import { IURITransformer, transformIncomingURIs, URITransformer } from 'vs/base/common/uriIpc';
 import { cloneAndChange } from 'vs/base/common/objects';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export function registerRemoteTerminal(services: ServicesAccessor, channelServer: IPCServer<RemoteAgentConnectionContext>) {
 	const configurationService = services.get(IConfigurationService);
 	const logService = services.get(ILogService);
+	const environmentService = services.get(INativeEnvironmentService);
 	const telemetryService = services.get(ITelemetryService);
 	const rawURITransformerFactory = services.get(IRawURITransformerFactory);
 
@@ -44,7 +46,7 @@ export function registerRemoteTerminal(services: ServicesAccessor, channelServer
 		shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 		scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 	};
-	const ptyHostService = new PtyHostService(reconnectConstants, configurationService, logService, telemetryService);
+	const ptyHostService = new PtyHostService(reconnectConstants, configurationService, environmentService, logService, telemetryService);
 	channelServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannelServer(rawURITransformerFactory, logService, ptyHostService));
 }
 
