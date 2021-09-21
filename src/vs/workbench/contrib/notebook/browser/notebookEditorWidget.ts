@@ -69,6 +69,7 @@ import { IAckOutputHeight, IMarkupCellInitialization } from 'vs/workbench/contri
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
 
 const $ = DOM.$;
 
@@ -456,29 +457,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._updateForNotebookConfiguration();
-
-		if (this._debugFlag) {
-			this._domFrameLog();
-		}
 	}
 
 	private _debugFlag: boolean = false;
-	private _frameId = 0;
-	private _domFrameLog() {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			this._frameId++;
-
-			this._domFrameLog();
-		}, 1000000);
-	}
 
 	private _debug(...args: any[]) {
 		if (!this._debugFlag) {
 			return;
 		}
 
-		const date = new Date();
-		console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, `frame #${this._frameId}: `, ...args);
+		notebookDebug(...args);
 	}
 
 	/**

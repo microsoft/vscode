@@ -246,7 +246,7 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
 		if (this.viewCell.metadata.outputCollapsed === undefined && this.viewCell.metadata.outputCollapsed === undefined) {
-			this.viewUpdateExpanded();
+			this.initialViewUpdateExpanded();
 			this.viewCell.layoutChange({});
 		}
 
@@ -357,19 +357,18 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer.viewUpdateHideOuputs();
 	}
 
-	private _showOutput() {
+	private _showOutput(initRendering: boolean) {
 		this.templateData.container.classList.toggle('output-collapsed', false);
 		DOM.hide(this.templateData.cellOutputCollapsedContainer);
 		this._updateOutputInnertContainer(false);
-		this._outputContainerRenderer.viewUpdateShowOutputs();
+		this._outputContainerRenderer.viewUpdateShowOutputs(initRendering);
 	}
 
-	private viewUpdateExpanded(): void {
-		this._showInput();
-		this._showOutput();
+	private initialViewUpdateExpanded(): void {
 		this.templateData.container.classList.toggle('input-collapsed', false);
+		this._showInput();
 		this.templateData.container.classList.toggle('output-collapsed', false);
-		this._outputContainerRenderer.viewUpdateShowOutputs();
+		this._showOutput(true);
 		this.relayoutCell();
 	}
 
