@@ -487,7 +487,6 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.FocusNext,
 	TerminalCommandId.FocusPreviousPane,
 	TerminalCommandId.FocusPrevious,
-	TerminalCommandId.ToggleWrapping,
 	TerminalCommandId.Focus,
 	TerminalCommandId.Kill,
 	TerminalCommandId.KillEditor,
