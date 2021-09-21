@@ -507,26 +507,24 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	async getCwd(): Promise<string> {
 		if (isMacintosh) {
-			// Disable cwd lookup on macOS Big Sur due to spawn blocking thread (darwin v20 is macOS
-			// Big Sur) https://github.com/Microsoft/vscode/issues/105446
-			const osRelease = os.release().split('.');
-			if (osRelease.length > 0 && parseInt(osRelease[0]) < 20) {
-				return new Promise<string>(resolve => {
-					if (!this._ptyProcess) {
+			// From Big Sur (darwin v20) there is a spawn blocking thread issue on Electron,
+			// this is fixed in VS Code's internal Electron.
+			// https://github.com/Microsoft/vscode/issues/105446
+			return new Promise<string>(resolve => {
+				if (!this._ptyProcess) {
+					resolve(this._initialCwd);
+					return;
+				}
+				this._logService.trace('IPty#pid');
+				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+					if (!error && stdout !== '') {
+						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+					} else {
+						this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
 						resolve(this._initialCwd);
-						return;
 					}
-					this._logService.trace('IPty#pid');
-					exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
-						if (!error && stdout !== '') {
-							resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
-						} else {
-							this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
-							resolve(this._initialCwd);
-						}
-					});
 				});
-			}
+			});
 		}
 
 		if (isLinux) {
