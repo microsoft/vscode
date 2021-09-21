@@ -80,8 +80,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 500);
 	private readonly _cache = new InlayHintsCache();
 
-	private _decorationsTypeIds: string[] = [];
-	private _decorations = new Map<string, InlayHint>();
+	private _decorations = new Map<string, { hint: InlayHint, decorationTypeId: string }>();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -135,7 +134,7 @@ export class InlayHintsController implements IEditorContribution {
 			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
 
 			this._updateHintsDecorators(ranges, result);
-			this._cache.set(model, Array.from(this._decorations.values()));
+			this._cache.set(model, Array.from(this._decorations.values()).map(obj => obj.hint));
 
 		}, this._getInlayHintsDelays.get(model));
 
@@ -231,11 +230,10 @@ export class InlayHintsController implements IEditorContribution {
 			// call register und remove equally often
 			newDecorationsTypeIds.push(key);
 
-			const options = this._codeEditorService.resolveDecorationOptions(key, true);
 			const newLen = newDecorationsData.push({
 				range,
 				options: {
-					...options,
+					...this._codeEditorService.resolveDecorationOptions(key, true),
 					showIfCollapsed: !usesWordRange,
 					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 				}
@@ -246,23 +244,22 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}
 
-		this._decorationsTypeIds.forEach(this._codeEditorService.removeDecorationType, this._codeEditorService);
-		this._decorationsTypeIds = newDecorationsTypeIds;
-
 		// collect all decoration ids that are affected by the ranges
 		// and only update those decorations
 		const decorationIdsToUpdate: string[] = [];
 		for (const range of ranges) {
 			for (const { id } of model.getDecorationsInRange(range, this._decorationOwnerId, true)) {
-				if (this._decorations.has(id)) {
+				const obj = this._decorations.get(id);
+				if (obj) {
 					decorationIdsToUpdate.push(id);
+					this._codeEditorService.removeDecorationType(obj.decorationTypeId);
 					this._decorations.delete(id);
 				}
 			}
 		}
 		const newDecorationIds = model.deltaDecorations(decorationIdsToUpdate, newDecorationsData, this._decorationOwnerId);
 		for (let i = 0; i < newDecorationIds.length; i++) {
-			this._decorations.set(newDecorationIds[i], hints[i]);
+			this._decorations.set(newDecorationIds[i], { hint: hints[i], decorationTypeId: newDecorationsTypeIds[i] });
 		}
 	}
 
@@ -279,9 +276,9 @@ export class InlayHintsController implements IEditorContribution {
 
 	private _removeAllDecorations(): void {
 		this._editor.deltaDecorations(Array.from(this._decorations.keys()), []);
-		this._decorations.clear();
-		this._decorationsTypeIds.forEach(this._codeEditorService.removeDecorationType, this._codeEditorService);
-		this._decorationsTypeIds = [];
+		for (let obj of this._decorations.values()) {
+			this._codeEditorService.removeDecorationType(obj.decorationTypeId);
+		}
 	}
 }
 
