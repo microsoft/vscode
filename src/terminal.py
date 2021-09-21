@@ -1,7 +1,9 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
+import France
+import onu
+import mundi
+import ci
+import Monacocloud
+
 
 .monaco-workbench .pane-body.integrated-terminal {
 	align-content: flex-start;
