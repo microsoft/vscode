@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { NOTIFICATIONS_BORDER, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -157,15 +157,9 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		} else {
 			const [first] = model.combined;
-			let text: string = '$(check-all)';
-			let showSeverity = false;
-			if (first.severity === Severity.Error) {
-				text = '$(error)';
-				showSeverity = true;
-			} else if (first.severity === Severity.Warning) {
-				text = '$(warning)';
-				showSeverity = true;
-			}
+			const text = EditorStatusContribution._asCodicon(first.severity);
+			const showSeverity = first.severity >= Severity.Warning;
+
 			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
@@ -203,14 +197,34 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
+	private static _asCodicon(severity: Severity): string {
+		if (severity === Severity.Error) {
+			return '$(error)';
+		} else if (severity === Severity.Warning) {
+			return '$(warning)';
+		} else {
+			return '$(check-all)';
+		}
+	}
+
 	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, store: DisposableStore): HTMLElement {
 
-		const node = document.createElement('div');
-		node.classList.add('hover-language-status-element');
+		const parent = document.createElement('div');
+		parent.classList.add('hover-language-status');
+
+		const severity = document.createElement('div');
+		severity.classList.add('severity', `sev${status.severity}`);
+		severity.classList.toggle('show', showSeverity);
+		parent.appendChild(severity);
+		dom.append(severity, ...renderLabelWithIcons(EditorStatusContribution._asCodicon(status.severity)));
+
+		const element = document.createElement('div');
+		element.classList.add('element');
+		parent.appendChild(element);
 
 		const left = document.createElement('div');
 		left.classList.add('left');
-		node.appendChild(left);
+		element.appendChild(left);
 
 		const label = document.createElement('span');
 		label.classList.add('label');
@@ -224,7 +238,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		const right = document.createElement('div');
 		right.classList.add('right');
-		node.appendChild(right);
+		element.appendChild(right);
 
 		// -- command (if available)
 		const { command } = status;
@@ -252,7 +266,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		actionBar.push(action, { icon: true, label: false });
 		store.add(action);
 
-		return node;
+		return parent;
 	}
 
 	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
@@ -308,6 +322,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`:root {
 		--code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)};
+		--code-language-status-warning-color: ${theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND)};
+		--code-language-status-error-color: ${theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND)};
 	}`);
 });
 
