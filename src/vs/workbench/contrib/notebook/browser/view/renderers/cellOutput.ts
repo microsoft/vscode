@@ -208,7 +208,7 @@ export class CellOutputElement extends Disposable {
 	private _initHeightChecked = false;
 
 	probeHeight(index: number) {
-		if (!this._initHeightChecked) {
+		if (!this._initHeightChecked && this.renderResult?.type === RenderOutputType.Mainframe) {
 			// postponed DOM read
 			const offsetHeight = this.domOffsetHeight;
 			this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
