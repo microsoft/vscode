@@ -485,7 +485,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const computedStyle = window.getComputedStyle(this._container.parentElement!);
+		const computedStyle = window.getComputedStyle(this._wrapperElement!);
 		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this._evaluateColsAndRows(width, height);
@@ -562,15 +562,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 
-		const wrapperElementStyle = getComputedStyle(this._wrapperElement);
-		const marginLeft = parseInt(wrapperElementStyle.marginLeft!.split('px')[0], 10);
-		const marginRight = parseInt(wrapperElementStyle.marginRight!.split('px')[0], 10);
-		const bottom = parseInt(wrapperElementStyle.bottom!.split('px')[0], 10);
-
-		const innerWidth = width - marginLeft - marginRight;
-		const innerHeight = height - bottom - 1;
-
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(innerWidth, innerHeight);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 /* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 

@@ -41,17 +41,14 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: none;
 	margin: 0 10px;
-	bottom: 2px;
+	height: 100%;
+	padding-bottom: 2px;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .editor-instance .terminal-wrapper.active,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
 	display: block;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
-	position: absolute;
-	top: 0;
 }
 
 .monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper,
@@ -69,29 +66,22 @@
 	position: relative;
 }
 
-.monaco-workbench .editor-instance  .terminal-wrapper > div,
+.monaco-workbench .editor-instance .terminal-wrapper > div,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
 	height: 100%;
+	/* Align the viewport and canvases to the bottom of the panel */
+	display: flex;
+	align-items: flex-end;
 }
 
-.monaco-workbench .editor-instance  .xterm-viewport,
+.monaco-workbench .editor-instance .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
 	box-sizing: border-box;
 	margin-right: -10px;
 }
-.monaco-workbench .editor-instance  .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport,
+.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
 	margin-right: -20px;
-}
-
-.monaco-workbench .pane-body.integrated-terminal canvas {
-	/* Align the viewport and canvases to the bottom of the panel */
-	position: absolute;
-	right: -20px;
-	bottom: 0;
-	left: 0;
-	/* Disable upstream's style */
-	top: auto;
 }
 
 .monaco-workbench .pane-body.integrated-terminal {
@@ -137,9 +127,6 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .xterm {
-	position: absolute;
-	bottom: 0;
-	left: 0;
 	user-select: none;
 	-webkit-user-select: none;
 }
@@ -203,7 +190,7 @@
 	border-style: solid;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal  {
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal {
 	display: flex;
 	align-items: center;
 	font-size: 11px;
