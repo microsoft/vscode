@@ -668,10 +668,10 @@
     tapable "^2.2.0"
     webpack "^5"
 
-"@types/wicg-file-system-access@^2020.9.2":
-  version "2020.9.2"
-  resolved "https://registry.yarnpkg.com/@types/wicg-file-system-access/-/wicg-file-system-access-2020.9.2.tgz#6433e5a1d7cfdc58558e15f69276e4f0034088c6"
-  integrity sha512-8ni2EyWi01DBuVqekudo2I+RTfq4Jq93iHmlzq0+eKPkG1uebQA9OUxIDRzOevvw9wF922XYRo4bqP0a6DBF5g==
+"@types/wicg-file-system-access@^2020.9.4":
+  version "2020.9.4"
+  resolved "https://registry.yarnpkg.com/@types/wicg-file-system-access/-/wicg-file-system-access-2020.9.4.tgz#83f255d6bd20b0ae131d555693473d15a0574e92"
+  integrity sha512-o43jUljwP0ZrQ927mPjGdJaBMfS12nf3VPj6Z52fMucxILrSs8tnfLbMDSn6cP3hrrLChc3SYneeEvecknNVtA==
 
 "@types/windows-foreground-love@^0.3.1":
   version "0.3.1"
