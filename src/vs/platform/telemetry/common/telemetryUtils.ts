@@ -30,8 +30,7 @@ export const NullTelemetryService = new class implements ITelemetryService {
 	}
 
 	setExperimentProperty() { }
-	setEnabled() { }
-	isOptedIn = true;
+	telemetryLevel = TelemetryLevel.NONE;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',

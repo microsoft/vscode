@@ -52,16 +52,12 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		this.sendErrorTelemetry = this.impl.sendErrorTelemetry;
 	}
 
-	setEnabled(value: boolean): void {
-		return this.impl.setEnabled(value);
-	}
-
 	setExperimentProperty(name: string, value: string): void {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
-	get isOptedIn(): boolean {
-		return this.impl.isOptedIn;
+	get telemetryLevel(): TelemetryLevel {
+		return this.impl.telemetryLevel;
 	}
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {

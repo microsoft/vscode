@@ -38,7 +38,7 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -574,7 +574,7 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 export class StandaloneTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
-	public isOptedIn = false;
+	public telemetryLevel = TelemetryLevel.NONE;
 	public sendErrorTelemetry = false;
 
 	public setEnabled(value: boolean): void {
