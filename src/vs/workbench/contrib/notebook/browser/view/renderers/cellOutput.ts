@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -32,6 +33,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
@@ -86,7 +88,7 @@ export class CellOutputElement extends Disposable {
 	constructor(
 		private notebookEditor: INotebookEditorDelegate,
 		private viewCell: CodeCellViewModel,
-		private outputContainer: HTMLElement,
+		private outputContainer: FastDomNode<HTMLElement>,
 		readonly output: ICellOutputViewModel,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -174,21 +176,21 @@ export class CellOutputElement extends Disposable {
 					this.useDedicatedDOM = true;
 					this.innerContainer = DOM.$('.output-inner-container');
 					if (previousSibling.nextElementSibling) {
-						this.outputContainer.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
+						this.outputContainer.domNode.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
 					} else {
-						this.outputContainer.appendChild(this.innerContainer);
+						this.outputContainer.domNode.appendChild(this.innerContainer);
 					}
 				}
 			} else {
 				// no previousSibling, append it to the very last
-				if (this._divSupportAppend(this.outputContainer.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
+				if (this._divSupportAppend(this.outputContainer.domNode.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
 					// last element allows append
 					this.useDedicatedDOM = false;
-					this.innerContainer = this.outputContainer.lastChild as HTMLElement;
+					this.innerContainer = this.outputContainer.domNode.lastChild as HTMLElement;
 				} else {
 					this.useDedicatedDOM = true;
 					this.innerContainer = DOM.$('.output-inner-container');
-					this.outputContainer.appendChild(this.innerContainer);
+					this.outputContainer.domNode.appendChild(this.innerContainer);
 				}
 			}
 		} else {
@@ -196,9 +198,9 @@ export class CellOutputElement extends Disposable {
 			this.innerContainer = DOM.$('.output-inner-container');
 
 			if (previousSibling && previousSibling.nextElementSibling) {
-				this.outputContainer.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
+				this.outputContainer.domNode.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
 			} else if (this.useDedicatedDOM) {
-				this.outputContainer.appendChild(this.innerContainer);
+				this.outputContainer.domNode.appendChild(this.innerContainer);
 			}
 		}
 
@@ -302,8 +304,8 @@ export class CellOutputElement extends Disposable {
 
 	private _bindResizeListener(dimension: DOM.IDimension) {
 		const elementSizeObserver = getResizesObserver(this.innerContainer, dimension, () => {
-			if (this.outputContainer && document.body.contains(this.outputContainer)) {
-				const height = this.innerContainer.offsetHeight;
+			if (this.outputContainer && document.body.contains(this.outputContainer.domNode)) {
+				const height = elementSizeObserver.getHeight() + OutputInnerContainerTopPadding * 2;
 
 				if (dimension.height === height) {
 					return;
@@ -578,7 +580,7 @@ export class CellOutputContainer extends Disposable {
 				this._relayoutCell();
 			}
 
-			DOM.show(this.templateData.outputContainer);
+			DOM.show(this.templateData.outputContainer.domNode);
 			for (let index = 0; index < Math.min(this.options.limit, this.viewCell.outputsViewModels.length); index++) {
 				const currOutput = this.viewCell.outputsViewModels[index];
 				const entry = this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, currOutput);
@@ -588,7 +590,7 @@ export class CellOutputContainer extends Disposable {
 
 			this.viewCell.editorHeight = editorHeight;
 			if (this.viewCell.outputsViewModels.length > this.options.limit) {
-				DOM.show(this.templateData.outputShowMoreContainer);
+				DOM.show(this.templateData.outputShowMoreContainer.domNode);
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
 			}
 
@@ -598,26 +600,26 @@ export class CellOutputContainer extends Disposable {
 			// noop
 			this.viewCell.editorHeight = editorHeight;
 			this._relayoutCell();
-			DOM.hide(this.templateData.outputContainer);
+			DOM.hide(this.templateData.outputContainer.domNode);
 		}
 
-		this.templateData.outputShowMoreContainer.innerText = '';
+		this.templateData.outputShowMoreContainer.domNode.innerText = '';
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+			this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 		} else {
-			DOM.hide(this.templateData.outputShowMoreContainer);
+			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
 		}
 	}
 
-	viewUpdateShowOutputs(): void {
+	viewUpdateShowOutputs(initRendering: boolean): void {
 		for (let index = 0; index < this._outputEntries.length; index++) {
 			const viewHandler = this._outputEntries[index];
 			const outputEntry = viewHandler.element;
 			if (outputEntry.renderResult) {
 				if (outputEntry.renderResult.type !== RenderOutputType.Mainframe) {
 					this.notebookEditor.createOutput(this.viewCell, outputEntry.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
-				} else {
+				} else if (!initRendering) {
 					this.viewCell.updateOutputHeight(index, outputEntry.domOffsetHeight, 'CellOutputContainer#viewUpdateShowOutputs');
 				}
 			} else {
@@ -659,9 +661,9 @@ export class CellOutputContainer extends Disposable {
 		this.viewCell.updateOutputMinHeight(previousOutputHeight);
 
 		if (this.viewCell.outputsViewModels.length) {
-			DOM.show(this.templateData.outputContainer);
+			DOM.show(this.templateData.outputContainer.domNode);
 		} else {
-			DOM.hide(this.templateData.outputContainer);
+			DOM.hide(this.templateData.outputContainer.domNode);
 		}
 
 		this.viewCell.spliceOutputHeights(splice.start, splice.deleteCount, splice.newOutputs.map(_ => 0));
@@ -806,13 +808,13 @@ export class CellOutputContainer extends Disposable {
 		}
 
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			DOM.show(this.templateData.outputShowMoreContainer);
-			if (!this.templateData.outputShowMoreContainer.hasChildNodes()) {
-				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+			DOM.show(this.templateData.outputShowMoreContainer.domNode);
+			if (!this.templateData.outputShowMoreContainer.domNode.hasChildNodes()) {
+				this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 			}
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {
-			DOM.hide(this.templateData.outputShowMoreContainer);
+			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 		}
 
 		const editorHeight = this.templateData.editor.getContentHeight();

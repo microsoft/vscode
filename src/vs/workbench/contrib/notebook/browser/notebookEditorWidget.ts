@@ -62,7 +62,7 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { IAckOutputHeight, IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
@@ -826,6 +826,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		.monaco-workbench .notebookOverlay.cell-title-toolbar-hidden > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
 			display: none;
 		}`);
+
+		// cell output innert container
+		styleSheets.push(`
+		.monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container {
+			padding: ${OutputInnerContainerTopPadding}px 8px;
+		}
+		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container {
+			padding: ${OutputInnerContainerTopPadding}px 8px;
+		}
+		`);
 
 		this._styleElement.textContent = styleSheets.join('\n');
 	}

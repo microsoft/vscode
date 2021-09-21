@@ -274,7 +274,7 @@ export class CodeCell extends Disposable {
 		if (this.viewCell.metadata.outputCollapsed) {
 			this._collapseOutput();
 		} else {
-			this._showOutput();
+			this._showOutput(false);
 		}
 
 		this.relayoutCell();
@@ -338,7 +338,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private _updateOutputInnertContainer(hide: boolean) {
-		const children = this.templateData.outputContainer.children;
+		const children = this.templateData.outputContainer.domNode.children;
 		for (let i = 0; i < children.length; i++) {
 			if (children[i].classList.contains('output-inner-container')) {
 				if (hide) {
@@ -415,7 +415,7 @@ export class CodeCell extends Disposable {
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
 		this._untrustedStatusItem?.dispose();
-		this.templateData.focusIndicatorLeft.style.height = 'initial';
+		this.templateData.focusIndicatorLeft.setHeight(0);
 
 		super.dispose();
 	}
