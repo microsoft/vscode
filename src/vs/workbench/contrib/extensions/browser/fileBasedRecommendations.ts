@@ -26,6 +26,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -54,6 +55,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number }>();
 	private readonly processedFileExtensions: string[] = [];
 	private readonly processedLanguages: string[] = [];
+	private tasExperimentService?: ITASExperimentService;
 
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> {
 		const recommendations: ExtensionRecommendation[] = [];
@@ -102,8 +104,11 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IFileService private readonly fileService: IFileService,
+		@ITASExperimentService tasExperimentService: ITASExperimentService,
 	) {
 		super();
+
+		this.tasExperimentService = tasExperimentService;
 
 		if (productService.extensionTips) {
 			forEach(productService.extensionTips, ({ key, value }) => this.extensionTips.set(key.toLowerCase(), value));
@@ -277,7 +282,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name), `@id:${extensionId}`, RecommendationSource.FILE)
+		const message = await this.tasExperimentService?.getTreatment<string>('languageRecommendationMessage') ?? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
+
+		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], message, `@id:${extensionId}`, RecommendationSource.FILE)
 			.then(result => {
 				if (result === RecommendationsNotificationResult.Accepted) {
 					this.addToPromptedRecommendations(language, [extensionId]);
