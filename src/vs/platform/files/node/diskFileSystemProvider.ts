@@ -36,6 +36,7 @@ export interface IWatcherOptions {
 export interface IDiskFileSystemProviderOptions {
 	bufferSize?: number;
 	watcher?: IWatcherOptions;
+	enableLegacyRecursiveWatcher?: boolean;
 }
 
 export class DiskFileSystemProvider extends Disposable implements
@@ -609,8 +610,18 @@ export class DiskFileSystemProvider extends Disposable implements
 
 				else {
 
+					// Conditionally fallback to our legacy file watcher:
+					// - If provided as option from the outside (i.e. via settings)
+					// - Linux: until we support ignore patterns (unless insiders)
+					let enableLegacyWatcher: boolean;
+					if (this.options?.enableLegacyRecursiveWatcher) {
+						enableLegacyWatcher = true;
+					} else {
+						enableLegacyWatcher = product.quality === 'stable' && isLinux;
+					}
+
 					// Single Folder Watcher (stable only)
-					if (product.quality === 'stable' && this.recursiveFoldersToWatch.length === 1) {
+					if (enableLegacyWatcher && this.recursiveFoldersToWatch.length === 1) {
 						if (isWindows) {
 							watcherImpl = WindowsWatcherService;
 						} else {
