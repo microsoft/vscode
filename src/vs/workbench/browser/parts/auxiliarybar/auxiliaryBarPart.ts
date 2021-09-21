@@ -22,8 +22,8 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
-	protected pinnedPanelsKey = 'workbench.auxiliarybar.pinnedPanels';
-	protected placeholdeViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
+	static readonly pinnedPanelsKey = 'workbench.auxiliarybar.pinnedPanels';
+	static readonly placeholdeViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
 
 	// Use the side bar dimensions
 	override readonly minimumWidth: number = 170;
@@ -47,6 +47,8 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		super(
 			Parts.AUXILIARYBAR_PART,
 			AuxiliaryBarPart.activePanelSettingsKey,
+			AuxiliaryBarPart.pinnedPanelsKey,
+			AuxiliaryBarPart.placeholdeViewContainersKey,
 			PaneCompositeExtensions.Auxiliary,
 			SIDE_BAR_BACKGROUND,
 			ViewContainerLocation.AuxiliaryBar,

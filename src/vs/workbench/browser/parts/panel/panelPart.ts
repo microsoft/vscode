@@ -57,9 +57,6 @@ interface IPlaceholderViewContainer {
 }
 
 export abstract class BasePanelPart extends CompositePart<PaneComposite> implements IPaneCompositePart, IPaneCompositeSelectorPart {
-	protected abstract pinnedPanelsKey: string;
-	protected abstract placeholdeViewContainersKey: string;
-
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
 	declare readonly _serviceBrand: undefined;
@@ -110,6 +107,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	constructor(
 		private readonly partId: Parts,
 		activePanelSettingsKey: string,
+		protected readonly pinnedPanelsKey: string,
+		protected readonly placeholdeViewContainersKey: string,
 		panelRegistryId: string,
 		private readonly backgroundColor: string,
 		private readonly viewContainerLocation: ViewContainerLocation,
@@ -217,8 +216,9 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	private onDidRegisterPanels(panels: PaneCompositeDescriptor[]): void {
+		const cachedPanels = this.getCachedPanels();
 		for (const panel of panels) {
-			const cachedPanel = this.getCachedPanels().filter(({ id }) => id === panel.id)[0];
+			const cachedPanel = cachedPanels.filter(({ id }) => id === panel.id)[0];
 			const activePanel = this.getActivePaneComposite();
 			const isActive =
 				activePanel?.getId() === panel.id ||
@@ -815,8 +815,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 
 export class PanelPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
-	protected pinnedPanelsKey = 'workbench.panel.pinnedPanels';
-	protected placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
+	static readonly pinnedPanelsKey = 'workbench.panel.pinnedPanels';
+	static readonly placeholdeViewContainersKey = 'workbench.panel.placeholderPanels';
 
 	private globalToolBar: ToolBar | undefined;
 	private globalActions: CompositeMenuActions;
@@ -837,6 +837,8 @@ export class PanelPart extends BasePanelPart {
 		super(
 			Parts.PANEL_PART,
 			PanelPart.activePanelSettingsKey,
+			PanelPart.pinnedPanelsKey,
+			PanelPart.placeholdeViewContainersKey,
 			PaneCompositeExtensions.Panels,
 			PANEL_BACKGROUND,
 			ViewContainerLocation.Panel,
