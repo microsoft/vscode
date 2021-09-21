@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { uppercaseFirstLetter } from 'vs/base/common/strings';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -98,20 +99,18 @@ registerAction2(class extends Action2 {
 		const logService = accessor.get(ILogService);
 		const viewletService = accessor.get(IViewletService);
 
-		let editor;
-		if (context !== undefined) {
-			if ('notebookEditorId' in context) {
-				const editorId = context.notebookEditorId;
-				const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
-					const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
-					return notebookEditor?.getId() === editorId;
-				});
-				editor = getNotebookEditorFromEditorPane(matchingEditor);
-			} else if ('notebookEditor' in context) {
-				editor = context?.notebookEditor;
-			} else {
-				editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-			}
+		let editor: INotebookEditor | undefined;
+		if (context !== undefined && 'notebookEditorId' in context) {
+			const editorId = context.notebookEditorId;
+			const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
+				const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
+				return notebookEditor?.getId() === editorId;
+			});
+			editor = getNotebookEditorFromEditorPane(matchingEditor);
+		} else if (context !== undefined && 'notebookEditor' in context) {
+			editor = context?.notebookEditor;
+		} else {
+			editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		}
 
 		if (!editor || !editor.hasModel()) {
@@ -173,7 +172,7 @@ registerAction2(class extends Action2 {
 				}
 				{ return res; }
 			});
-			if (!all.length && KERNEL_EXTENSIONS.get(notebook.viewType)) {
+			if (!all.length) {
 				picks.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
@@ -208,11 +207,15 @@ registerAction2(class extends Action2 {
 	}
 
 	private async _showKernelExtension(viewletService: IViewletService, viewType: string) {
+		const viewlet = await viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+
 		const extId = KERNEL_EXTENSIONS.get(viewType);
 		if (extId) {
-			const viewlet = await viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
-			const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 			view?.search(`@id:${extId}`);
+		} else {
+			const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
+			view?.search(`@tag:notebookKernel${pascalCased}`);
 		}
 	}
 });

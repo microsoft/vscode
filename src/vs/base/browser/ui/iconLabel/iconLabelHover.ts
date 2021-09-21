@@ -29,7 +29,7 @@ export interface ICustomHover extends IDisposable {
 	/**
 	 * Allows to programmatically open the hover.
 	 */
-	show(): void;
+	show(focus?: boolean): void;
 
 	/**
 	 * Allows to programmatically hide the hover.
@@ -52,7 +52,7 @@ class UpdatableHoverWidget implements IDisposable {
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget, private fadeInAnimation: boolean) {
 	}
 
-	async update(markdownTooltip: MarkdownTooltipContent): Promise<void> {
+	async update(markdownTooltip: MarkdownTooltipContent, focus?: boolean): Promise<void> {
 		if (this._cancellationTokenSource) {
 			// there's an computation ongoing, cancel it
 			this._cancellationTokenSource.dispose(true);
@@ -72,7 +72,7 @@ class UpdatableHoverWidget implements IDisposable {
 
 			// show 'Loading' if no hover is up yet
 			if (!this._hoverWidget) {
-				this.show(localize('iconLabel.loading', "Loading..."));
+				this.show(localize('iconLabel.loading', "Loading..."), focus);
 			}
 
 			// compute the content
@@ -87,10 +87,10 @@ class UpdatableHoverWidget implements IDisposable {
 			}
 		}
 
-		this.show(resolvedContent);
+		this.show(resolvedContent, focus);
 	}
 
-	private show(content: ResolvedMarkdownTooltipContent): void {
+	private show(content: ResolvedMarkdownTooltipContent, focus?: boolean): void {
 		const oldHoverWidget = this._hoverWidget;
 
 		if (this.hasContent(content)) {
@@ -102,7 +102,7 @@ class UpdatableHoverWidget implements IDisposable {
 				skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget // do not fade in if the hover is already showing
 			};
 
-			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions);
+			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions, focus);
 		}
 		oldHoverWidget?.dispose();
 	}
@@ -147,7 +147,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		hoverDelegate.onDidHideHover?.();
 	};
 
-	const showHoverDelayed = (delay: number) => {
+	const showHoverDelayed = (delay: number, focus?: boolean) => {
 		if (hoverPreparation) {
 			return;
 		}
@@ -173,7 +173,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		const showHover = async () => {
 			if (hoverPreparation && (!hoverWidget || hoverWidget.isDisposed)) {
 				hoverWidget = new UpdatableHoverWidget(hoverDelegate, target, delay > 0);
-				await hoverWidget.update(markdownTooltip);
+				await hoverWidget.update(markdownTooltip, focus);
 			}
 			mouseMoveDomListener?.dispose();
 		};
@@ -189,8 +189,8 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 	};
 	const mouseOverDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_OVER, () => showHoverDelayed(hoverDelegate.delay), true);
 	const hover: ICustomHover = {
-		show: () => {
-			showHoverDelayed(0); // show hover immediately
+		show: focus => {
+			showHoverDelayed(0, focus); // show hover immediately
 		},
 		hide: () => {
 			hideHover(true, true);

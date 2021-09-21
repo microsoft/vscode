@@ -30,6 +30,10 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => this._onOpenFileRequest(request));
 		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
 
+		this._terminalService.setNativeDelegate({
+			getWindowCount: () => nativeHostService.getWindowCount()
+		});
+
 		const connection = remoteAgentService.getConnection();
 		if (connection && connection.remoteAuthority) {
 			registerRemoteContributions();

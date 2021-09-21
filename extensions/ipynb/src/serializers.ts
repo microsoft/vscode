@@ -276,7 +276,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
 				return Buffer.from(value).toString('base64');
 			} else {
-				return window.btoa(value.reduce((s: string, b: number) => s + String.fromCharCode(b), ''));
+				return btoa(value.reduce((s: string, b: number) => s + String.fromCharCode(b), ''));
 			}
 		} else if (mime.toLowerCase().includes('json')) {
 			const stringValue = textDecoder.decode(value);

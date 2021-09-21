@@ -1800,14 +1800,6 @@ declare module 'vscode' {
 		 * The kind of this hint.
 		 */
 		kind?: InlayHintKind;
-		/**
-		 * Whitespace before the hint.
-		 */
-		whitespaceBefore?: boolean;
-		/**
-		 * Whitespace after the hint.
-		 */
-		whitespaceAfter?: boolean;
 
 		// todo@API make range first argument
 		constructor(text: string, position: Position, kind?: InlayHintKind);

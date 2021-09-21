@@ -31,7 +31,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalProfileProvider, ITerminalService, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IRemoteTerminalService, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalProfileProvider, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { refreshTerminalActions } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
@@ -75,6 +75,8 @@ export class TerminalService implements ITerminalService {
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
+	private _nativeDelegate?: ITerminalServiceNativeDelegate;
+	private _shutdownWindowCount?: number;
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
@@ -543,6 +545,7 @@ export class TerminalService implements ITerminalService {
 
 		// Persist terminal _buffer state_, note that even if this happens the dirty terminal prompt
 		// still shows as that cannot be revived
+		this._shutdownWindowCount = await this._nativeDelegate?.getWindowCount();
 		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
 		if (shouldReviveProcesses) {
 			await this._localTerminalService?.persistTerminalState();
@@ -565,12 +568,22 @@ export class TerminalService implements ITerminalService {
 		return false;
 	}
 
+	setNativeDelegate(nativeDelegate: ITerminalServiceNativeDelegate): void {
+		this._nativeDelegate = nativeDelegate;
+	}
+
 	private _shouldReviveProcesses(reason: ShutdownReason): boolean {
 		if (!this._configHelper.config.enablePersistentSessions) {
 			return false;
 		}
 		switch (this.configHelper.config.persistentSessionReviveProcess) {
-			case 'onExit': return reason === ShutdownReason.LOAD || reason === ShutdownReason.QUIT;
+			case 'onExit': {
+				// Allow on close if it's the last window on Windows or Linux
+				if (reason === ShutdownReason.CLOSE && (this._shutdownWindowCount === 1 && !isMacintosh)) {
+					return true;
+				}
+				return reason === ShutdownReason.LOAD || reason === ShutdownReason.QUIT;
+			}
 			case 'onExitAndWindowClose': return reason !== ShutdownReason.RELOAD;
 			default: return false;
 		}

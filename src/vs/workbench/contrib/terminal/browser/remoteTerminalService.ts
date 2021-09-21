@@ -315,11 +315,13 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		if (serializedState) {
 			try {
 				await this._remoteTerminalChannel.reviveTerminalProcesses(serializedState);
+				this._storageService.remove(TerminalStorageKeys.TerminalBufferState, StorageScope.WORKSPACE);
 				// If reviving processes, send the terminal layout info back to the pty host as it
 				// will not have been persisted on application exit
 				const layoutInfo = this._storageService.get(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				if (layoutInfo) {
 					await this._remoteTerminalChannel.setTerminalLayoutInfo(JSON.parse(layoutInfo));
+					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch {
 				// no-op

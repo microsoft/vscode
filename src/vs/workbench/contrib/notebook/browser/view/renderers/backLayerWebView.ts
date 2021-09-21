@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -27,7 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/api/common/shared/webview';
-import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditorDelegate, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellOutputViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
@@ -62,6 +63,28 @@ export interface IResolvedBackLayerWebview {
 	webview: WebviewElement;
 }
 
+/**
+ * Notebook Editor Delegate for back layer webview
+ */
+export interface INotebookDelegateForWebview {
+	readonly creationOptions: INotebookEditorCreationOptions;
+	getCellById(cellId: string): IGenericCellViewModel | undefined;
+	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
+	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
+	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
+	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
+	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
+	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
+	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
+	didEndDragMarkupCell(cellId: string): void;
+	setScrollTop(scrollTop: number): void;
+	triggerScroll(event: IMouseWheelEvent): void;
+}
+
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
@@ -79,7 +102,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly nonce = UUID.generateUuid();
 
 	constructor(
-		public readonly notebookEditor: ICommonNotebookEditorDelegate,
+		public readonly notebookEditor: INotebookDelegateForWebview,
 		public readonly id: string,
 		public readonly documentUri: URI,
 		private options: {

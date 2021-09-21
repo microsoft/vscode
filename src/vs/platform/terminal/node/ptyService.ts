@@ -111,7 +111,7 @@ export class PtyService extends Disposable implements IPtyService {
 						processDetails: await this._buildProcessDetails(persistentProcessId, persistentProcess),
 						processLaunchOptions: persistentProcess.processLaunchOptions,
 						unicodeVersion: persistentProcess.unicodeVersion,
-						replayEvent: await (persistentProcess as any)._serializer.generateReplayEvent(),
+						replayEvent: await persistentProcess.serializeNormalBuffer(),
 						timestamp: Date.now()
 					});
 				}));
@@ -137,11 +137,15 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 		const parsed = parsedCrossVersion.state as ISerializedTerminalState[];
 		for (const state of parsed) {
+			const restoreMessage = localize({
+				key: 'terminal-session-restore',
+				comment: ['date the snapshot was taken', 'time the snapshot was taken']
+			}, "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(), new Date(state.timestamp).toLocaleTimeString());
 			const newId = await this.createProcess(
 				{
 					...state.shellLaunchConfig,
 					cwd: state.processDetails.cwd,
-					initialText: state.replayEvent.events[0].data + '\n\r\x1b[40;37;2m> ' + localize('terminal-session-restore', "Session contents restored from {0} at {1}", new Date(state.timestamp).toLocaleDateString(), new Date(state.timestamp).toLocaleTimeString()) + '\x1b[K\x1b[0m\n\r'
+					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;247;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
 				},
 				state.processDetails.cwd,
 				state.replayEvent.events[0].cols,

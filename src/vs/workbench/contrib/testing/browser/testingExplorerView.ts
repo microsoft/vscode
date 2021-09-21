@@ -869,11 +869,13 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	}
 
 	private testTags(element: TestItemTreeElement): FilterResult {
-		if (!this.state.onlyTags.size) {
+		if (!this.state.includeTags.size && !this.state.excludeTags.size) {
 			return FilterResult.Include;
 		}
 
-		return element.test.item.tags.some(t => this.state.onlyTags.has(t))
+		return (this.state.includeTags.size ?
+			element.test.item.tags.some(t => this.state.includeTags.has(t)) :
+			true) && element.test.item.tags.every(t => !this.state.excludeTags.has(t))
 			? FilterResult.Include
 			: FilterResult.Inherit;
 	}
