@@ -72,6 +72,9 @@ export class InlayHintsController implements IEditorContribution {
 
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
+	private static _decorationOwnerIdPool = 0;
+	private readonly _decorationOwnerId = ++InlayHintsController._decorationOwnerIdPool;
+
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 500);
@@ -79,7 +82,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _cache = new InlayHintsCache();
 
 	private _decorationsTypeIds: string[] = [];
-	private _decorationIds: string[] = [];
+	private _decorations = new Map<string, InlayHint>();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -122,7 +125,7 @@ export class InlayHintsController implements IEditorContribution {
 		// iff possible, quickly update from cache
 		const cached = this._cache.get(model);
 		if (cached) {
-			this._updateHintsDecorators(cached);
+			this._updateHintsDecorators([model.getFullModelRange()], cached);
 		}
 
 		const scheduler = new RunOnceScheduler(async () => {
@@ -133,10 +136,10 @@ export class InlayHintsController implements IEditorContribution {
 
 			const ranges = this._getHintsRanges();
 			const result = await getInlayHints(model, ranges, cts.token);
-
 			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
-			this._updateHintsDecorators(result);
-			this._cache.set(model, result);
+
+			this._updateHintsDecorators(ranges, result);
+			this._cache.set(model, Array.from(this._decorations.values()));
 
 		}, this._getInlayHintsDelays.get(model));
 
@@ -173,10 +176,14 @@ export class InlayHintsController implements IEditorContribution {
 		return result;
 	}
 
-	private _updateHintsDecorators(hints: InlayHint[]): void {
+	private _updateHintsDecorators(ranges: Range[], hints: InlayHint[]): void {
+
 		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const backgroundColor = this._themeService.getColorTheme().getColor(editorInlayHintBackground);
 		const fontColor = this._themeService.getColorTheme().getColor(editorInlayHintForeground);
+		const model = this._editor.getModel()!;
+
+
 
 		const newDecorationsTypeIds: string[] = [];
 		const newDecorationsData: IModelDeltaDecoration[] = [];
@@ -184,17 +191,14 @@ export class InlayHintsController implements IEditorContribution {
 		const fontFamilyVar = '--inlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
-		const model = this._editor.getModel()!;
-
 		for (const hint of hints) {
 
 			const { text, position, whitespaceBefore, whitespaceAfter } = hint;
 			const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
 			const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
-			const massagedText = fixSpace(text);
 
 			const contentOptions: IContentDecorationRenderOptions = {
-				contentText: massagedText,
+				contentText: fixSpace(text),
 				backgroundColor: `${backgroundColor}`,
 				color: `${fontColor}`,
 				margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
@@ -248,7 +252,21 @@ export class InlayHintsController implements IEditorContribution {
 		this._decorationsTypeIds.forEach(this._codeEditorService.removeDecorationType, this._codeEditorService);
 		this._decorationsTypeIds = newDecorationsTypeIds;
 
-		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, newDecorationsData);
+		// collect all decoration ids that are affected by the ranges
+		// and only update those decorations
+		const decorationIdsToUpdate: string[] = [];
+		for (const range of ranges) {
+			for (const { id } of model.getDecorationsInRange(range, this._decorationOwnerId, true)) {
+				if (this._decorations.has(id)) {
+					decorationIdsToUpdate.push(id);
+					this._decorations.delete(id);
+				}
+			}
+		}
+		const newDecorationIds = model.deltaDecorations(decorationIdsToUpdate, newDecorationsData, this._decorationOwnerId);
+		for (let i = 0; i < newDecorationIds.length; i++) {
+			this._decorations.set(newDecorationIds[i], hints[i]);
+		}
 	}
 
 	private _getLayoutInfo() {
@@ -263,7 +281,8 @@ export class InlayHintsController implements IEditorContribution {
 	}
 
 	private _removeAllDecorations(): void {
-		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
+		this._editor.deltaDecorations(Array.from(this._decorations.keys()), []);
+		this._decorations.clear();
 		this._decorationsTypeIds.forEach(this._codeEditorService.removeDecorationType, this._codeEditorService);
 		this._decorationsTypeIds = [];
 	}
