@@ -114,16 +114,14 @@
 		};
 
 		// use a trusted types policy when loading via script tags
-		if (loaderConfig.preferScriptTags) {
-			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					if (value.startsWith(window.location.origin)) {
-						return value;
-					}
-					throw new Error(`Invalid script url: ${value}`);
+		loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+			createScriptURL(value) {
+				if (value.startsWith(window.location.origin)) {
+					return value;
 				}
-			});
-		}
+				throw new Error(`Invalid script url: ${value}`);
+			}
+		});
 
 		// Teach the loader the location of the node modules we use in renderers
 		// This will enable to load these modules via <script> tags instead of
