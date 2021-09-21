@@ -339,7 +339,8 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 			isWholeLine: this.isWholeLine,
 			overviewRuler: this.overviewRuler,
 			stickiness: this.stickiness,
-			before: this.beforeInjectedText
+			before: this.beforeInjectedText,
+			after: this.afterInjectedText
 		};
 	}
 
