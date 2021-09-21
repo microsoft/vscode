@@ -5,6 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { cloneAndChange, mixin } from 'vs/base/common/objects';
+import { isWeb } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -260,6 +261,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 }
 
+const restartString = !isWeb ? localize('telemetry.restart', ' Some features may require a restart to take effect.') : '';
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,
@@ -272,12 +274,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'enumDescriptions': [
 				localize('telemetry.enableTelemetry.default', "Enables all telemetry data to be collected."),
 				localize('telemetry.enableTelemetry.error', "Enables only error telemetry data and not general usage data."),
-				localize('telemetry.enableTelemetry.false', "Disables all product telemetry.")
+				localize('telemetry.enableTelemetry.off', "Disables all product telemetry.")
 			],
 			'markdownDescription':
 				!product.privacyStatementUrl ?
-					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) :
-					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl),
+					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) + restartString :
+					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl) + restartString,
 			'default': TelemetryConfiguration.ON,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
