@@ -32,6 +32,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	declare _serviceBrand: undefined;
 	private readonly _localTerminalService?: ILocalTerminalService;
 	private _terminalFocusContextKey: IContextKey<boolean>;
+	private _terminalHasFixedWidth: IContextKey<boolean>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _configHelper: TerminalConfigHelper;
@@ -48,6 +49,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		super();
 		this._localTerminalService = localTerminalService;
 		this._terminalFocusContextKey = TerminalContextKeys.focus.bindTo(this._contextKeyService);
+		this._terminalHasFixedWidth = TerminalContextKeys.terminalHasFixedWidth.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
@@ -59,6 +61,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(config);
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
+			this._terminalHasFixedWidth,
 			this._terminalShellTypeContextKey,
 			this._terminalAltBufferActiveContextKey,
 			this._configHelper,

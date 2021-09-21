@@ -493,6 +493,16 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalTabContext,
 				item: {
+					command: {
+						id: TerminalCommandId.SizeToContentWidthInstance,
+						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Set width to content")
+					},
+					group: ContextMenuGroup.Edit
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
 					group: ContextMenuGroup.Config,
 					command: {
 						id: TerminalCommandId.JoinInstance,

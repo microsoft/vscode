@@ -759,7 +759,7 @@ export interface ITerminalInstance {
 	/**
 	 * Toggles terminal line wrapping.
 	 */
-	toggleWrapping(): Promise<void>;
+	toggleSizeToContentWidth(): Promise<void>;
 
 	addDisposable(disposable: IDisposable): void;
 

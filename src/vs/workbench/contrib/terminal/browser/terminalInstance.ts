@@ -150,7 +150,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
-	private _hasWrappedLines: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
 	private _containerReadyBarrier: AutoOpenBarrier;
 	private _attachBarrier: AutoOpenBarrier;
@@ -286,6 +285,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
+		private readonly _terminalHasFixedWidth: IContextKey<boolean>,
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalAltBufferActiveContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
@@ -321,7 +321,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isVisible = false;
 		this._isDisposed = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
-
+		this._terminalHasFixedWidth.set(false);
 		this._hasHadInput = false;
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
@@ -1896,12 +1896,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return parsed;
 	}
 
-	async toggleWrapping(): Promise<void> {
+	async toggleSizeToContentWidth(): Promise<void> {
 		if (!this._xterm?.buffer.active) {
 			return;
 		}
-		if (this._hasWrappedLines) {
-			this._hasWrappedLines = false;
+		if (this._terminalHasFixedWidth.get() === true) {
+			this._terminalHasFixedWidth.set(false);
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
 			await this._resize();
@@ -1919,7 +1919,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (maxCols > this.cols) {
 				this._fixedCols = maxCols;
 				await this._resize();
-				this._hasWrappedLines = true;
+				this._terminalHasFixedWidth.set(true);
 				if (!this._scrollable && this._xtermElement && this._wrapperElement && this._container) {
 					this._scrollable = new DomScrollableElement(this._wrapperElement, {
 						vertical: ScrollbarVisibility.Hidden,

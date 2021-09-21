@@ -1853,11 +1853,11 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.ToggleWrapping,
-				title: { value: localize('workbench.action.terminal.toggleWrapping', "Toggle Wrapping"), original: 'Toggle Wrapping' },
+				id: TerminalCommandId.SizeToContentWidth,
+				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Size to Content Width"), original: 'Size to Content Width' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.isOpen,
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection),
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_Z,
 					weight: KeybindingWeight.WorkbenchContrib
@@ -1865,10 +1865,28 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).doWithActiveInstance(t => t.toggleWrapping());
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.toggleSizeToContentWidth());
 		}
 	});
-
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SizeToContentWidthInstance,
+				title: { value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Size to Content Width"), original: 'Size to Content Width' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection),
+				toggled: ContextKeyExpr.equals('terminalHasFixedWidth', false),
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.KEY_Z,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return getSelectedInstances(accessor)?.[0].toggleSizeToContentWidth();
+		}
+	});
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerAction2(class extends Action2 {
