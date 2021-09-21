@@ -5,7 +5,6 @@
 
 import { exec } from 'child_process';
 import type * as pty from 'node-pty';
-import * as os from 'os';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
