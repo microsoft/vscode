@@ -292,7 +292,7 @@ class SharedProcessMain extends Disposable {
 		);
 
 		// Extension Host
-		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter()));
+		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter(logService)));
 
 		return new InstantiationService(services);
 	}
