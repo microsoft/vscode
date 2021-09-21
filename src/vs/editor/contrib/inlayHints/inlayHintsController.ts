@@ -183,8 +183,6 @@ export class InlayHintsController implements IEditorContribution {
 		const fontColor = this._themeService.getColorTheme().getColor(editorInlayHintForeground);
 		const model = this._editor.getModel()!;
 
-
-
 		const newDecorationsTypeIds: string[] = [];
 		const newDecorationsData: IModelDeltaDecoration[] = [];
 
@@ -193,15 +191,12 @@ export class InlayHintsController implements IEditorContribution {
 
 		for (const hint of hints) {
 
-			const { text, position, whitespaceBefore, whitespaceAfter } = hint;
-			const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
-			const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
+			const { text, position } = hint;
 
 			const contentOptions: IContentDecorationRenderOptions = {
 				contentText: fixSpace(text),
 				backgroundColor: `${backgroundColor}`,
 				color: `${fontColor}`,
-				margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
 				fontSize: `${fontSize}px`,
 				fontFamily: `var(${fontFamilyVar})`,
 				padding: `0px ${(fontSize / 4) | 0}px`,
