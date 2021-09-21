@@ -5,7 +5,6 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryLog {
@@ -28,8 +27,6 @@ export class TelemetryAppenderChannel implements IServerChannel {
 }
 
 export class TelemetryAppenderClient implements ITelemetryAppender {
-
-	public readonly minimumTelemetryLevel = TelemetryLevel.LOG;
 
 	constructor(private channel: IChannel) { }
 

@@ -13,7 +13,7 @@ import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryConfiguration, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
@@ -46,7 +46,7 @@ export class TelemetryService implements ITelemetryService {
 		this._appenders = config.appenders;
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
-		this._telemetryLevel = TelemetryLevel.USER;
+		this._telemetryLevel = TelemetryLevel.USAGE;
 		this.sendErrorTelemetry = !!config.sendErrorTelemetry;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
@@ -65,7 +65,7 @@ export class TelemetryService implements ITelemetryService {
 		type OptInEvent = {
 			optIn: boolean;
 		};
-		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._telemetryLevel === TelemetryLevel.USER });
+		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._telemetryLevel === TelemetryLevel.USAGE });
 
 		this._commonProperties.then(values => {
 			const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
@@ -99,14 +99,7 @@ export class TelemetryService implements ITelemetryService {
 	// }
 
 	private _updateTelemetryLevel(): void {
-		const telemetryConfig = getTelemetryConfiguration(this._configurationService);
-		if (telemetryConfig === TelemetryConfiguration.OFF) {
-			this._telemetryLevel = TelemetryLevel.NONE;
-		} else if (telemetryConfig === TelemetryConfiguration.ON) {
-			this._telemetryLevel = TelemetryLevel.USER;
-		} else {
-			this._telemetryLevel = TelemetryLevel.ERROR;
-		}
+		this._telemetryLevel = getTelemetryLevel(this._configurationService);
 	}
 
 	get telemetryLevel(): TelemetryLevel {
@@ -130,9 +123,9 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables.dispose();
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
+	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
 		// don't send events when the user is optout
-		if (this.telemetryLevel < TelemetryLevel.ERROR) {
+		if (this.telemetryLevel < eventLevel) {
 			return Promise.resolve(undefined);
 		}
 
@@ -153,11 +146,7 @@ export class TelemetryService implements ITelemetryService {
 			});
 
 			// Log to the appenders of sufficient level
-			this._appenders.forEach(a => {
-				if (a.minimumTelemetryLevel >= this._telemetryLevel) {
-					a.log(eventName, data);
-				}
-			});
+			this._appenders.forEach(a => a.log(eventName, data));
 
 		}, err => {
 			// unsure what to do now...
@@ -165,17 +154,21 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
+	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
+		return this._log(eventName, TelemetryLevel.USAGE, data, anonymizeFilePaths);
+	}
+
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
 		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
-		if (!this.sendErrorTelemetry || this._telemetryLevel < TelemetryLevel.ERROR) {
+		if (!this.sendErrorTelemetry) {
 			return Promise.resolve(undefined);
 		}
 
 		// Send error event and anonymize paths
-		return this.publicLog(errorEventName, data, true);
+		return this._log(errorEventName, TelemetryLevel.ERROR, data, true);
 	}
 
 	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {

@@ -79,9 +79,8 @@ export const TELEMETRY_OLD_SETTING_ID = 'telemetry.enableTelemetry';
 
 export const enum TelemetryLevel {
 	NONE = 0,
-	LOG = 1,
 	ERROR = 2,
-	USER = 3
+	USAGE = 3
 }
 
 export const enum TelemetryConfiguration {

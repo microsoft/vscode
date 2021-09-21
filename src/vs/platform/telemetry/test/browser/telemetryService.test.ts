@@ -9,7 +9,7 @@ import * as Errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { ITelemetryData, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, TelemetryConfiguration } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
@@ -19,7 +19,6 @@ class TestTelemetryAppender implements ITelemetryAppender {
 
 	public events: any[];
 	public isDisposed: boolean;
-	public readonly minimumTelemetryLevel = TelemetryLevel.NONE;
 
 	constructor() {
 		this.events = [];

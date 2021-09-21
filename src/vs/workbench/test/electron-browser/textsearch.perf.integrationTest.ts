@@ -162,7 +162,7 @@ suite.skip('TextSearch performance (integration)', () => {
 
 class TestTelemetryService implements ITelemetryService {
 	public _serviceBrand: undefined;
-	public telemetryLevel = TelemetryLevel.USER;
+	public telemetryLevel = TelemetryLevel.USAGE;
 	public sendErrorTelemetry = true;
 
 	public events: any[] = [];

@@ -6,7 +6,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class TelemetryLogAppender extends Disposable implements ITelemetryAppender {
@@ -36,10 +35,6 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 
 	log(eventName: string, data: any): void {
 		this.logger.trace(`${this.prefix}telemetry/${eventName}`, validateTelemetryData(data));
-	}
-
-	get minimumTelemetryLevel(): TelemetryLevel {
-		return TelemetryLevel.LOG;
 	}
 }
 
