@@ -358,9 +358,8 @@ export async function main(options: IServerOptions): Promise<void> {
 	const fileService = new FileService(logService);
 	const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-
 	const rootPath = FileAccess.asFileUri('', require).fsPath;
-	const systemExtensionRoot = path.normalize(path.join(rootPath, '..', 'extensions'));
+
 	const extraDevSystemExtensionsRoot = path.normalize(path.join(rootPath, '..', '.build', 'builtInExtensions'));
 	const logger = new Logger((severity, source, message) => {
 		const msg = devMode && source ? `[${source}]: ${message}` : message;
@@ -417,7 +416,7 @@ export async function main(options: IServerOptions): Promise<void> {
 				// see _scanInstalledExtensions in src/vs/workbench/services/extensions/electron-browser/cachedExtensionScanner.ts
 				// TODO: read built nls file
 				const translations = {};
-				let pendingSystem = ExtensionScanner.scanExtensions(new ExtensionScannerInput(product.version, product.date, product.commit, args.language, devMode, systemExtensionRoot, true, false, translations), logger);
+				let pendingSystem = ExtensionScanner.scanExtensions(new ExtensionScannerInput(product.version, product.date, product.commit, args.language, devMode, environmentService.builtinExtensionsPath, true, false, translations), logger);
 				const builtInExtensions = product.builtInExtensions;
 				if (devMode && builtInExtensions && builtInExtensions.length) {
 					pendingSystem = ExtensionScanner.mergeBuiltinExtensions(pendingSystem, ExtensionScanner.scanExtensions(new ExtensionScannerInput(product.version, product.date, product.commit, args.language, devMode, extraDevSystemExtensionsRoot, true, false, translations), logger, {
