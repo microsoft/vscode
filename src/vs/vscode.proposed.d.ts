@@ -2260,7 +2260,7 @@ declare module 'vscode' {
 		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
 		 * always be at index 0.
 		 */
-		additionalResourcesAndViewIds?: { resource: Uri, viewId: string }[];
+		additionalResourcesAndViewIds: { resource?: Uri, viewId?: string }[];
 
 		/**
 		 * Whether or not the tab is currently active

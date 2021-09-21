@@ -497,7 +497,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const computedStyle = window.getComputedStyle(this._container.parentElement!);
+		const computedStyle = window.getComputedStyle(this._wrapperElement!);
 		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
 		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
 		this._evaluateColsAndRows(width, height);
@@ -574,15 +574,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return undefined;
 		}
 
-		const wrapperElementStyle = getComputedStyle(this._wrapperElement);
-		const marginLeft = parseInt(wrapperElementStyle.marginLeft!.split('px')[0], 10);
-		const marginRight = parseInt(wrapperElementStyle.marginRight!.split('px')[0], 10);
-		const bottom = parseInt(wrapperElementStyle.bottom!.split('px')[0], 10);
-
-		const innerWidth = width - marginLeft - marginRight;
-		const innerHeight = height - bottom - 1;
-
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(innerWidth, innerHeight);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 /* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -2424,12 +2416,33 @@ export class TerminalLabelComputer extends Disposable {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
 		}
 		const detection = this._instance.capabilities.includes(ProcessCapability.CwdDetection);
-		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && templateProperties.cwd === (this._instance.userHome || this._configHelper.config.cwd);
-		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && templateProperties.cwd === (this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
+		const zeroRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 0 && this.pathsEqual(templateProperties.cwd, this._instance.userHome || this._configHelper.config.cwd);
+		const singleRootWorkspace = this._workspaceContextService.getWorkspace().folders.length === 1 && this.pathsEqual(templateProperties.cwd, this._configHelper.config.cwd || this._workspaceContextService.getWorkspace().folders[0]?.uri.fsPath);
 		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
 
 		//Remove special characters that could mess with rendering
 		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
 		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
+	}
+
+	pathsEqual(path1?: string | null, path2?: string) {
+		if (!path1 && !path2) {
+			return true;
+		} else if (!path1 || !path2) {
+			return false;
+		} else if (path1 === path2) {
+			return true;
+		}
+		const split1 = path1.includes('/') ? path1.split('/') : path1.split('\\');
+		const split2 = path2.includes('/') ? path2.split('/') : path2.split('\\');
+		if (split1.length !== split2.length) {
+			return false;
+		}
+		for (let i = 0; i < path1.length; i++) {
+			if (path1[i] !== path2[i]) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

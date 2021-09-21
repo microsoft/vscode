@@ -8,9 +8,10 @@ import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, IExtHostContext, MainContext, IEditorTabDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { GroupChangeKind, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupChangeKind, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
@@ -39,6 +40,22 @@ export class MainThreadEditorTabs {
 		this._dispoables.dispose();
 	}
 
+	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
+		const tab: IEditorTabDto = {
+			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
+			label: editor.getName(),
+			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
+			editorId: editor instanceof SideBySideEditorInput ? editor.primary.editorId ?? editor.editorId : editor.editorId,
+			additionalResourcesAndViewIds: [],
+			isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
+		};
+		tab.additionalResourcesAndViewIds.push({ resource: tab.resource, viewId: tab.editorId });
+		if (editor instanceof SideBySideEditorInput) {
+			tab.additionalResourcesAndViewIds.push({ resource: EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY }), viewId: editor.primary.editorId ?? editor.editorId });
+		}
+		return tab;
+	}
+
 	private _createTabsModel(): void {
 		this._tabModel.clear();
 		let tabs: IEditorTabDto[] = [];
@@ -47,13 +64,7 @@ export class MainThreadEditorTabs {
 				if (editor.isDisposed()) {
 					continue;
 				}
-				const tab = {
-					viewColumn: editorGroupToColumn(this._editorGroupsService, group),
-					label: editor.getName(),
-					resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
-					editorId: editor.editorId,
-					isActive: (this._editorGroupsService.activeGroup === group) && group.isActive(editor)
-				};
+				const tab = this._buildTabObject(editor, group);
 				if (tab.isActive) {
 					this._currentlyActiveTab = { groupId: group.id, tab };
 				}
@@ -72,13 +83,7 @@ export class MainThreadEditorTabs {
 			this._tabModel.set(event.groupId, []);
 		}
 		const editor = event.editor;
-		const tab = {
-			viewColumn: editorGroupToColumn(this._editorGroupsService, event.groupId),
-			label: editor.getName(),
-			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
-			editorId: editor.editorId,
-			isActive: (this._editorGroupsService.activeGroup.id === event.groupId) && this._editorGroupsService.activeGroup.isActive(editor)
-		};
+		const tab = this._buildTabObject(editor, this._editorGroupsService.getGroup(event.groupId) ?? this._editorGroupsService.activeGroup);
 		this._tabModel.get(event.groupId)?.splice(event.editorIndex, 0, tab);
 		// Update the currently active tab which may or may not be the opened one
 		if (tab.isActive) {

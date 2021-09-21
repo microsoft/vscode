@@ -115,13 +115,6 @@ steps:
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
-      set -e
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-        node build/azure-pipelines/upload-nlsmetadata
-    displayName: Upload NLS Metadata
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
-
-  - script: |
       set -
       ./build/azure-pipelines/common/extract-telemetry.sh
     displayName: Extract Telemetry
