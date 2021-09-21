@@ -105,15 +105,14 @@ export class InlayHintsController implements IEditorContribution {
 
 	private _update(): void {
 		this._sessionDisposables.clear();
+		this._removeAllDecorations();
 
 		if (!this._editor.getOption(EditorOption.inlayHints).enabled) {
-			this._removeAllDecorations();
 			return;
 		}
 
 		const model = this._editor.getModel();
 		if (!model || !InlayHintsProviderRegistry.has(model)) {
-			this._removeAllDecorations();
 			return;
 		}
 
@@ -284,6 +283,7 @@ export class InlayHintsController implements IEditorContribution {
 		for (let obj of this._decorations.values()) {
 			this._codeEditorService.removeDecorationType(obj.decorationTypeId);
 		}
+		this._decorations.clear();
 	}
 }
 
