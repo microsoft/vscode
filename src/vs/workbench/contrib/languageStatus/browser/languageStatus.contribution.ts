@@ -11,9 +11,9 @@ import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER } from 'vs/workbench/common/theme';
+import { NOTIFICATIONS_BORDER, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -158,15 +158,18 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		} else {
 			const [first] = model.combined;
 			let text: string = '$(check-all)';
+			let showSeverity = false;
 			if (first.severity === Severity.Error) {
 				text = '$(error)';
+				showSeverity = true;
 			} else if (first.severity === Severity.Warning) {
 				text = '$(warning)';
+				showSeverity = true;
 			}
 			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
-				element.appendChild(this._renderStatus(status, this._renderDisposables));
+				element.appendChild(this._renderStatus(status, showSeverity, this._renderDisposables));
 				ariaLabels.push(this._asAriaLabel(status));
 			}
 			const props: IStatusbarEntry = {
@@ -200,7 +203,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
-	private _renderStatus(status: ILanguageStatus, store: DisposableStore): HTMLElement {
+	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, store: DisposableStore): HTMLElement {
 
 		const node = document.createElement('div');
 		node.classList.add('hover-language-status-element');
@@ -278,12 +281,25 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	// ---
 
 	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
+
+		let color: ThemeColor | undefined;
+		let backgroundColor: ThemeColor | undefined;
+		if (item.severity === Severity.Warning) {
+			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
+			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
+		} else if (item.severity === Severity.Error) {
+			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
+			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
+		}
+
 		return {
 			name: localize('name.pattern', '{0} (Language Status)', item.name),
 			text: item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
 			tooltip: new MarkdownString(item.detail, true),
+			color,
+			backgroundColor,
 			command: item.command
 		};
 	}
