@@ -191,7 +191,7 @@ export class InlayHintsController implements IEditorContribution {
 				contentText: fixSpace(text),
 				fontSize: `${fontSize}px`,
 				fontFamily: `var(${fontFamilyVar})`,
-				padding: `0px ${(fontSize / 4) | 0}px`,
+				padding: `1px ${Math.max(1, fontSize / 4) | 0}px`,
 				borderRadius: `${(fontSize / 4) | 0}px`,
 				verticalAlign: 'middle',
 				backgroundColor: themeColorFromId(editorInlayHintBackground),
