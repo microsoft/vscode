@@ -25,7 +25,7 @@ interface NlsMetadata {
 
 function main() {
 	return es.merge(
-		vfs.src('out-vscode-min/nls.metadata.json', { base: 'out-vscode-min' }),
+		vfs.src('out-vscode-web-min/nls.metadata.json', { base: 'out-vscode-web-min' }),
 		vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }),
 		vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }),
 		vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
@@ -34,7 +34,7 @@ function main() {
 			jsonSpace: '',
 			edit: (parsedJson, file) => {
 				let key;
-				if (file.base === 'out-vscode-min') {
+				if (file.base === 'out-vscode-web-min') {
 					return { vscode: parsedJson };
 				}
 
