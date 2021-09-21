@@ -1,4 +1,4 @@
-/*!--------------------------------------------------------
+/*--------------------------------------------------------
 * Copyright (C) Gitpod. All rights reserved.
 *--------------------------------------------------------*/
 
@@ -22,7 +22,7 @@ const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 
 const { compileBuildTask } = require('./gulpfile.compile');
-gulp.task(task.define('compile-web-server', compileBuildTask));
+gulp.task(task.define('compile-server', compileBuildTask));
 const { compileExtensionsCi } = require('./gulpfile.extensions');
 
 gulp.task(task.define('watch-init', require('./lib/compilation').watchTask('out', false)));

@@ -59,7 +59,7 @@ function hygiene(some, linting = true) {
 	});
 
 	const copyrights = es.through(function (file) {
-		if (file.relative.indexOf('vs/server') === -1) {
+		if (file.relative.indexOf('vs/server') === -1 && file.relative.indexOf('gulpfile.server') === -1) {
 			const lines = file.__lines;
 
 			for (let i = 0; i < copyrightHeaderLines.length; i++) {

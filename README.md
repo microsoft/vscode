@@ -31,8 +31,8 @@ docker run -it --init -p 3000:3000 -v "$(pwd):/home/workspace:cached" gitpod/ope
 - [Download the latest release](https://github.com/gitpod-io/openvscode-server/releases/latest)
 - untar and run the server:
 ```bash
-tar -xzf code-web-server-v${OPENVSCODE_SERVER_VERSION}.tar.gz
-cd code-web-server-v${OPENVSCODE_SERVER_VERSION}
+tar -xzf openvscode-server-v${OPENVSCODE_SERVER_VERSION}.tar.gz
+cd openvscode-server-v${OPENVSCODE_SERVER_VERSION}
 ./server.sh
 ```
 - after this, visit [localhost:3000](http://localhost:3000).
@@ -69,4 +69,4 @@ This project really only adds the minimal bits required to run VS Code in a serv
 - Check server/browser logs for any warnings/errors about missing capabilities and fix them.
 - Build the production server with all changes: `yarn gulp server-min`.
 - Run it and play as with the dev server: `/workspace/server-pkg/server.sh`
-- Open a PR with your changes and ask for help if needed. It should be agaist `gitpod-io/openvscode-server` repo and `web-server` branch!
+- Open a PR with your changes and ask for help if needed. It should be agaist `gitpod-io/openvscode-server` repo and `main` branch!
