@@ -144,3 +144,4 @@ steps:
     artifact: vscode_web_linux_standalone_archive-unsigned
     displayName: Publish web archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+ 
