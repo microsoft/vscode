@@ -1860,7 +1860,7 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.isOpen,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_Z,
-					weight: KeybindingWeight.EditorContrib
+					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
 		}

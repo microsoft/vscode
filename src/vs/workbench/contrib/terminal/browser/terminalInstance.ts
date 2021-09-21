@@ -189,7 +189,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get resource(): URI { return this._resource; }
 	get cols(): number {
 		if (this._fixedCols !== undefined) {
-			console.log('returning fixed cols', this._fixedCols);
 			return this._fixedCols;
 		}
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
@@ -755,6 +754,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 		this._xtermElement = document.createElement('div');
+		this._wrapperElement.appendChild(this._xtermElement);
 
 		this._container.appendChild(this._wrapperElement);
 
@@ -770,22 +770,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
-		this._scrollable = new DomScrollableElement(this._xtermElement, {
-			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Visible,
-			alwaysConsumeMouseWheel: true,
-			listenOnDomNode: xterm.textarea
-		});
-
-		this._scrollable.setScrollDimensions(
-			{
-				width: this._container.parentElement?.clientWidth,
-				scrollWidth: this._container.parentElement?.clientWidth,
-				height: 10
-			});
-
-		this._scrollable.getDomNode().style.overflow = '';
-		this._wrapperElement.appendChild(this._scrollable.getDomNode());
 
 		this._setAriaLabel(xterm, this._instanceId, this._title);
 
@@ -1936,9 +1920,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await this._resize();
 			this._scrollable?.setScrollDimensions(
 				{
-					width: this._container?.parentElement?.clientWidth,
-					scrollWidth: 0,
-					height: 10
+					scrollWidth: 0
 				});
 		} else {
 			let maxCols = 0;
@@ -1951,10 +1933,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._fixedCols = maxCols;
 				await this._resize();
 				this._hasWrappedLines = true;
+				if (!this._scrollable && this._xtermElement && this._wrapperElement && this._container) {
+					this._scrollable = new DomScrollableElement(this._xtermElement, {
+						vertical: ScrollbarVisibility.Hidden,
+						horizontal: ScrollbarVisibility.Visible,
+					});
+					this._scrollable.getDomNode().style.height = this._container.parentElement!.clientHeight + 'px';
+					this._scrollable.getDomNode().style.width = this._container.parentElement!.clientWidth + 'px';
+					this._wrapperElement.appendChild(this._scrollable.getDomNode());
+				}
 				this._scrollable?.setScrollDimensions(
 					{
-						width: this._container?.parentElement?.clientWidth,
-						scrollWidth: maxCols + (this._container?.parentElement?.clientWidth || 0),
+						width: this._xterm.element?.clientWidth,
+						scrollWidth: 50,
 						height: 10
 					});
 			}
