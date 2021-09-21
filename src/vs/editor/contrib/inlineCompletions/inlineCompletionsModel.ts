@@ -69,10 +69,6 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this._register(toDisposable(() => {
 			this.disposed = true;
 		}));
-
-		this._register(this.editor.onDidBlurEditorText(() => {
-			this.hide();
-		}));
 	}
 
 	private handleUserInput() {
