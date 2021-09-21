@@ -11,14 +11,14 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 const terminalDescriptors = '\n- ' + [
-	localize('cwd', "`\${cwd}`: the terminal's current working directory"),
-	localize('cwdFolder', "`\${cwdFolder}`:  the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. This will not be displayed for Windows."),
-	localize('workspaceFolder', "`\${workspaceFolder}`:  the workpsace in which the terminal was launched"),
-	localize('local', "`\${local}`: indicates a local terminal in a remote workspace"),
-	localize('process', "`\${process}`: the name of the terminal process"),
-	localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
-	localize('sequence', "`\${sequence}`: the name provided to xterm.js by the process"),
-	localize('task', "`\${task}`: indicates this terminal is associated with a task"),
+	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
+	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. This will not be displayed for Windows."),
+	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workpsace in which the terminal was launched"),
+	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
+	'`\${process}`: ' + localize('process', "the name of the terminal process"),
+	'`\${separator}`: ' + localize('separator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
+	'`\${sequence}`: ' + localize('sequence', "the name provided to xterm.js by the process"),
+	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 let terminalTitleDescription = localize('terminalTitle', "Controls the terminal title. Variables are substituted based on the context:");
