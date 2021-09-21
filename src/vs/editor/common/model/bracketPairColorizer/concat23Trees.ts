@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AstNode, ListAstNode } from './ast';
+import { AstNode, AstNodeKind, ListAstNode } from './ast';
 
 /**
  * Concatenates a list of (2,3) AstNode's into a single (2,3) AstNode.
@@ -19,55 +19,38 @@ export function concat23Trees(items: AstNode[]): AstNode | null {
 		return items[0];
 	}
 
-	if (allItemsHaveSameHeight(items)) {
-		return concatFast(items);
-	}
-	return concatSlow(items);
-}
+	let i = 0;
+	/**
+	 * Reads nodes of same height and concatenates them to a single node.
+	*/
+	function readNode(): AstNode | null {
+		if (i >= items.length) {
+			return null;
+		}
+		const start = i;
+		const height = items[start].listHeight;
 
-/**
- * @param items must be non empty.
-*/
-function allItemsHaveSameHeight(items: AstNode[]): boolean {
-	const firstHeight = items[0].listHeight;
+		i++;
+		while (i < items.length && items[i].listHeight === height) {
+			i++;
+		}
 
-	for (const item of items) {
-		if (item.listHeight !== firstHeight) {
-			return false;
+		if (i - start >= 2) {
+			return concat23TreesOfSameHeight(start === 0 && i === items.length ? items : items.slice(start, i), false);
+		} else {
+			return items[start];
 		}
 	}
-	return true;
-}
 
-function concatFast(items: AstNode[]): AstNode | null {
-	let length = items.length;
-	// All trees have same height, just create parent nodes.
-	while (length > 1) {
-		const newLength = length >> 1;
-		// Ideally, due to the slice, not a lot of memory is wasted.
-		const newItems = new Array<AstNode>(newLength);
-		for (let i = 0; i < newLength; i++) {
-			const j = i << 1;
-			newItems[i] = ListAstNode.create(items.slice(j, (j + 3 === length) ? length : j + 2));
-		}
-		length = newLength;
-		items = newItems;
-	}
-	return items[0];
-}
-
-function heightDiff(node1: AstNode, node2: AstNode): number {
-	return Math.abs(node1.listHeight - node2.listHeight);
-}
-
-function concatSlow(items: AstNode[]): AstNode | null {
 	// The items might not have the same height.
 	// We merge all items by using a binary concat operator.
-	let first = items[0];
-	let second = items[1];
+	let first = readNode()!; // There must be a first item
+	let second = readNode();
+	if (!second) {
+		return first;
+	}
 
-	for (let i = 2; i < items.length; i++) {
-		const item = items[i];
+	for (let item = readNode(); item; item = readNode()) {
 		// Prefer concatenating smaller trees, as the runtime of concat depends on the tree height.
 		if (heightDiff(first, second) <= heightDiff(second, item)) {
 			first = concat(first, second);
@@ -81,14 +64,133 @@ function concatSlow(items: AstNode[]): AstNode | null {
 	return result;
 }
 
+export function concat23TreesOfSameHeight(items: AstNode[], createImmutableLists: boolean = false): AstNode | null {
+	if (items.length === 0) {
+		return null;
+	}
+	if (items.length === 1) {
+		return items[0];
+	}
+
+	let length = items.length;
+	// All trees have same height, just create parent nodes.
+	while (length > 3) {
+		const newLength = length >> 1;
+		for (let i = 0; i < newLength; i++) {
+			const j = i << 1;
+			items[i] = ListAstNode.create23(items[j], items[j + 1], j + 3 === length ? items[j + 2] : null, createImmutableLists);
+		}
+		length = newLength;
+	}
+	return ListAstNode.create23(items[0], items[1], length >= 3 ? items[2] : null, createImmutableLists);
+}
+
+function heightDiff(node1: AstNode, node2: AstNode): number {
+	return Math.abs(node1.listHeight - node2.listHeight);
+}
+
 function concat(node1: AstNode, node2: AstNode): AstNode {
 	if (node1.listHeight === node2.listHeight) {
-		return ListAstNode.create([node1, node2]);
+		return ListAstNode.create23(node1, node2, null, false);
 	}
 	else if (node1.listHeight > node2.listHeight) {
 		// node1 is the tree we want to insert into
-		return (node1 as ListAstNode).append(node2);
+		return append(node1 as ListAstNode, node2);
 	} else {
-		return (node2 as ListAstNode).prepend(node1);
+		return prepend(node2 as ListAstNode, node1);
+	}
+}
+
+/**
+ * Appends the given node to the end of this (2,3) tree.
+ * Returns the new root.
+*/
+function append(list: ListAstNode, nodeToAppend: AstNode): AstNode {
+	list = list.toMutable() as ListAstNode;
+	let curNode: AstNode = list;
+	const parents = new Array<ListAstNode>();
+	let nodeToAppendOfCorrectHeight: AstNode | undefined;
+	while (true) {
+		// assert nodeToInsert.listHeight <= curNode.listHeight
+		if (nodeToAppend.listHeight === curNode.listHeight) {
+			nodeToAppendOfCorrectHeight = nodeToAppend;
+			break;
+		}
+		// assert 0 <= nodeToInsert.listHeight < curNode.listHeight
+		if (curNode.kind !== AstNodeKind.List) {
+			throw new Error('unexpected');
+		}
+		parents.push(curNode);
+		// assert 2 <= curNode.childrenLength <= 3
+		curNode = curNode.makeLastElementMutable()!;
+	}
+	// assert nodeToAppendOfCorrectHeight!.listHeight === curNode.listHeight
+	for (let i = parents.length - 1; i >= 0; i--) {
+		const parent = parents[i];
+		if (nodeToAppendOfCorrectHeight) {
+			// Can we take the element?
+			if (parent.childrenLength >= 3) {
+				// assert parent.childrenLength === 3 && parent.listHeight === nodeToAppendOfCorrectHeight.listHeight + 1
+
+				// we need to split to maintain (2,3)-tree property.
+				// Send the third element + the new element to the parent.
+				nodeToAppendOfCorrectHeight = ListAstNode.create23(parent.unappendChild()!, nodeToAppendOfCorrectHeight, null, false);
+			} else {
+				parent.appendChildOfSameHeight(nodeToAppendOfCorrectHeight);
+				nodeToAppendOfCorrectHeight = undefined;
+			}
+		} else {
+			parent.handleChildrenChanged();
+		}
+	}
+	if (nodeToAppendOfCorrectHeight) {
+		return ListAstNode.create23(list, nodeToAppendOfCorrectHeight, null, false);
+	} else {
+		return list;
+	}
+}
+
+/**
+ * Prepends the given node to the end of this (2,3) tree.
+ * Returns the new root.
+*/
+function prepend(list: ListAstNode, nodeToAppend: AstNode): AstNode {
+	list = list.toMutable() as ListAstNode;
+	let curNode: AstNode = list;
+	const parents = new Array<ListAstNode>();
+	// assert nodeToInsert.listHeight <= curNode.listHeight
+	while (nodeToAppend.listHeight !== curNode.listHeight) {
+		// assert 0 <= nodeToInsert.listHeight < curNode.listHeight
+		if (curNode.kind !== AstNodeKind.List) {
+			throw new Error('unexpected');
+		}
+		parents.push(curNode);
+		// assert 2 <= curNode.childrenFast.length <= 3
+		curNode = curNode.makeFirstElementMutable()!;
+	}
+	let nodeToPrependOfCorrectHeight: AstNode | undefined = nodeToAppend;
+	// assert nodeToAppendOfCorrectHeight!.listHeight === curNode.listHeight
+	for (let i = parents.length - 1; i >= 0; i--) {
+		const parent = parents[i];
+		if (nodeToPrependOfCorrectHeight) {
+			// Can we take the element?
+			if (parent.childrenLength >= 3) {
+				// assert parent.childrenLength === 3 && parent.listHeight === nodeToAppendOfCorrectHeight.listHeight + 1
+
+				// we need to split to maintain (2,3)-tree property.
+				// Send the third element + the new element to the parent.
+				nodeToPrependOfCorrectHeight = ListAstNode.create23(nodeToPrependOfCorrectHeight, parent.unprependChild()!, null, false);
+			} else {
+				parent.prependChildOfSameHeight(nodeToPrependOfCorrectHeight);
+				nodeToPrependOfCorrectHeight = undefined;
+			}
+		} else {
+			parent.handleChildrenChanged();
+		}
+	}
+	if (nodeToPrependOfCorrectHeight) {
+		return ListAstNode.create23(nodeToPrependOfCorrectHeight, list, null, false);
+	} else {
+		return list;
 	}
 }

@@ -1156,7 +1156,9 @@ export namespace InlayHint {
 		return {
 			text: hint.text,
 			position: Position.from(hint.position),
-			kind: InlayHintKind.from(hint.kind ?? types.InlayHintKind.Other)
+			kind: InlayHintKind.from(hint.kind ?? types.InlayHintKind.Other),
+			whitespaceBefore: hint.whitespaceBefore,
+			whitespaceAfter: hint.whitespaceAfter
 		};
 	}
 
@@ -1166,6 +1168,8 @@ export namespace InlayHint {
 			Position.to(hint.position),
 			InlayHintKind.to(hint.kind)
 		);
+		res.whitespaceAfter = hint.whitespaceAfter;
+		res.whitespaceBefore = hint.whitespaceBefore;
 		return res;
 	}
 }

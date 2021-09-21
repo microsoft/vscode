@@ -350,7 +350,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 				// On Mac, the delay is 1500.
 				'default': isMacintosh ? 1500 : 500
-			}
+			},
+			'workbench.experimental.auxiliaryBar.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('auxiliaryBarEnabled', "Controls whether the auxiliary bar opposite the side bar is enabled.")
+			},
 		}
 	});
 

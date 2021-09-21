@@ -7,15 +7,21 @@ import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNod
 import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
 import { SmallImmutableSet } from './smallImmutableSet';
 import { lengthGetLineCount, lengthIsZero, lengthLessThanEqual } from './length';
-import { concat23Trees } from './concat23Trees';
+import { concat23Trees, concat23TreesOfSameHeight } from './concat23Trees';
 import { NodeReader } from './nodeReader';
 import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer';
 
-export function parseDocument(tokenizer: Tokenizer, edits: TextEditInfo[], oldNode: AstNode | undefined): AstNode {
-	const parser = new Parser(tokenizer, edits, oldNode);
+/**
+ * Non incrementally built ASTs are immutable.
+*/
+export function parseDocument(tokenizer: Tokenizer, edits: TextEditInfo[], oldNode: AstNode | undefined, createImmutableLists: boolean): AstNode {
+	const parser = new Parser(tokenizer, edits, oldNode, createImmutableLists);
 	return parser.parseDocument();
 }
 
+/**
+ * Non incrementally built ASTs are immutable.
+*/
 class Parser {
 	private readonly oldNodeReader?: NodeReader;
 	private readonly positionMapper: BeforeEditPositionMapper;
@@ -40,7 +46,12 @@ class Parser {
 		private readonly tokenizer: Tokenizer,
 		edits: TextEditInfo[],
 		oldNode: AstNode | undefined,
+		private readonly createImmutableLists: boolean,
 	) {
+		if (oldNode && createImmutableLists) {
+			throw new Error('Not supported');
+		}
+
 		this.oldNodeReader = oldNode ? new NodeReader(oldNode) : undefined;
 		this.positionMapper = new BeforeEditPositionMapper(edits, tokenizer.length);
 	}
@@ -51,7 +62,7 @@ class Parser {
 
 		let result = this.parseList(SmallImmutableSet.getEmpty());
 		if (!result) {
-			result = ListAstNode.create([]);
+			result = ListAstNode.getEmpty();
 		}
 
 		return result;
@@ -73,14 +84,15 @@ class Parser {
 			}
 
 			const child = this.parseChild(openedBracketIds);
-			if (child.kind === AstNodeKind.List && child.children.length === 0) {
+			if (child.kind === AstNodeKind.List && child.childrenLength === 0) {
 				continue;
 			}
 
 			items.push(child);
 		}
 
-		const result = concat23Trees(items);
+		// When there is no oldNodeReader, all items are created from scratch and must have the same height.
+		const result = this.oldNodeReader ? concat23Trees(items) : concat23TreesOfSameHeight(items, this.createImmutableLists);
 		return result;
 	}
 
