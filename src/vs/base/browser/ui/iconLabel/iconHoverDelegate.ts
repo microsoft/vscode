@@ -21,7 +21,7 @@ export interface IHoverDelegateOptions {
 }
 
 export interface IHoverDelegate {
-	showHover(options: IHoverDelegateOptions): IHoverWidget | undefined;
+	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
 	onDidHideHover?: () => void;
 	delay: number;
 	placement?: 'mouse' | 'element';
