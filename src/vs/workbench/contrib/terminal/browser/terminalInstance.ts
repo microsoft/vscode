@@ -1213,13 +1213,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._shellLaunchConfig.name) {
 				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
-				// Only listen for process title changes when a name is not provided
-				// Set the title to the first event if the sequence hasn't set it yet
-				Event.once(this._processManager.onProcessTitle)(e => {
-					if (!this._title) {
-						this.refreshTabLabels(e, TitleEventSource.Sequence);
-					}
-				});
 				// Listen to xterm.js' sequence title change event, trigger this async to ensure
 				// _xtermReadyPromise is ready constructed since this is called from the ctor
 				setTimeout(() => {
