@@ -18,6 +18,7 @@ export interface IEditorTab {
 	resource?: vscode.Uri;
 	viewId?: string;
 	isActive: boolean;
+	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[]
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -61,6 +62,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				viewColumn: typeConverters.ViewColumn.to(dto.viewColumn),
 				index,
 				resource: URI.revive(dto.resource),
+				additionalResourcesAndViewIds: dto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
 				viewId: dto.editorId,
 				isActive: dto.isActive
 			});
