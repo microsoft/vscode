@@ -261,7 +261,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 }
 
-const restartString = !isWeb ? localize('telemetry.restart', ' Some features may require a restart to take effect.') : '';
+const restartString = !isWeb ? ' ' + localize('telemetry.restart', 'Some features may require a restart to take effect.') : '';
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,
