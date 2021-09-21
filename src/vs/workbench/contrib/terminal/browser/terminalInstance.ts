@@ -1697,9 +1697,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (this._xterm && this._xterm.element) {
-			this._xterm.element.style.width = terminalWidth + 'px';
-		}
+		// if (this._xterm && this._xterm.element) {
+		// 	this._xterm.element.style.width = terminalWidth + 'px';
+		// }
 
 		this._resize();
 
@@ -1921,19 +1921,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				await this._resize();
 				this._hasWrappedLines = true;
 				if (!this._scrollable && this._xtermElement && this._wrapperElement && this._container) {
-					this._scrollable = new DomScrollableElement(this._xtermElement, {
+					this._scrollable = new DomScrollableElement(this._wrapperElement, {
 						vertical: ScrollbarVisibility.Hidden,
 						horizontal: ScrollbarVisibility.Visible,
 					});
-					this._scrollable.getDomNode().style.height = this._container.parentElement!.clientHeight + 'px';
-					this._scrollable.getDomNode().style.width = this._container.parentElement!.clientWidth + 'px';
-					this._wrapperElement.appendChild(this._scrollable.getDomNode());
+					this._container.appendChild(this._scrollable.getDomNode());
 				}
 				this._scrollable?.setScrollDimensions(
 					{
 						width: this._xterm.element?.clientWidth,
-						scrollWidth: 50,
-						height: 10
+						scrollWidth: 1000, // TODO: Get actual scroll width
 					});
 			}
 		}
