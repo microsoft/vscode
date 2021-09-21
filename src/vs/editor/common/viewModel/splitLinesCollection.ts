@@ -6,9 +6,9 @@
 import * as arrays from 'vs/base/common/arrays';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, IndentGuide, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -70,6 +70,7 @@ export interface IViewModelLinesCollection extends IDisposable {
 	getViewLineCount(): number;
 	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
+	getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): IndentGuide[][];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineLength(viewLineNumber: number): number;
 	getViewLineMinColumn(viewLineNumber: number): number;
@@ -640,7 +641,135 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		};
 	}
 
+	// #region ViewLineInfo
+
+	public getViewLineInfo(viewLineNumber: number): ViewLineInfo {
+		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
+		let lineIndex = r.index;
+		let remainder = r.remainder;
+		return new ViewLineInfo(lineIndex + 1, remainder);
+	}
+
+	private getMinColumnOfViewLine(viewLineInfo: ViewLineInfo): number {
+		return this.lines[viewLineInfo.modelLineNumber - 1].getViewLineMinColumn(
+			this.model,
+			viewLineInfo.modelLineNumber,
+			viewLineInfo.modelLineWrappedLineIdx
+		);
+	}
+
+	private getModelStartPositionOfViewLine(viewLineInfo: ViewLineInfo): Position {
+		const line = this.lines[viewLineInfo.modelLineNumber - 1];
+		const minViewColumn = line.getViewLineMaxColumn(
+			this.model,
+			viewLineInfo.modelLineNumber,
+			viewLineInfo.modelLineWrappedLineIdx
+		);
+		const column = line.getModelColumnOfViewPosition(
+			viewLineInfo.modelLineWrappedLineIdx,
+			minViewColumn
+		);
+		return new Position(viewLineInfo.modelLineNumber, column);
+	}
+
+	private getModelEndPositionOfViewLine(viewLineInfo: ViewLineInfo): Position {
+		const line = this.lines[viewLineInfo.modelLineNumber - 1];
+		const maxViewColumn = line.getViewLineMaxColumn(
+			this.model,
+			viewLineInfo.modelLineNumber,
+			viewLineInfo.modelLineWrappedLineIdx
+		);
+		const column = line.getModelColumnOfViewPosition(
+			viewLineInfo.modelLineWrappedLineIdx,
+			maxViewColumn
+		);
+		return new Position(viewLineInfo.modelLineNumber, column);
+	}
+
+	private getViewLineInfosGroupedByModelRanges(viewStartLineNumber: number, viewEndLineNumber: number): ViewLineInfoGroupedByModelRange[] {
+		const startViewLine = this.getViewLineInfo(viewStartLineNumber);
+		const endViewLine = this.getViewLineInfo(viewEndLineNumber);
+
+		const result = new Array<ViewLineInfoGroupedByModelRange>();
+		let lastVisibleModelPos: Position | null = this.getModelStartPositionOfViewLine(startViewLine);
+		let viewLines = new Array<ViewLineInfo>();
+
+		for (let curModelLine = startViewLine.modelLineNumber; curModelLine <= endViewLine.modelLineNumber; curModelLine++) {
+			const line = this.lines[curModelLine - 1];
+
+			if (line.isVisible()) {
+				let startOffset =
+					curModelLine === startViewLine.modelLineNumber
+						? startViewLine.modelLineWrappedLineIdx
+						: 0;
+
+				let count =
+					curModelLine === endViewLine.modelLineNumber
+						? endViewLine.modelLineWrappedLineIdx + 1
+						: line.getViewLineCount();
+
+				for (let i = startOffset; i < count; i++) {
+					viewLines.push(new ViewLineInfo(curModelLine, i));
+				}
+			}
+
+			if (!line.isVisible() && lastVisibleModelPos) {
+				const lastVisibleModelPos2 = new Position(curModelLine - 1, this.model.getLineMaxColumn(curModelLine - 1) + 1);
+
+				const modelRange = Range.fromPositions(lastVisibleModelPos, lastVisibleModelPos2);
+				result.push(new ViewLineInfoGroupedByModelRange(modelRange, viewLines));
+				viewLines = [];
+
+				lastVisibleModelPos = null;
+			} else if (line.isVisible() && !lastVisibleModelPos) {
+				lastVisibleModelPos = new Position(curModelLine, 1);
+			}
+		}
+
+		if (lastVisibleModelPos) {
+			const modelRange = Range.fromPositions(lastVisibleModelPos, this.getModelEndPositionOfViewLine(endViewLine));
+			result.push(new ViewLineInfoGroupedByModelRange(modelRange, viewLines));
+		}
+
+		return result;
+	}
+
+	// #endregion
+
+	public getViewLinesBracketGuides(viewStartLineNumber: number, viewEndLineNumber: number, activeViewPosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): IndentGuide[][] {
+		const modelActivePosition = activeViewPosition ? this.convertViewPositionToModelPosition(activeViewPosition.lineNumber, activeViewPosition.column) : null;
+		const resultPerViewLine: IndentGuide[][] = [];
+
+		for (const group of this.getViewLineInfosGroupedByModelRanges(viewStartLineNumber, viewEndLineNumber)) {
+			const modelRangeStartLineNumber = group.modelRange.startLineNumber;
+
+			const bracketGuidesPerModelLine = this.model.getLinesBracketGuides(
+				modelRangeStartLineNumber,
+				group.modelRange.endLineNumber,
+				modelActivePosition,
+				highlightActiveGuides,
+				includeNonActiveGuides
+			);
+
+			for (const viewLineInfo of group.viewLines) {
+				if (viewLineInfo.isWrappedLineContinuation && this.getMinColumnOfViewLine(viewLineInfo) === 1) {
+					// Don't add indent guides when the wrapped line continuation has no wrapping-indentation.
+					resultPerViewLine.push([]);
+				} else {
+					const bracketGuides = bracketGuidesPerModelLine[viewLineInfo.modelLineNumber - modelRangeStartLineNumber];
+					resultPerViewLine.push(bracketGuides);
+				}
+			}
+		}
+
+		return resultPerViewLine;
+	}
+
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
+		// TODO: Use the same code as in `getViewLinesBracketGuides`.
+		// Future TODO: Merge with `getViewLinesBracketGuides`.
+		// However, this requires more refactoring of indent guides.
 		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
 		viewEndLineNumber = this._toValidViewLineNumber(viewEndLineNumber);
 
@@ -1025,6 +1154,28 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		// We deliberately don't handle the case that indentation is wrapped
 		// to avoid two view lines reporting indentation for the very same model line.
 		return 0;
+	}
+}
+
+/**
+ * Represents a view line. Can be used to efficiently query more information about it.
+ */
+class ViewLineInfo {
+	public get isWrappedLineContinuation(): boolean {
+		return this.modelLineWrappedLineIdx > 0;
+	}
+
+	constructor(
+		public readonly modelLineNumber: number,
+		public readonly modelLineWrappedLineIdx: number,
+	) { }
+}
+
+/**
+ * A list of view lines that have a contiguous span in the model.
+*/
+class ViewLineInfoGroupedByModelRange {
+	constructor(public readonly modelRange: Range, public readonly viewLines: ViewLineInfo[]) {
 	}
 }
 
@@ -1624,6 +1775,10 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 			endLineNumber: viewLineNumber,
 			indent: 0
 		};
+	}
+
+	public getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null): IndentGuide[][] {
+		return [];
 	}
 
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {

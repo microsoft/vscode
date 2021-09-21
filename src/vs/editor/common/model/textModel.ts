@@ -29,7 +29,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
@@ -39,9 +39,11 @@ import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
-import { ArrayQueue } from 'vs/base/common/arrays';
+import { ArrayQueue, tail } from 'vs/base/common/arrays';
 import { BracketPairColorizer } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
+import { editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6 } from 'vs/editor/common/view/editorColorRegistry';
+import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -3076,6 +3078,82 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return { startLineNumber, endLineNumber, indent };
 	}
 
+	public getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): model.IndentGuide[][] {
+		const result: model.IndentGuide[][] = [];
+
+		const bracketPairs = this._bracketPairColorizer.getBracketPairsInRange(
+			new Range(
+				startLineNumber,
+				1,
+				endLineNumber,
+				this.getLineMaxColumn(endLineNumber)
+			)
+		);
+
+		let activeBracketPairRange: Range | undefined = undefined;
+		if (activePosition && bracketPairs.length > 0) {
+			const bracketsContainingActivePosition =
+				(startLineNumber <= activePosition.lineNumber && activePosition.lineNumber <= endLineNumber)
+					// Does active position intersect with the view port? -> Intersect bracket pairs with activePosition
+					? bracketPairs.filter(bp => bp.range.containsPosition(activePosition))
+					: this._bracketPairColorizer.getBracketPairsInRange(
+						Range.fromPositions(activePosition)
+					);
+
+			activeBracketPairRange = tail(bracketsContainingActivePosition)?.range;
+		}
+
+		const queue = new ArrayQueue(bracketPairs);
+		const activeBracketPairs = new Array<model.BracketPair>();
+		const colorProvider = new BracketPairGuidesClassNames();
+
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			const guides = new Array<model.IndentGuide>();
+			result.push(guides);
+
+			for (const pair of queue.takeWhile(b => b.openingBracketRange.startLineNumber < lineNumber) || []) {
+				activeBracketPairs[pair.nestingLevel] = pair;
+			}
+
+			let lastVisibleColumnCount = Number.MAX_SAFE_INTEGER;
+			// Going backwards, so the last guide is before the others
+			for (let i = activeBracketPairs.length - 1; i >= 0; i--) {
+				const pair = activeBracketPairs[i];
+				if (pair.range.endLineNumber <= lineNumber) {
+					continue;
+				}
+
+				const minIndentation = Math.min(
+					this.getVisibleColumnFromPosition(pair.openingBracketRange.getStartPosition()),
+					this.getVisibleColumnFromPosition(pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition())
+				);
+
+				if (minIndentation > lastVisibleColumnCount) {
+					continue;
+				}
+				lastVisibleColumnCount = minIndentation;
+
+				const isActive = highlightActiveGuides && activeBracketPairRange &&
+					pair.range.equalsRange(activeBracketPairRange);
+
+				const className =
+					colorProvider.getInlineClassNameOfLevel(pair.nestingLevel) +
+					(isActive ? ' ' + colorProvider.activeClassName : '');
+
+				if (isActive || includeNonActiveGuides) {
+					guides.push(new model.IndentGuide(minIndentation, className));
+				}
+			}
+
+			guides.reverse();
+		}
+		return result;
+	}
+
+	private getVisibleColumnFromPosition(position: Position): number {
+		return CursorColumns.visibleColumnFromColumn(this.getLineContent(position.lineNumber), position.column, this._options.tabSize) + 1;
+	}
+
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
 		this._assertNotDisposed();
 		const lineCount = this.getLineCount();
@@ -3199,6 +3277,40 @@ function indentOfLine(line: string): number {
 	}
 	return indent;
 }
+
+class BracketPairGuidesClassNames {
+	public readonly activeClassName = 'indent-active';
+
+	getInlineClassNameOfLevel(level: number): string {
+		// To support a dynamic amount of colors up to 6 colors,
+		// we use a number that is a lcm of all numbers from 1 to 6.
+		return `bracket-indent-guide lvl-${level % 30}`;
+	}
+}
+
+registerThemingParticipant((theme, collector) => {
+	const colors = [
+		editorBracketHighlightingForeground1,
+		editorBracketHighlightingForeground2,
+		editorBracketHighlightingForeground3,
+		editorBracketHighlightingForeground4,
+		editorBracketHighlightingForeground5,
+		editorBracketHighlightingForeground6
+	];
+	const colorProvider = new BracketPairGuidesClassNames();
+
+	let colorValues = colors
+		.map(c => theme.getColor(c))
+		.filter((c): c is Color => !!c)
+		.filter(c => !c.isTransparent());
+
+	for (let level = 0; level < 30; level++) {
+		const color = colorValues[level % colorValues.length];
+		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level).replace(/ /g, '.')} { opacity: 0.3; box-shadow: 1px 0 0 0 ${color} inset; }`);
+	}
+
+	collector.addRule(`.monaco-editor .${colorProvider.activeClassName} { opacity: 1 !important; }`);
+});
 
 //#region Decorations
 

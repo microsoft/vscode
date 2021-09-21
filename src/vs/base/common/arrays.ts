@@ -683,4 +683,8 @@ export class ArrayQueue<T> {
 		this.lastIdx = endIdx;
 		return result;
 	}
+
+	peek(): T | undefined {
+		return this.items[this.firstIdx];
+	}
 }

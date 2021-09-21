@@ -3315,6 +3315,51 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 
 //#endregion
 
+//#region bracketPairColorization
+
+export interface IBracketPairGuideOptions {
+	/**
+	 * Enable or disable bracket pair guides.
+	*/
+	enabled?: boolean;
+}
+
+export type InternalBracketPairGuideOptions = Readonly<Required<IBracketPairGuideOptions>>;
+
+/**
+ * Configuration options for inline suggestions
+ */
+class BracketPairGuideOptions extends BaseEditorOption<EditorOption.bracketPairGuides, InternalBracketPairGuideOptions> {
+	constructor() {
+		const defaults: InternalBracketPairGuideOptions = {
+			enabled: false,
+		};
+
+		super(
+			EditorOption.bracketPairGuides, 'bracketPairGuides', defaults,
+			{
+				'editor.bracketPairGuides.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('bracketPairGuides.enabled', "Controls whether bracket pair guides are enabled or not.")
+				}
+			}
+		);
+	}
+
+	public validate(_input: any): InternalBracketPairGuideOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IBracketPairGuideOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled)
+		};
+	}
+}
+
+//#endregion
+
 //#region suggest
 
 /**
@@ -3954,6 +3999,7 @@ export const enum EditorOption {
 	automaticLayout,
 	autoSurround,
 	bracketPairColorization,
+	bracketPairGuides,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -4205,6 +4251,7 @@ export const EditorOptions = {
 		}
 	)),
 	bracketPairColorization: register(new BracketPairColorization()),
+	bracketPairGuides: register(new BracketPairGuideOptions()),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
 		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
