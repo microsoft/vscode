@@ -332,7 +332,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	checkIfOutputsModified() {
-		return !this.mainDocumentTextModel.transientOptions.transientOutputs && outputsEqual(this.original?.outputs ?? [], this.modified?.outputs ?? []);
+		return !this.mainDocumentTextModel.transientOptions.transientOutputs && !outputsEqual(this.original?.outputs ?? [], this.modified?.outputs ?? []);
 	}
 
 	checkMetadataIfModified(): boolean {
