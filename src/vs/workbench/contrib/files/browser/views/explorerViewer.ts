@@ -839,7 +839,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
 				return false;
 			}
-			if (isWeb && originalEvent.dataTransfer?.types.indexOf('Files') === -1) {
+			if (isWeb && !containsDragType(originalEvent, 'Files')) {
 				// DnD from vscode to web is not supported #115535. Only if we are dragging from native finder / explorer then the "Files" data transfer will be set
 				return false;
 			}
@@ -983,16 +983,17 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
 				// Native OS file DND into Web
-				if (originalEvent.dataTransfer?.types.indexOf('Files') !== -1 && isWeb) {
+				if (containsDragType(originalEvent, 'Files') && isWeb) {
 					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
 					await browserUpload.upload(target, originalEvent);
 				}
-
 				// 2 Cases handled for import:
 				// FS-Provided file DND into Web/Desktop
 				// Native OS file DND into Desktop
-				const fileImport = this.instantiationService.createInstance(ExternalFileImport);
-				await fileImport.import(resolvedTarget, originalEvent);
+				else {
+					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
+					await fileImport.import(resolvedTarget, originalEvent);
+				}
 			}
 
 			// In-Explorer DND (Move/Copy file)
