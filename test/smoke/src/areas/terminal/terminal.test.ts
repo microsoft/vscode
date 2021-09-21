@@ -15,6 +15,10 @@ export function setup(opts: minimist.ParsedArgs) {
 
 		it('shows terminal and runs command', async function () {
 			const app = this.app as Application;
+
+			// Canvas may cause problems when running in a container
+			await app.workbench.settingsEditor.addUserSetting('terminal.integrated.gpuAcceleration', '"off"');
+
 			await app.workbench.terminal.showTerminal();
 			await app.workbench.terminal.runCommand('ls');
 			await app.workbench.terminal.waitForTerminalText(lines => lines.some(l => l.includes('app.js')));

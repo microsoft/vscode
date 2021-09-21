@@ -174,13 +174,13 @@ function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCo
 	res.end(errorMessage);
 }
 
-function getFirstQueryValue(parsedUrl: url.UrlWithParsedQuery, key: string) {
+function getFirstQueryValue(parsedUrl: url.UrlWithParsedQuery, key: string): string | undefined {
 	const result = parsedUrl.query[key];
 	return Array.isArray(result) ? result[0] : result;
 }
 
-function getFirstQueryValues(parsedUrl: url.UrlWithParsedQuery, ignoreKeys?: string[]) {
-	const queryValues = new Map();
+function getFirstQueryValues(parsedUrl: url.UrlWithParsedQuery, ignoreKeys?: string[]): Map<string, string> {
+	const queryValues: Map<string, string> = new Map();
 
 	for (const key in parsedUrl.query) {
 		if (ignoreKeys && ignoreKeys.indexOf(key) >= 0) {
