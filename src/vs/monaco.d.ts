@@ -6665,6 +6665,8 @@ declare namespace monaco.languages {
 		text: string;
 		position: IPosition;
 		kind: InlayHintKind;
+		whitespaceBefore?: boolean;
+		whitespaceAfter?: boolean;
 	}
 
 	export interface InlayHintsProvider {

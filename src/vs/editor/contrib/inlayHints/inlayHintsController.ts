@@ -176,6 +176,8 @@ export class InlayHintsController implements IEditorContribution {
 		const { fontSize, fontFamily } = this._getLayoutInfo();
 		const model = this._editor.getModel()!;
 
+
+
 		const newDecorationsTypeIds: string[] = [];
 		const newDecorationsData: IModelDeltaDecoration[] = [];
 
@@ -184,11 +186,14 @@ export class InlayHintsController implements IEditorContribution {
 
 		for (const hint of hints) {
 
-			const { text, position } = hint;
+			const { text, position, whitespaceBefore, whitespaceAfter } = hint;
+			const marginBefore = whitespaceBefore ? (fontSize / 3) | 0 : 0;
+			const marginAfter = whitespaceAfter ? (fontSize / 3) | 0 : 0;
 
 			const contentOptions: IContentDecorationRenderOptions = {
 				contentText: fixSpace(text),
 				fontSize: `${fontSize}px`,
+				margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
 				fontFamily: `var(${fontFamilyVar})`,
 				padding: `1px ${Math.max(1, fontSize / 4) | 0}px`,
 				borderRadius: `${(fontSize / 4) | 0}px`,

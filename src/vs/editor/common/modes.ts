@@ -1762,6 +1762,8 @@ export interface InlayHint {
 	text: string;
 	position: IPosition;
 	kind: InlayHintKind;
+	whitespaceBefore?: boolean;
+	whitespaceAfter?: boolean;
 }
 
 export interface InlayHintsProvider {
