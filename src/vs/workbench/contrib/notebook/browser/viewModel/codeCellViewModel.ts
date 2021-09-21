@@ -23,6 +23,8 @@ import { BaseCellViewModel } from './baseCellViewModel';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
+	protected readonly _onLayoutInfoRead = this._register(new Emitter<void>());
+	readonly onLayoutInfoRead = this._onLayoutInfoRead.event;
 	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 
@@ -283,6 +285,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	hasDynamicHeight() {
 		// CodeCellVM always measures itself and controls its cell's height
 		return false;
+	}
+
+	getDynamicHeight() {
+		this._onLayoutInfoRead.fire();
+		return this._layoutInfo.totalHeight;
 	}
 
 	firstLine(): string {

@@ -250,6 +250,10 @@ export class CodeCell extends Disposable {
 			this.viewCell.layoutChange({});
 		}
 
+		this._register(this.viewCell.onLayoutInfoRead(() => {
+			this._outputContainerRenderer.probeHeight();
+		}));
+
 		this.updateForCollapseState();
 	}
 

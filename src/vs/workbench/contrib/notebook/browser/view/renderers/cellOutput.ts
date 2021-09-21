@@ -68,9 +68,14 @@ export class CellOutputElement extends Disposable {
 
 	public useDedicatedDOM: boolean = true;
 
+	private _height: number = -1;
 	get domOffsetHeight() {
 		if (this.useDedicatedDOM) {
-			return this.innerContainer.offsetHeight;
+			if (this._height === -1) {
+				return this.innerContainer.offsetHeight;
+			} else {
+				return this._height;
+			}
 		} else {
 			return 0;
 		}
@@ -200,6 +205,16 @@ export class CellOutputElement extends Disposable {
 		this.innerContainer.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
 	}
 
+	private _initHeightChecked = false;
+
+	probeHeight(index: number) {
+		if (!this._initHeightChecked) {
+			// postponed DOM read
+			const offsetHeight = this.domOffsetHeight;
+			this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
+		}
+	}
+
 	render(previousSibling?: HTMLElement): IRenderResult | undefined {
 		const index = this.viewCell.outputsViewModels.indexOf(this.output);
 
@@ -264,12 +279,20 @@ export class CellOutputElement extends Disposable {
 			return { initRenderIsSynchronous: true };
 		}
 
-		// let's use resize listener for them
-		const offsetHeight = this.renderResult?.initHeight !== undefined ? this.renderResult?.initHeight : Math.ceil(this.innerContainer.offsetHeight);
+		let offsetHeight = 0;
+		if (this.renderResult?.initHeight) {
+			offsetHeight = this.renderResult.initHeight;
+			this._initHeightChecked = true;
+		} else {
+			this._initHeightChecked = false;
+		}
+
 		const dimension = {
 			width: this.viewCell.layoutInfo.editorWidth,
 			height: offsetHeight
 		};
+
+		// let's use resize listener for them
 		this._bindResizeListener(dimension);
 		this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
 		const top = this.viewCell.getOutputOffsetInContainer(index);
@@ -296,6 +319,8 @@ export class CellOutputElement extends Disposable {
 					height: height
 				};
 
+				this._initHeightChecked = true;
+				this._height = height;
 				this._validateFinalOutputHeight(true);
 				this.viewCell.updateOutputHeight(currIndex, height, 'CellOutputElement#outputResize');
 				this._relayoutCell();
@@ -535,6 +560,15 @@ export class CellOutputContainer extends Disposable {
 				}
 			});
 		}));
+	}
+
+	probeHeight() {
+		this._outputEntries.forEach(entry => {
+			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
+			if (index >= 0) {
+				entry.element.probeHeight(index);
+			}
+		});
 	}
 
 	render(editorHeight: number) {

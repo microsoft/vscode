@@ -11,6 +11,7 @@ export interface IListVirtualDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;
 	hasDynamicHeight?(element: T): boolean;
+	getDynamicHeight?(element: T): number | null;
 	setDynamicHeight?(element: T, height: number): void;
 }
 

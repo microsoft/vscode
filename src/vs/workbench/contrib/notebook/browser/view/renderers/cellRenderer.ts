@@ -74,6 +74,10 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 		return element.hasDynamicHeight();
 	}
 
+	getDynamicHeight(element: CellViewModel): number | null {
+		return element.getDynamicHeight();
+	}
+
 	getTemplateId(element: CellViewModel): string {
 		if (element.cellKind === CellKind.Markup) {
 			return MarkupCellRenderer.TEMPLATE_ID;
@@ -144,11 +148,11 @@ abstract class AbstractCellRenderer {
 
 		const container = templateData.bottomCellContainer;
 		const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-		container.style.top = `${bottomToolbarOffset}px`;
+		container.style.transform = `translateY(${bottomToolbarOffset}px)`;
 
 		templateData.elementDisposables.add(element.onDidChangeLayout(() => {
 			const bottomToolbarOffset = element.layoutInfo.bottomToolbarOffset;
-			container.style.top = `${bottomToolbarOffset}px`;
+			container.style.transform = `translateY(${bottomToolbarOffset}px)`;
 		}));
 	}
 
@@ -192,14 +196,14 @@ abstract class AbstractCellRenderer {
 			if (actions.primary.length || actions.secondary.length) {
 				templateData.container.classList.add('cell-has-toolbar-actions');
 				if (isCodeCellRenderTemplate(templateData)) {
-					templateData.focusIndicatorLeft.style.top = `${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px`;
-					templateData.focusIndicatorRight.style.top = `${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px`;
+					templateData.focusIndicatorLeft.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+					templateData.focusIndicatorRight.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
 				}
 			} else {
 				templateData.container.classList.remove('cell-has-toolbar-actions');
 				if (isCodeCellRenderTemplate(templateData)) {
-					templateData.focusIndicatorLeft.style.top = `${layoutInfo.cellTopMargin}px`;
-					templateData.focusIndicatorRight.style.top = `${layoutInfo.cellTopMargin}px`;
+					templateData.focusIndicatorLeft.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+					templateData.focusIndicatorRight.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
 				}
 			}
 		};
@@ -436,7 +440,8 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
 		const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight, this.notebookEditor.textModel?.viewType);
-		templateData.focusIndicatorBottom.style.top = `${indicatorPostion.bottomIndicatorTop}px`;
+		templateData.focusIndicatorBottom.style.transform = `translateY(${indicatorPostion.bottomIndicatorTop}px)`;
+
 		templateData.focusIndicatorLeft.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
 
@@ -930,17 +935,19 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
-		const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
+		templateData.disposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
+			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
 
-		templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
-		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
-		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px`;
-		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
-		templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
-		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap}px`;
+			templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
+			templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
+			templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px`;
+			templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
+			templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
+			templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap}px`;
 
-		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
+			templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
+		}));
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {

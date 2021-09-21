@@ -1318,6 +1318,14 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private probeDynamicHeight(index: number): number {
 		const item = this.items[index];
 
+		if (!!this.virtualDelegate.getDynamicHeight && this.virtualDelegate.getDynamicHeight(item.element) !== null) {
+			const size = item.size;
+			let newSize = this.virtualDelegate.getDynamicHeight(item.element)!;
+			item.size = newSize;
+			item.lastDynamicHeightWidth = this.renderWidth;
+			return newSize - size;
+		}
+
 		if (!item.hasDynamicHeight || item.lastDynamicHeightWidth === this.renderWidth) {
 			return 0;
 		}

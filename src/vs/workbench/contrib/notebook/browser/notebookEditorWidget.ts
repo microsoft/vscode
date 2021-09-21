@@ -1320,7 +1320,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._localStore.add(this._list.onWillScroll(e => {
 			if (this._webview?.isResolved()) {
-				this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
+				this._webviewTransparentCover!.style.transform = `translateY(${e.scrollTop})`;
 			}
 		}));
 
