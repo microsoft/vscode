@@ -36,6 +36,7 @@ export interface IWatcherOptions {
 export interface IDiskFileSystemProviderOptions {
 	bufferSize?: number;
 	watcher?: IWatcherOptions;
+	enableLegacyRecursiveWatcher?: boolean;
 }
 
 export class DiskFileSystemProvider extends Disposable implements
@@ -290,7 +291,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && this.canFlush) {
 				try {
-					await Promises.fdatasync(fd);
+					await Promises.fdatasync(fd); // https://github.com/microsoft/vscode/issues/9589
 				} catch (error) {
 					// In some exotic setups it is well possible that node fails to sync
 					// In that case we disable flushing and log the error to our logger
@@ -609,8 +610,18 @@ export class DiskFileSystemProvider extends Disposable implements
 
 				else {
 
+					// Conditionally fallback to our legacy file watcher:
+					// - If provided as option from the outside (i.e. via settings)
+					// - Linux: until we support ignore patterns (unless insiders)
+					let enableLegacyWatcher: boolean;
+					if (this.options?.enableLegacyRecursiveWatcher) {
+						enableLegacyWatcher = true;
+					} else {
+						enableLegacyWatcher = product.quality === 'stable' && isLinux;
+					}
+
 					// Single Folder Watcher (stable only)
-					if (product.quality === 'stable' && this.recursiveFoldersToWatch.length === 1) {
+					if (enableLegacyWatcher && this.recursiveFoldersToWatch.length === 1) {
 						if (isWindows) {
 							watcherImpl = WindowsWatcherService;
 						} else {

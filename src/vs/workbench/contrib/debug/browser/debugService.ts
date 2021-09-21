@@ -19,7 +19,6 @@ import { DebugModel, FunctionBreakpoint, Breakpoint, DataBreakpoint, Instruction
 import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -38,7 +37,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TaskRunResult, DebugTaskRunner } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { generateUuid } from 'vs/base/common/uuid';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
@@ -50,9 +49,10 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -85,7 +85,7 @@ export class DebugService implements IDebugService {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -418,7 +418,7 @@ export class DebugService implements IDebugService {
 		const unresolvedConfig = deepClone(config);
 
 		let guess: Debugger | undefined;
-		let activeEditor: IEditorInput | undefined;
+		let activeEditor: EditorInput | undefined;
 		if (!type) {
 			activeEditor = this.editorService.activeEditor;
 			if (activeEditor && activeEditor.resource) {
@@ -545,7 +545,7 @@ export class DebugService implements IDebugService {
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
 		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart)) && !session.isSimpleUI) {
-			await this.viewletService.openViewlet(VIEWLET_ID);
+			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 		}
 
 		try {
@@ -665,7 +665,7 @@ export class DebugService implements IDebugService {
 				this.viewModel.setMultiSessionView(false);
 
 				if (this.layoutService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<IDebugConfiguration>('debug').openExplorerOnEnd) {
-					this.viewletService.openViewlet(EXPLORER_VIEWLET_ID);
+					this.paneCompositeService.openPaneComposite(EXPLORER_VIEWLET_ID, ViewContainerLocation.Sidebar);
 				}
 
 				// Data breakpoints that can not be persisted should be cleared when a session ends

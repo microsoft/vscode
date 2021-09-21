@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, IEditorMoveEvent, IEditorOpenEvent, EditorCloseContext, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,15 +19,6 @@ const EditorOpenPositioning = {
 	FIRST: 'first',
 	LAST: 'last'
 };
-
-export interface EditorCloseEvent extends IEditorCloseEvent {
-	readonly editor: EditorInput;
-}
-
-export interface EditorIdentifier extends IEditorIdentifier {
-	readonly groupId: GroupIdentifier;
-	readonly editor: EditorInput;
-}
 
 export interface IEditorOpenOptions {
 	readonly pinned?: boolean;
@@ -91,10 +82,10 @@ export class EditorGroupModel extends Disposable {
 	private readonly _onDidActivateEditor = this._register(new Emitter<EditorInput>());
 	readonly onDidActivateEditor = this._onDidActivateEditor.event;
 
-	private readonly _onDidOpenEditor = this._register(new Emitter<EditorInput>());
+	private readonly _onDidOpenEditor = this._register(new Emitter<IEditorOpenEvent>());
 	readonly onDidOpenEditor = this._onDidOpenEditor.event;
 
-	private readonly _onDidCloseEditor = this._register(new Emitter<EditorCloseEvent>());
+	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
 	readonly onDidCloseEditor = this._onDidCloseEditor.event;
 
 	private readonly _onWillDisposeEditor = this._register(new Emitter<EditorInput>());
@@ -109,7 +100,7 @@ export class EditorGroupModel extends Disposable {
 	private readonly _onDidChangeEditorCapabilities = this._register(new Emitter<EditorInput>());
 	readonly onDidChangeEditorCapabilities = this._onDidChangeEditorCapabilities.event;
 
-	private readonly _onDidMoveEditor = this._register(new Emitter<EditorInput>());
+	private readonly _onDidMoveEditor = this._register(new Emitter<IEditorMoveEvent>());
 	readonly onDidMoveEditor = this._onDidMoveEditor.event;
 
 	private readonly _onDidChangeEditorPinned = this._register(new Emitter<EditorInput>());
@@ -295,7 +286,7 @@ export class EditorGroupModel extends Disposable {
 			this.registerEditorListeners(newEditor);
 
 			// Event
-			this._onDidOpenEditor.fire(newEditor);
+			this._onDidOpenEditor.fire({ editor: newEditor, groupId: this.id, index: targetIndex });
 
 			// Handle active
 			if (makeActive) {
@@ -374,7 +365,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	private replaceEditor(toReplace: EditorInput, replaceWith: EditorInput, replaceIndex: number, openNext = true): void {
-		const event = this.doCloseEditor(toReplace, openNext, true); // optimization to prevent multiple setActive() in one call
+		const event = this.doCloseEditor(toReplace, EditorCloseContext.REPLACE, openNext); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
 		// firing the close event can trigger a dispose on the same editor that is now being added.
@@ -386,8 +377,8 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	closeEditor(candidate: EditorInput, openNext = true): EditorCloseEvent | undefined {
-		const event = this.doCloseEditor(candidate, openNext, false);
+	closeEditor(candidate: EditorInput, context = EditorCloseContext.UNKNOWN, openNext = true): IEditorCloseEvent | undefined {
+		const event = this.doCloseEditor(candidate, context, openNext);
 
 		if (event) {
 			this._onDidCloseEditor.fire(event);
@@ -398,7 +389,7 @@ export class EditorGroupModel extends Disposable {
 		return undefined;
 	}
 
-	private doCloseEditor(candidate: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent | undefined {
+	private doCloseEditor(candidate: EditorInput, context: EditorCloseContext, openNext: boolean): IEditorCloseEvent | undefined {
 		const index = this.indexOf(candidate);
 		if (index === -1) {
 			return undefined; // not found
@@ -441,7 +432,7 @@ export class EditorGroupModel extends Disposable {
 		this.splice(index, true);
 
 		// Event
-		return { editor, replaced, sticky, index, groupId: this.id };
+		return { editor, sticky, index, groupId: this.id, context };
 	}
 
 	moveEditor(candidate: EditorInput, toIndex: number): EditorInput | undefined {
@@ -475,7 +466,7 @@ export class EditorGroupModel extends Disposable {
 		this.editors.splice(toIndex, 0, editor);
 
 		// Event
-		this._onDidMoveEditor.fire(editor);
+		this._onDidMoveEditor.fire({ editor, groupId: this.id, index, newIndex: toIndex, target: this.id });
 
 		return editor;
 	}
@@ -561,7 +552,7 @@ export class EditorGroupModel extends Disposable {
 
 		// Close old preview editor if any
 		if (oldPreview) {
-			this.closeEditor(oldPreview);
+			this.closeEditor(oldPreview, EditorCloseContext.UNPIN);
 		}
 	}
 
@@ -705,7 +696,7 @@ export class EditorGroupModel extends Disposable {
 		}
 	}
 
-	indexOf(candidate: IEditorInput | null, editors = this.editors, options?: IMatchOptions): number {
+	indexOf(candidate: EditorInput | null, editors = this.editors, options?: IMatchOptions): number {
 		let index = -1;
 
 		if (candidate) {
@@ -748,7 +739,7 @@ export class EditorGroupModel extends Disposable {
 		return false;
 	}
 
-	private matches(editor: IEditorInput | null, candidate: IEditorInput | IUntypedEditorInput | null, options?: IMatchOptions): boolean {
+	private matches(editor: EditorInput | null, candidate: EditorInput | IUntypedEditorInput | null, options?: IMatchOptions): boolean {
 		if (!editor || !candidate) {
 			return false;
 		}

@@ -276,11 +276,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
 				return Buffer.from(value).toString('base64');
 			} else {
-				// https://developer.mozilla.org/en-US/docs/Glossary/Base64#solution_1_%E2%80%93_escaping_the_string_before_encoding_it
-				const stringValue = textDecoder.decode(value);
-				return btoa(encodeURIComponent(stringValue).replace(/%([0-9A-F]{2})/g, function (_match, p1) {
-					return String.fromCharCode(Number.parseInt('0x' + p1));
-				}));
+				return btoa(value.reduce((s: string, b: number) => s + String.fromCharCode(b), ''));
 			}
 		} else if (mime.toLowerCase().includes('json')) {
 			const stringValue = textDecoder.decode(value);

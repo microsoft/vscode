@@ -906,46 +906,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal state event https://github.com/microsoft/vscode/issues/127717
-
-	/**
-	 * Represents the state of a {@link Terminal}.
-	 */
-	export interface TerminalState {
-		/**
-		 * Whether the {@link Terminal} has been interacted with. Interaction means that the
-		 * terminal has sent data to the process which depending on the terminal's _mode_. By
-		 * default input is sent when a key is pressed or when a command or extension sends text,
-		 * but based on the terminal's mode it can also happen on:
-		 *
-		 * - a pointer click event
-		 * - a pointer scroll event
-		 * - a pointer move event
-		 * - terminal focus in/out
-		 *
-		 * For more information on events that can send data see "DEC Private Mode Set (DECSET)" on
-		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
-		 */
-		// todo@API Maybe, isInteractedWith to align with other isXYZ
-		readonly interactedWith: boolean;
-	}
-
-	export interface Terminal {
-		/**
-		 * The current state of the {@link Terminal}.
-		 */
-		readonly state: TerminalState;
-	}
-
-	export namespace window {
-		/**
-		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
-		 */
-		export const onDidChangeTerminalState: Event<Terminal>;
-	}
-
-	//#endregion
-
 	//#region Terminal location https://github.com/microsoft/vscode/issues/45407
 
 	export interface TerminalOptions {
@@ -1905,64 +1865,6 @@ declare module 'vscode' {
 		 */
 		notebook: NotebookDocument | undefined;
 	}
-	//#endregion
-
-	//#region non-error test output https://github.com/microsoft/vscode/issues/129201
-	interface TestRun {
-		/**
-		 * Appends raw output from the test runner. On the user's request, the
-		 * output will be displayed in a terminal. ANSI escape sequences,
-		 * such as colors and text styles, are supported.
-		 *
-		 * @param output Output text to append.
-		 * @param location Indicate that the output was logged at the given
-		 * location.
-		 * @param test Test item to associate the output with.
-		 */
-		appendOutput(output: string, location?: Location, test?: TestItem): void;
-	}
-	//#endregion
-
-	//#region test tags https://github.com/microsoft/vscode/issues/129456
-	/**
-	 * Tags can be associated with {@link TestItem TestItems} and
-	 * {@link TestRunProfile TestRunProfiles}. A profile with a tag can only
-	 * execute tests that include that tag in their {@link TestItem.tags} array.
-	 */
-	export class TestTag {
-		/**
-		 * ID of the test tag. `TestTag` instances with the same ID are considered
-		 * to be identical.
-		 */
-		readonly id: string;
-
-		/**
-		 * Creates a new TestTag instance.
-		 * @param id ID of the test tag.
-		 */
-		constructor(id: string);
-	}
-
-	export interface TestRunProfile {
-		/**
-		 * Associated tag for the profile. If this is set, only {@link TestItem}
-		 * instances with the same tag will be eligible to execute in this profile.
-		 */
-		tag?: TestTag;
-	}
-
-	export interface TestItem {
-		/**
-		 * Tags associated with this test item. May be used in combination with
-		 * {@link TestRunProfile.tags}, or simply as an organizational feature.
-		 */
-		tags: readonly TestTag[];
-	}
-
-	export interface TestController {
-		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag): TestRunProfile;
-	}
-
 	//#endregion
 
 	//#region proposed test APIs https://github.com/microsoft/vscode/issues/107467

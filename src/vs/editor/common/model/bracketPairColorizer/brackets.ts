@@ -4,51 +4,70 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
+import { SmallImmutableSet, DenseKeyProvider, identityKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
 import { LanguageId } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BracketAstNode } from './ast';
-import { toLength } from './length';
-import { Token, TokenKind } from './tokenizer';
+import { OpeningBracketId, Token, TokenKind } from './tokenizer';
 
 export class BracketTokens {
-	static createFromLanguage(languageId: LanguageId, customBracketPairs: readonly [string, string][]): BracketTokens {
+	static createFromLanguage(languageId: LanguageId, denseKeyProvider: DenseKeyProvider<string>): BracketTokens {
+		function getId(languageId: LanguageId, openingText: string): OpeningBracketId {
+			return denseKeyProvider.getKey(`${languageId}:::${openingText}`);
+		}
+
 		const brackets = [...(LanguageConfigurationRegistry.getColorizedBracketPairs(languageId))];
 
-		const tokens = new BracketTokens();
+		const closingBrackets = new Map</* closingText */ string, { openingBrackets: SmallImmutableSet<OpeningBracketId>, first: OpeningBracketId }>();
+		const openingBrackets = new Set</* openingText */ string>();
 
-		let idxOffset = 0;
-		for (const pair of brackets) {
-			tokens.addBracket(languageId, pair[0], TokenKind.OpeningBracket, idxOffset);
-			tokens.addBracket(languageId, pair[1], TokenKind.ClosingBracket, idxOffset);
-			idxOffset++;
+		for (const [openingText, closingText] of brackets) {
+			openingBrackets.add(openingText);
+
+			let info = closingBrackets.get(closingText);
+			const openingTextId = getId(languageId, openingText);
+			if (!info) {
+				info = { openingBrackets: SmallImmutableSet.getEmpty(), first: openingTextId };
+				closingBrackets.set(closingText, info);
+			}
+			info.openingBrackets = info.openingBrackets.add(openingTextId, identityKeyProvider);
 		}
 
-		for (const pair of customBracketPairs) {
-			idxOffset++;
-			tokens.addBracket(languageId, pair[0], TokenKind.OpeningBracket, idxOffset);
-			tokens.addBracket(languageId, pair[1], TokenKind.ClosingBracket, idxOffset);
+		const map = new Map<string, Token>();
+
+		for (const [closingText, info] of closingBrackets) {
+			const length = toLength(0, closingText.length);
+			map.set(closingText, new Token(
+				length,
+				TokenKind.ClosingBracket,
+				info.first,
+				info.openingBrackets,
+				BracketAstNode.create(length)
+			));
 		}
 
-		return tokens;
+		for (const openingText of openingBrackets) {
+			const length = toLength(0, openingText.length);
+			const openingTextId = getId(languageId, openingText);
+			map.set(openingText, new Token(
+				length,
+				TokenKind.OpeningBracket,
+				openingTextId,
+				SmallImmutableSet.getEmpty().add(openingTextId, identityKeyProvider),
+				BracketAstNode.create(length)
+			));
+		}
+
+		return new BracketTokens(map);
 	}
 
 	private hasRegExp = false;
 	private _regExpGlobal: RegExp | null = null;
-	private readonly map = new Map<string, Token>();
 
-	private addBracket(languageId: LanguageId, value: string, kind: TokenKind, idx: number): void {
-		const length = toLength(0, value.length);
-		this.map.set(value,
-			new Token(
-				length,
-				kind,
-				// A language can have at most 1000 bracket pairs.
-				languageId * 1000 + idx,
-				languageId,
-				BracketAstNode.create(length)
-			)
-		);
-	}
+	constructor(
+		private readonly map: Map<string, Token>
+	) { }
 
 	getRegExpStr(): string | null {
 		if (this.isEmpty) {
@@ -85,7 +104,7 @@ export class BracketTokens {
 export class LanguageAgnosticBracketTokens {
 	private readonly languageIdToBracketTokens: Map<LanguageId, BracketTokens> = new Map();
 
-	constructor(private readonly customBracketPairs: readonly [string, string][]) {
+	constructor(private readonly denseKeyProvider: DenseKeyProvider<string>) {
 	}
 
 	public didLanguageChange(languageId: LanguageId): boolean {
@@ -93,14 +112,14 @@ export class LanguageAgnosticBracketTokens {
 		if (!existing) {
 			return false;
 		}
-		const newRegExpStr = BracketTokens.createFromLanguage(languageId, this.customBracketPairs).getRegExpStr();
+		const newRegExpStr = BracketTokens.createFromLanguage(languageId, this.denseKeyProvider).getRegExpStr();
 		return existing.getRegExpStr() !== newRegExpStr;
 	}
 
 	getSingleLanguageBracketTokens(languageId: LanguageId): BracketTokens {
 		let singleLanguageBracketTokens = this.languageIdToBracketTokens.get(languageId);
 		if (!singleLanguageBracketTokens) {
-			singleLanguageBracketTokens = BracketTokens.createFromLanguage(languageId, this.customBracketPairs);
+			singleLanguageBracketTokens = BracketTokens.createFromLanguage(languageId, this.denseKeyProvider);
 			this.languageIdToBracketTokens.set(languageId, singleLanguageBracketTokens);
 		}
 		return singleLanguageBracketTokens;

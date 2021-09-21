@@ -8,14 +8,16 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
 import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
@@ -89,6 +91,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
@@ -109,23 +112,30 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _startPtyHost(): [Client, IPtyService] {
-		const client = new Client(
-			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
-			{
-				serverName: 'Pty Host',
-				args: ['--type=ptyHost'],
-				env: {
-					VSCODE_LAST_PTY_ID: lastPtyId,
-					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
-					VSCODE_PIPE_LOGGING: 'true',
-					VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
-					VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
-					VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
-					VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback,
-					VSCODE_RECONNECT_EXPERIMENTAL_SERIALIZATION: this._reconnectConstants.useExperimentalSerialization ? 1 : 0
-				}
+		const opts: IIPCOptions = {
+			serverName: 'Pty Host',
+			args: ['--type=ptyHost'],
+			env: {
+				VSCODE_LAST_PTY_ID: lastPtyId,
+				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
+				VSCODE_PIPE_LOGGING: 'true',
+				VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
+				VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
+				VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
+				VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
 			}
-		);
+		};
+
+		const ptyHostDebug = parsePtyHostPort(this._environmentService.args, this._environmentService.isBuilt);
+		if (ptyHostDebug) {
+			if (ptyHostDebug.break && ptyHostDebug.port) {
+				opts.debugBrk = ptyHostDebug.port;
+			} else if (!ptyHostDebug.break && ptyHostDebug.port) {
+				opts.debug = ptyHostDebug.port;
+			}
+		}
+
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
 		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
@@ -269,7 +279,15 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.acceptDetachInstanceReply(requestId, persistentProcessId);
 	}
 
-	async refreshProperty(id: number, property: ProcessPropertyType): Promise<any> {
+	async serializeTerminalState(ids: number[]): Promise<string> {
+		return this._proxy.serializeTerminalState(ids);
+	}
+
+	async reviveTerminalProcesses(state: string) {
+		return this._proxy.reviveTerminalProcesses(state);
+	}
+
+	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._proxy.refreshProperty(id, property);
 	}
 
@@ -284,9 +302,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _disposePtyHost(): void {
-		if (this._proxy.shutdownAll) {
-			this._proxy.shutdownAll();
-		}
+		this._proxy.shutdownAll?.();
 		this._client.dispose();
 	}
 

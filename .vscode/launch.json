@@ -50,6 +50,15 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"name": "Attach to Pty Host Process",
+			"port": 5877,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
 			"name": "Attach to CLI Process",
 			"port": 5874,
 			"outFiles": [

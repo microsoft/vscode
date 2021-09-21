@@ -157,6 +157,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		let scopeHandle = uri.parse(resourceHandle);
 		this.inputModel = modelService.createModel('', null, scopeHandle, true);
+		this._register(this.inputModel);
 		this.inputWidget.setModel(this.inputModel);
 
 		this._register(this.inputWidget.onDidPaste(() => this.setValue(this.getValue()))); // setter cleanses

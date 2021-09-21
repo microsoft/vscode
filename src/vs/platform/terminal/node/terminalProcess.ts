@@ -127,7 +127,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 
 	constructor(
-		private readonly _shellLaunchConfig: IShellLaunchConfig,
+		readonly shellLaunchConfig: IShellLaunchConfig,
 		cwd: string,
 		cols: number,
 		rows: number,
@@ -142,7 +142,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		super();
 		let name: string;
 		if (isWindows) {
-			name = path.basename(this._shellLaunchConfig.executable || '');
+			name = path.basename(this.shellLaunchConfig.executable || '');
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
 			// color prompt as defined in the default ~/.bashrc file.
@@ -151,7 +151,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-
 		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
@@ -162,11 +161,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			rows,
 			useConpty,
 			// This option will force conpty to not redraw the whole viewport on launch
-			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
+			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
+		const osRelease = os.release().split('.');
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
-			if (useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
+			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
 				this._delayedResizer = new DelayedResizer();
 				this._register(this._delayedResizer.onTrigger(dimensions => {
 					this._delayedResizer?.dispose();
@@ -182,7 +182,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
 			});
-		} else {
+		} else if (isLinux || (osRelease.length > 0 && parseInt(osRelease[0]) < 20)) {
 			this.capabilities.push(ProcessCapability.CwdDetection);
 		}
 	}
@@ -195,7 +195,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		try {
-			await this.setupPtyProcess(this._shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -219,7 +219,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private async _validateExecutable(): Promise<undefined | ITerminalLaunchError> {
-		const slc = this._shellLaunchConfig;
+		const slc = this.shellLaunchConfig;
 		if (!slc.executable) {
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
@@ -400,15 +400,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.input(data, true);
 	}
 
-	async refreshProperty(property: ProcessPropertyType): Promise<any> {
-		if (property === ProcessPropertyType.Cwd) {
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		if (type === ProcessPropertyType.Cwd) {
 			const newCwd = await this.getCwd();
 			if (newCwd !== this._properties.cwd) {
 				this._properties.cwd = newCwd;
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
 			}
 			return newCwd;
-		} else if (property === ProcessPropertyType.InitialCwd) {
+		} else {
 			return this.getInitialCwd();
 		}
 	}

@@ -82,7 +82,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 
 		await repository.push('origin', localName, true);
 
-		return [octokit, ghRepository];
+		return [octokit, ghRepository] as const;
 	});
 
 	// yield

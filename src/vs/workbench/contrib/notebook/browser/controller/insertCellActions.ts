@@ -5,12 +5,14 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -41,12 +43,14 @@ abstract class InsertCellCommand extends NotebookAction {
 			context.notebookEditor.focus();
 		}
 
+		const modeService = accessor.get(IModeService);
 		if (context.cell) {
-			newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
+			const idx = context.notebookEditor.getCellIndex(context.cell);
+			newCell = insertCell(modeService, context.notebookEditor, idx, this.kind, this.direction, undefined, true);
 		} else {
 			const focusRange = context.notebookEditor.getFocus();
-			const next = focusRange.end - 1;
-			newCell = context.notebookEditor.insertNotebookCell(context.notebookEditor.cellAt(next), this.kind, this.direction, undefined, true);
+			const next = Math.max(focusRange.end - 1, 0);
+			newCell = insertCell(modeService, context.notebookEditor, next, this.kind, this.direction, undefined, true);
 		}
 
 		if (newCell) {
@@ -181,7 +185,9 @@ registerAction2(class InsertCodeCellAtTopAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Code, 'above', undefined, true);
+		const modeService = accessor.get(IModeService);
+		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
+
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
@@ -206,7 +212,9 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Markup, 'above', undefined, true);
+		const modeService = accessor.get(IModeService);
+		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
+
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}

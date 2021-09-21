@@ -31,6 +31,7 @@ import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contri
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -966,7 +967,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			},
 			flexibleHeight,
 			flexibleWidth,
-			flexibleMaxHeight: 118
+			flexibleMaxHeight: 118,
+			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
 		}, this._contextKeyService, true));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -1105,7 +1107,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			history: [],
 			flexibleHeight,
 			flexibleWidth,
-			flexibleMaxHeight: 118
+			flexibleMaxHeight: 118,
+			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
 		}, this._contextKeyService, true));
 		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));

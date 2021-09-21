@@ -76,9 +76,16 @@ export function main([esrpCliPath, type, cert, username, password, folderPath, p
 		'-e', keyFile,
 	];
 
-	cp.spawnSync('dotnet', args, { stdio: 'inherit' });
+	try {
+		cp.execFileSync('dotnet', args, { stdio: 'inherit' });
+	} catch (err) {
+		console.error('ESRP failed');
+		console.error(err);
+		process.exit(1);
+	}
 }
 
 if (require.main === module) {
 	main(process.argv.slice(2));
+	process.exit(0);
 }

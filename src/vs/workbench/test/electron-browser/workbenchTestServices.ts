@@ -45,6 +45,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 import product from 'vs/platform/product/common/product';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 
 const args = parseArgs(process.argv, OPTIONS);
 
@@ -90,7 +91,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IModeService modeService: IModeService,
-		@IElevatedFileService elevatedFileService: IElevatedFileService
+		@IElevatedFileService elevatedFileService: IElevatedFileService,
+		@IDecorationsService decorationsService: IDecorationsService
 	) {
 		super(
 			fileService,
@@ -110,7 +112,8 @@ export class TestTextFileService extends NativeTextFileService {
 			uriIdentityService,
 			modeService,
 			elevatedFileService,
-			logService
+			logService,
+			decorationsService
 		);
 	}
 

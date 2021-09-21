@@ -86,6 +86,8 @@ import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
+import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
+import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
 
 class SharedProcessMain extends Disposable {
 
@@ -279,15 +281,18 @@ class SharedProcessMain extends Disposable {
 				new PtyHostService({
 					graceTime: LocalReconnectConstants.GraceTime,
 					shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100,
-					useExperimentalSerialization: configurationService.getValue<boolean>(TerminalSettingId.PersistentSessionExperimentalSerializer) ?? true,
+					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 				},
 					configurationService,
+					environmentService,
 					logService,
 					telemetryService
 				)
 			)
 		);
+
+		// Extension Host
+		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter(logService)));
 
 		return new InstantiationService(services);
 	}
@@ -339,6 +344,10 @@ class SharedProcessMain extends Disposable {
 		const localPtyService = accessor.get(ILocalPtyService);
 		const localPtyChannel = ProxyChannel.fromService(localPtyService);
 		this.server.registerChannel(TerminalIpcChannels.LocalPty, localPtyChannel);
+
+		// Extension Host
+		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
+		this.server.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

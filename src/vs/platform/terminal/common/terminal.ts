@@ -84,7 +84,6 @@ export const enum TerminalSettingId {
 	SplitCwd = 'terminal.integrated.splitCwd',
 	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
 	WordSeparators = 'terminal.integrated.wordSeparators',
-	TitleMode = 'terminal.integrated.titleMode',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
 	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
@@ -92,9 +91,9 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
+	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
-	PersistentSessionExperimentalSerializer = 'terminal.integrated.persistentSessionExperimentalSerializer',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 }
@@ -262,6 +261,16 @@ export interface IPtyService {
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	/**
+	 * Serializes and returns terminal state.
+	 * @param ids The persistent terminal IDs to serialize.
+	 */
+	serializeTerminalState(ids: number[]): Promise<string>;
+	/**
+	 * Revives a workspaces terminal processes, these can then be reconnected to using the normal
+	 * flow for restoring terminals after reloading.
+	 */
+	reviveTerminalProcesses(state: string): Promise<void>;
 	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
 }
 
@@ -549,7 +558,6 @@ export interface IReconnectConstants {
 	graceTime: number;
 	shortGraceTime: number;
 	scrollback: number;
-	useExperimentalSerialization: boolean;
 }
 
 export const enum LocalReconnectConstants {

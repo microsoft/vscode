@@ -7,7 +7,7 @@ import 'vs/css!./media/sidebysideeditor';
 import { localize } from 'vs/nls';
 import { Dimension, $, clearNode, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID, SideBySideEditor as Side, IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID, SideBySideEditor as Side } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -385,7 +385,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		return this.secondaryEditorPane;
 	}
 
-	protected tracksEditorViewState(input: IEditorInput): boolean {
+	protected tracksEditorViewState(input: EditorInput): boolean {
 		return input instanceof SideBySideEditorInput;
 	}
 
@@ -409,7 +409,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		};
 	}
 
-	protected toEditorViewStateResource(input: IEditorInput): URI | undefined {
+	protected toEditorViewStateResource(input: EditorInput): URI | undefined {
 		let primary: URI | undefined;
 		let secondary: URI | undefined;
 

@@ -115,6 +115,13 @@ export class CellEditorOptions extends Disposable {
 		return computed;
 	}
 
+	getUpdatedValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
+		const options = this.getValue(internalMetadata);
+		delete options.hover; // This is toggled by a debug editor contribution
+
+		return options;
+	}
+
 	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
 		return {
 			...this._value,

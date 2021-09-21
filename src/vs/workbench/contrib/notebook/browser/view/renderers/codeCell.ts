@@ -8,6 +8,7 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
@@ -16,7 +17,8 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { CellFocusMode, CodeCellRenderTemplate, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -29,6 +31,7 @@ export class CodeCell extends Disposable {
 
 	private _renderedInputCollapseState: boolean | undefined;
 	private _renderedOutputCollapseState: boolean | undefined;
+	private _isDisposed: boolean = false;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -60,6 +63,10 @@ export class CodeCell extends Disposable {
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
 		raceCancellation(viewCell.resolveTextModel(), cts.token).then(model => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			if (model && templateData.editor) {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
@@ -101,7 +108,20 @@ export class CodeCell extends Disposable {
 		}));
 		updateForFocusMode();
 
-		const updateEditorOptions = () => templateData.editor?.updateOptions({ readOnly: notebookEditor.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
+		const updateEditorOptions = () => {
+			const editor = templateData.editor;
+			if (!editor) {
+				return;
+			}
+
+			const isReadonly = notebookEditor.isReadOnly;
+			const padding = notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata);
+			const options = editor.getOptions();
+			if (options.get(EditorOption.readOnly) !== isReadonly || options.get(EditorOption.padding) !== padding) {
+				editor.updateOptions({ readOnly: notebookEditor.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
+			}
+		};
+
 		updateEditorOptions();
 		this._register(viewCell.onDidChangeState((e) => {
 			if (e.metadataChanged || e.internalMetadataChanged) {
@@ -386,6 +406,8 @@ export class CodeCell extends Disposable {
 	}
 
 	override dispose() {
+		this._isDisposed = true;
+
 		this.viewCell.detachTextEditor();
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
