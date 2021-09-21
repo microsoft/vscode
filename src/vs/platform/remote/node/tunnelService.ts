@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IAddressProvider, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { AbstractTunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { AbstractTunnelService, isAllInterfaces, isLocalhost, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -56,7 +56,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this._server.on('error', this._errorListener);
 
 		this.tunnelRemotePort = tunnelRemotePort;
-		this.tunnelRemoteHost = tunnelRemoteHost;
+		this.tunnelRemoteHost = (isLocalhost(tunnelRemoteHost) || isAllInterfaces(tunnelRemoteHost)) ? 'localhost' : tunnelRemoteHost;
 	}
 
 	public override async dispose(): Promise<void> {
