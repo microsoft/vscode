@@ -20,12 +20,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { InlayHint, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
+import { InlayHint, InlayHintKind, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { editorInlayHintBackground, editorInlayHintForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorInlayHintBackground, editorInlayHintForeground, editorInlayHintParameterBackground, editorInlayHintParameterForeground, editorInlayHintTypeBackground, editorInlayHintTypeForeground } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 const MAX_DECORATORS = 1500;
 
@@ -78,7 +78,6 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _getInlayHintsDelays = new LanguageFeatureRequestDelays(InlayHintsProviderRegistry, 25, 500);
-
 	private readonly _cache = new InlayHintsCache();
 
 	private _decorationsTypeIds: string[] = [];
@@ -87,10 +86,8 @@ export class InlayHintsController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		this._disposables.add(InlayHintsProviderRegistry.onDidChange(() => this._update()));
-		this._disposables.add(_themeService.onDidColorThemeChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
@@ -98,7 +95,6 @@ export class InlayHintsController implements IEditorContribution {
 				this._update();
 			}
 		}));
-
 		this._update();
 	}
 
@@ -179,14 +175,12 @@ export class InlayHintsController implements IEditorContribution {
 	private _updateHintsDecorators(ranges: Range[], hints: InlayHint[]): void {
 
 		const { fontSize, fontFamily } = this._getLayoutInfo();
-		const backgroundColor = this._themeService.getColorTheme().getColor(editorInlayHintBackground);
-		const fontColor = this._themeService.getColorTheme().getColor(editorInlayHintForeground);
 		const model = this._editor.getModel()!;
 
 		const newDecorationsTypeIds: string[] = [];
 		const newDecorationsData: IModelDeltaDecoration[] = [];
 
-		const fontFamilyVar = '--inlayHintsFontFamily';
+		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
 		for (const hint of hints) {
@@ -195,14 +189,22 @@ export class InlayHintsController implements IEditorContribution {
 
 			const contentOptions: IContentDecorationRenderOptions = {
 				contentText: fixSpace(text),
-				backgroundColor: `${backgroundColor}`,
-				color: `${fontColor}`,
 				fontSize: `${fontSize}px`,
 				fontFamily: `var(${fontFamilyVar})`,
 				padding: `0px ${(fontSize / 4) | 0}px`,
 				borderRadius: `${(fontSize / 4) | 0}px`,
-				verticalAlign: 'middle'
+				verticalAlign: 'middle',
+				backgroundColor: themeColorFromId(editorInlayHintBackground),
+				color: themeColorFromId(editorInlayHintForeground)
 			};
+
+			if (hint.kind === InlayHintKind.Parameter) {
+				contentOptions.backgroundColor = themeColorFromId(editorInlayHintParameterBackground);
+				contentOptions.color = themeColorFromId(editorInlayHintParameterForeground);
+			} else if (hint.kind === InlayHintKind.Type) {
+				contentOptions.backgroundColor = themeColorFromId(editorInlayHintTypeBackground);
+				contentOptions.color = themeColorFromId(editorInlayHintTypeForeground);
+			}
 
 			let renderOptions: IDecorationRenderOptions = { beforeInjectedText: { ...contentOptions, affectsLetterSpacing: true } };
 
@@ -211,8 +213,8 @@ export class InlayHintsController implements IEditorContribution {
 			let usesWordRange = false;
 			if (word) {
 				if (word.endColumn === position.column) {
-					// change decoration to after
 					range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
+					// change decoration to after
 					renderOptions.afterInjectedText = renderOptions.beforeInjectedText;
 					renderOptions.beforeInjectedText = undefined;
 					usesWordRange = true;
