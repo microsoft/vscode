@@ -1065,7 +1065,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._webglAddon?.clearTextureAtlas();
-		// TODO: Do canvas renderer too?
+		this._xterm?.clearTextureAtlas();
 	}
 
 	focus(force?: boolean): void {
