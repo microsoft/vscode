@@ -55,7 +55,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number }>();
 	private readonly processedFileExtensions: string[] = [];
 	private readonly processedLanguages: string[] = [];
-	private tasExperimentService?: ITASExperimentService;
 
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> {
 		const recommendations: ExtensionRecommendation[] = [];
@@ -104,7 +103,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IFileService private readonly fileService: IFileService,
-		@ITASExperimentService tasExperimentService: ITASExperimentService,
+		@ITASExperimentService private tasExperimentService: ITASExperimentService,
 	) {
 		super();
 
@@ -282,7 +281,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		const message = await this.tasExperimentService?.getTreatment<string>('languageRecommendationMessage') ?? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
+		const message = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage') ?? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
 
 		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], message, `@id:${extensionId}`, RecommendationSource.FILE)
 			.then(result => {
