@@ -495,7 +495,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.SizeToContentWidthInstance,
-						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Set width to content")
+						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle size to content width")
 					},
 					group: ContextMenuGroup.Edit
 				}
@@ -573,7 +573,7 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: {
 			id: TerminalCommandId.SizeToContentWidth,
-			title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Set width to content")
+			title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle size to content width")
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
 		group: '3_files'
