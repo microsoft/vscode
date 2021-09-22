@@ -286,7 +286,14 @@ export class CellOutputElement extends Disposable {
 			offsetHeight = this.renderResult.initHeight;
 			this._initHeightChecked = true;
 		} else {
-			this._initHeightChecked = false;
+			const outputIndex = this.viewCell.outputsViewModels.indexOf(this.output);
+			const oldHeight = this.viewCell.getOutputHeight(outputIndex);
+			if (oldHeight >= 0) {
+				offsetHeight = oldHeight;
+				this._initHeightChecked = true;
+			} else {
+				this._initHeightChecked = false;
+			}
 		}
 
 		const dimension = {

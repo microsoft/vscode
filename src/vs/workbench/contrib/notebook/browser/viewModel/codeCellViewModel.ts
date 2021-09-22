@@ -374,6 +374,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 	}
 
+	getOutputHeight(index: number) {
+		if (index >= this._outputCollection.length) {
+			return -1;
+		}
+
+		this._ensureOutputsTop();
+		return this._outputCollection[index];
+	}
+
 	getOutputOffsetInContainer(index: number) {
 		this._ensureOutputsTop();
 
