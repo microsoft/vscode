@@ -243,6 +243,11 @@ export function activate(context: vscode.ExtensionContext) {
 					id: 'other',
 					label: 'Other',
 					themeIcon: 'circuit-board'
+				},
+				{
+					id: 'private',
+					label: 'Private',
+					themeIcon: 'eye-closed'
 				}
 			] : []
 		},

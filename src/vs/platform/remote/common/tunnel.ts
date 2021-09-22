@@ -39,9 +39,9 @@ export enum TunnelProtocol {
 }
 
 export enum TunnelPrivacyId {
-	ConstantPrivate = 'ConstantPrivate', // private, and changing is unsupported
-	Private = 'Private',
-	Public = 'Public'
+	ConstantPrivate = 'constantPrivate', // private, and changing is unsupported
+	Private = 'private',
+	Public = 'public'
 }
 
 export interface TunnelCreationOptions {

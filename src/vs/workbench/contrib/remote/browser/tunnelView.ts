@@ -309,7 +309,7 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 		if (row instanceof TunnelItem) {
 			tooltip = `${row.privacy.label} ${row.tooltipPostfix}`;
 		}
-		return { label, tunnel: row, icon: ThemeIcon.fromString(row.privacy.themeIcon), editId: TunnelEditId.None, tooltip };
+		return { label, tunnel: row, icon: { id: row.privacy.themeIcon }, editId: TunnelEditId.None, tooltip };
 	}
 }
 
@@ -678,6 +678,7 @@ class TunnelItem implements ITunnelItem {
 export const TunnelTypeContextKey = new RawContextKey<TunnelType>('tunnelType', TunnelType.Add, true);
 export const TunnelCloseableContextKey = new RawContextKey<boolean>('tunnelCloseable', false, true);
 const TunnelPrivacyContextKey = new RawContextKey<TunnelPrivacyId | string | undefined>('tunnelPrivacy', undefined, true);
+const TunnelPrivacyEnabledContextKey = new RawContextKey<boolean>('tunnelPrivacyEnabled', false, true);
 const TunnelProtocolContextKey = new RawContextKey<TunnelProtocol | undefined>('tunnelProtocol', TunnelProtocol.Http, true);
 const TunnelViewFocusContextKey = new RawContextKey<boolean>('tunnelViewFocus', false, nls.localize('tunnel.focusContext', "Whether the Ports view has focus."));
 const TunnelViewSelectionKeyName = 'tunnelViewSelection';
@@ -696,6 +697,7 @@ export class TunnelPanel extends ViewPane {
 	private tunnelTypeContext: IContextKey<TunnelType>;
 	private tunnelCloseableContext: IContextKey<boolean>;
 	private tunnelPrivacyContext: IContextKey<TunnelPrivacyId | string | undefined>;
+	private tunnelPrivacyEnabledContext: IContextKey<boolean>;
 	private tunnelProtocolContext: IContextKey<TunnelProtocol | undefined>;
 	private tunnelViewFocusContext: IContextKey<boolean>;
 	private tunnelViewSelectionContext: IContextKey<ITunnelItem | undefined>;
@@ -730,6 +732,8 @@ export class TunnelPanel extends ViewPane {
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
 		this.tunnelCloseableContext = TunnelCloseableContextKey.bindTo(contextKeyService);
 		this.tunnelPrivacyContext = TunnelPrivacyContextKey.bindTo(contextKeyService);
+		this.tunnelPrivacyEnabledContext = TunnelPrivacyEnabledContextKey.bindTo(contextKeyService);
+		this.tunnelPrivacyEnabledContext.set(tunnelService.privacyOptions.length !== 0);
 		this.tunnelProtocolContext = TunnelProtocolContextKey.bindTo(contextKeyService);
 		this.tunnelViewFocusContext = TunnelViewFocusContextKey.bindTo(contextKeyService);
 		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
@@ -750,6 +754,23 @@ export class TunnelPanel extends ViewPane {
 		this._register(toDisposable(() => {
 			this.titleActions = [];
 		}));
+
+		this.registerPrivacyActions();
+	}
+
+	private registerPrivacyActions() {
+		for (const privacyOption of this.tunnelService.privacyOptions) {
+			const optionId = `remote.tunnel.privacy${privacyOption.id}`;
+			CommandsRegistry.registerCommand(optionId, ChangeTunnelPrivacyAction.handler(privacyOption.id));
+			MenuRegistry.appendMenuItem(MenuId.TunnelPrivacy, ({
+				order: 0,
+				command: {
+					id: optionId,
+					title: privacyOption.label,
+					toggled: TunnelPrivacyContextKey.isEqualTo(privacyOption.id)
+				}
+			}));
+		}
 	}
 
 	get portCount(): number {
@@ -1382,10 +1403,7 @@ namespace ChangeLocalPortAction {
 }
 
 namespace ChangeTunnelPrivacyAction {
-	export const ID = 'remote.tunnel.changePrivacy';
-	export const LABEL = nls.localize('remote.tunnel.changePrivacy', "Change privacy");
-
-	export function handler(): ICommandHandler {
+	export function handler(privacyId: string): ICommandHandler {
 		return async (accessor, arg) => {
 			if (arg instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
@@ -1395,29 +1413,7 @@ namespace ChangeTunnelPrivacyAction {
 					local: arg.localPort,
 					name: arg.name,
 					elevateIfNeeded: true,
-					// privacy: true,
-					source: arg.source
-				});
-			}
-		};
-	}
-}
-
-namespace MakePortPrivateAction {
-	export const ID = 'remote.tunnel.makePrivate';
-	export const LABEL = nls.localize('remote.tunnel.makePrivate', "Make Private");
-
-	export function handler(): ICommandHandler {
-		return async (accessor, arg) => {
-			if (arg instanceof TunnelItem) {
-				const remoteExplorerService = accessor.get(IRemoteExplorerService);
-				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
-				return remoteExplorerService.forward({
-					remote: { host: arg.remoteHost, port: arg.remotePort },
-					local: arg.localPort,
-					name: arg.name,
-					elevateIfNeeded: true,
-					privacy: TunnelPrivacyId.Private,
+					privacy: privacyId,
 					source: arg.source
 				});
 			}
@@ -1497,8 +1493,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 CommandsRegistry.registerCommand(CopyAddressAction.COMMANDPALETTE_ID, CopyAddressAction.commandPaletteHandler());
 CommandsRegistry.registerCommand(ChangeLocalPortAction.ID, ChangeLocalPortAction.handler());
-CommandsRegistry.registerCommand(ChangeTunnelPrivacyAction.ID, ChangeTunnelPrivacyAction.handler());
-CommandsRegistry.registerCommand(MakePortPrivateAction.ID, MakePortPrivateAction.handler());
 CommandsRegistry.registerCommand(SetTunnelProtocolAction.ID_HTTP, SetTunnelProtocolAction.handlerHttp());
 CommandsRegistry.registerCommand(SetTunnelProtocolAction.ID_HTTPS, SetTunnelProtocolAction.handlerHttps());
 
@@ -1584,20 +1578,9 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '2_localaddress',
 	order: 2,
-	command: {
-		id: ChangeTunnelPrivacyAction.ID,
-		title: ChangeTunnelPrivacyAction.LABEL,
-	},
-	when: ContextKeyExpr.and(TunnelPrivacyContextKey.isEqualTo(TunnelPrivacyId.Private), isNotMultiSelectionExpr)
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '2_localaddress',
-	order: 2,
-	command: {
-		id: MakePortPrivateAction.ID,
-		title: MakePortPrivateAction.LABEL,
-	},
-	when: ContextKeyExpr.and(isNotPrivateExpr, isNotMultiSelectionExpr)
+	submenu: MenuId.TunnelPrivacy,
+	title: nls.localize('tunnelContext.privacyMenu', "Port Privacy"),
+	when: TunnelPrivacyEnabledContextKey
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '2_localaddress',
