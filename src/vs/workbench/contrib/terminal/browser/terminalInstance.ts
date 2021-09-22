@@ -321,7 +321,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isVisible = false;
 		this._isDisposed = false;
 		this._instanceId = TerminalInstance._instanceIdCounter++;
-		this._terminalHasFixedWidth.set(false);
 		this._hasHadInput = false;
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
@@ -1761,6 +1760,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
+		console.log(cols, rows);
 		if (immediate) {
 			// do not await, call setDimensions synchronously
 			this._processManager.setDimensions(cols, rows, true);
@@ -1873,6 +1873,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._fixedCols = this._parseFixedDimension(cols);
+		this._terminalHasFixedWidth.set(!!this._fixedCols);
 		const rows = await this._quickInputService.input({
 			title: nls.localize('setTerminalDimensionsRow', "Set Fixed Dimensions: Row"),
 			placeHolder: 'Enter a number or leave empty for automatic height',
@@ -1916,22 +1917,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				maxCols = Math.max(maxCols, lineWidth.width || 0);
 				i = lineWidth.newIndex;
 			}
+			maxCols = Math.min(1000, maxCols);
 			if (maxCols > this.cols) {
 				this._fixedCols = maxCols;
+				// this._fixedRows = this.rows - (something times font size?)
 				await this._resize();
 				this._terminalHasFixedWidth.set(true);
 				if (!this._scrollable && this._xtermElement && this._wrapperElement && this._container) {
 					this._scrollable = new DomScrollableElement(this._wrapperElement, {
 						vertical: ScrollbarVisibility.Hidden,
-						horizontal: ScrollbarVisibility.Visible,
+						horizontal: ScrollbarVisibility.Visible
 					});
+					// recalcuate rows given that the scrollbar exists
+					// include a boolean has scrollbar so that in getDimensions, it's - 2 - scrollbar height
 					this._container.appendChild(this._scrollable.getDomNode());
 				}
 				this._scrollable?.setScrollDimensions(
 					{
 						width: this._xterm.element?.clientWidth,
-						scrollWidth: 1000, // TODO: Get actual scroll width
+						scrollWidth: this._fixedCols * this._configHelper.getFont(this._xtermCore).charWidth! - this._xterm.element!.clientWidth
 					});
+
+				for (let j = this._xterm.buffer.active.viewportY; j < this._xterm.buffer.active.length; j++) {
+					let line = this._xterm.buffer.active.getLine(j);
+					(line as any)._line.isWrapped = false;
+				}
 			}
 		}
 	}

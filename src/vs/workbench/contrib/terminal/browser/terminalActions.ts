@@ -36,7 +36,7 @@ import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/searc
 import { Direction, ICreateTerminalOptions, IRemoteTerminalService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { ILocalTerminalService, IRemoteTerminalAttachTarget, ITerminalConfigHelper, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { TerminalContextKeys, TerminalContextKeyStrings } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -1854,7 +1854,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.SizeToContentWidth,
-				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Size to Content Width"), original: 'Size to Content Width' },
+				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection),
@@ -1872,11 +1872,11 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.SizeToContentWidthInstance,
-				title: { value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Size to Content Width"), original: 'Size to Content Width' },
+				title: { value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection),
-				toggled: ContextKeyExpr.equals('terminalHasFixedWidth', false),
+				// toggled: TerminalContextKeys.terminalHasFixedWidth,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_Z,
 					weight: KeybindingWeight.WorkbenchContrib
