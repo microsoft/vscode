@@ -149,10 +149,10 @@ export interface IEditorResolverService {
 	): IDisposable;
 
 	/**
-	 * Given an editor resolves it to the suitable IEditorInputWithOptionsAndGroup based on user extensions, settings, and built-in editors
+	 * Given an editor resolves it to the suitable EditorInputWithOptionsAndGroup based on user extensions, settings, and built-in editors
 	 * @param editor The editor to resolve
 	 * @param preferredGroup The group you want to open the editor in
-	 * @returns An IEditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
+	 * @returns An EditorInputWithOptionsAndGroup if there is an available editor or a status of how to proceed
 	 */
 	resolveEditor(editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor>;
 

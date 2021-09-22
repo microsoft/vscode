@@ -543,7 +543,7 @@ export function isEditorInput(editor: unknown): editor is EditorInput {
 	return editor instanceof AbstractEditorInput;
 }
 
-export interface IEditorInputWithPreferredResource {
+export interface EditorInputWithPreferredResource {
 
 	/**
 	 * An editor may provide an additional preferred resource alongside
@@ -565,8 +565,8 @@ export interface IEditorInputWithPreferredResource {
 	readonly preferredResource: URI;
 }
 
-function isEditorInputWithPreferredResource(editor: unknown): editor is IEditorInputWithPreferredResource {
-	const candidate = editor as IEditorInputWithPreferredResource | undefined;
+function isEditorInputWithPreferredResource(editor: unknown): editor is EditorInputWithPreferredResource {
+	const candidate = editor as EditorInputWithPreferredResource | undefined;
 
 	return URI.isUri(candidate?.preferredResource);
 }
@@ -621,7 +621,7 @@ export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.
  */
-export interface IFileEditorInput extends EditorInput, IEncodingSupport, IModeSupport, IEditorInputWithPreferredResource {
+export interface IFileEditorInput extends EditorInput, IEncodingSupport, IModeSupport, EditorInputWithPreferredResource {
 
 	/**
 	 * Gets the resource this file input is about. This will always be the

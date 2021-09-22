@@ -250,7 +250,7 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 	}
 }
 
-// Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+// Registry.as<EditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
 // 	InteractiveEditorInput.ID,
 // 	InteractiveEditorSerializer
 // );
