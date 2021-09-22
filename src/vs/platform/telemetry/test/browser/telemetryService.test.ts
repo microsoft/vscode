@@ -234,7 +234,7 @@ suite('TelemetryService', () => {
 		}
 	}
 
-	test('Error events', sinonTestFn(async function (this: any) {
+	test.skip('Error events', sinonTestFn(async function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -296,7 +296,7 @@ suite('TelemetryService', () => {
 	// 		}
 	// 	}));
 
-	test('Handle global errors', sinonTestFn(async function (this: any) {
+	test.skip('Handle global errors', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 
