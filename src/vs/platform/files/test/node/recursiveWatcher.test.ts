@@ -109,7 +109,7 @@ flakySuite('Recursive Watcher', () => {
 		await Promises.rename(newFolderPath, renamedFolderPath);
 		await changeFuture;
 
-		// TODO: case rename is currently broken on macOS
+		// TODO: case rename is currently broken on macOS (https://github.com/Axosoft/nsfw/issues/146)
 		if (isWindows) {
 
 			// Rename file (same name, different case)

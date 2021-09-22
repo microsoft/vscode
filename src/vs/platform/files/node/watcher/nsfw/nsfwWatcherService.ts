@@ -243,6 +243,17 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 			this.enospcErrorLogged = true;
 			this.error('Inotify limit reached (ENOSPC)');
 		}
+
+		// Specially handle this error that indicates the watcher
+		// has stopped and we need to restart it.
+		else if (msg.indexOf('Service shutdown unexpectedly') !== -1) {
+			this.error('Watcher service shutdown unexpectedly (ESHUTDOWN)');
+		}
+
+		// Log any other error
+		else {
+			this.error(msg);
+		}
 	}
 
 	async stop(): Promise<void> {

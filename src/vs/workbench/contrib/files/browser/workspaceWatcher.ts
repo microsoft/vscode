@@ -17,6 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class WorkspaceWatcher extends Disposable {
 
@@ -28,7 +29,8 @@ export class WorkspaceWatcher extends Disposable {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -73,22 +75,6 @@ export class WorkspaceWatcher extends Disposable {
 		// Forward to unexpected error handler
 		onUnexpectedError(msg);
 
-		// Detect if we run < .NET Framework 4.5
-		if (msg.indexOf('System.MissingMethodException') >= 0) {
-			this.notificationService.prompt(
-				Severity.Warning,
-				localize('netVersionError', "The Microsoft .NET Framework 4.5 is required. Please follow the link to install it."),
-				[{
-					label: localize('installNet', "Download .NET Framework 4.5"),
-					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=786533'))
-				}],
-				{
-					sticky: true,
-					neverShowAgain: { id: 'ignoreNetVersionError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
-				}
-			);
-		}
-
 		// Detect if we run into ENOSPC issues
 		if (msg.indexOf('ENOSPC') >= 0) {
 			this.notificationService.prompt(
@@ -101,6 +87,22 @@ export class WorkspaceWatcher extends Disposable {
 				{
 					sticky: true,
 					neverShowAgain: { id: 'ignoreEnospcError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
+				}
+			);
+		}
+
+		// Detect when the watcher shutsdown unexpectedly
+		else if (msg.indexOf('ESHUTDOWN') >= 0) {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize('eshutdownError', "File changes watcher stopped unexpectedly. Please reload the window to enable the watcher again."),
+				[{
+					label: localize('reload', "Reload"),
+					run: () => this.hostService.reload()
+				}],
+				{
+					sticky: true,
+					neverShowAgain: { id: 'ignoreEshutdownError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
 				}
 			);
 		}
