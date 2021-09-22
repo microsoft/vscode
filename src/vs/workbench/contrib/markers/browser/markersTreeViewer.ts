@@ -385,8 +385,9 @@ class MarkerWidget extends Disposable {
 					code.set(marker.code, codeMatches);
 				} else {
 					// TODO@sandeep: these widgets should be disposed
-					const code = new HighlightedLabel(dom.$('.marker-code'), false);
-					new Link(parent, { href: marker.code.target.toString(), label: code.element, title: marker.code.target.toString() }, undefined, this._openerService);
+					const container = dom.$('.marker-code');
+					const code = new HighlightedLabel(container, false);
+					new Link(parent, { href: marker.code.target.toString(), label: container, title: marker.code.target.toString() }, undefined, this._openerService);
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
 				}
