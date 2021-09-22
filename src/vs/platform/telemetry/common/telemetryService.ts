@@ -13,11 +13,11 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryConfiguration, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
-	appender: ITelemetryAppender;
+	appenders: ITelemetryAppender[];
 	sendErrorTelemetry?: boolean;
 	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
@@ -30,13 +30,11 @@ export class TelemetryService implements ITelemetryService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _appender: ITelemetryAppender;
+	private _appenders: ITelemetryAppender[];
 	private _commonProperties: Promise<{ [name: string]: any; }>;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
-	private _userOptIn: boolean;
-	private _errorOptIn: boolean;
-	private _enabled: boolean;
+	private _telemetryLevel: TelemetryLevel;
 	public readonly sendErrorTelemetry: boolean;
 
 	private readonly _disposables = new DisposableStore();
@@ -46,12 +44,10 @@ export class TelemetryService implements ITelemetryService {
 		config: ITelemetryServiceConfig,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
-		this._appender = config.appender;
+		this._appenders = config.appenders;
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
-		this._userOptIn = true;
-		this._errorOptIn = true;
-		this._enabled = true;
+		this._telemetryLevel = TelemetryLevel.USAGE;
 		this.sendErrorTelemetry = !!config.sendErrorTelemetry;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
@@ -62,15 +58,15 @@ export class TelemetryService implements ITelemetryService {
 		}
 
 
-		this._updateUserOptIn();
-		this._configurationService.onDidChangeConfiguration(this._updateUserOptIn, this, this._disposables);
+		this._updateTelemetryLevel();
+		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
 		type OptInClassification = {
 			optIn: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
 		};
 		type OptInEvent = {
 			optIn: boolean;
 		};
-		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._userOptIn });
+		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._telemetryLevel === TelemetryLevel.USAGE });
 
 		this._commonProperties.then(values => {
 			const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
@@ -95,10 +91,6 @@ export class TelemetryService implements ITelemetryService {
 		this._experimentProperties[name] = value;
 	}
 
-	setEnabled(value: boolean): void {
-		this._enabled = value;
-	}
-
 	// TODO: @sbatten @lramos15 bring this code in after one iteration
 	// private _convertOldTelemetrySettingToNew(): void {
 	// 	const telemetryValue = this._configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
@@ -107,14 +99,12 @@ export class TelemetryService implements ITelemetryService {
 	// 	}
 	// }
 
-	private _updateUserOptIn(): void {
-		const telemetryConfig = getTelemetryConfiguration(this._configurationService);
-		this._errorOptIn = telemetryConfig !== TelemetryConfiguration.OFF;
-		this._userOptIn = telemetryConfig === TelemetryConfiguration.ON;
+	private _updateTelemetryLevel(): void {
+		this._telemetryLevel = getTelemetryLevel(this._configurationService);
 	}
 
-	get isOptedIn(): boolean {
-		return this._userOptIn && this._enabled;
+	get telemetryLevel(): TelemetryLevel {
+		return this._telemetryLevel;
 	}
 
 	async getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -134,9 +124,9 @@ export class TelemetryService implements ITelemetryService {
 		this._disposables.dispose();
 	}
 
-	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
+	private _log(eventName: string, eventLevel: TelemetryLevel, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
 		// don't send events when the user is optout
-		if (!this.isOptedIn) {
+		if (this.telemetryLevel < eventLevel) {
 			return Promise.resolve(undefined);
 		}
 
@@ -156,7 +146,8 @@ export class TelemetryService implements ITelemetryService {
 				return undefined;
 			});
 
-			this._appender.log(eventName, data);
+			// Log to the appenders of sufficient level
+			this._appenders.forEach(a => a.log(eventName, data));
 
 		}, err => {
 			// unsure what to do now...
@@ -164,17 +155,21 @@ export class TelemetryService implements ITelemetryService {
 		});
 	}
 
+	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<any> {
+		return this._log(eventName, TelemetryLevel.USAGE, data, anonymizeFilePaths);
+	}
+
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<any> {
 		return this.publicLog(eventName, data as ITelemetryData, anonymizeFilePaths);
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
-		if (!this.sendErrorTelemetry || !this._errorOptIn) {
+		if (!this.sendErrorTelemetry) {
 			return Promise.resolve(undefined);
 		}
 
 		// Send error event and anonymize paths
-		return this.publicLog(errorEventName, data, true);
+		return this._log(errorEventName, TelemetryLevel.ERROR, data, true);
 	}
 
 	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<any> {

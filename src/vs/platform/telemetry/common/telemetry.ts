@@ -43,13 +43,11 @@ export interface ITelemetryService {
 
 	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
 
-	setEnabled(value: boolean): void;
-
 	getTelemetryInfo(): Promise<ITelemetryInfo>;
 
 	setExperimentProperty(name: string, value: string): void;
 
-	isOptedIn: boolean;
+	telemetryLevel: TelemetryLevel;
 }
 
 export interface ITelemetryEndpoint {
@@ -81,8 +79,8 @@ export const TELEMETRY_OLD_SETTING_ID = 'telemetry.enableTelemetry';
 
 export const enum TelemetryLevel {
 	NONE = 0,
-	LOG = 1,
-	USER = 2
+	ERROR = 2,
+	USAGE = 3
 }
 
 export const enum TelemetryConfiguration {

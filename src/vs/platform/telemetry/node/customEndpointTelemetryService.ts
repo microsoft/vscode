@@ -12,8 +12,6 @@ import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, IT
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-
 export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	declare readonly _serviceBrand: undefined;
 
@@ -48,13 +46,13 @@ export class CustomEndpointTelemetryService implements ICustomEndpointTelemetryS
 			);
 
 			const channel = client.getChannel('telemetryAppender');
-			const appender = combinedAppender(
+			const appenders = [
 				new TelemetryAppenderClient(channel),
 				new TelemetryLogAppender(this.loggerService, this.environmentService, `[${endpoint.id}] `),
-			);
+			];
 
 			this.customTelemetryServices.set(endpoint.id, new TelemetryService({
-				appender,
+				appenders,
 				sendErrorTelemetry: endpoint.sendErrorTelemetry
 			}, this.configurationService));
 		}
