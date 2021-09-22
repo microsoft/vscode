@@ -648,6 +648,10 @@ export interface IEditorOptions {
 	 * Control if the editor should use shadow DOM.
 	 */
 	useShadowDOM?: boolean;
+	/**
+	 * Controls the behavior of editor guides.
+	*/
+	guides?: IGuidesOptions;
 }
 
 /**
@@ -3315,45 +3319,45 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 
 //#endregion
 
-//#region bracketPairColorization
+//#region guides
 
-export interface IBracketPairGuideOptions {
+export interface IGuidesOptions {
 	/**
 	 * Enable or disable bracket pair guides.
 	*/
-	enabled?: boolean;
+	bracketPairs?: boolean;
 }
 
-export type InternalBracketPairGuideOptions = Readonly<Required<IBracketPairGuideOptions>>;
+export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
 
 /**
  * Configuration options for inline suggestions
  */
-class BracketPairGuideOptions extends BaseEditorOption<EditorOption.bracketPairGuides, InternalBracketPairGuideOptions> {
+class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesOptions> {
 	constructor() {
-		const defaults: InternalBracketPairGuideOptions = {
-			enabled: false,
+		const defaults: InternalGuidesOptions = {
+			bracketPairs: false,
 		};
 
 		super(
-			EditorOption.bracketPairGuides, 'bracketPairGuides', defaults,
+			EditorOption.guides, 'guides', defaults,
 			{
-				'editor.bracketPairGuides.enabled': {
+				'editor.guides.bracketPairs': {
 					type: 'boolean',
-					default: defaults.enabled,
-					description: nls.localize('bracketPairGuides.enabled', "Controls whether bracket pair guides are enabled or not.")
+					default: defaults.bracketPairs,
+					description: nls.localize('editor.guides.bracketPairs', "Controls whether bracket pair guides are enabled or not.")
 				}
 			}
 		);
 	}
 
-	public validate(_input: any): InternalBracketPairGuideOptions {
+	public validate(_input: any): InternalGuidesOptions {
 		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
-		const input = _input as IBracketPairGuideOptions;
+		const input = _input as IGuidesOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			bracketPairs: boolean(input.bracketPairs, this.defaultValue.bracketPairs)
 		};
 	}
 }
@@ -3999,7 +4003,7 @@ export const enum EditorOption {
 	automaticLayout,
 	autoSurround,
 	bracketPairColorization,
-	bracketPairGuides,
+	guides,
 	codeLens,
 	codeLensFontFamily,
 	codeLensFontSize,
@@ -4251,7 +4255,7 @@ export const EditorOptions = {
 		}
 	)),
 	bracketPairColorization: register(new BracketPairColorization()),
-	bracketPairGuides: register(new BracketPairGuideOptions()),
+	bracketPairGuides: register(new GuideOptions()),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
 		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }

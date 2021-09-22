@@ -180,7 +180,7 @@ export enum EditorOption {
 	automaticLayout = 10,
 	autoSurround = 11,
 	bracketPairColorization = 12,
-	bracketPairGuides = 13,
+	guides = 13,
 	codeLens = 14,
 	codeLensFontFamily = 15,
 	codeLensFontSize = 16,

@@ -10,7 +10,7 @@ import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOption, InternalBracketPairGuideOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, InternalGuidesOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IndentGuide } from 'vs/editor/common/model';
 import { ArrayQueue } from 'vs/base/common/arrays';
@@ -25,7 +25,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	private _indentGuidesEnabled: boolean;
 	private _activeIndentEnabled: boolean;
 	private _maxIndentLeft: number;
-	private _bracketPairGuideOptions: InternalBracketPairGuideOptions;
+	private _bracketPairGuideOptions: InternalGuidesOptions;
 
 	constructor(context: ViewContext) {
 		super();
@@ -41,7 +41,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._indentGuidesEnabled = options.get(EditorOption.renderIndentGuides);
 		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
-		this._bracketPairGuideOptions = options.get(EditorOption.bracketPairGuides);
+		this._bracketPairGuideOptions = options.get(EditorOption.guides);
 
 		this._renderResult = null;
 
@@ -66,7 +66,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		this._indentGuidesEnabled = options.get(EditorOption.renderIndentGuides);
 		this._activeIndentEnabled = options.get(EditorOption.highlightActiveIndentGuide);
 		this._maxIndentLeft = wrappingInfo.wrappingColumn === -1 ? -1 : (wrappingInfo.wrappingColumn * fontInfo.typicalHalfwidthCharacterWidth);
-		this._bracketPairGuideOptions = options.get(EditorOption.bracketPairGuides);
+		this._bracketPairGuideOptions = options.get(EditorOption.guides);
 
 		return true;
 	}
@@ -109,7 +109,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (!this._indentGuidesEnabled && !this._bracketPairGuideOptions.enabled) {
+		if (!this._indentGuidesEnabled && !this._bracketPairGuideOptions.bracketPairs) {
 			this._renderResult = null;
 			return;
 		}
@@ -150,7 +150,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		visibleEndLineNumber: number,
 		activeCursorPosition: Position | null
 	): IndentGuide[][] {
-		const bracketGuides = this._bracketPairGuideOptions.enabled
+		const bracketGuides = this._bracketPairGuideOptions.bracketPairs
 			? this._context.model.getBracketGuidesInRangeByLine(
 				visibleStartLineNumber,
 				visibleEndLineNumber,

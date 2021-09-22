@@ -3287,6 +3287,10 @@ declare namespace monaco.editor {
 		 * Control if the editor should use shadow DOM.
 		 */
 		useShadowDOM?: boolean;
+		/**
+		 * Controls the behavior of editor guides.
+		*/
+		guides?: IGuidesOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3894,14 +3898,14 @@ declare namespace monaco.editor {
 
 	export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
 
-	export interface IBracketPairGuideOptions {
+	export interface IGuidesOptions {
 		/**
 		 * Enable or disable bracket pair guides.
 		*/
-		enabled?: boolean;
+		bracketPairs?: boolean;
 	}
 
-	export type InternalBracketPairGuideOptions = Readonly<Required<IBracketPairGuideOptions>>;
+	export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
 
 	/**
 	 * Configuration options for editor suggest widget
@@ -4112,7 +4116,7 @@ declare namespace monaco.editor {
 		automaticLayout = 10,
 		autoSurround = 11,
 		bracketPairColorization = 12,
-		bracketPairGuides = 13,
+		guides = 13,
 		codeLens = 14,
 		codeLensFontFamily = 15,
 		codeLensFontSize = 16,
@@ -4247,7 +4251,7 @@ declare namespace monaco.editor {
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
 		autoSurround: IEditorOption<EditorOption.autoSurround, 'languageDefined' | 'never' | 'quotes' | 'brackets'>;
 		bracketPairColorization: IEditorOption<EditorOption.bracketPairColorization, any>;
-		bracketPairGuides: IEditorOption<EditorOption.bracketPairGuides, any>;
+		bracketPairGuides: IEditorOption<EditorOption.guides, any>;
 		stickyTabStops: IEditorOption<EditorOption.stickyTabStops, boolean>;
 		codeLens: IEditorOption<EditorOption.codeLens, boolean>;
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
