@@ -39,7 +39,7 @@ const root2 = '/foo/root2';
 const ROOT_2 = fixPath(root2);
 const emptyRoot = '/foo';
 const ROOT_EMPTY = fixPath(emptyRoot);
-suite.only('Workbench - TerminalInstance', () => {
+suite('Workbench - TerminalInstance', () => {
 	suite('refreshLabel', () => {
 		let configurationService: TestConfigurationService;
 		let terminalLabelComputer: TerminalLabelComputer;
@@ -184,7 +184,7 @@ suite.only('Workbench - TerminalInstance', () => {
 				strictEqual(terminalLabelComputer.description, 'root2');
 			}
 		});
-		test.only('should hide cwdFolder in single folder workspaces when cwd matches the workspace\'s default cwd even when slashes differ', async () => {
+		test('should hide cwdFolder in single folder workspaces when cwd matches the workspace\'s default cwd even when slashes differ', async () => {
 			configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } }, cwd: '\\foo\\root1' } });
 			configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!, null!);
 			terminalLabelComputer = new TerminalLabelComputer(configHelper, createInstance({ capabilities, processName: 'process', workspaceFolder: 'folder', cwd: ROOT_1 }), mockContextService);
