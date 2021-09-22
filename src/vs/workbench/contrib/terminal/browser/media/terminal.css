@@ -229,6 +229,7 @@
 .monaco-workbench .terminal-overflow-guard {
 	overflow: hidden;
 	position: relative;
+	height: 100%;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
