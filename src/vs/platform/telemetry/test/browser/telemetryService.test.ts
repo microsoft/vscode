@@ -9,7 +9,7 @@ import * as Errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { ITelemetryData, TelemetryConfiguration } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryData, TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
@@ -791,15 +791,15 @@ suite('TelemetryService', () => {
 			}
 		}());
 
-		assert.strictEqual(service.isOptedIn, false);
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.NONE);
 
 		telemetryLevel = TelemetryConfiguration.ON;
 		emitter.fire({});
-		assert.strictEqual(service.isOptedIn, true);
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.USAGE);
 
 		telemetryLevel = TelemetryConfiguration.ERROR;
 		emitter.fire({});
-		assert.strictEqual(service.isOptedIn, false);
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
 
 		service.dispose();
 	});

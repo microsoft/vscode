@@ -21,7 +21,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler, Queue } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
@@ -1039,7 +1039,7 @@ export class DebugSession implements IDebugSession {
 					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 					// and the user opted in telemetry
 					const telemetryEndpoint = this.raw.dbgr.getCustomTelemetryEndpoint();
-					if (telemetryEndpoint && this.telemetryService.isOptedIn) {
+					if (telemetryEndpoint && this.telemetryService.telemetryLevel !== TelemetryLevel.NONE) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 						let data = event.body.data;
 						if (!telemetryEndpoint.sendErrorTelemetry && event.body.data) {
